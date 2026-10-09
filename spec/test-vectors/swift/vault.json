@@ -1,0 +1,52 @@
+{
+  "category" : "vault",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "code" : "472913",
+      "dek" : "304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1",
+      "deviceSecret" : "1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddc",
+      "iterations" : 1000,
+      "nonce" : "29486786a5c4e30221405f7e",
+      "salt" : "2241607f9ebddcfb1a39587796b5d4f3",
+      "vault" : "42525056012241607f9ebddcfb1a39587796b5d4f3000003e829486786a5c4e30221405f7e567d96b2a4b1423ce69ca9697f65f2011aa3b137fcf79e4bde0fe2590e13c6515c3eb31e1d71e7fbb2b0cd0b03ff44aa"
+    },
+    {
+      "code" : "830561",
+      "dek" : "4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d",
+      "deviceSecret" : "37567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f8",
+      "iterations" : 1000,
+      "nonce" : "456483a2c1e0ff1e3d5c7b9a",
+      "salt" : "3e5d7c9bbad9f81736557493b2d1f00f",
+      "vault" : "42525056013e5d7c9bbad9f81736557493b2d1f00f000003e8456483a2c1e0ff1e3d5c7b9a1cb44c7cf93e6536bde6b2610e96b15679b4a8d51ed31e0dd586c2d74c19a24031a6fd3beb84f0439cafa279fe7673af"
+    },
+    {
+      "code" : "019283",
+      "dek" : "6887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29",
+      "deviceSecret" : "537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f514",
+      "iterations" : 1000,
+      "nonce" : "61809fbeddfc1b3a597897b6",
+      "salt" : "5a7998b7d6f51433527190afceed0c2b",
+      "vault" : "42525056015a7998b7d6f51433527190afceed0c2b000003e861809fbeddfc1b3a597897b6da7b30a21971d2febf4b7d8b67cf56618e47615f7a0b6f41f7c3f27b670379c740e0891f8d76c5af62c0886265f3e139"
+    },
+    {
+      "code" : "200590",
+      "dek" : "84a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e8072645",
+      "deviceSecret" : "6f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f21130",
+      "iterations" : 1000,
+      "nonce" : "7d9cbbdaf91837567594b3d2",
+      "salt" : "7695b4d3f211304f6e8daccbea092847",
+      "vault" : "42525056017695b4d3f211304f6e8daccbea092847000003e87d9cbbdaf91837567594b3d2ad20bdd2761ba0b15631462816135261e029951e4ac2acfb13c6e9133709812c4a314935a7a4c7605db02e77f3b0d9bb"
+    },
+    {
+      "code" : "615204",
+      "dek" : "a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261",
+      "deviceSecret" : "8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c",
+      "iterations" : 600000,
+      "nonce" : "99b8d7f61534537291b0cfee",
+      "salt" : "92b1d0ef0e2d4c6b8aa9c8e706254463",
+      "vault" : "425250560192b1d0ef0e2d4c6b8aa9c8e706254463000927c099b8d7f61534537291b0cfee20f1b75b12d2ff94d1044acef83b01a7b58fab6386109a404e21bf7254cb777fc5efc650fcc0c95d56db8ef2b2d8eec4"
+    }
+  ],
+  "version" : 1
+}

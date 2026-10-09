@@ -1,0 +1,1049 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NEW_MESSAGE" : {
+      "comment" : "In-app banner for a message in another conversation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New message"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni mesaj"
+          }
+        }
+      }
+    },
+    "error.attachment.integrity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The attachment is damaged or was tampered with."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ek bozuk ya da üzerinde oynanmış."
+          }
+        }
+      }
+    },
+    "error.attachment.too_large" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file is too large to send."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dosya gönderilemeyecek kadar büyük."
+          }
+        }
+      }
+    },
+    "error.backup.invalid_file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This isn't a valid us2us backup file."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu geçerli bir us2us yedek dosyası değil."
+          }
+        }
+      }
+    },
+    "error.backup.wrong_password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This password doesn't open the backup."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu parola yedeği açmıyor."
+          }
+        }
+      }
+    },
+    "error.backup_password.mismatch" : {
+      "comment" : "Shown when the confirmation differs from the new backup password.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two passwords don't match."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Girdiğin iki parola aynı değil."
+          }
+        }
+      }
+    },
+    "error.backup_password.repeated_character" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The password can't be a single character repeated."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parola, tek bir karakterin tekrarından oluşamaz."
+          }
+        }
+      }
+    },
+    "error.backup_password.sequence" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The password can't be a simple sequence such as abcdefghij or qwertyuiop."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parola, abcdefghij veya qwertyuiop gibi basit bir dizi olamaz."
+          }
+        }
+      }
+    },
+    "error.backup_password.too_common" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This password is too common and easy to guess. Choose another one."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu parola çok yaygın ve kolay tahmin edilir. Başka bir parola seç."
+          }
+        }
+      }
+    },
+    "error.backup_password.too_short" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup password must be at least 10 characters long."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yedek parolası en az 10 karakter olmalı."
+          }
+        }
+      }
+    },
+    "error.messenger.content_too_large" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The message is too large to send."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesaj gönderilemeyecek kadar büyük."
+          }
+        }
+      }
+    },
+    "error.messenger.invalid_content" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The message couldn't be processed."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesaj işlenemedi."
+          }
+        }
+      }
+    },
+    "error.relay.access_denied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This person doesn't accept your messages right now."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kişi şu anda mesajlarını kabul etmiyor."
+          }
+        }
+      }
+    },
+    "error.relay.bad_request" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server rejected the request."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunucu isteği reddetti."
+          }
+        }
+      }
+    },
+    "error.relay.connection_replaced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account was opened in another session, so this one was disconnected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hesabın başka bir oturumda açıldığı için bu bağlantı kesildi."
+          }
+        }
+      }
+    },
+    "error.relay.network" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach the server. Check your connection."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunucuya ulaşılamıyor. Bağlantını kontrol et."
+          }
+        }
+      }
+    },
+    "error.relay.not_found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not found. The account may have been deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bulunamadı. Hesap silinmiş olabilir."
+          }
+        }
+      }
+    },
+    "error.relay.payload_too_large" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is too large to send."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu, gönderilemeyecek kadar büyük."
+          }
+        }
+      }
+    },
+    "error.relay.pow_invalid" : {
+      "comment" : "PoW = the anti-spam puzzle the phone solves.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The anti-spam check failed. Please try again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spam koruması doğrulanamadı. Lütfen tekrar dene."
+          }
+        }
+      }
+    },
+    "error.relay.rate_limited" : {
+      "comment" : "%@ is a duration such as “30 seconds”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many requests. Try again in %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çok fazla istek gönderildi. %@ sonra tekrar dene."
+          }
+        }
+      }
+    },
+    "error.relay.rate_limited_generic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many requests. Try again later."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çok fazla istek gönderildi. Daha sonra tekrar dene."
+          }
+        }
+      }
+    },
+    "error.relay.server" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server had a problem. Try again later."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunucuda bir sorun oluştu. Daha sonra tekrar dene."
+          }
+        }
+      }
+    },
+    "error.relay.unauthorized" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device is no longer signed in to your account."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazın hesabındaki oturumu sona erdi."
+          }
+        }
+      }
+    },
+    "error.relay.unexpected_response" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server sent an unexpected response."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunucudan beklenmeyen bir yanıt geldi."
+          }
+        }
+      }
+    },
+    "error.relay.username_taken" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This username is already taken."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kullanıcı adı başkası tarafından alınmış."
+          }
+        }
+      }
+    },
+    "error.secret_code.mismatch" : {
+      "comment" : "Shown when the confirmation differs from the new code.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two codes don't match."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Girdiğin iki kod aynı değil."
+          }
+        }
+      }
+    },
+    "error.secret_code.not_six_digits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your secret code must be 6 digits."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizli kod 6 rakamdan oluşmalı."
+          }
+        }
+      }
+    },
+    "error.secret_code.repeated_digit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code can't be one digit repeated, such as 000000."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod, 000000 gibi tek bir rakamın tekrarı olamaz."
+          }
+        }
+      }
+    },
+    "error.secret_code.sequence" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code can't be digits in a row, such as 123456 or 654321."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod, 123456 ya da 654321 gibi sıralı rakamlardan oluşamaz."
+          }
+        }
+      }
+    },
+    "error.secret_code.too_common" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This code is too common and easy to guess. Choose another one."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kod çok yaygın ve kolay tahmin edilir. Başka bir kod seç."
+          }
+        }
+      }
+    },
+    "error.session.identity_changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your safety number with this contact has changed. Review and accept it before sending."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kişiyle güvenlik numaranız değişti. Göndermeden önce kontrol edip onayla."
+          }
+        }
+      }
+    },
+    "error.storage.integrity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stored data failed an integrity check."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıtlı veriler bütünlük denetiminden geçemedi."
+          }
+        }
+      }
+    },
+    "error.username.invalid_characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use only the letters a–z, digits and the underscore (_)."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yalnızca a–z harfleri, rakamlar ve alt çizgi (_) kullanılabilir."
+          }
+        }
+      }
+    },
+    "error.username.must_start_with_letter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usernames must start with a letter (a–z)."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kullanıcı adı bir harfle (a–z) başlamalı."
+          }
+        }
+      }
+    },
+    "error.username.too_long" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usernames can be at most 24 characters long."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kullanıcı adı en fazla 24 karakter olabilir."
+          }
+        }
+      }
+    },
+    "error.username.too_short" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usernames must be at least 3 characters long."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kullanıcı adı en az 3 karakter olmalı."
+          }
+        }
+      }
+    },
+    "error.vault.already_exists" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A secret code is already set up on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazda zaten bir gizli kod ayarlı."
+          }
+        }
+      }
+    },
+    "error.vault.corrupted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your local data is damaged and can't be opened."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yerel verilerin bozulmuş, açılamıyor."
+          }
+        }
+      }
+    },
+    "error.vault.device_secret_missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device can no longer unlock your data. Restore your account from a backup."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihaz verilerinin kilidini artık açamıyor. Hesabını bir yedekten geri yükle."
+          }
+        }
+      }
+    },
+    "error.vault.locked_out" : {
+      "comment" : "%@ is a duration such as “5 minutes”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many wrong attempts. Try again in %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çok fazla yanlış deneme. %@ sonra tekrar dene."
+          }
+        }
+      }
+    },
+    "error.vault.not_found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No secret code has been set up on this device yet."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazda henüz bir gizli kod ayarlanmadı."
+          }
+        }
+      }
+    },
+    "error.vault.wiped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many wrong attempts. All data on this device has been erased."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çok fazla yanlış deneme yapıldı. Bu cihazdaki tüm veriler silindi."
+          }
+        }
+      }
+    },
+    "error.vault.wrong_code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong secret code."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizli kod yanlış."
+          }
+        }
+      }
+    },
+    "notice.conversation.wiped_ghost" : {
+      "comment" : "System notice.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This conversation was erased by ghost mode."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu sohbet hayalet mod tarafından silindi."
+          }
+        }
+      }
+    },
+    "notice.conversation.wiped_request" : {
+      "comment" : "System notice.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This conversation was deleted on both phones."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu sohbet iki telefondan da silindi."
+          }
+        }
+      }
+    },
+    "notice.disappearing.off" : {
+      "comment" : "System notice.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disappearing messages are off."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaybolan mesajlar kapalı."
+          }
+        }
+      }
+    },
+    "notice.disappearing.set" : {
+      "comment" : "System notice; %@ is a duration such as “1 day”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disappearing messages: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaybolan mesajlar: %@."
+          }
+        }
+      }
+    },
+    "notice.ghost.disabled" : {
+      "comment" : "System notice.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghost mode is off."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hayalet mod kapalı."
+          }
+        }
+      }
+    },
+    "notice.ghost.enabled" : {
+      "comment" : "System notice; %@ is a duration such as “1 hour”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghost mode is on: the conversation is erased after %@ without new messages."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hayalet mod açık: %@ boyunca mesajlaşılmazsa sohbet silinir."
+          }
+        }
+      }
+    },
+    "notice.ghost.enabled_wipe_contact" : {
+      "comment" : "System notice; %@ is a duration such as “1 hour”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghost mode is on: after %@ without new messages, the conversation and the contact are erased."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hayalet mod açık: %@ boyunca mesajlaşılmazsa sohbet ve kişi silinir."
+          }
+        }
+      }
+    },
+    "notice.screenshot" : {
+      "comment" : "System notice; %@ is the contact's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ took a screenshot."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ekran görüntüsü aldı."
+          }
+        }
+      }
+    },
+    "notice.vault.wrong_code_warning" : {
+      "comment" : "Unlock screen after a wrong code. %lld = wrong attempts left (2 or more), %@ = a duration such as “1 minute”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong code. %lld more wrong attempts and you'll have to wait %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod yanlış. %lld yanlış daha olursa %@ beklemen gerekir."
+          }
+        }
+      }
+    },
+    "notice.vault.wrong_code_warning_one" : {
+      "comment" : "Unlock screen after a wrong code when one attempt is left. %@ = a duration such as “5 minutes”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong code. One more wrong attempt and you'll have to wait %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod yanlış. 1 yanlış daha olursa %@ beklemen gerekir."
+          }
+        }
+      }
+    },
+    "presence.active" : {
+      "comment" : "Contact status while their ONLINE presence is valid (green dot).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktif"
+          }
+        }
+      }
+    },
+    "presence.active_just_now" : {
+      "comment" : "Contact status less than 5 minutes after going offline.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active just now"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Az önce aktifti"
+          }
+        }
+      }
+    },
+    "presence.active_minutes_ago" : {
+      "comment" : "Contact status 5–59 minutes after going offline; %lld is the number of minutes.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active %lld min ago"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld dk önce aktifti"
+          }
+        }
+      }
+    },
+    "presence.setting" : {
+      "comment" : "Settings toggle for sharing presence (reciprocal).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show when I'm active"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktif olduğumu göster"
+          }
+        }
+      }
+    },
+    "safety_number.changed" : {
+      "comment" : "%@ is the contact's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your safety number with %@ has changed. They may have reinstalled us2us or switched phones, but it can also mean someone is trying to intercept your messages. Verify the new number in person."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ile güvenlik numaranız değişti. Kişi us2us'ı yeniden yüklemiş ya da telefon değiştirmiş olabilir; ancak bu, birinin mesajlarınızı ele geçirmeye çalıştığı anlamına da gelebilir. Yeni numarayı yüz yüze doğrula."
+          }
+        }
+      }
+    },
+    "safety_number.mismatch" : {
+      "comment" : "After scanning the contact's QR code.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This code doesn't match. Your safety numbers are different."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kod eşleşmiyor. Güvenlik numaralarınız farklı."
+          }
+        }
+      }
+    },
+    "safety_number.verified" : {
+      "comment" : "%@ is the contact's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You verified your safety number with %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ile güvenlik numaranızı doğruladın."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

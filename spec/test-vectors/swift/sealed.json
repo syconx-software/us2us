@@ -1,0 +1,43 @@
+{
+  "category" : "sealed",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "envelope" : "0101948ae5f1c31404c099020923f0f18a5d8baca5315bf7c06b06c4e13d6476081c5a96ab60c1efb22c9e942d6378d203709a1a4c7c5f44b6c19e6fefad6ca594cef853a96daab64e9ff3354a4fa41f0cf01739b69eebfd4f",
+      "recipientIdentityKeyPair" : "0a21052b32238b50ff036d26bd14b3719f74d1135a46bbc768d5e70b78b7e7bd1d4a59122060fc212e4be7a8b57215654bfd235cd2278d9c3a7606f70f358dae9597556b48",
+      "sealedContent" : {
+        "ciphertext" : "0102030405",
+        "senderAccountId" : "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+        "senderDeviceId" : 1,
+        "senderUsername" : "alice_01",
+        "type" : 3
+      },
+      "valid" : true
+    },
+    {
+      "envelope" : "0101767b4ca18ff341bb8c301c7eafedf8085637693f19957d806bc19b168c2aad36440f781da84ffffee98bd2fe0fa1da491a157962f8c4f332d19d3959a859bfccd101595e64cb221543cfb8cb56cf5c1cf387a80fe7a3bb61404230a3ded470e16fb73bc7d035d488ec5d409fefa7de08",
+      "recipientIdentityKeyPair" : "0a21052b32238b50ff036d26bd14b3719f74d1135a46bbc768d5e70b78b7e7bd1d4a59122060fc212e4be7a8b57215654bfd235cd2278d9c3a7606f70f358dae9597556b48",
+      "sealedContent" : {
+        "ciphertext" : "1f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8",
+        "senderAccountId" : "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+        "senderDeviceId" : 1,
+        "senderUsername" : "",
+        "type" : 2
+      },
+      "valid" : true
+    },
+    {
+      "envelope" : "0101948ae5f1c31404c099020923f0f18a5d8baca5315bf7c06b06c4e13d6476081c5a96ab60c1efb32c9e942d6378d203709a1a4c7c5f44b6c19e6fefad6ca594cef853a96daab64e9ff3354a4fa41f0cf01739b69eebfd4f",
+      "recipientIdentityKeyPair" : "0a21052b32238b50ff036d26bd14b3719f74d1135a46bbc768d5e70b78b7e7bd1d4a59122060fc212e4be7a8b57215654bfd235cd2278d9c3a7606f70f358dae9597556b48",
+      "sealedContent" : {
+        "ciphertext" : "0102030405",
+        "senderAccountId" : "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+        "senderDeviceId" : 1,
+        "senderUsername" : "alice_01",
+        "type" : 3
+      },
+      "valid" : false
+    }
+  ],
+  "version" : 1
+}

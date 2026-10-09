@@ -1,0 +1,21 @@
+{
+    "version": 1,
+    "generator": "kotlin",
+    "category": "keyslot",
+    "vectors": [
+        {
+            "dek": "81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a",
+            "slotId": "82838485868788898a8b8c8d8e8f9091",
+            "ck": "838e99a4afbac5d0dbe6f1fc07121d28333e49545f6a75808b96a1acb7c2cdd8",
+            "nonce": "84898e93989da2a7acb1b6bb",
+            "slotFile": "425250530184898e93989da2a7acb1b6bb7d2f2fd8130af28ee5b2fbf6cd2af3311ca15b0cd7babf4667496a34dbd2693033831100e85a0aaa0ddce4171cef930e"
+        },
+        {
+            "dek": "91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a",
+            "slotId": "92939495969798999a9b9c9d9e9fa0a1",
+            "ck": "939ea9b4bfcad5e0ebf6010c17222d38434e59646f7a85909ba6b1bcc7d2dde8",
+            "nonce": "94999ea3a8adb2b7bcc1c6cb",
+            "slotFile": "425250530194999ea3a8adb2b7bcc1c6cbe2dbb2d62d593362535e0d67160b12d72c1868235c566a1a1a335804099181d364289ac46779f9a8ebdd9b3b811df6ad"
+        }
+    ]
+}

@@ -1,0 +1,696 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.more": {
+      "comment": "VoiceOver label of the “…” header buttons (4.3, 4.4).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
+    "a11y.request.open": {
+      "comment": "VoiceOver hint of a request card.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the request"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İsteği açar"
+          }
+        }
+      }
+    },
+    "list.empty": {
+      "comment": "4.1 empty list (proposed copy).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No chats yet. Start by typing someone's exact username."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz sohbet yok. Birinin kullanıcı adını tam yazarak başla."
+          }
+        }
+      }
+    },
+    "list.empty.action": {
+      "comment": "4.1 empty list: opens 4.2.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni sohbet"
+          }
+        }
+      }
+    },
+    "media.file": {
+      "comment": "Media kind (proposed list in 4.1).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya"
+          }
+        }
+      }
+    },
+    "newChat.existing": {
+      "comment": "4.2 result for an existing contact (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You already have a chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaten sohbetiniz var"
+          }
+        }
+      }
+    },
+    "newChat.found": {
+      "comment": "4.2 result card subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User found"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı bulundu"
+          }
+        }
+      }
+    },
+    "newChat.info %@ %@": {
+      "comment": "4.2 info row. %1$@ = username, %2$@ = newChat.info.requests (emphasised).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until %1$@ accepts you, your first message waits in their %2$@. Until then, neither of you can see the other's activity."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ seni kabul edene kadar ilk mesajın onun %2$@ kutusunda bekler. O zamana kadar aktif durumunuzu birbirinizden göremezsiniz."
+          }
+        }
+      }
+    },
+    "newChat.info.requests": {
+      "comment": "Emphasised part of newChat.info (must appear verbatim in it).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message requests"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj istekleri"
+          }
+        }
+      }
+    },
+    "newChat.notFound": {
+      "comment": "4.2 not found (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User not found · Type the full username."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı bulunamadı · Kullanıcı adını eksiksiz yaz."
+          }
+        }
+      }
+    },
+    "newChat.openChat": {
+      "comment": "4.2 primary button for an existing contact (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbete git"
+          }
+        }
+      }
+    },
+    "newChat.own": {
+      "comment": "4.2 when the user types their own name (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's your own username"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu senin kullanıcı adın"
+          }
+        }
+      }
+    },
+    "newChat.placeholder": {
+      "comment": "4.2 empty search field placeholder (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "username"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kullanıcı adı"
+          }
+        }
+      }
+    },
+    "newChat.searching": {
+      "comment": "4.2 while the exact lookup runs (VoiceOver label of the spinner).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searching…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aranıyor…"
+          }
+        }
+      }
+    },
+    "newChat.write": {
+      "comment": "4.2 primary button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write a message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj yaz"
+          }
+        }
+      }
+    },
+    "preview.date.today %@": {
+      "comment": "4.4 date separator (shown upper-cased). %@ = HH:mm.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bugün %@"
+          }
+        }
+      }
+    },
+    "preview.date.yesterday %@": {
+      "comment": "4.4 date separator (shown upper-cased). %@ = HH:mm.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yesterday %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dün %@"
+          }
+        }
+      }
+    },
+    "preview.decision %@": {
+      "comment": "4.4 decision bar. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you accept, the chat opens and you can reply. %@ won't know you've seen the request."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kabul edersen sohbet açılır ve yanıt yazabilirsin. %@ isteği gördüğünü bilmez."
+          }
+        }
+      }
+    },
+    "preview.intro": {
+      "comment": "4.4 profile block.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You haven't talked before. They found you by typing your exact username."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha önce yazışmadınız. Seni kullanıcı adını tam yazarak buldu."
+          }
+        }
+      }
+    },
+    "preview.link.inert": {
+      "comment": "4.4 link bubble caption.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The link won't open until you accept"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı, kabul edene kadar açılmaz"
+          }
+        }
+      }
+    },
+    "qr.add": {
+      "comment": "4.1 QR menu and 4.2 option row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add with QR code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR kodla ekle"
+          }
+        }
+      }
+    },
+    "qr.add.subtitle": {
+      "comment": "4.2 option row subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Side by side, it adds and verifies at once"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yan yanaysanız ekler ve aynı anda doğrular"
+          }
+        }
+      }
+    },
+    "qr.mine": {
+      "comment": "4.1 QR menu and 4.2 option row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show my code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodumu göster"
+          }
+        }
+      }
+    },
+    "requests.age.days %lld": {
+      "comment": "4.3 request age: “3 gün”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld day"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld days"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld gün"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld gün"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "requests.age.hours %lld": {
+      "comment": "4.3 request age: “2 sa”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld h"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sa"
+          }
+        }
+      }
+    },
+    "requests.age.minutes %lld": {
+      "comment": "4.3 request age under an hour.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld min"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dk"
+          }
+        }
+      }
+    },
+    "requests.banner": {
+      "comment": "4.3 privacy banner.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The chat won't open until you accept. They can't see your activity or reads."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kabul edene kadar sohbet açılmaz. Okuduğunu ve aktif olduğunu göremezler."
+          }
+        }
+      }
+    },
+    "requests.block.message": {
+      "comment": "4.3/4.4 block confirmation message (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They can't message you again. They won't know they were blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sana bir daha yazamaz. Engellendiğini bilmez."
+          }
+        }
+      }
+    },
+    "requests.block.title %@": {
+      "comment": "4.3/4.4 block confirmation (proposed). %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block %@?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellensin mi?"
+          }
+        }
+      }
+    },
+    "requests.deleteAll.confirm": {
+      "comment": "4.3 confirmation button (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tümünü sil"
+          }
+        }
+      }
+    },
+    "requests.deleteAll.message": {
+      "comment": "4.3 confirmation message (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The senders won't know."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderenler bunu bilmez."
+          }
+        }
+      }
+    },
+    "requests.deleteAll.title": {
+      "comment": "4.3 confirmation (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all requests?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm istekler silinsin mi?"
+          }
+        }
+      }
+    },
+    "requests.empty": {
+      "comment": "4.3 empty (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pending requests."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bekleyen istek yok."
+          }
+        }
+      }
+    },
+    "requests.flag.link": {
+      "comment": "4.3 flag.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contains a link · won't open"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı içeriyor · açılmaz"
+          }
+        }
+      }
+    },
+    "requests.flag.media": {
+      "comment": "4.3 flag / 4.4 media placeholder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media hidden until you accept"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya kabul edene kadar gizli"
+          }
+        }
+      }
+    },
+    "requests.flag.suspicious": {
+      "comment": "4.3 flag for suspicious requests without a link (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suspicious content"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şüpheli içerik"
+          }
+        }
+      }
+    },
+    "requests.menu.deleteAll": {
+      "comment": "4.3 “…” menu (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tümünü sil"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

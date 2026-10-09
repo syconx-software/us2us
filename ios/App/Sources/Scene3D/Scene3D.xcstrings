@@ -1,0 +1,24 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "scene3d.accessibilityLabel" : {
+      "comment" : "VoiceOver label of the decorative 3D scene on the welcome screen: two cups joined by a line (a tin-can telephone).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two cups and the line between them"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İki bardak ve aralarındaki hat"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -1,0 +1,28 @@
+{
+  "category" : "keyslot",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "ck" : "87a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a2948",
+      "dek" : "7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a",
+      "nonce" : "8eadcceb0a29486786a5c4e3",
+      "slotFile" : "42525053018eadcceb0a29486786a5c4e32512b8f1436c1bac8cfc80353ab5dddc6c581f8184c3a89d0545c2f87cd93387ac00956582c21b2a5f95fa924437c26c",
+      "slotId" : "809fbeddfc1b3a597897b6d5f4133251"
+    },
+    {
+      "ck" : "a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e807264564",
+      "dek" : "95b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf9183756",
+      "nonce" : "aac9e80726456483a2c1e0ff",
+      "slotFile" : "4252505301aac9e80726456483a2c1e0ff44b0f55b67705ffd41e3347c31afc2261533f5a477cd53a81645c106f3c5e3d1cd08a08d593ade7eca9d322aa7c0f51c",
+      "slotId" : "9cbbdaf91837567594b3d2f1102f4e6d"
+    },
+    {
+      "ck" : "bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e50423426180",
+      "dek" : "b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f615345372",
+      "nonce" : "c6e504234261809fbeddfc1b",
+      "slotFile" : "4252505301c6e504234261809fbeddfc1b0be965e434585a6d9798285be8f5baea8e8f2bbff5d8b15aa513bde8f4411ada74a0ca417d81158983f22e027f0d1b9f",
+      "slotId" : "b8d7f61534537291b0cfee0d2c4b6a89"
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,122 @@
+{
+  "category" : "username",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "hash" : "d1feb792e007f65660aa77c74f03f7e841d9b46f4de895e877c6dd4f931d2b1d",
+      "input" : "alice",
+      "normalized" : "alice"
+    },
+    {
+      "hash" : "33f4f29b2e5fc77143c3c86f53bd47e1062f91069b8a55ad934af55db64b1e39",
+      "input" : "Alice_01",
+      "normalized" : "alice_01"
+    },
+    {
+      "hash" : "40b5318073e60b5cdedb7706173251cfc69a8c6d2e94c2745d4b82f0d2b058e0",
+      "input" : "  bob  ",
+      "normalized" : "bob"
+    },
+    {
+      "hash" : "9dbf1cbf7c7d2d35a9f7238fc38df0cc0323197c8eb275ac57d92290a0a453b9",
+      "input" : "\tdave\n",
+      "normalized" : "dave"
+    },
+    {
+      "hash" : "2c3ec57bbe69ca0b212f29434c3ea768b9dc9660d287920ea168655a8d2bb223",
+      "input" : "ｃａｒｏｌ",
+      "normalized" : "carol"
+    },
+    {
+      "hash" : "d1feb792e007f65660aa77c74f03f7e841d9b46f4de895e877c6dd4f931d2b1d",
+      "input" : "ＡＬＩＣＥ",
+      "normalized" : "alice"
+    },
+    {
+      "hash" : "e4a62fb333713be3c8ea4fa765d31126b438f2479373e217ecde0ab782a2ab71",
+      "input" : "ILGAZ",
+      "normalized" : "ilgaz"
+    },
+    {
+      "hash" : "ef1d4fcd13a39fe7a9ae31b4477603ce571d61c34273a1e1168def1668ac5b60",
+      "input" : "abc",
+      "normalized" : "abc"
+    },
+    {
+      "hash" : "9f795ea1e656c6e5c77223d80d90a4cd52817a1e8fd36e619728eca9c4a13e6c",
+      "input" : "abcdefghijklmnopqrstuvwx",
+      "normalized" : "abcdefghijklmnopqrstuvwx"
+    },
+    {
+      "hash" : null,
+      "input" : "ab",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "abcdefghijklmnopqrstuvwxy",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "1alice",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "_alice",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "al-ice",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "al.ice",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "şule",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "ılgaz",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "İstanbul",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "Kağan",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "user name",
+      "normalized" : null
+    },
+    {
+      "hash" : null,
+      "input" : "",
+      "normalized" : null
+    },
+    {
+      "hash" : "0ca38c8970ee363201270f9b03ce2a1c0efaa8d4c67c93d9dcdde6242570c4d3",
+      "input" : "white_space　",
+      "normalized" : "white_space"
+    },
+    {
+      "hash" : null,
+      "input" : "\u001cnot_space",
+      "normalized" : null
+    }
+  ],
+  "version" : 1
+}
