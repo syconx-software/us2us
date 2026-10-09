@@ -1,0 +1,133 @@
+{
+  "category" : "pow",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "difficulty" : 0,
+      "nonce" : "0",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d0",
+      "valid" : true
+    },
+    {
+      "difficulty" : 1,
+      "nonce" : "0",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d0",
+      "valid" : false
+    },
+    {
+      "difficulty" : 0,
+      "nonce" : "1",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d0",
+      "valid" : true
+    },
+    {
+      "difficulty" : 1,
+      "nonce" : "4",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d1",
+      "valid" : true
+    },
+    {
+      "difficulty" : 2,
+      "nonce" : "4",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d1",
+      "valid" : true
+    },
+    {
+      "difficulty" : 1,
+      "nonce" : "5",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d1",
+      "valid" : false
+    },
+    {
+      "difficulty" : 1,
+      "nonce" : "3",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d1",
+      "valid" : false
+    },
+    {
+      "difficulty" : 8,
+      "nonce" : "241",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+      "valid" : true
+    },
+    {
+      "difficulty" : 9,
+      "nonce" : "241",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+      "valid" : false
+    },
+    {
+      "difficulty" : 8,
+      "nonce" : "242",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+      "valid" : false
+    },
+    {
+      "difficulty" : 8,
+      "nonce" : "240",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+      "valid" : false
+    },
+    {
+      "difficulty" : 12,
+      "nonce" : "716",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+      "valid" : true
+    },
+    {
+      "difficulty" : 13,
+      "nonce" : "716",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+      "valid" : true
+    },
+    {
+      "difficulty" : 12,
+      "nonce" : "717",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+      "valid" : false
+    },
+    {
+      "difficulty" : 12,
+      "nonce" : "715",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+      "valid" : false
+    },
+    {
+      "difficulty" : 16,
+      "nonce" : "41200",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+      "valid" : true
+    },
+    {
+      "difficulty" : 17,
+      "nonce" : "41200",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+      "valid" : false
+    },
+    {
+      "difficulty" : 16,
+      "nonce" : "41201",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+      "valid" : false
+    },
+    {
+      "difficulty" : 16,
+      "nonce" : "41199",
+      "token" : "v1.message.8f14e45f-ceea-467a-9f0b-6d3e2a1b4c5d.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+      "valid" : false
+    },
+    {
+      "difficulty" : 0,
+      "nonce" : "18446744073709551615",
+      "token" : "v1.register.-.1760000600.AAECAwQFBgcICQoLDA0ODw.big",
+      "valid" : true
+    },
+    {
+      "difficulty" : 2,
+      "nonce" : "18446744073709551614",
+      "token" : "v1.register.-.1760000600.AAECAwQFBgcICQoLDA0ODw.big",
+      "valid" : false
+    }
+  ],
+  "version" : 1
+}

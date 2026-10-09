@@ -1,0 +1,79 @@
+{
+    "version": 1,
+    "generator": "kotlin",
+    "category": "pow",
+    "vectors": [
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d0",
+            "nonce": "0",
+            "difficulty": 0,
+            "valid": true
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d1",
+            "nonce": "4",
+            "difficulty": 1,
+            "valid": true
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+            "nonce": "68",
+            "difficulty": 8,
+            "valid": true
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+            "nonce": "69",
+            "difficulty": 8,
+            "valid": false
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d8",
+            "nonce": "68",
+            "difficulty": 9,
+            "valid": false
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+            "nonce": "2392",
+            "difficulty": 12,
+            "valid": true
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+            "nonce": "2393",
+            "difficulty": 12,
+            "valid": false
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d12",
+            "nonce": "2392",
+            "difficulty": 15,
+            "valid": false
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+            "nonce": "28121",
+            "difficulty": 16,
+            "valid": true
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+            "nonce": "28122",
+            "difficulty": 16,
+            "valid": false
+        },
+        {
+            "token": "v1.message.0123abcd-4567-89ef-0123-456789abcdef.1760000600.AAECAwQFBgcICQoLDA0ODw.d16",
+            "nonce": "28121",
+            "difficulty": 17,
+            "valid": false
+        },
+        {
+            "token": "v1.register.-.1760000600.AAAAAAAAAAAAAAAAAAAAAA.high",
+            "nonce": "18446744073709000218",
+            "difficulty": 8,
+            "valid": true
+        }
+    ]
+}

@@ -1,0 +1,225 @@
+# us2us iOS app — XcodeGen spec.
+#
+#   ios/App/scripts/generate.sh      # regenerates us2us.xcodeproj from this file
+#
+# Sources, Resources and the test folders are Xcode "synchronized folders"
+# (PBXFileSystemSynchronizedRootGroup): files added to or removed from them are
+# picked up by Xcode without editing this file or regenerating the project.
+# Regenerate only when this spec itself changes.
+
+name: us2us
+
+options:
+  bundleIdPrefix: com.syconx
+  deploymentTarget:
+    iOS: "17.0"
+  # Turkish first: the string catalogs' source language. English is the
+  # second localization (and the fallback for unsupported device languages,
+  # see CFBundleDevelopmentRegion below).
+  developmentLanguage: tr
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+  xcodeVersion: "27.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
+    STRING_CATALOG_GENERATE_SYMBOLS: NO
+    DEAD_CODE_STRIPPING: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
+    # App Store signing: SyconX LLC, automatic signing (Xcode manages the
+    # certificate and the App Store / development profiles).
+    DEVELOPMENT_TEAM: C8QW8MBYQX
+    CODE_SIGN_STYLE: Automatic
+    # Version: MARKETING_VERSION is the store version (1.0.0, 1.0.1 …);
+    # CURRENT_PROJECT_VERSION is the build number and must grow with every
+    # upload to App Store Connect (README › Releasing).
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+
+# Performance UI tests (Release build): the us2usPerformance scheme.
+include:
+  - path: Tests/PerformanceTests/target.yml
+    relativePaths: false
+
+packages:
+  # Protocol, crypto, relay client and the Messenger facade. Its libsignal
+  # binary comes from ../Vendor (ios/scripts/fetch-libsignal.sh).
+  Us2usKit:
+    path: ../Us2usKit
+  # The app runtime (vault, SQLCipher storage, crypto-shredding, relay
+  # lifecycle, privacy guards) behind RealMessengerService.
+  Us2usAppCore:
+    path: ../Us2usAppCore
+
+targets:
+  us2us:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources
+        type: syncedFolder
+      - path: Resources
+        type: syncedFolder
+        # Copied as folders (Fonts/…, Licenses/…) instead of flattened.
+        explicitFolders: [Fonts, Licenses]
+    dependencies:
+      - package: Us2usKit
+        product: Us2usKit
+      - package: Us2usAppCore
+        product: Us2usRuntime
+      - package: Us2usAppCore
+        product: Us2usStorage
+    # Universal links for invites (docs/INVITES.md): https://us2us.app/u/<username>
+    # opens 4.2 with the name searched. The site serves the matching
+    # /.well-known/apple-app-site-association (relay/server/lib/app-links.ts).
+    # No custom URL scheme on purpose.
+    entitlements:
+      path: Config/us2us.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - applinks:us2us.app
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: us2us
+        CFBundleName: us2us
+        # Fallback language for devices set to neither Turkish nor English.
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [tr, en]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        LSApplicationCategoryType: public.app-category.social-networking
+        UIApplicationSupportsIndirectInputEvents: true
+        # ProMotion: without this key iPhone apps' own animations (SwiftUI,
+        # Core Animation, display links) are capped at 60 Hz; the scroll view
+        # alone would run at 120.
+        CADisableMinimumFrameDurationOnPhone: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIRequiredDeviceCapabilities: [arm64]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        # The app implements end-to-end encryption (libsignal), which is not
+        # exempt encryption in Apple's terms; see README › Export compliance.
+        ITSAppUsesNonExemptEncryption: true
+        # Usage descriptions — localized in Resources/InfoPlist.xcstrings.
+        NSFaceIDUsageDescription: us2us'ı açmak için yüzünü kullanır.
+        NSCameraUsageDescription: Kamera yalnızca güvenlik numarası QR kodunu okutmak için açılır; görüntü cihazdan çıkmaz.
+        # Live location only (PROTOCOL §8.3): updates continue in the
+        # background solely while the user shares live location, with the
+        # system's location indicator visible; nothing else runs there.
+        UIBackgroundModes: [location]
+        NSLocationWhenInUseUsageDescription: Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.syconx.us2us.backup
+            UTTypeDescription: us2us Backup
+            UTTypeConformsTo: [public.data, public.content]
+            UTTypeTagSpecification:
+              public.filename-extension: [u2u]
+              public.mime-type: [application/vnd.us2us.backup]
+    settings:
+      base:
+        PRODUCT_NAME: us2us
+        PRODUCT_BUNDLE_IDENTIFIER: com.syconx.us2us
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: iphoneos iphonesimulator
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        INFOPLIST_FILE: Config/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+    postBuildScripts:
+      # libsignal's licence and acknowledgements must ship with the app
+      # (ios/README.md › Licences); they live in the git-ignored ../Vendor.
+      - name: Copy libsignal acknowledgements
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/../Vendor/LICENSE.libsignal
+          - $(SRCROOT)/../Vendor/acknowledgments-ios.plist
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/LICENSE.libsignal.txt
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/libsignal-acknowledgments.plist
+        script: |
+          set -euo pipefail
+          dest="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Licenses"
+          mkdir -p "$dest"
+          cp "${SCRIPT_INPUT_FILE_0}" "${SCRIPT_OUTPUT_FILE_0}"
+          cp "${SCRIPT_INPUT_FILE_1}" "${SCRIPT_OUTPUT_FILE_1}"
+
+  us2usTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/UnitTests
+        type: syncedFolder
+    dependencies:
+      - target: us2us
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.syconx.us2us.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/us2us.app/us2us
+        BUNDLE_LOADER: $(TEST_HOST)
+
+  us2usUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/UITests
+        type: syncedFolder
+    dependencies:
+      - target: us2us
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.syconx.us2us.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_TARGET_NAME: us2us
+
+schemes:
+  us2us:
+    build:
+      targets:
+        us2us: all
+        us2usTests: [test]
+        us2usUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      coverageTargets: [us2us]
+      targets:
+        - name: us2usTests
+          parallelizable: false
+        - name: us2usUITests
+          parallelizable: false
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

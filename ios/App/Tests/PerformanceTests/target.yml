@@ -1,0 +1,43 @@
+# Performance UI tests — XcodeGen fragment. Add to ios/App/project.yml:
+#
+#   include:
+#     - path: Tests/PerformanceTests/target.yml
+#       relativePaths: false
+#
+# then `scripts/generate.sh`. It adds the `us2usPerformanceTests` UI-test
+# target (this folder, synchronized) and the `us2usPerformance` scheme, whose
+# test action runs against a Release build of the app (Debug SwiftUI is several
+# times slower and would hide or invent hot spots). The normal `us2us` scheme
+# and its test plan are unchanged.
+targets:
+  us2usPerformanceTests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/PerformanceTests
+        type: syncedFolder
+    dependencies:
+      - target: us2us
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.syconx.us2us.perftests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_TARGET_NAME: us2us
+
+schemes:
+  us2usPerformance:
+    build:
+      targets:
+        us2us: all
+        us2usPerformanceTests: [test]
+    run:
+      config: Release
+    test:
+      config: Release
+      targets:
+        - name: us2usPerformanceTests
+          parallelizable: false
+    profile:
+      config: Release

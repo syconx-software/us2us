@@ -1,0 +1,40 @@
+{
+  "name": "us2us-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "us2us blind relay (BRP v1) and public website",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
+  "packageManager": "pnpm@10.19.0",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "start": "node .output/server/index.mjs",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck && tsc -p test/tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "nuxt build && vitest run",
+    "test:only": "vitest run"
+  },
+  "dependencies": {
+    "crossws": "0.3.5",
+    "drizzle-orm": "0.45.3",
+    "h3": "1.15.11",
+    "mysql2": "3.24.5",
+    "nuxt": "4.6.0",
+    "three": "0.160.0",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "drizzle-kit": "0.31.11",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "vue-tsc": "^3.3.12"
+  }
+}

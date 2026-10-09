@@ -1,0 +1,390 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "lock.code.forgot": {
+      "comment": "3.2 text button that opens 3.3.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodu unuttum"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I forgot my code"
+          }
+        }
+      }
+    },
+    "lock.code.throttled %@": {
+      "comment": "3.2 while the keypad waits; the argument is a live mm:ss countdown.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çok fazla yanlış deneme. %@ sonra tekrar dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many wrong attempts. Try again in %@."
+          }
+        }
+      }
+    },
+    "lock.code.title": {
+      "comment": "3.2 title above the six code dots.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli kodunu gir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your secret code"
+          }
+        }
+      }
+    },
+    "lock.code.wrong": {
+      "comment": "3.2 after a wrong code when no further wait lies ahead.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod yanlış."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrong code."
+          }
+        }
+      }
+    },
+    "lock.code.wrong.warning %lld %@": {
+      "comment": "3.2 after a wrong code: how many more wrong codes until a wait, and how long (e.g. “1 dakika”). Turkish has the plural forms too (same text) so the lookup never falls back to the English .stringsdict.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Kod yanlış. %1$lld yanlış daha olursa %2$@ beklemen gerekir."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Kod yanlış. %1$lld yanlış daha olursa %2$@ beklemen gerekir."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Wrong code. %1$lld more wrong attempt and you'll have to wait %2$@."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Wrong code. %1$lld more wrong attempts and you'll have to wait %2$@."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "lock.faceID.reason": {
+      "comment": "Reason passed to the system biometric prompt (Face ID shows the Info.plist text instead).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us'ı açmak için yüzünü kullanır."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your face to unlock us2us."
+          }
+        }
+      }
+    },
+    "lock.faceID.retry": {
+      "comment": "3.1 VoiceOver label of the Face ID disc (tapping it scans again).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID ile aç"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with Face ID"
+          }
+        }
+      }
+    },
+    "lock.faceID.subtitle": {
+      "comment": "3.1 line under the status.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tanımazsa gizli kodun istenir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If it doesn't recognise you, your secret code is asked"
+          }
+        }
+      }
+    },
+    "lock.faceID.title": {
+      "comment": "3.1 status under the Face ID disc while the scan runs.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID ile açılıyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocking with Face ID"
+          }
+        }
+      }
+    },
+    "lock.faceID.useCode": {
+      "comment": "3.1 secondary button: go to the code keypad (3.2).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodla aç"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with code"
+          }
+        }
+      }
+    },
+    "lock.forgot.body": {
+      "comment": "3.3 paragraph under the title.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli kodun yalnızca bu cihazda, şifreli olarak durur. Sıfırlama bağlantısı, destek talebi ya da güvenlik sorusu yok."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your secret code lives only on this device, encrypted. There's no reset link, support request or security question."
+          }
+        }
+      }
+    },
+    "lock.forgot.erase.body": {
+      "comment": "3.3 danger option card description.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu cihazdaki tüm sohbetler ve anahtarlar kalıcı olarak silinir."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All chats and keys on this device are permanently erased."
+          }
+        }
+      }
+    },
+    "lock.forgot.erase.title": {
+      "comment": "3.3 danger option card title (asks a second confirmation).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her şeyi sil, baştan başla"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase everything, start over"
+          }
+        }
+      }
+    },
+    "lock.forgot.restore.body": {
+      "comment": "3.3 option card description.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli yedeğin ve parolası varsa sohbetlerin geri gelir."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you have your encrypted backup and its password, your chats come back."
+          }
+        }
+      }
+    },
+    "lock.forgot.restore.title": {
+      "comment": "3.3 option card title (opens the backup file picker → 7.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedekten geri yükle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from backup"
+          }
+        }
+      }
+    },
+    "lock.forgot.retry": {
+      "comment": "3.3 secondary button: back to the code keypad.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekrar dene"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "lock.forgot.title": {
+      "comment": "3.3 sheet title (Doto display).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod kurtarılamaz."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code can't be recovered."
+          }
+        }
+      }
+    },
+    "lock.touchID.reason": {
+      "comment": "Reason shown in the system Touch ID prompt.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us'ı açmak için parmak izini kullanır."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your fingerprint to unlock us2us."
+          }
+        }
+      }
+    },
+    "lock.touchID.retry": {
+      "comment": "3.1 VoiceOver label of the disc on Touch ID devices.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID ile aç"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with Touch ID"
+          }
+        }
+      }
+    },
+    "lock.touchID.title": {
+      "comment": "3.1 status on devices with Touch ID instead of Face ID.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID ile açılıyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocking with Touch ID"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

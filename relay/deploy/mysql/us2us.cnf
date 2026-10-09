@@ -1,0 +1,14 @@
+# /etc/mysql/mysql.conf.d/us2us.cnf
+#
+# The relay deletes ciphertext as soon as it is delivered. A binary log
+# would keep copies of every envelope until it is purged, and the relay
+# needs no replication, so it is turned off. The relay stores all times as
+# UTC milliseconds and computes dates itself; a UTC server time zone just
+# keeps manual queries unsurprising.
+
+[mysqld]
+disable_log_bin
+default_time_zone = '+00:00'
+# Off by default; they would record queries with their parameters.
+general_log = OFF
+slow_query_log = OFF

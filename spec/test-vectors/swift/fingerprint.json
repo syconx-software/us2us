@@ -1,0 +1,31 @@
+{
+  "category" : "fingerprint",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "displayable" : "445208627161434986392991742369576487566992625533611484650829",
+      "localId" : "91b0cfee0d2c4b6a89a8c7e605244362",
+      "localKey" : "056e4fc54d70d1d084ab030c024418797bf00e5c3f1ac9f90178c467d482eb2f12",
+      "remoteId" : "d7f61534537291b0cfee0d2c4b6a89a8",
+      "remoteKey" : "05c3c779eef5d31b5b7bdef4cc1fa0fe285b2d7b2623ed0cd4981d9d114a99c523",
+      "scannable" : "080212220a20b5dd6638c8b04643b43f49bb0ad33a9aaa4df26f7ac92f4afddd4b0440e119cf1a220a20ad38cacf50df1908369578f16dfc717f0aa6d951361f45fe9eb991c0554dae4c"
+    },
+    {
+      "displayable" : "292019851872792996591870008726607399527420705628004024468589",
+      "localId" : "98b7d6f51433527190afceed0c2b4a69",
+      "localKey" : "0538ee73129deec4ca7d0a6ce08d599d68c96a66ad38174c444f29598915227853",
+      "remoteId" : "defd1c3b5a7998b7d6f51433527190af",
+      "remoteKey" : "05399d6050dbc74dd19a2ed288b547ce3fdf5ca66acf94eecc4c35dcac8b531059",
+      "scannable" : "080212220a2055b6abbfb1cb69c0b6f653d6dcb018dff968c3cbd04c2d0e0c32636c54964a001a220a2064a10491633a800f634ad486fa59e1c87b910cf0c3cefefd7476632d856d8151"
+    },
+    {
+      "displayable" : "021789854645625715053038296177059891192582740624112070411412",
+      "localId" : "9fbeddfc1b3a597897b6d5f413325170",
+      "localKey" : "0549aa1e9f176dac4d13dee4e39dd4413614ff0eca1dc29aafae2eefffb723c045",
+      "remoteId" : "e504234261809fbeddfc1b3a597897b6",
+      "remoteKey" : "05ce2c6ef228e88753e19feac7ee2f145a316edeb3a8c2e2b88d21975afcb6bf08",
+      "scannable" : "080212220a20a0ed2b40c2ef67334b12f9459b0b79c5fbb18151c8ff3210ce6cd76cbef15e5d1a220a20195bba1c45b190d864356fae9fdef4d6f9c55c8ba124dbd2808c210fe5b4628f"
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,264 @@
+// us2us — end-to-end encrypted content schema.
+//
+// Everything in this file travels ONLY inside end-to-end encryption.
+// The relay never sees any of these messages in plaintext.
+//
+// Compatibility rules:
+//   * Never reuse or renumber a field. Add new fields with new numbers.
+//   * Unknown fields MUST be ignored by receivers (forward compatibility).
+//   * All 16-byte ids are random (CSPRNG) unless stated otherwise.
+//
+// See docs/PROTOCOL.md for the semantics of each message.
+
+syntax = "proto3";
+
+package brp.v1;
+
+option java_package = "com.syconx.us2us.core.proto";
+option java_multiple_files = true;
+option swift_prefix = "BRP";
+
+// ---------------------------------------------------------------------------
+// Outer layer: plaintext of the sealed envelope (docs/PROTOCOL.md §6.1).
+// Hides the sender from the relay.
+// ---------------------------------------------------------------------------
+message SealedContent {
+  bytes sender_account_id = 1;   // 16 raw bytes (UUID)
+  uint32 sender_device_id = 2;   // always 1 in protocol v1
+  uint32 type = 3;               // libsignal CiphertextMessage type: 2 = SignalMessage, 3 = PreKeySignalMessage
+  bytes ciphertext = 4;          // libsignal-serialized ciphertext message
+  string sender_username = 5;    // normalized username; set ONLY while our request is pending (§6.3, §6.4)
+}
+
+// ---------------------------------------------------------------------------
+// Inner layer: plaintext of the libsignal session message (after unpadding).
+// ---------------------------------------------------------------------------
+message Content {
+  oneof body {
+    DataMessage data = 1;
+    ReceiptMessage receipt = 2;
+    TypingMessage typing = 3;
+    ControlMessage control = 4;
+    PresenceMessage presence = 5;
+  }
+}
+
+// A user-visible message (bubble) or an action on one.
+message DataMessage {
+  bytes message_id = 1;              // 16 bytes, sender-generated
+  uint64 sent_at = 2;                // sender clock, ms since Unix epoch
+  uint32 expire_timer_seconds = 3;   // disappearing timer for THIS message; 0 = never
+  bool view_once = 4;                // attachment can be opened exactly once
+  Quote quote = 5;                   // optional reply reference
+
+  oneof payload {
+    Text text = 10;
+    Attachment attachment = 11;      // photo / video / voice note / file
+    Location location = 12;
+    LiveLocation live_location = 13;
+    Sticker sticker = 14;
+    Reaction reaction = 15;
+    Delete delete = 16;              // delete-for-everyone
+  }
+}
+
+message Quote {
+  bytes target_message_id = 1;
+  string preview_text = 2;           // short excerpt, max 200 chars
+}
+
+message Text {
+  string body = 1;                   // max 8192 UTF-8 bytes
+}
+
+message Attachment {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    IMAGE = 1;
+    VIDEO = 2;
+    VOICE = 3;                       // voice note
+    FILE = 4;
+    STICKER_IMAGE = 5;               // custom sticker image
+  }
+  Kind kind = 1;
+  bytes media_id = 2;                // 16 bytes, from POST /v1/media
+  bytes delete_token = 3;            // 32 bytes, lets the recipient delete the blob after download
+  bytes key = 4;                     // 64 bytes: AES-256 key (32) || HMAC-SHA256 key (32)
+  bytes digest = 5;                  // SHA-256 of the uploaded blob
+  uint64 size = 6;                   // plaintext size in bytes (before padding)
+  string content_type = 7;           // MIME type, e.g. image/jpeg
+  string file_name = 8;              // optional, FILE only
+  uint32 width = 9;
+  uint32 height = 10;
+  uint32 duration_ms = 11;           // video / voice
+  bytes thumbnail = 12;              // optional inline JPEG, <= 10 KiB, already E2EE by being here
+  string caption = 13;               // max 2048 UTF-8 bytes
+  bytes waveform = 14;               // voice notes: up to 100 amplitude samples, 0..255
+}
+
+message Location {
+  double latitude = 1;
+  double longitude = 2;
+  float accuracy_meters = 3;
+  string name = 4;                   // optional place name
+  string address = 5;                // optional
+}
+
+message LiveLocation {
+  bytes session_id = 1;              // 16 bytes; all updates of one share session_id
+  double latitude = 2;
+  double longitude = 3;
+  float accuracy_meters = 4;
+  float heading_degrees = 5;         // optional, -1 if unknown
+  float speed_mps = 6;               // optional, -1 if unknown
+  uint64 expires_at = 7;             // ms since epoch; sharing ends automatically at this time
+  uint32 sequence = 8;               // monotonically increasing within a session
+  bool stopped = 9;                  // true = sharing ended early
+}
+
+message Sticker {
+  string pack_id = 1;                // built-in pack identifier, e.g. "cb.basic"
+  uint32 sticker_id = 2;
+  string emoji = 3;                  // associated emoji (accessibility / fallback)
+  Attachment custom = 4;             // set for custom (user-made) stickers instead of pack_id/sticker_id
+}
+
+message Reaction {
+  bytes target_message_id = 1;
+  string emoji = 2;
+  bool remove = 3;
+}
+
+message Delete {
+  bytes target_message_id = 1;
+}
+
+message ReceiptMessage {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    DELIVERY = 1;
+    READ = 2;
+    VIEWED = 3;                      // view-once / voice note opened
+  }
+  Type type = 1;
+  repeated bytes message_ids = 2;           // at most 1000 (docs/PROTOCOL.md §8.4)
+}
+
+message TypingMessage {
+  bool started = 1;
+}
+
+// "Active now" status between accepted contacts (docs/PROTOCOL.md §8.6).
+// Always sent as an ephemeral envelope: delivered only if the recipient is
+// connected right now, never stored by the relay.
+message PresenceMessage {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    ONLINE = 1;
+    OFFLINE = 2;
+  }
+  State state = 1;
+  uint32 valid_for_seconds = 2;   // ONLINE only: treat as offline after this many seconds
+  bool reply = 3;                 // true when answering someone's ONLINE; never answer a reply
+}
+
+// Conversation-level control messages (not shown as bubbles, except as
+// small system notices like "Ghost mode enabled: 1 hour").
+message ControlMessage {
+  oneof action {
+    ConversationSettings settings = 1;
+    AccessKeyUpdate access_key = 2;
+    MessageRequestResponse request_response = 3;
+    ConversationWipe wipe = 4;
+    ScreenshotNotice screenshot = 5;
+    ProfileUpdate profile = 6;
+  }
+}
+
+// Last-writer-wins by updated_at; ties broken by the lexicographically
+// smaller sender account id.
+message ConversationSettings {
+  uint64 updated_at = 1;                    // ms since epoch
+  uint32 default_expire_timer_seconds = 2;  // applied to new outgoing messages; 0 = off
+  GhostMode ghost = 3;
+}
+
+message GhostMode {
+  bool enabled = 1;
+  uint32 timeout_seconds = 2;               // wipe after this much inactivity (60 .. 604800)
+  bool wipe_contact = 3;                    // also delete the contact + session ("leave no trace")
+}
+
+// Gives the peer the key that lets them deliver sealed messages without
+// proof-of-work (docs/PROTOCOL.md §4.6).
+message AccessKeyUpdate {
+  bytes access_key = 1;                     // 16 bytes
+}
+
+message MessageRequestResponse {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    ACCEPT = 1;
+    BLOCK = 2;
+    DELETE = 3;
+  }
+  Type type = 1;
+}
+
+// "Delete this conversation on both phones now." Sent when a ghost timer
+// fires on one side, or when a user chooses "delete for both".
+message ConversationWipe {
+  uint64 requested_at = 1;
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    GHOST_TIMEOUT = 1;
+    USER_REQUEST = 2;
+  }
+  Reason reason = 2;
+}
+
+message ScreenshotNotice {
+  uint64 taken_at = 1;
+}
+
+// Profiles are never stored on the relay; they are shared only with
+// contacts, end-to-end encrypted. Every ProfileUpdate is complete: all
+// fields are set and replace the stored profile (docs/PROTOCOL.md §8.7).
+message ProfileUpdate {
+  string display_name = 1;                  // max 64 UTF-8 bytes
+  Attachment avatar = 2;                    // optional
+  uint64 updated_at = 3;
+  string username = 4;                      // current normalized username; a claim until checked (§3.3)
+  bool presence_sharing = 5;                // user shares "active now" status (reciprocal, §8.6)
+}
+
+// ---------------------------------------------------------------------------
+// Local only: account backup file (docs/PROTOCOL.md §5.5). Never sent to the
+// relay. Encrypted with a key derived from the user's backup password, which
+// is separate from the six-digit secret code (≥ 10 characters, §5.5).
+// ---------------------------------------------------------------------------
+message AccountBackup {
+  uint32 version = 1;                       // 1
+  bytes account_id = 2;                     // 16 bytes
+  bytes auth_token = 3;                     // 32 bytes (rotated right after restore)
+  bytes identity_key_pair = 4;              // libsignal IdentityKeyPair serialization
+  uint32 registration_id = 5;
+  string username = 6;
+  string display_name = 7;
+  bytes access_key = 8;                     // 16 bytes, current access key
+  repeated BackupContact contacts = 9;
+  uint64 created_at = 10;
+}
+
+message BackupContact {
+  bytes account_id = 1;
+  string username = 2;
+  string display_name = 3;
+  bytes identity_key = 4;                   // 33 bytes, the contact's current identity key
+  bool verified = 5;                        // safety number was verified
+  bool blocked = 6;
+  bytes their_access_key = 7;               // 16 bytes, lets us keep sending without PoW
+  bool presence_sharing = 8;                // the contact's last ProfileUpdate.presence_sharing (§8.6)
+  bool identity_unaccepted = 9;             // identity_key is a change the user has not accepted yet:
+                                            // restore it as changed, sending blocked (§5.5, §6.3)
+}

@@ -1,0 +1,47 @@
+{
+  "category" : "attachment-padding",
+  "generator" : "swift",
+  "vectors" : [
+    {
+      "paddedSize" : 541,
+      "size" : 0
+    },
+    {
+      "paddedSize" : 541,
+      "size" : 1
+    },
+    {
+      "paddedSize" : 541,
+      "size" : 541
+    },
+    {
+      "paddedSize" : 568,
+      "size" : 542
+    },
+    {
+      "paddedSize" : 568,
+      "size" : 568
+    },
+    {
+      "paddedSize" : 596,
+      "size" : 569
+    },
+    {
+      "paddedSize" : 1011,
+      "size" : 1000
+    },
+    {
+      "paddedSize" : 10433,
+      "size" : 10000
+    },
+    {
+      "paddedSize" : 1073892,
+      "size" : 1048576
+    },
+    {
+      "paddedSize" : 53223193,
+      "size" : 52428800
+    }
+  ],
+  "version" : 1
+}

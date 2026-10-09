@@ -1,0 +1,47 @@
+{
+    "version": 1,
+    "generator": "kotlin",
+    "category": "attachment-padding",
+    "vectors": [
+        {
+            "size": 0,
+            "paddedSize": 541
+        },
+        {
+            "size": 1,
+            "paddedSize": 541
+        },
+        {
+            "size": 541,
+            "paddedSize": 541
+        },
+        {
+            "size": 542,
+            "paddedSize": 568
+        },
+        {
+            "size": 568,
+            "paddedSize": 568
+        },
+        {
+            "size": 569,
+            "paddedSize": 596
+        },
+        {
+            "size": 1000,
+            "paddedSize": 1011
+        },
+        {
+            "size": 10000,
+            "paddedSize": 10433
+        },
+        {
+            "size": 1048576,
+            "paddedSize": 1073892
+        },
+        {
+            "size": 52428800,
+            "paddedSize": 53223193
+        }
+    ]
+}

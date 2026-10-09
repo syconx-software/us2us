@@ -1,0 +1,888 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.onboarding.username.counter %lld": {
+      "comment": "VoiceOver for the “7 / 20” counter under the 2.1 field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of 20 characters"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / 20 karakter"
+          }
+        }
+      }
+    },
+    "onboarding.code.body": {
+      "comment": "2.2 paragraph, set step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us asks for this 6-digit code every time it opens. Choose a code you don't use anywhere else."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us her açılışta bu 6 haneli kodu ister. Başka hiçbir yerde kullanmadığın bir kod seç."
+          }
+        }
+      }
+    },
+    "onboarding.code.confirm.body": {
+      "comment": "2.2 paragraph, confirm step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the same 6 digits once more."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aynı 6 haneyi bir kez daha gir."
+          }
+        }
+      }
+    },
+    "onboarding.code.confirm.title": {
+      "comment": "2.2 title, confirm step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the code again"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodu tekrar gir"
+          }
+        }
+      }
+    },
+    "onboarding.code.mismatch": {
+      "comment": "2.2 under the dots when the confirmation differs; the set step starts again.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The codes didn't match. Start again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodlar eşleşmedi. Baştan dene."
+          }
+        }
+      }
+    },
+    "onboarding.code.title": {
+      "comment": "2.2 title, set step (Doto, two lines).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set your secret code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli kodunu belirle"
+          }
+        }
+      }
+    },
+    "onboarding.code.weak": {
+      "comment": "2.2 under the dots when the code is too easy (all equal, a run, a common code).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This code is too easy to guess. Choose another."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kod çok kolay tahmin edilir. Başka bir kod seç."
+          }
+        }
+      }
+    },
+    "onboarding.continue": {
+      "comment": "Primary button on 2.1 (and the restore hand-off).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.body": {
+      "comment": "1.3 paragraph.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A chat with Ghost mode on is erased completely on both sides if it stays silent for the time you choose. Every new message restarts the timer."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghost modu açık bir sohbet, seçtiğin süre boyunca sessiz kalırsa iki taraftan da tamamen silinir. Her yeni mesaj sayacı baştan başlatır."
+          }
+        }
+      }
+    },
+    "onboarding.ghost.cta": {
+      "comment": "1.3 primary button → 2.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create my account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabımı oluştur"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.feature.deleteForEveryone": {
+      "comment": "1.3 feature (trash icon).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can delete what you sent for everyone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderdiğini herkesten silebilirsin"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.feature.disappearing": {
+      "comment": "1.3 feature (timer icon).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disappearing messages: erased on both sides when time runs out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Süreli mesajlar: süre dolunca iki taraftan silinir"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.feature.viewOnce": {
+      "comment": "1.3 feature (dashed “1” badge).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View-once photos and videos"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek görüntülemelik fotoğraf ve video"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.kicker": {
+      "comment": "1.3 kicker above the demo countdown (shown upper-case).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghost mode · 24 hours"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghost mod · 24 saat"
+          }
+        }
+      }
+    },
+    "onboarding.ghost.title": {
+      "comment": "1.3 title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Silence erases."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessizlik siler."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.acknowledge": {
+      "comment": "2.3 checkbox; setup cannot finish until it is ticked.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I understand: if I forget the code, my data is permanently erased."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anladım: kodu unutursam verilerim kalıcı olarak silinir."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.biometry.fallback": {
+      "comment": "2.3 biometric card subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If it doesn't recognise you, the code is asked"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tanımazsa kod istenir"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.body": {
+      "comment": "2.3 paragraph.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your code is stored only on this device. We don't know it and can't reset it. If you forget it, the only way is to delete the app and start over; all your chats are permanently erased."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodun yalnızca bu cihazda saklanır. Biz bilmeyiz, sıfırlayamayız. Unutursan tek yol uygulamayı silip baştan kurmak; tüm sohbetlerin kalıcı olarak silinir."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error": {
+      "comment": "2.3 above the checkbox when account creation failed (network).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The account couldn't be created. Check your connection and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap oluşturulamadı. Bağlantını kontrol edip tekrar dene."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.faceID": {
+      "comment": "2.3 biometric card title (Face ID devices).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with Face ID"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID ile aç"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.fact.backup": {
+      "comment": "2.3 fact (file-lock icon).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your only safeguard: an encrypted backup"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek güvencen şifreli yedek"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.fact.backup.path": {
+      "comment": "2.3 where the backup lives in the app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings › Backup › Export"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar › Yedek › Dışa aktar"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.fact.neverSent": {
+      "comment": "2.3 fact (cloud-slash icon).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code is never sent to a server"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod sunucuya hiç gönderilmez"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.fact.noReset": {
+      "comment": "2.3 fact (prohibit icon).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No code reset"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod sıfırlama yok"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.finish": {
+      "comment": "2.3 primary button → 4.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish setup"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulumu tamamla"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.title": {
+      "comment": "2.3 title (Doto, two lines).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forget it and there's no way back."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unutursan geri dönüşü yok."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.touchID": {
+      "comment": "2.3 biometric card title (Touch ID devices).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with Touch ID"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID ile aç"
+          }
+        }
+      }
+    },
+    "onboarding.notifications.body": {
+      "comment": "1.2 paragraph; followed by the four delivery states.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications pass through Apple's servers and leave a trace of who wrote when. In us2us, messages only arrive while the app is open; you can always see exactly where they are:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler Apple'ın sunucularından geçer ve kimin ne zaman yazdığına dair iz bırakır. us2us'ta mesajlar yalnızca uygulama açıkken gelir; durumlarını her an açıkça görürsün:"
+          }
+        }
+      }
+    },
+    "onboarding.notifications.card": {
+      "comment": "1.2 label inside the empty, dashed lock-screen notification (lower-case, mono).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no notifications"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bildirim yok"
+          }
+        }
+      }
+    },
+    "onboarding.notifications.cta": {
+      "comment": "1.2 primary button → 1.3.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anladım"
+          }
+        }
+      }
+    },
+    "onboarding.notifications.title": {
+      "comment": "1.2 title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No notifications. On purpose."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim yok. Bilerek."
+          }
+        }
+      }
+    },
+    "onboarding.username.body": {
+      "comment": "2.1 paragraph.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We don't ask for a phone number. Only someone who types this name exactly can find you."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon numarası istemiyoruz. Seni yalnızca bu adı eksiksiz yazan bulabilir."
+          }
+        }
+      }
+    },
+    "onboarding.username.example.footnote": {
+      "comment": "2.1 example card footnote.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search offers no suggestions or autocomplete."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arama öneri ya da otomatik tamamlama sunmaz."
+          }
+        }
+      }
+    },
+    "onboarding.username.example.found": {
+      "comment": "2.1 example: the exact name finds you (mono, lower-case).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "found"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bulunur"
+          }
+        }
+      }
+    },
+    "onboarding.username.example.kicker": {
+      "comment": "2.1 example card kicker (shown upper-case).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exact match"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tam eşleşme"
+          }
+        }
+      }
+    },
+    "onboarding.username.example.notFound": {
+      "comment": "2.1 example: a shortened name does not find you (mono, lower-case).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "not found"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bulunamaz"
+          }
+        }
+      }
+    },
+    "onboarding.username.placeholder": {
+      "comment": "2.1 field placeholder after the “@” (must itself be a valid username: ASCII lower-case, digits, dot, underscore).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "your.name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kullanici.adi"
+          }
+        }
+      }
+    },
+    "onboarding.username.rule.characters": {
+      "comment": "2.1 rule.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lower-case letters, digits, dot and underscore"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Küçük harf, rakam, nokta ve alt çizgi"
+          }
+        }
+      }
+    },
+    "onboarding.username.rule.length": {
+      "comment": "2.1 rule.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3–20 characters"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3–20 karakter"
+          }
+        }
+      }
+    },
+    "onboarding.username.rule.turkish": {
+      "comment": "2.1 rule (keep the listed letters as they are).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Turkish characters: ı, İ, ş, ğ, ü, ö, ç"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Türkçe karakter yok: ı, İ, ş, ğ, ü, ö, ç"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.available": {
+      "comment": "2.1 under the field when the name is free (green).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanılabilir"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.checking": {
+      "comment": "2.1 under the field while the relay is asked.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrol ediliyor…"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.invalid": {
+      "comment": "2.1 under the field when a typed character was not accepted (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid character"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz karakter"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.taken": {
+      "comment": "2.1 under the field when the name is taken (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taken"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alınmış"
+          }
+        }
+      }
+    },
+    "onboarding.username.title": {
+      "comment": "2.1 title (Doto, two lines).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose your username"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı adını seç"
+          }
+        }
+      }
+    },
+    "onboarding.welcome.body": {
+      "comment": "1.1 promise under the headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us sets up an encrypted line between two people. No phone number; only someone who knows your exact username can find you."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us iki kişi arasında şifreli bir hat kurar. Telefon numarası yok; seni yalnızca kullanıcı adını tam bilen bulur."
+          }
+        }
+      }
+    },
+    "onboarding.welcome.restore": {
+      "comment": "1.1 text button → document picker → 7.3.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from backup"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedekten geri yükle"
+          }
+        }
+      }
+    },
+    "onboarding.welcome.start": {
+      "comment": "1.1 primary button → 1.2.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başla"
+          }
+        }
+      }
+    },
+    "onboarding.welcome.title": {
+      "comment": "1.1 headline (Doto; each full stop is drawn in Inter).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two ends. One line."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İki uç. Bir hat."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

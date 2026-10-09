@@ -1,0 +1,492 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.invite.copy": {
+      "comment": "VoiceOver hint of “Bağlantıyı kopyala”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copies your link; it is cleared from the clipboard after 2 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantını kopyalar; 2 dakika sonra panodan silinir"
+          }
+        }
+      }
+    },
+    "a11y.invite.editor": {
+      "comment": "VoiceOver label of the message editor.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invitation message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet mesajı"
+          }
+        }
+      }
+    },
+    "a11y.invite.email": {
+      "comment": "VoiceOver hint of the e-mail channel.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a draft email; you add the recipient"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir e-posta taslağı açar, alıcıyı sen yazarsın"
+          }
+        }
+      }
+    },
+    "a11y.invite.entry": {
+      "comment": "VoiceOver hint of the entry points (4.2, 7.1).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prepares an invitation to us2us"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us’a davet mesajı hazırlar"
+          }
+        }
+      }
+    },
+    "a11y.invite.more": {
+      "comment": "VoiceOver hint of “Diğer” and of the Kodum sheet's share button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the share sheet"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paylaşma menüsünü açar"
+          }
+        }
+      }
+    },
+    "a11y.invite.preview": {
+      "comment": "VoiceOver label of the message bubble (its value is the text).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message preview"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj önizlemesi"
+          }
+        }
+      }
+    },
+    "a11y.invite.sms": {
+      "comment": "VoiceOver hint of the Messages channel.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Messages; you choose the recipient"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar’ı açar, alıcıyı sen seçersin"
+          }
+        }
+      }
+    },
+    "a11y.invite.whatsapp": {
+      "comment": "VoiceOver hint of the WhatsApp channel.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens WhatsApp; you choose the chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WhatsApp’ı açar, sohbeti sen seçersin"
+          }
+        }
+      }
+    },
+    "invite.channel.copy": {
+      "comment": "Channel row: copies the link (local only, expires after 2 minutes).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy link"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantıyı kopyala"
+          }
+        }
+      }
+    },
+    "invite.channel.email": {
+      "comment": "Channel row: Mail (or mailto:).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta"
+          }
+        }
+      }
+    },
+    "invite.channel.more": {
+      "comment": "Channel row: the system share sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
+    "invite.channel.sms": {
+      "comment": "Channel row: Messages (SMS / iMessage).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj"
+          }
+        }
+      }
+    },
+    "invite.channel.whatsapp": {
+      "comment": "Channel row: wa.me.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WhatsApp"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WhatsApp"
+          }
+        }
+      }
+    },
+    "invite.channels.label": {
+      "comment": "Section label above the channels (upper-cased by the style).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send with"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönder"
+          }
+        }
+      }
+    },
+    "invite.copied": {
+      "comment": "Row status after copying; the pasteboard item expires after 120 s (InvitePasteboard.lifetime).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied · cleared from the clipboard in 2 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalandı · 2 dakika sonra panodan silinir"
+          }
+        }
+      }
+    },
+    "invite.done": {
+      "comment": "Ends editing the message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitti"
+          }
+        }
+      }
+    },
+    "invite.edit": {
+      "comment": "Starts editing the message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düzenle"
+          }
+        }
+      }
+    },
+    "invite.entry.notFound": {
+      "comment": "4.2: C1 in the not-found result card.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet et"
+          }
+        }
+      }
+    },
+    "invite.entry.settings": {
+      "comment": "7.1 row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite a friend"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arkadaşını davet et"
+          }
+        }
+      }
+    },
+    "invite.entry.share": {
+      "comment": "Kodum sheet: shares the invitation through the share sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share your invite link"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet bağlantını paylaş"
+          }
+        }
+      }
+    },
+    "invite.message %@ %@": {
+      "comment": "The invitation. %1$@ = the user's username (without @), %2$@ = https://us2us.app/u/<username>. Warm and short; the link on its own line.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hi! I’d like to talk with you on us2us, an app that never asks for a phone number and keeps our messages only on our two phones. My username: @%1$@\n%2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merhaba! Seninle us2us’ta konuşmak istiyorum: telefon numarası istemeyen, mesajları yalnızca ikimizin telefonunda tutan bir uygulama. Kullanıcı adım: @%1$@\n%2$@"
+          }
+        }
+      }
+    },
+    "invite.message.label": {
+      "comment": "Section label above the message bubble (upper-cased by the style).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What your friend will get"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arkadaşına gidecek mesaj"
+          }
+        }
+      }
+    },
+    "invite.privacy": {
+      "comment": "Privacy line under the channels.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us never looks at your contacts and never learns whom you invite: you choose the recipient. The link carries only your username."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us rehberine bakmaz ve kimi davet ettiğini bilmez: alıcıyı sen seçersin. Bağlantıda yalnızca kullanıcı adın var."
+          }
+        }
+      }
+    },
+    "invite.reset": {
+      "comment": "While editing: back to the ready-made text.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılana dön"
+          }
+        }
+      }
+    },
+    "invite.sent": {
+      "comment": "Row status after Messages / Mail / the share sheet sent it.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderildi"
+          }
+        }
+      }
+    },
+    "invite.subject": {
+      "comment": "E-mail subject.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shall we talk on us2us?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us’ta konuşalım mı?"
+          }
+        }
+      }
+    },
+    "invite.title": {
+      "comment": "Sheet title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet et"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

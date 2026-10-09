@@ -1,0 +1,43 @@
+{
+    "version": 1,
+    "generator": "kotlin",
+    "category": "sealed",
+    "vectors": [
+        {
+            "recipientIdentityKeyPair": "0a2105ad32dd2ab49a3fe9950b9f2f81258a21177e1eb0ca076bd4a88731bcffa88d2b1220303e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020950",
+            "envelope": "0101648a4a6285a6e88657544b45063de6ae2b4198badcc8ef42042e519603fe53282bd37c0ac0c887f8d60daba28454bca681e3fb102f536ef039d6e52655093285709b20d958a82dd79a9ba26c56ea481a16bc5f354e242386e85c35d6c3638333cad073c5815433d84912c43613f25535bd24f25491d7ea6caa48a37b5a4cd02a67160edce97e20e0fd34a3f0bafe1e78d924695abbd4a3b1e03b368092db51059390d2a65085676697a986c17c15d3c268ae261604282a839e7ff51f96d1788600388d54fab96c2c64fd",
+            "sealedContent": {
+                "senderAccountId": "303132333435363738393a3b3c3d3e3f",
+                "senderDeviceId": 1,
+                "type": 3,
+                "ciphertext": "040d161f28313a434c555e677079828b949da6afb8c1cad3dce5eef70009121b242d363f48515a636c757e879099a2abb4bdc6cfd8e1eaf3fc050e172029323b444d565f68717a838c959ea7b0b9c2cbd4dde6eff8010a131c252e374049525b646d767f88919aa3acb5bec7d0d9e2ebf4fd060f18212a33",
+                "senderUsername": "alice_01"
+            },
+            "valid": true
+        },
+        {
+            "recipientIdentityKeyPair": "0a2105ad32dd2ab49a3fe9950b9f2f81258a21177e1eb0ca076bd4a88731bcffa88d2b1220303e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020950",
+            "envelope": "01011220bc59054a75d9a55ca5ae7135a61e6a7d7d9f9f1da0b031a7aae7f9cf0d1c38ef1fad1bc0dc0bb487b4254ee996c31ab682cd81ebf681c8a03b67a6f59cdff93b23a06146157582cd2caa05ec1885c00b28c3db59dcc4f30143c875709ea31786efe4186d232eceec5b0fe6da1060165d50c602f99b86cc2b0ce8c84cf7e453ad03d1e6f61547",
+            "sealedContent": {
+                "senderAccountId": "404142434445464748494a4b4c4d4e4f",
+                "senderDeviceId": 1,
+                "type": 2,
+                "ciphertext": "02070c11161b20252a2f34393e43484d52575c61666b70757a7f84898e93989da2a7acb1b6bbc0c5cacfd4d9dee3e8edf2f7fc01060b10151a1f24292e33383d",
+                "senderUsername": ""
+            },
+            "valid": true
+        },
+        {
+            "recipientIdentityKeyPair": "0a2105ad32dd2ab49a3fe9950b9f2f81258a21177e1eb0ca076bd4a88731bcffa88d2b1220303e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020950",
+            "envelope": "0101648a4a6285a6e88657544b45063de6ae2b4198badcc8ef42042e519603fe53282bd37c0ac0c887f8d60daba28454bca681e3fb102f536ef039d6e52655093285709b20d958a82dd79a9ba26c56ea481a16bc5f354e242386e85c35d6c3638333cad073c5805433d84912c43613f25535bd24f25491d7ea6caa48a37b5a4cd02a67160edce97e20e0fd34a3f0bafe1e78d924695abbd4a3b1e03b368092db51059390d2a65085676697a986c17c15d3c268ae261604282a839e7ff51f96d1788600388d54fab96c2c64fd",
+            "sealedContent": {
+                "senderAccountId": "303132333435363738393a3b3c3d3e3f",
+                "senderDeviceId": 1,
+                "type": 3,
+                "ciphertext": "040d161f28313a434c555e677079828b949da6afb8c1cad3dce5eef70009121b242d363f48515a636c757e879099a2abb4bdc6cfd8e1eaf3fc050e172029323b444d565f68717a838c959ea7b0b9c2cbd4dde6eff8010a131c252e374049525b646d767f88919aa3acb5bec7d0d9e2ebf4fd060f18212a33",
+                "senderUsername": "alice_01"
+            },
+            "valid": false
+        }
+    ]
+}

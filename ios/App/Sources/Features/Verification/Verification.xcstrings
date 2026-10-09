@@ -1,0 +1,798 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "safety.a11y.digits": {
+      "comment": "VoiceOver: the 60-digit grid (value = the digits).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Safety number"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarası"
+          }
+        }
+      }
+    },
+    "safety.a11y.qr": {
+      "comment": "VoiceOver: the QR card.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Safety number QR code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarası QR kodu"
+          }
+        }
+      }
+    },
+    "safety.changed.message %@": {
+      "comment": "6.1 danger note body. %@ = peer username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ may have set up a new device or reinstalled the app. Compare the numbers again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ yeni bir cihaz kurmuş ya da uygulamayı yeniden yüklemiş olabilir. Numaraları yeniden karşılaştır."
+          }
+        }
+      }
+    },
+    "safety.changed.title": {
+      "comment": "6.1 danger note when the peer's safety number changed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Safety number changed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarası değişti"
+          }
+        }
+      }
+    },
+    "safety.confirm.mark": {
+      "comment": "Confirmation: confirm button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as verified"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İşaretle"
+          }
+        }
+      }
+    },
+    "safety.confirm.message %@": {
+      "comment": "Confirmation body. %@ = peer username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only mark it if you compared the numbers with %@ over another channel and every group matches."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca numaraları %@ ile başka bir kanaldan karşılaştırdıysan ve hepsi aynıysa işaretle."
+          }
+        }
+      }
+    },
+    "safety.confirm.title": {
+      "comment": "Confirmation before marking a chat verified manually.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as verified?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulandı olarak işaretlensin mi?"
+          }
+        }
+      }
+    },
+    "safety.markVerified": {
+      "comment": "6.1 text button: mark the chat verified after comparing digits elsewhere.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as verified"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulandı olarak işaretle"
+          }
+        }
+      }
+    },
+    "safety.remove.confirm": {
+      "comment": "Removal confirmation: destructive button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaldır"
+          }
+        }
+      }
+    },
+    "safety.remove.message": {
+      "comment": "Removal confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The badge disappears from the chat. You can verify the numbers again at any time."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozet sohbetten kalkar. Numaraları istediğin zaman yeniden doğrulayabilirsin."
+          }
+        }
+      }
+    },
+    "safety.remove.title": {
+      "comment": "Confirmation before removing verification.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove verification?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulama kaldırılsın mı?"
+          }
+        }
+      }
+    },
+    "safety.removeVerification": {
+      "comment": "6.1 text button once the chat is verified.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove verification"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulamayı kaldır"
+          }
+        }
+      }
+    },
+    "safety.scan": {
+      "comment": "6.1 primary button: opens the QR scanner (6.2).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR kodu okut"
+          }
+        }
+      }
+    },
+    "safety.share.header %@ %@": {
+      "comment": "First line of the shared safety number text. %1$@ = own username, %2$@ = peer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us safety number · %1$@ ↔ %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us güvenlik numarası · %1$@ ↔ %2$@"
+          }
+        }
+      }
+    },
+    "safety.title": {
+      "comment": "6.1 header title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Safety number"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarası"
+          }
+        }
+      }
+    },
+    "safety.verifiedSince %@": {
+      "comment": "6.1 verified pill. %@ = “8 Ekim 2026 · 18:52”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulandı · %@"
+          }
+        }
+      }
+    },
+    "safety.you": {
+      "comment": "6.1/6.3: label under the user's own avatar on the line.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sen"
+          }
+        }
+      }
+    },
+    "scan.a11y.simulateMatch": {
+      "comment": "Simulator only: accessibility action that simulates scanning the matching code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan the matching code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleşen kodu okut"
+          }
+        }
+      }
+    },
+    "scan.a11y.simulateMismatch": {
+      "comment": "Simulator only: accessibility action that simulates scanning a wrong code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan a different code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farklı bir kod okut"
+          }
+        }
+      }
+    },
+    "scan.a11y.simulatorMock": {
+      "comment": "VoiceOver (simulator only): the camera placeholder's phone mock.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator: the other person's code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simülatör: karşı tarafın kodu"
+          }
+        }
+      }
+    },
+    "scan.a11y.torch": {
+      "comment": "VoiceOver: torch button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flashlight"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El feneri"
+          }
+        }
+      }
+    },
+    "scan.a11y.viewfinder": {
+      "comment": "VoiceOver: the viewfinder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera view. Frame the QR code."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera görüntüsü. QR kodunu çerçeveye al."
+          }
+        }
+      }
+    },
+    "scan.contact.hint": {
+      "comment": "6.2 from 4.1/4.2 “QR kodla ekle”: hint under the viewfinder (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame the code on the other person’s phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşındakinin telefonundaki kodu çerçeveye al."
+          }
+        }
+      }
+    },
+    "scan.contact.myCode.hint": {
+      "comment": "6.2 from “QR kodla ekle” › own contact code: hint (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let the other person scan this code with their phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşındaki bu kodu kendi telefonuyla okutsun."
+          }
+        }
+      }
+    },
+    "scan.denied.message": {
+      "comment": "6.2 camera denied body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow camera access in Settings to scan the code. The image never leaves your device."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR kodunu okutmak için Ayarlar’dan kameraya izin ver. Görüntü cihazdan çıkmaz."
+          }
+        }
+      }
+    },
+    "scan.denied.openSettings": {
+      "comment": "6.2 camera denied: opens the app's page in Settings.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar’ı aç"
+          }
+        }
+      }
+    },
+    "scan.denied.title": {
+      "comment": "6.2 when camera access is denied.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access needed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera izni gerekli"
+          }
+        }
+      }
+    },
+    "scan.hint %@": {
+      "comment": "6.2 hint. %@ = possessive of the peer username, built in code: “deniz’in” / “deniz’s”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame the safety-number code on %@ phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ telefonundaki güvenlik numarası kodunu çerçeveye al."
+          }
+        }
+      }
+    },
+    "scan.mismatch.message": {
+      "comment": "6.2 mismatch warning body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The chat stays unverified. Try scanning again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet doğrulanmamış kaldı. Kodu yeniden okutmayı dene."
+          }
+        }
+      }
+    },
+    "scan.mismatch.title": {
+      "comment": "6.2 warning after scanning a code that does not match.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numbers don't match"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numaralar uyuşmuyor"
+          }
+        }
+      }
+    },
+    "scan.myCode.hint %@": {
+      "comment": "6.2 › my code hint. %@ = peer username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let %@ scan this code with their phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bu kodu kendi telefonuyla okutsun."
+          }
+        }
+      }
+    },
+    "scan.myCode.scan": {
+      "comment": "6.2 › my code: back to scanning.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodu okut"
+          }
+        }
+      }
+    },
+    "scan.myCode.title": {
+      "comment": "6.2 › my code: title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi kodum"
+          }
+        }
+      }
+    },
+    "scan.ownCode.message": {
+      "comment": "6.2 from “QR kodla ekle”: own code warning message (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan the code on the other person’s phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşındakinin telefonundaki kodu okut."
+          }
+        }
+      }
+    },
+    "scan.ownCode.title": {
+      "comment": "6.2 from “QR kodla ekle”: the user scanned their own code (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That’s your own code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu senin kodun"
+          }
+        }
+      }
+    },
+    "scan.showMyCode": {
+      "comment": "6.2 pill: show the user's own code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show my code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi kodumu göster"
+          }
+        }
+      }
+    },
+    "scan.title": {
+      "comment": "6.2 title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodu okut"
+          }
+        }
+      }
+    },
+    "scan.unrecognized.message": {
+      "comment": "6.2 from “QR kodla ekle”: warning card message (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No one was found for this code. Try scanning again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kodla kimse bulunamadı. Kodu yeniden okutmayı dene."
+          }
+        }
+      }
+    },
+    "scan.unrecognized.title": {
+      "comment": "6.2 from “QR kodla ekle”: warning card title — a us2us code nobody was found for (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code not recognised"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod tanınmadı"
+          }
+        }
+      }
+    },
+    "verified.back": {
+      "comment": "6.3 primary button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbete dön"
+          }
+        }
+      }
+    },
+    "verified.body %@": {
+      "comment": "6.3 paragraph. %@ = peer username. The no-break space before the last word keeps it from standing alone (the design wraps with text-wrap: pretty).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You and %@ see the same safety number. There’s no one else on the line between you."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sen ve %@ aynı güvenlik numarasını görüyorsunuz. Aradaki hatta başka kimse yok."
+          }
+        }
+      }
+    },
+    "verified.method.faceToFace": {
+      "comment": "6.3 pill: verified by scanning the QR side by side.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "face to face"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yüz yüze"
+          }
+        }
+      }
+    },
+    "verified.method.manual": {
+      "comment": "6.3 pill: verified by marking manually.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "marked manually"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "elle işaretlendi"
+          }
+        }
+      }
+    },
+    "verified.title": {
+      "comment": "6.3 display title (Doto).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line verified."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hat doğrulandı."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

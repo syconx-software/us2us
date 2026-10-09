@@ -1,0 +1,85 @@
+# ── secrets (never committed) ────────────────────────────────────────────
+.env
+.env.*
+!relay/.env.example
+*.p8
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.jks
+*.keystore
+!android/**/debug.keystore
+scripts/deploy.local.env
+
+# ── relay (Node.js / Nuxt) ───────────────────────────────────────────────
+node_modules/
+.output/
+.nuxt/
+.nitro/
+.data/
+relay/media-data/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# ── android / JVM ────────────────────────────────────────────────────────
+.gradle/
+.kotlin/
+android/**/build/
+android/build/
+local.properties
+captures/
+*.hprof
+
+# ── iOS / Xcode ──────────────────────────────────────────────────────────
+.build/
+.swiftpm/
+DerivedData/
+ios/Vendor/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.xcresult
+# release archives and exported .ipa files (ios/App/scripts/archive.sh)
+ios/App/build/
+
+# ── local tool settings and caches ───────────────────────────────────────
+graphify-out/
+CLAUDE.md
+AGENTS.md
+.claude/
+.codex/
+.cursor/
+.cursorrules
+.aider*
+.windsurf*
+copilot-instructions.md
+.github/copilot-instructions.md
+*.dc.html
+ios/design/source/
+
+# ── editors ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS files ─────────────────────────────────────────────────────────────
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+Thumbs.db
+ehthumbs.db
+Desktop.ini
