@@ -12,7 +12,7 @@ import Foundation
 /// | `-U2Language` | `system` · `tr` · `en` | overrides the saved language for this launch |
 /// | `-U2FrozenClock` | `YES` | freezes time at the design's moment (8 Oct 2026, 18:52) — counters show 23:41:07, rings and packets pause like the references |
 /// | `-U2GhostUrgent` | `YES` | the design's “Ghost — last hour” variant (deniz 00:42:10) |
-/// | `-U2Gallery` | `YES` | opens the design-system gallery (DEBUG builds) |
+/// | `-U2Gallery` | `YES` · `stickers` | opens the design-system gallery · the built-in sticker gallery (DEBUG builds) |
 /// | `-U2ResetPreferences` | `YES` | forgets saved theme / language |
 /// | `-U2Fixtures` | `YES` | DEBUG: the design's data (`DesignFixturesService`) instead of the live service — previews, screenshots, UI tests |
 /// | `-U2RelayURL` | `<url>` | DEBUG: a local relay (`http` only for loopback) instead of the production relay |
@@ -31,6 +31,10 @@ struct AppConfiguration: Sendable {
     /// `-U2Route`, parsed.
     var launchRoute: LaunchRoute?
     var showsGallery = false
+    /// `-U2Gallery stickers`: every built-in sticker, both languages and themes.
+    var showsStickerGallery = false
+    /// `-U2Gallery avatars`: every preset avatar, a photo and the picker sheet.
+    var showsAvatarGallery = false
     var resetPreferences = false
     /// The design's data instead of the live service (DEBUG only; Release
     /// always runs the live service).
@@ -68,6 +72,8 @@ struct AppConfiguration: Sendable {
         config.frozenClock = defaults.bool(forKey: "U2FrozenClock")
         config.ghostUrgent = defaults.bool(forKey: "U2GhostUrgent")
         config.showsGallery = defaults.bool(forKey: "U2Gallery")
+        config.showsStickerGallery = defaults.string(forKey: "U2Gallery") == "stickers"
+        config.showsAvatarGallery = defaults.string(forKey: "U2Gallery") == "avatars"
         config.resetPreferences = defaults.bool(forKey: "U2ResetPreferences")
         config.usesFixtures = defaults.bool(forKey: "U2Fixtures")
         config.relayURL = RelayEndpoint.debugOverride(defaults.string(forKey: "U2RelayURL")) ?? RelayEndpoint.production
@@ -88,7 +94,7 @@ struct AppConfiguration: Sendable {
 /// | `chats` · `chats:<state>` | 4.1–4.4 (`4.1` `4.1-empty` `4.2` `4.2-notfound` `4.3` `4.4-link` …) |
 /// | `newChat` · `newChat:<username>` | the 4.2 sheet (with that query) |
 /// | `requests` · `request:<id>` | 4.3 · 4.4 over 4.3 |
-/// | `conversation:<chat>[/<state>]` | 5.1–5.6 (`deniz/5.3`, `mert.k/5.2-ended` …) |
+/// | `conversation:<chat>[/<state>]` | 5.1–5.6 (`deniz/5.3`, `mert_k/5.2-ended` …) |
 /// | `safety:<chat>[/<state>]` | 6.1–6.3, add by QR (`deniz/scan`, `deniz/verified`, `deniz/contact-scan` …) |
 /// | `settings` · `settings:<state>` | 7.1–7.3, pickers, code change, Hakkında (`7.2`, `7.3-wrong`, `code-new`, `theme` …) |
 /// | `backup` | 7.2 over 7.1 |
@@ -174,7 +180,7 @@ struct LaunchRoute: Equatable, Sendable {
 @Observable
 @MainActor
 final class AppPreferences {
-    private let defaults: UserDefaults
+    fileprivate let defaults: UserDefaults
     private static let themeKey = "u2.theme"
     private static let languageKey = "u2.language"
 
@@ -195,7 +201,22 @@ final class AppPreferences {
     func reset() {
         defaults.removeObject(forKey: Self.themeKey)
         defaults.removeObject(forKey: Self.languageKey)
+        defaults.removeObject(forKey: SaveNoticePreference.key)
         theme = .system
         language = .system
+    }
+}
+
+/// The one-time explanation before the first save from a viewer (“<kişi>
+/// kaydettiğini görecek”, `MediaSaver`) was acknowledged with “Kaydet”: a
+/// device preference like theme and language. It only says that the
+/// explanation was seen, never what was saved or from whom. It goes with
+/// the account — “Her şeyi sil”, the wipe after wrong codes, a restore that
+/// replaces the vault, or a launch without an account — so a new account is
+/// told again.
+extension AppPreferences: SaveNoticeMemory {
+    var hasAcknowledgedSaveNotice: Bool {
+        get { SaveNoticePreference.isAcknowledged(in: defaults) }
+        set { SaveNoticePreference.setAcknowledged(newValue, in: defaults) }
     }
 }

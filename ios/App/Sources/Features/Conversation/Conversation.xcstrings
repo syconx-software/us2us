@@ -1,6 +1,218 @@
 {
   "sourceLanguage": "tr",
   "strings": {
+    "a11y.header.peer.hint": {
+      "comment": "VoiceOver hint of the person in the chat header (opens the contact screen).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens verification, photos and documents"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulamayı, fotoğrafları ve belgeleri açar"
+          }
+        }
+      }
+    },
+    "a11y.liveLocation.map": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show on map"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haritada göster"
+          }
+        }
+      }
+    },
+    "a11y.media.downloading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndiriliyor"
+          }
+        }
+      }
+    },
+    "a11y.media.downloading.progress %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading, %lld%%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndiriliyor, %%%lld"
+          }
+        }
+      }
+    },
+    "a11y.media.remote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not downloaded"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilmedi"
+          }
+        }
+      }
+    },
+    "a11y.media.sending.mixed %lld": {
+      "comment": "VoiceOver, after photos and videos were picked together in “+” › Fotoğraf ve video: how many are on their way (always two or more).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld photos and videos"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld photos and videos"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld fotoğraf ve video gönderiliyor"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld fotoğraf ve video gönderiliyor"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "a11y.media.sending.photos %lld": {
+      "comment": "VoiceOver, after photos were picked in “+” › Fotoğraf ve video: how many are on their way. Turkish has the plural forms too (same text) so the lookup never falls back.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld photo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld photos"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld fotoğraf gönderiliyor"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld fotoğraf gönderiliyor"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "a11y.media.sending.videos %lld": {
+      "comment": "VoiceOver, after videos were picked in “+” › Fotoğraf ve video: how many are on their way.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld video"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sending %lld videos"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld video gönderiliyor"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld video gönderiliyor"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "a11y.message.actions": {
       "extractionState": "manual",
       "localizations": {
@@ -48,6 +260,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ yazıyor"
+          }
+        }
+      }
+    },
+    "a11y.video %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %1$@, %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "a11y.video.pending %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %@"
           }
         }
       }
@@ -171,6 +417,95 @@
         }
       }
     },
+    "attach.media": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo & video"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf ve video"
+          }
+        }
+      }
+    },
+    "blocked.bar %@": {
+      "comment": "5.1 of a blocked person (proposed): the bar in the composer's place, above “Engeli kaldır”. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is blocked. Their messages don't reach you and you can't write to them; they don't know they're blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellendi. Yazdıkları sana ulaşmaz, sen de ona yazamazsın; engellendiğini bilmez."
+          }
+        }
+      }
+    },
+    "blocked.unblock.hint": {
+      "comment": "VoiceOver hint of “Engeli kaldır” in the 5.1 blocked bar.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messaging opens again"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlaşma yeniden açılır"
+          }
+        }
+      }
+    },
+    "bubble.saved": {
+      "comment": "The chip under the user's own photo, video or file once the other side saved it (SAVED receipt). Short, like a reaction chip.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydetti"
+          }
+        }
+      }
+    },
+    "bubble.saved.a11y": {
+      "comment": "VoiceOver: the “Kaydetti” chip.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They saved this"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşı taraf kaydetti"
+          }
+        }
+      }
+    },
     "confirm.deleteEveryone.message": {
       "extractionState": "manual",
       "localizations": {
@@ -235,6 +570,195 @@
           "stringUnit": {
             "state": "translated",
             "value": "Süreli mesajlar"
+          }
+        }
+      }
+    },
+    "file.download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndir"
+          }
+        }
+      }
+    },
+    "file.held": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads once you accept the request"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İsteği kabul edince indirilir"
+          }
+        }
+      }
+    },
+    "file.notPreviewable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file type can't be previewed; you can save it to Files."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu dosya türü önizlenemiyor; Dosyalar'a kaydedebilirsin."
+          }
+        }
+      }
+    },
+    "file.notPreviewable.disappearing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file type can't be previewed. Files in disappearing messages can't be saved."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu dosya türü önizlenemiyor. Süreli mesajdaki dosyalar kaydedilemez."
+          }
+        }
+      }
+    },
+    "file.openFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file can't be opened"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya açılamadı"
+          }
+        }
+      }
+    },
+    "file.openFailed.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file couldn't be opened on this phone. Try again in a moment."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya bu telefonda açılamadı. Biraz sonra yeniden dene."
+          }
+        }
+      }
+    },
+    "file.protected.note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disappearing message · no option to share or save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Süreli mesaj · paylaşma ve kaydetme seçeneği yok"
+          }
+        }
+      }
+    },
+    "file.saveToFiles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Files"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosyalara kaydet"
+          }
+        }
+      }
+    },
+    "file.share": {
+      "comment": "File preview header: share the file (the sender of a received file is told).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paylaş"
+          }
+        }
+      }
+    },
+    "file.share.hint": {
+      "comment": "VoiceOver hint of the file preview's share button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For a file you received, the sender sees that you shared it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aldığın bir dosyada gönderen paylaştığını görür"
+          }
+        }
+      }
+    },
+    "file.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No longer available"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artık indirilemez"
           }
         }
       }
@@ -392,6 +916,42 @@
         }
       }
     },
+    "info.saved": {
+      "comment": "5.4 timeline step: the other side saved the photo, video or file.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedildi"
+          }
+        }
+      }
+    },
+    "info.saved.detail %@": {
+      "comment": "5.4 timeline step detail. %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ saved or shared it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kaydetti ya da paylaştı"
+          }
+        }
+      }
+    },
     "info.sent.detail": {
       "extractionState": "manual",
       "localizations": {
@@ -422,6 +982,1072 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesaj bilgisi"
+          }
+        }
+      }
+    },
+    "liveMap.center": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to my position"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konumuma git"
+          }
+        }
+      }
+    },
+    "liveMap.deviceOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your position is shown on this device only"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konumun yalnızca bu cihazda görünür"
+          }
+        }
+      }
+    },
+    "liveMap.fit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show both of you"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İkinizi de göster"
+          }
+        }
+      }
+    },
+    "liveMap.lastUpdate %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last update %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son konum %@"
+          }
+        }
+      }
+    },
+    "liveMap.locating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding your position…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konumun bulunuyor…"
+          }
+        }
+      }
+    },
+    "liveMap.permission.allow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İzin ver"
+          }
+        }
+      }
+    },
+    "liveMap.permission.ask": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow location access to see your own position too."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi konumunu da görmek için konum izni ver."
+          }
+        }
+      }
+    },
+    "liveMap.permission.denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location access is off, so the map shows only the other person."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konum izni kapalı; haritada yalnızca karşı taraf görünür."
+          }
+        }
+      }
+    },
+    "liveMap.permission.settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarları aç"
+          }
+        }
+      }
+    },
+    "liveMap.sharing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You’re sharing your location"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konumunu paylaşıyorsun"
+          }
+        }
+      }
+    },
+    "liveMap.stop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop sharing"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paylaşımı durdur"
+          }
+        }
+      }
+    },
+    "liveMap.tiles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The map loads from Apple Maps; Apple can see the area shown."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harita Apple Haritalar’dan yüklenir; Apple görüntülenen bölgeyi görebilir."
+          }
+        }
+      }
+    },
+    "liveMap.you": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sen"
+          }
+        }
+      }
+    },
+    "location.open.apple": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Apple Maps"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Haritalar’da aç"
+          }
+        }
+      }
+    },
+    "location.open.apple.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Maps app on this device"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu cihazdaki Haritalar uygulaması"
+          }
+        }
+      }
+    },
+    "location.open.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The location is handed to the app you choose; from there, that app’s privacy rules apply."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konum, seçtiğin uygulamaya aktarılır; sonrası o uygulamanın gizlilik kurallarına bağlıdır."
+          }
+        }
+      }
+    },
+    "location.open.disappearing": {
+      "comment": "5.2 “Haritada aç” chooser, under the privacy hint, only for a place in a disappearing message: Apple Maps keeps places in Recents (synced to iCloud), Google in its history.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disappearing message: the app you choose may keep this place in its own history; us2us can’t remove it from there."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Süreli mesaj: seçtiğin uygulama bu konumu kendi geçmişinde tutabilir; us2us onu oradan silemez."
+          }
+        }
+      }
+    },
+    "location.open.google": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Google Maps"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google Maps’te aç"
+          }
+        }
+      }
+    },
+    "location.open.google.detail.app": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Google Maps app"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google Maps uygulaması"
+          }
+        }
+      }
+    },
+    "location.open.google.detail.web": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens google.com/maps in your browser"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarayıcıda google.com/maps açılır"
+          }
+        }
+      }
+    },
+    "location.open.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in maps"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haritada aç"
+          }
+        }
+      }
+    },
+    "photo.preparationFailed.detail": {
+      "comment": "5.2 under a photo sent from “+” whose preparing failed: “İletilemedi · Fotoğraf hazırlanamadı · Tekrar gönder”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo couldn't be prepared"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf hazırlanamadı"
+          }
+        }
+      }
+    },
+    "photo.preparing.detail": {
+      "comment": "5.2 under a photo sent from “+” while it is prepared (re-encoded, metadata removed) before it is sent: “Gönderiliyor · Fotoğraf hazırlanıyor”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing the photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf hazırlanıyor"
+          }
+        }
+      }
+    },
+    "player.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The video can't be played"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video oynatılamadı"
+          }
+        }
+      }
+    },
+    "player.mute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi kapat"
+          }
+        }
+      }
+    },
+    "player.pause": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duraklat"
+          }
+        }
+      }
+    },
+    "player.play": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynat"
+          }
+        }
+      }
+    },
+    "player.position": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback position"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatma konumu"
+          }
+        }
+      }
+    },
+    "player.preparing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing the video…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video hazırlanıyor…"
+          }
+        }
+      }
+    },
+    "player.replay": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play again"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekrar oynat"
+          }
+        }
+      }
+    },
+    "player.unmute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi aç"
+          }
+        }
+      }
+    },
+    "safetyChanged.banner": {
+      "comment": "5.1 banner above the composer while the contact's changed safety number waits for the user; sending is held (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The safety number changed. Your messages won’t be sent until you compare it."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarası değişti. Karşılaştırana kadar mesajların gönderilmez."
+          }
+        }
+      }
+    },
+    "safetyChanged.compare": {
+      "comment": "5.1 safety-number banner: action that opens the safety number (6.1).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşılaştır"
+          }
+        }
+      }
+    },
+    "save.notice.body": {
+      "comment": "The one-time explanation before the first save (floating sheet body).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you save or share a photo, video or file, the sender sees it — even with read receipts off. We only ask this once."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir fotoğrafı, videoyu ya da dosyayı telefonuna kaydettiğinde ya da paylaştığında gönderen bunu görür — okundu bilgisi kapalıyken de. Bunu yalnızca bir kez soruyoruz."
+          }
+        }
+      }
+    },
+    "save.notice.cancel": {
+      "comment": "The one-time save explanation: do not save.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vazgeç"
+          }
+        }
+      }
+    },
+    "save.notice.confirm": {
+      "comment": "The one-time save explanation: save (and remember that it was explained).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "save.notice.title.file %@": {
+      "comment": "The one-time save explanation, a file. %@ = the sender's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ will see that you saved it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ dosyayı kaydettiğini görecek"
+          }
+        }
+      }
+    },
+    "save.notice.title.generic": {
+      "comment": "Title of the one-time save explanation when the sender's username is not known.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sender will see that you saved it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderen kaydettiğini görecek"
+          }
+        }
+      }
+    },
+    "save.notice.title.photo %@": {
+      "comment": "The one-time save explanation, a photo. %@ = the sender's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ will see that you saved it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fotoğrafı kaydettiğini görecek"
+          }
+        }
+      }
+    },
+    "save.notice.title.video %@": {
+      "comment": "The one-time save explanation, a video. %@ = the sender's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ will see that you saved it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ videoyu kaydettiğini görecek"
+          }
+        }
+      }
+    },
+    "save.photos.denied.body": {
+      "comment": "Photos refused the add-only permission (floating sheet body).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us isn't allowed to add to Photos. You can allow it in Settings; us2us never reads your library."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us'ın Fotoğraflar'a ekleme izni yok. Ayarlar'dan açabilirsin; us2us arşivini hiçbir zaman okumaz."
+          }
+        }
+      }
+    },
+    "save.photos.denied.title": {
+      "comment": "Photos refused the add-only permission (floating sheet title).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding to Photos is off"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraflar'a ekleme kapalı"
+          }
+        }
+      }
+    },
+    "sticker.pack.cups": {
+      "comment": "Pack tab and section label: the cup mascot pack (us2us.cups).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cups"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bardaklar"
+          }
+        }
+      }
+    },
+    "sticker.pack.mood": {
+      "comment": "Pack tab and section label: coffee, on my way, busy, party, sleepy (us2us.mood).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mood"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruh hâli"
+          }
+        }
+      }
+    },
+    "sticker.pack.privacy": {
+      "comment": "Pack tab and section label: locks, ghost, key, no trace (us2us.privacy).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik"
+          }
+        }
+      }
+    },
+    "sticker.pack.words": {
+      "comment": "Pack tab and section label: text stickers (us2us.words).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Words"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sözler"
+          }
+        }
+      }
+    },
+    "sticker.picker.hint": {
+      "comment": "VoiceOver hint on every sticker in the picker.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to send, touch and hold to preview."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Göndermek için dokun, önizlemek için basılı tut."
+          }
+        }
+      }
+    },
+    "sticker.picker.language": {
+      "comment": "VoiceOver label of the TR | EN switch (shown as the codes TR and EN, not localized).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sticker language"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sticker dili"
+          }
+        }
+      }
+    },
+    "sticker.picker.language.en": {
+      "comment": "VoiceOver value of the TR | EN switch.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İngilizce"
+          }
+        }
+      }
+    },
+    "sticker.picker.language.hint": {
+      "comment": "VoiceOver hint of the TR | EN switch (adjustable).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes the language of the words on stickers you send."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazılı sticker’ların hangi dilde gönderileceğini değiştirir."
+          }
+        }
+      }
+    },
+    "sticker.picker.language.tr": {
+      "comment": "VoiceOver value of the TR | EN switch.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Türkçe"
+          }
+        }
+      }
+    },
+    "sticker.picker.preview": {
+      "comment": "VoiceOver custom action on a sticker in the picker: opens the large preview.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önizle"
+          }
+        }
+      }
+    },
+    "sticker.picker.recent": {
+      "comment": "Section label over the recently sent stickers (monoSectionLabel, upper-cased by the style).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son kullanılanlar"
+          }
+        }
+      }
+    },
+    "sticker.picker.title": {
+      "comment": "Sticker picker sheet title (navTitle). Turkish keeps “Sticker” like the chat list preview.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stickers"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sticker"
+          }
+        }
+      }
+    },
+    "sticker.preview.send": {
+      "comment": "Button under the long-press sticker preview.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönder"
+          }
+        }
+      }
+    },
+    "verify.prompt": {
+      "comment": "5.1 first row of an unverified chat (system-pill look, tappable → 6.1; proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not verified · Verify with QR"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulanmadı · QR ile doğrula"
+          }
+        }
+      }
+    },
+    "verify.prompt.hint": {
+      "comment": "VoiceOver hint of the 5.1 verify prompt.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the safety number. Scan each other’s QR code when you’re together."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenlik numarasını açar. Yan yana gelince birbirinizin QR kodunu okutun."
+          }
+        }
+      }
+    },
+    "video.preparationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't be prepared"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazırlanamadı"
+          }
+        }
+      }
+    },
+    "video.preparationFailed.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video couldn't be prepared"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video hazırlanamadı"
+          }
+        }
+      }
+    },
+    "video.preparing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazırlanıyor"
+          }
+        }
+      }
+    },
+    "video.preparing.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing the video"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video hazırlanıyor"
           }
         }
       }
@@ -558,6 +2184,504 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bugün %@"
+          }
+        }
+      }
+    },
+    "viewer.photo.a11y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf"
+          }
+        }
+      }
+    },
+    "viewer.photo.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The photo can't be loaded"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf yüklenemedi"
+          }
+        }
+      }
+    },
+    "viewer.save": {
+      "comment": "Photo viewer / player: save to Photos.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "viewer.save.failed": {
+      "comment": "Toast: the photo or video could not be saved.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedilemedi"
+          }
+        }
+      }
+    },
+    "viewer.save.hint": {
+      "comment": "VoiceOver hint of “Kaydet” for something received.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sender will see that you saved it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderen kaydettiğini görür"
+          }
+        }
+      }
+    },
+    "viewer.saved": {
+      "comment": "Photo viewer / player: “Kaydet” after saving (VoiceOver label).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedildi"
+          }
+        }
+      }
+    },
+    "viewer.saved.toast": {
+      "comment": "Toast (and VoiceOver announcement) after saving to Photos.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved to Photos"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraflar'a kaydedildi"
+          }
+        }
+      }
+    },
+    "viewer.zoomHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up or down to zoom in or out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakınlaştırmak ya da uzaklaştırmak için yukarı veya aşağı kaydır"
+          }
+        }
+      }
+    },
+    "voice.a11y.played %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, played"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, dinlendi"
+          }
+        }
+      }
+    },
+    "voice.a11y.recordHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold to record, or double-tap to record hands-free."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydetmek için basılı tut; eller serbest kayıt için iki kez dokun."
+          }
+        }
+      }
+    },
+    "voice.a11y.recording %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording, %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydediliyor, %@"
+          }
+        }
+      }
+    },
+    "voice.a11y.stopped %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording stopped, %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıt durdu, %@"
+          }
+        }
+      }
+    },
+    "voice.a11y.unplayed %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, not played yet"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, dinlenmedi"
+          }
+        }
+      }
+    },
+    "voice.delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete recording"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydı sil"
+          }
+        }
+      }
+    },
+    "voice.hint.hold": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold to record"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydetmek için basılı tut"
+          }
+        }
+      }
+    },
+    "voice.hint.sendFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The voice message couldn’t be sent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli mesaj gönderilemedi"
+          }
+        }
+      }
+    },
+    "voice.hint.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can’t record right now"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu anda kayıt yapılamıyor"
+          }
+        }
+      }
+    },
+    "voice.hint.unplayable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This voice message can’t be played"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sesli mesaj oynatılamıyor"
+          }
+        }
+      }
+    },
+    "voice.loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading voice message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli mesaj yükleniyor"
+          }
+        }
+      }
+    },
+    "voice.pause": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause voice message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli mesajı duraklat"
+          }
+        }
+      }
+    },
+    "voice.permission.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To record voice messages, allow microphone access for us2us in Settings. The microphone is on only while you record, and a recording leaves your phone only if you send it, end-to-end encrypted."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli mesaj kaydetmek için Ayarlar’da us2us’a mikrofon izni ver. Mikrofon yalnızca sen kayıt yaparken açılır; kayıt yalnızca sen gönderirsen, uçtan uca şifreli gider."
+          }
+        }
+      }
+    },
+    "voice.permission.settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarları aç"
+          }
+        }
+      }
+    },
+    "voice.permission.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone access is off"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofon izni kapalı"
+          }
+        }
+      }
+    },
+    "voice.preview.play": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play recording"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydı dinle"
+          }
+        }
+      }
+    },
+    "voice.send": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send voice message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli mesajı gönder"
+          }
+        }
+      }
+    },
+    "voice.slideToCancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slide to cancel"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İptal için kaydır"
+          }
+        }
+      }
+    },
+    "voice.speed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback speed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatma hızı"
+          }
+        }
+      }
+    },
+    "voice.speed.value %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ times speed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kat hız"
+          }
+        }
+      }
+    },
+    "voice.stop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop recording"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydı durdur"
           }
         }
       }

@@ -21,6 +21,7 @@ flowchart TD
     end
     W3 -->|Hesabımı oluştur| S1
     S3 -->|checkbox + Kurulumu tamamla| CHATS
+    S3 -->|name taken: Başka bir ad seç| S1
     R -->|done (new device)| S2
 
     subgraph Lock["03 · Lock (full-screen cover over everything)"]
@@ -85,6 +86,7 @@ The lock UI is presented **above** the navigation stack (full-screen cover, not 
 | 2.2 | weak code / mismatch | 2.2 set | in place | dots → `danger` + soft shake 0.45 s, message fade 0.36 s, reset after 0.8 s |
 | 2.x | back button / edge swipe | previous step | pop | `screenPush` reversed |
 | 2.3 | “Kurulumu tamamla” | 4.1 | replace root | cross-fade 0.5 s `curveSoft` |
+| 2.3 | name taken → “Başka bir ad seç” (proposed) | 2.1 (the code kept; “Devam” → 2.3) | pop to 2.1 | `screenPush` reversed |
 | launch / foreground | — | 3.1 or 3.2 | full-screen cover | cover present instantly; content inside fades in 0.36 s |
 | 3.1 | Face ID success | last app screen | cover dismiss | dissolve 0.36 s |
 | 3.1 | failure / cancel / “Kodla aç” | 3.2 | in-cover swap | cross-fade 0.36 s |
@@ -122,6 +124,10 @@ The lock UI is presented **above** the navigation stack (full-screen cover, not 
 | 5.1/5.2 | view-once bubble | 5.6 | full-screen cover (always dark) | fade 0.36 s |
 | 5.6 | close | 5.1 (bubble → “Açıldı”) | dismiss | fade 0.36 s |
 | 5.1 | header name/avatar (proposed) | 6.1 | push | `screenPush` |
+| 6.1 (contact screen) | “…” › Engelle (proposed) | alert → blocked in place | alert | note drops in, mark fades in 0.36 s |
+| 6.1 (contact screen) / 4.4 | “…” › Bildir (proposed) | report sheet | sheet (full height) | `springSoft` + backdrop |
+| report sheet | “E-postayla gönder” | Mail / another mail app / the address to copy | system sheet / outside the app / in place | — / — / cross-fade 0.36 s |
+| 5.1 (blocked) | “Engeli kaldır” (proposed) | 5.1 | in place | bar cross-fades into the composer 0.36 s |
 | 6.1 | “QR kodu okut” | 6.2 | full-screen cover | fade 0.36 s |
 | 6.1 | “Doğrulandı olarak işaretle” | confirmation (proposed) → 6.3 | alert → push | `screenPush` |
 | 6.2 | match | 6.3 | replace cover content | cross-fade 0.5 s |
@@ -140,10 +146,10 @@ The lock UI is presented **above** the navigation stack (full-screen cover, not 
 
 ### 4.1 Account creation (first launch)
 1. 1.1 → 1.2 → 1.3 (paged). No notification permission is ever requested.
-2. 2.1 username: local validation (`^[a-z0-9._]{3,20}$`, ASCII only) + live availability check (debounced ~400 ms). “Devam” enabled only when available.
+2. 2.1 username: local validation by PROTOCOL.md §3.1 — the normalized name (`White_Space` trimmed, one leading “@” dropped, NFKC, locale-independent lower case) must match `^[a-z][a-z0-9_]{2,23}$` (3–24, a letter first, `a-z 0-9 _`, no dot); nothing typed is filtered, cut or converted, every broken rule is shown — + availability check (debounced ~400 ms). “Devam” enabled only when available. The live service cannot ask the relay before the account exists (§4.4): a name that meets the rules shows “Kurallara uygun” and continues; a taken name shows at step 5.
 3. 2.2 secret code: 6 digits → reject weak codes (all-equal, straight runs, simple repeats) → confirm → mismatch returns to set.
 4. 2.3: Face ID toggle (default ON if available; enabling may show the system prompt), checkbox required.
-5. “Kurulumu tamamla”: create identity keys, vault bound to the device secret + code, register username with the relay, then root = 4.1. On failure: inline error, stay on 2.3 (code already confirmed).
+5. “Kurulumu tamamla”: create identity keys, vault bound to the device secret + code, register username with the relay, then root = 4.1. On failure: inline error, stay on 2.3 (code already confirmed). Name taken (`username_taken`, 409): “Bu kullanıcı adı alınmış.” and the CTA becomes “Başka bir ad seç” → 2.1, the taken name still in the field and marked “Alınmış”; the confirmed code is kept, so “Devam” returns to 2.3 (proposed). Exception: when the failure leaves a vault on this phone — the account was saved before a later step failed, or a restore inside the lock was refused before anything was erased — retrying would fail, so the sentence says so, the CTA becomes “Kilit ekranına dön” (back and the checkbox disabled) and the lock appears at once (proposed; the design has no state for it).
 
 ### 4.2 Unlock (every launch and every foreground)
 1. `scenePhase` → inactive: show 3.4 cover immediately.
@@ -151,10 +157,11 @@ The lock UI is presented **above** the navigation stack (full-screen cover, not 
 3. 3.1 auto-starts `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)`; success → unlock; failure/cancel → 3.2.
 4. 3.2: 6 digits auto-submit. Wrong → error state; attempts 1–2 free (copy counts the remaining), then 1 min wait, then increasing waits (proposed 1 → 5 → 15 → 60 min), persisted across relaunches; keypad disabled while waiting. No reset path.
 5. 3.3 (forgot): restore (7.3) or erase-everything (2nd confirmation) → 1.1. After a restore/erase on a new install, contacts see “Güvenlik numarası değişti” in their chats.
+6. Optional wipe after 10 wrong codes (off by default; PROTOCOL §5.2): the 10th wrong code in a row erases everything, and the lock shows it at once (proposed, no design state): 3.2's top block with a danger badge, “Veriler silindi.” and the sentence, and 3.3's two option cards on a `surface` panel — “Yedekten geri yükle” → 7.3 (the picker opens) and “Baştan başla” → 1.1. Never “Kod yanlış”. If the 10th wrong code was the current code of 7.1 › Gizli kodu değiştir, the lock rises over the erased app with the same screen. Harness: `lock:wiped`; the not-a-wrong-code sentences: `lock:unavailable`, `lock:unusable`.
 
 ### 4.3 Starting a conversation
 * By username: 4.1 → 4.2 → exact lookup → “Mesaj yaz” → 5.1 (the first message becomes a request on the other side; neither side sees presence until accepted).
-* By QR (side by side): 4.2 “QR kodla ekle” → 6.2 → adds the contact **and** verifies it (→ 6.3 → 5.1).
+* By QR (side by side): 4.2 “QR kodla ekle” → 6.2 → adds the contact **and** verifies it (→ 6.3 → 5.1). The code carries the contact's identity-key fingerprint; that key is pinned, so a different key later is a safety-number change. A code without the fingerprint (older versions) adds the contact unverified (→ 5.1, no 6.3); a code whose key does not match shows “Numaralar uyuşmuyor”.
 * Incoming: request appears in 4.1's requests card → 4.3 → 4.4 → Kabul et (→ 5.1) / Engelle / Sil. The sender never learns whether the request was seen, and no read receipt is sent until accepted.
 
 ### 4.4 Message lifecycle (as shown in 1.2, 5.1, 5.4)
@@ -167,11 +174,24 @@ The lock UI is presented **above** the navigation stack (full-screen cover, not 
 * View-once media: no preview; opening shows 5.6; closing deletes it on both sides; screenshots are detected and reported (system line to the sender); content hidden while the screen is captured.
 
 ### 4.6 Verification
-6.1 shows the 60-digit safety number (12 × 5) and its QR. Side by side → 6.2 scan → match → 6.3 → header seal + list seal. Remote → compare digits over another channel → “Doğrulandı olarak işaretle”. If the peer's number changes later, the seal is removed and a warning system line is inserted.
+6.1 shows the 60-digit safety number (12 × 5) and its QR. Side by side → 6.2 scan → match → 6.3 → header seal + list seal. Remote → compare digits over another channel → “Doğrulandı olarak işaretle”. If the peer's number changes later, the seal is removed and a warning system line is inserted (found on receive or while sending).
+
+Proposed additions (the design has none; they reuse its components):
+* 5.1, unverified chat with a known key: the first row of the history is a tappable system pill “Doğrulanmadı · QR ile doğrula” → 6.1; it scrolls away with the history and goes once verified.
+* 5.1 while a changed number waits: a banner above the composer in the urgent banner's style, “Güvenlik numarası değişti. Karşılaştırana kadar mesajların gönderilmez. · Karşılaştır” → 6.1. It stays until the number is verified or accepted.
+* 6.1 after a change: besides scanning and marking, “Doğrulamadan devam et” (with a confirmation) accepts the new number without the seal; the system line says “Yeni güvenlik numarası kabul edildi · doğrulanmadı”.
+* Every decision on 6.1 is bound to the number on screen: if the number changed meanwhile, nothing is marked and the danger note says so. 6.1 reloads when the key changes. 6.3 appears only after a verification was stored.
 
 ### 4.7 Backup and restore
 * Export (7.1 → 7.2): choose contents, set a **separate backup password** (must differ from the secret code; strength meter), export one `.u2u` file via the system share/export sheet (Files, AirDrop). View-once media and disappearing messages are never included.
-* Restore (1.1 or 3.3 → 7.3): pick the file → backup password → on-device decryption with progress (keys → messages → media), resumable after relaunch → set a new 6-digit secret code on this device (2.2 ×2 → 2.3) → 4.1. Chats whose Ghost time ran out are not restored.
+* Restore (1.1 or 3.3 → 7.3): pick the file → backup password → on-device decryption with progress (keys → messages → media), resumable after relaunch → set a new 6-digit secret code on this device (2.2 ×2 → 2.3) → 4.1. Chats whose Ghost time ran out are not restored. Backing out of 2.2 after a restore that began on the lock (3.3) returns to the lock, never to 1.1 (the vault on this phone is still there).
+* Generated backup password (7.2, proposed): its card shows the password hidden (`••••-••••-…`) until the eye shows it, hides it again when the app leaves the foreground and while the screen is recorded; “Kopyala” copies it to this device only, and “Kopyalandı · yalnızca bu cihazda, 1 dk sonra silinir” stays under the button until the copy expires. Harness: `settings:7.2-generated`, `7.2-revealed`, `7.2-copied`.
+* After a restore whose token rotation got no answer (PROTOCOL §5.5 step 3.4; proposed): 7.1 opens with a danger-ringed notice “Eski telefonun erişimi kapanmamış olabilir” and “Şimdi kontrol et”; 4.1 shows a card in the requests card's place that opens 7.1. Both go once the outcome is known (toast “Eski telefonun erişimi kapandı.”, or — the backup was restored elsewhere first — the line “Hat kapandı · oturum sona erdi”). Harness: `settings:7.1-access`, `7.1-access-checking`, `7.1-access-unanswered`.
+
+### 4.8 Blocking and reports (proposed; App Review 1.2)
+* Block: 5.1 › the person → contact screen › “…” › Engelle → “{user} engellensin mi?” (the 4.3 / 4.4 alert: Engelle · Bildir · Vazgeç). Blocked: the note on Doğrulama and the mark by the name, “Engellendi” in 4.1's row and 5.1's header, 5.1's composer replaced by a bar with “Engeli kaldır”. Nothing reaches the person and nothing of theirs arrives (PROTOCOL §6.4); they are not told. A request blocked in 4.3 / 4.4 stays in 4.1 as a blocked chat; unblocking makes it a request again.
+* Unblock: the contact screen's “…” › Engeli kaldır, its note, or 5.1's bar — no confirmation.
+* Report: the contact screen's “…” › Bildir, 4.4's “…” › Bildir, or Bildir in any block confirmation → the report sheet (reason, optional note, “Bu kişiyi de engelle” on) → “E-postayla gönder”: Mail inside the app, else another mail app (`mailto:`), else the address support@us2us.app to copy. Only the username, the reason, the note, the app version and the UTC time go into the e-mail — never message content. The block follows only a report that left the sheet (sent, handed off, or the address shown); from 4.4 the sheet then closes back to 4.3.
 
 ## 5 · Back behaviour & gestures
 * Edge-swipe back is allowed on every pushed screen except during setup step 2.2 confirm (back returns to the set step instead) and inside the lock cover (no back).

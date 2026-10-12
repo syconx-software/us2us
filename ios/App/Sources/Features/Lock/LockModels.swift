@@ -12,6 +12,9 @@ import Us2usKit
 /// * 3.2 the code (``LockCodeModel``). The Face ID key goes back to 3.1.
 /// * 3.3 “Kodu unuttum” — a floating sheet: restore (7.3) or erase
 ///   everything after a second confirmation.
+/// * After the optional wipe (the 10th wrong code in a row, PROTOCOL §5.2):
+///   “Veriler silindi” at once, with the two real ways on — a backup, or a
+///   new start — instead of “Kod yanlış”.
 @Observable
 @MainActor
 final class LockFlowModel {
@@ -22,6 +25,8 @@ final class LockFlowModel {
         case code
         /// 3.3 › “Yedekten geri yükle” → document picker → 7.3, inside the lock.
         case restore(URL?)
+        /// The optional wipe fired: everything on this phone is erased.
+        case wiped
     }
 
     enum ForgotStep: Hashable {
@@ -49,6 +54,12 @@ final class LockFlowModel {
     private let messenger: any MessengerService
     private let onUnlock: () -> Void
     private let onErase: () async -> Void
+    /// After the wipe: on to onboarding — `true` straight to the backup
+    /// picker (7.3), `false` to 1.1.
+    private let onStartOver: (_ restoring: Bool) -> Void
+    /// The wipe fired on the lock: what the app keeps outside the vault
+    /// about the erased account goes too.
+    private let onWiped: () -> Void
     /// Scan automatically at the next “app became active”.
     private var autoScanArmed = true
     /// Invalidates late biometric results (backgrounding, relock).
@@ -60,18 +71,24 @@ final class LockFlowModel {
     /// DEBUG harness: no automatic scan, no transitions out of the drawn state.
     let isFrozenForHarness: Bool
 
+    /// - Parameter startsWiped: the wipe fired outside the lock (the current
+    ///   code of 7.1 › Gizli kodu değiştir): the lock opens on its outcome.
     init(
         messenger: any MessengerService, biometry: Biometry, isFrozenForHarness: Bool = false,
-        onUnlock: @escaping () -> Void, onErase: @escaping () async -> Void
+        startsWiped: Bool = false, onUnlock: @escaping () -> Void, onErase: @escaping () async -> Void,
+        onStartOver: @escaping (_ restoring: Bool) -> Void = { _ in }, onWiped: @escaping () -> Void = {}
     ) {
         self.messenger = messenger
         self.biometry = biometry
         self.onUnlock = onUnlock
         self.onErase = onErase
+        self.onStartOver = onStartOver
+        self.onWiped = onWiped
         self.isFrozenForHarness = isFrozenForHarness
-        stage = biometry == .none ? .code : .biometric
+        stage = startsWiped ? .wiped : (biometry == .none ? .code : .biometric)
         code = LockCodeModel(messenger: messenger, onUnlock: onUnlock)
-        autoScanArmed = !isFrozenForHarness
+        autoScanArmed = !isFrozenForHarness && !startsWiped
+        code.onWiped = { [weak self] in self?.dataWiped() }
     }
 
     // MARK: Lifecycle
@@ -87,7 +104,8 @@ final class LockFlowModel {
     /// Back from the background while the lock was already up: lock afresh —
     /// 3.1 (scanning again) or an empty 3.2.
     func relock() {
-        guard !isFrozenForHarness, !isErasing else { return }
+        // After the wipe there is nothing left to lock: the outcome stays.
+        guard !isFrozenForHarness, !isErasing, stage != .wiped else { return }
         scanGeneration += 1
         isScanning = false
         showsForgot = false
@@ -229,6 +247,33 @@ final class LockFlowModel {
         show(.code)
     }
 
+    // MARK: After the wipe (PROTOCOL §5.2)
+
+    /// The 10th wrong code in a row erased everything: say so now, not
+    /// “Kod yanlış” until the next launch. Nothing else of the lock is live.
+    func dataWiped() {
+        onWiped()
+        scanGeneration += 1
+        isScanning = false
+        autoScanArmed = false
+        showsForgot = false
+        showsBackupPicker = false
+        afterForgotDismiss = nil
+        show(.wiped)
+    }
+
+    /// “Yedekten geri yükle”: onboarding, straight to the backup picker (7.3).
+    func restoreAfterWipe() {
+        guard stage == .wiped else { return }
+        onStartOver(true)
+    }
+
+    /// “Baştan başla”: onboarding at 1.1.
+    func startOverAfterWipe() {
+        guard stage == .wiped else { return }
+        onStartOver(false)
+    }
+
     // MARK: Harness
 
     #if DEBUG
@@ -269,6 +314,12 @@ final class LockCodeModel {
         case wrongPlain
         /// “Çok fazla yanlış deneme. {mm:ss} sonra tekrar dene.”
         case throttled(until: Date)
+        /// “Verilerin şu an açılamadı. Kodun doğru olabilir; …” — not a
+        /// wrong code, nothing counted (``UnlockAttemptResult/vaultUnavailable``).
+        case unavailable
+        /// “Bu telefon verilerinin kilidini artık açamıyor. …” — not a wrong
+        /// code; only a backup helps (``UnlockAttemptResult/vaultUnusable``).
+        case unusable
     }
 
     private(set) var entered = ""
@@ -283,6 +334,8 @@ final class LockCodeModel {
 
     private let messenger: any MessengerService
     private let onUnlock: () -> Void
+    /// The optional wipe fired with this code (the flow shows its outcome).
+    @ObservationIgnored var onWiped: () -> Void = {}
     private var clearTask: Task<Void, Never>?
     private var throttleTask: Task<Void, Never>?
 
@@ -378,7 +431,28 @@ final class LockCodeModel {
                 entered = ""
             }
             scheduleThrottleEnd()
-        case .malformed:
+        case .vaultUnavailable, .vaultUnusable:
+            // Never the wrong-code look (red dots, shake, the delays ahead):
+            // the code was not rejected and nothing was counted.
+            isVerifying = false
+            withU2Animation(U2Motion.state) {
+                message = result == .vaultUnusable ? Message.unusable : Message.unavailable
+                appearance = .normal
+                entered = ""
+            }
+        case .wiped:
+            // Never “Kod yanlış”: everything is gone, and the lock says so.
+            // No more input: the keypad leaves with the screen.
+            clearTask?.cancel()
+            throttleTask?.cancel()
+            U2Haptics.error()
+            withU2Animation(U2Motion.state) {
+                message = nil
+                appearance = .normal
+                entered = ""
+            }
+            onWiped()
+        case .malformed, .interrupted:
             isVerifying = false
             entered = ""
         }
@@ -425,6 +499,12 @@ final class LockCodeModel {
         /// DEBUG harness: digits on screen without verifying.
         func setEnteredForHarness(_ digits: String) {
             entered = String(digits.prefix(SecretCode.length - 1))
+        }
+
+        /// DEBUG harness: a sentence on screen without an attempt (3.2's
+        /// “not a wrong code” states).
+        func setMessageForHarness(_ message: Message) {
+            self.message = message
         }
     #endif
 }

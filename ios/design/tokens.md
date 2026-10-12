@@ -181,8 +181,8 @@ Dots are anti-aliased discs: solid to radius r, fading to transparent at the “
 | `displayTitleM` | Doto (ROND 100) | 900 | 36 | 36.72 | 1.02 | 0 |  |  | 2.1, 2.2 | Kullanıcı adını seç |
 | `monoInputL` | Martian Mono | 400 | 19 | 29.45 | 1.55 | 0 |  |  | 2.1 | @ |
 | `caption` | Inter | 400 | 13 | 20.15 | 1.55 | 0 |  | ✓ | 2.1, 2.3, 4.1, 4.2, 5.6, 7.1, 7.2, 7.3, 8.1, 9.1 | Kullanılabilir |
-| `monoCounter` | Martian Mono | 400 | 11.5 | 17.825 | 1.55 | 0 |  |  | 2.1 | 7 / 20 |
-| `bullet` | Inter | 400 | 13.5 | 18.9 | 1.4 | 0 |  |  | 2.1, 5.1 | 3–20 karakter |
+| `monoCounter` | Martian Mono | 400 | 11.5 | 17.825 | 1.55 | 0 |  |  | 2.1 | 7 / 24 |
+| `bullet` | Inter | 400 | 13.5 | 18.9 | 1.4 | 0 |  |  | 2.1, 5.1 | 3–24 karakter |
 | `monoMatch` | Martian Mono | 400 | 14 | 21.7 | 1.55 | 0 |  |  | 2.1 | @selin |
 | `monoMatchStatus` | Martian Mono | 400 | 12.5 | 19.375 | 1.55 | 0 |  |  | 2.1 | bulunamaz |
 | `captionTight` | Inter | 400 | 13 | 18.85 | 1.45 | 0 |  |  | 2.1, 5.4, 7.2, 7.3 | Arama öneri ya da otomatik tamamla |
@@ -214,7 +214,7 @@ Dots are anti-aliased discs: solid to radius r, fading to transparent at the “
 | `requestSnippet` | Inter | 400 | 14.5 | 20.3 | 1.4 | 0 |  |  | 4.3 | Merhaba! Dünkü meetup’taki sunumun |
 | `buttonS` | Inter | 500 | 14.5 | 22.475 | 1.55 | 0 |  |  | 4.3 | Kabul et |
 | `avatarInitialXL` | Martian Mono | 500 | 23 | 23 | 1 | 0 |  |  | 4.4 | K |
-| `monoUsernameXL` | Martian Mono | 500 | 17 | 26.35 | 1.55 | 0 |  |  | 4.4 | kuzey.dev |
+| `monoUsernameXL` | Martian Mono | 500 | 17 | 26.35 | 1.55 | 0 |  |  | 4.4 | kuzey_dev |
 | `monoSectionLabel` | Martian Mono | 400 | 10.5 | 16.275 | 1.55 | 1.05 | uppercase |  | 4.4, 5.5, 7.1, 7.2 | Bugün 16:12 |
 | `bubble` | Inter | 400 | 16 | 22.08 | 1.38 | 0 |  |  | 4.4, 5.1, 5.3, 5.4, 8.2, 9.2 | Merhaba! Dünkü meetup’taki sunumun |
 | `monoLink` | Martian Mono | 400 | 13 | 17.94 | 1.38 | 0 |  |  | 4.4, 5.2 | slides.kuzey.dev/meetup |

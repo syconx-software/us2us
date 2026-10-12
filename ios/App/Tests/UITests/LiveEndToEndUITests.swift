@@ -12,7 +12,9 @@ import XCTest
 ///     TEST_RUNNER_U2E2E_TEXT=<text>                      the Turkish message sent
 ///
 /// `test1…` creates the account and talks to the bot; `test2…` exports a
-/// backup, erases everything and restores it. Run them one at a time
+/// backup (7.1 keeps its date across a relaunch), erases this phone (3.3, the
+/// account stays on the relay), restores
+/// it and finally deletes the account (7.1 › Her şeyi sil). Run them one at a time
 /// (`-only-testing:us2usUITests/LiveEndToEndUITests/<test>`), test1 first on a
 /// freshly installed app, so the container can be inspected in between.
 @MainActor
@@ -23,7 +25,8 @@ final class LiveEndToEndUITests: XCTestCase {
         let user: String
         let code: String
         let text: String
-        let backupPassword = "kuzey7deniz42k!"
+        /// Random characters: no word, year or run, so the strength estimate accepts it.
+        let backupPassword = "v7qz3kd9xw2mtr!"
     }
 
     private var run: Run!
@@ -181,7 +184,8 @@ final class LiveEndToEndUITests: XCTestCase {
                 || labelled(app, contains: "Okundu").exists, "delivered status")
         shot(app, "5.1 delivered")
 
-        // A photo from the library (system picker, no photo permission)
+        // A photo from the library (system picker, no photo permission). The
+        // picker takes up to ten: a selection is confirmed with its “Ekle”.
         openAttachMenu(app, item: "photo")
         let photo = app.images.matching(NSPredicate(format: "label BEGINSWITH %@", "Photo")).firstMatch
         let anyImage = app.scrollViews.images.firstMatch
@@ -189,6 +193,8 @@ final class LiveEndToEndUITests: XCTestCase {
             XCTAssertTrue(anyImage.waitForExistence(timeout: 5), "photo picker")
             anyImage.tap()
         }
+        let add = anyButton(app, ["Ekle", "Add"])
+        if add.waitForExistence(timeout: 10) { add.tap() }
         XCTAssertTrue(labelled(app, contains: "echo-attachment:").waitForExistence(timeout: 90), "photo echo")
         shot(app, "5.2 photo echoed")
 
@@ -260,14 +266,34 @@ final class LiveEndToEndUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         shot(app, "after save")
 
-        // 7.1 › Her şeyi sil → 1.1
-        let back = element(app, "backup.back")
-        if back.waitForExistence(timeout: 10), back.isHittable { back.tap() }
-        let erase = app.buttons["settings.erase"]
-        XCTAssertTrue(erase.waitForExistence(timeout: 10))
-        for _ in 0..<4 where !erase.isHittable { app.swipeUp() }
-        erase.tap()
-        waitAndTap(app.buttons["settings.confirm.destructive"], "erase confirmation")
+        // 7.1 shows when the backup was saved, also after a relaunch (the
+        // date is kept in the vault, not in memory).
+        let backupRow = app.buttons["settings.backup"]
+        XCTAssertTrue(backupRow.waitForExistence(timeout: 10), "7.1 after the backup")
+        XCTAssertTrue(backupRow.label.contains("Son:"), "7.1 shows the backup date: \(backupRow.label)")
+        app.terminate()
+        app.launch()
+        unlock(app)
+        waitAndTap(app.buttons["chats.settings"], "settings after relaunch")
+        XCTAssertTrue(app.buttons["settings.backup"].waitForExistence(timeout: 10), "7.1 after relaunch")
+        XCTAssertTrue(
+            app.buttons["settings.backup"].label.contains("Son:"),
+            "the backup date survives a relaunch: \(app.buttons["settings.backup"].label)")
+        shot(app, "7.1 after relaunch")
+
+        // 3.3 › Kodu unuttum › Her şeyi sil → 1.1: this phone only. (7.1 ›
+        // Her şeyi sil deletes the account on the relay, and a deleted
+        // account cannot come back from a backup.)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Gizli kodunu gir"].waitForExistence(timeout: 15), "lock screen")
+        if !app.buttons["2"].exists, element(app, "lock.useCode").exists { element(app, "lock.useCode").tap() }
+        waitAndTap(app.buttons["lock.forgot"], "forgot code")
+        waitAndTap(app.buttons["lock.forgot.erase"], "erase this phone")
+        let confirmErase = app.buttons["lock.erase.confirm"]
+        XCTAssertTrue(confirmErase.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.8)  // armed after its cross-fade
+        confirmErase.tap()
         XCTAssertTrue(app.buttons["welcome.start"].waitForExistence(timeout: 30), "1.1 after erase")
         shot(app, "1.1 after erase")
 
@@ -302,6 +328,22 @@ final class LiveEndToEndUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sohbetler"].waitForExistence(timeout: 90), "4.1 after restore")
         XCTAssertTrue(labelled(app, contains: run.bot).waitForExistence(timeout: 30), "the bot is still a contact")
         shot(app, "4.1 restored")
+
+        // 7.1 › Her şeyi sil: the relay deletes the account, then this phone → 1.1.
+        waitAndTap(app.buttons["chats.settings"], "settings")
+        // The restore rotated the token, so the restored file no longer
+        // works: 7.1 asks for a new backup.
+        XCTAssertTrue(app.buttons["settings.backup"].waitForExistence(timeout: 10), "7.1 after restore")
+        XCTAssertTrue(
+            app.buttons["settings.backup"].label.contains("Hiç alınmadı"),
+            "no backup on record after a restore: \(app.buttons["settings.backup"].label)")
+        let erase = app.buttons["settings.erase"]
+        XCTAssertTrue(erase.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !erase.isHittable { app.swipeUp() }
+        erase.tap()
+        waitAndTap(app.buttons["settings.confirm.destructive"], "erase confirmation")
+        XCTAssertTrue(app.buttons["welcome.start"].waitForExistence(timeout: 45), "1.1 after deleting the account")
+        shot(app, "1.1 after deleting the account")
         XCUIDevice.shared.press(.home)
     }
 }

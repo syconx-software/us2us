@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// 2.1 · Kullanıcı adı — pick the (immutable) username; availability is
-/// checked while typing (debounced), exact-match discovery is explained.
+/// 2.1 · Kullanıcı adı — pick the username; every rule it breaks is marked
+/// while typing, availability is checked once it is valid (debounced; the
+/// live service can only say it meets the rules), exact-match discovery is
+/// explained.
 ///
 /// The keyboard does not move the layout (the design is drawn without it):
 /// the keyboard's “Devam” key continues when the name is available, and a
@@ -50,6 +52,9 @@ struct UsernameStepView: View {
                             text: StringTable.onboarding.text("onboarding.username.rule.length", locale: locale),
                             isBroken: model.isBroken(.length))
                         OnboardingRuleRow(
+                            text: StringTable.onboarding.text("onboarding.username.rule.firstLetter", locale: locale),
+                            isBroken: model.isBroken(.firstLetter))
+                        OnboardingRuleRow(
                             text: StringTable.onboarding.text("onboarding.username.rule.characters", locale: locale),
                             isBroken: model.isBroken(.characters))
                         OnboardingRuleRow(
@@ -78,12 +83,16 @@ struct UsernameStepView: View {
         }
         .ignoresSafeArea(.keyboard)
         .onChange(of: model.status) { _, status in
-            // The availability result is announced (the label alone is easy to miss).
+            // The availability result and the first broken rule are announced
+            // (the label alone is easy to miss).
             let key: String.LocalizationValue? =
                 switch status {
                 case .available: "onboarding.username.status.available"
+                case .meetsRules: "onboarding.username.status.meetsRules"
                 case .taken: "onboarding.username.status.taken"
-                default: nil
+                case .tooShort: "onboarding.username.status.tooShort"
+                case .invalid(let violation): Self.violationKey(violation, name: model.name)
+                case .empty, .typing, .checking: nil
                 }
             if let key {
                 AccessibilityNotification.Announcement(StringTable.onboarding.string(key, locale: locale)).post()
@@ -91,8 +100,9 @@ struct UsernameStepView: View {
         }
     }
 
-    /// “Kullanılabilir” / “Alınmış” / “Kontrol ediliyor…” / “Geçersiz
-    /// karakter” (`caption`) left, “7 / 20” (`monoCounter`) right.
+    /// “Kurallara uygun” / “Kullanılabilir” / “Alınmış” / “Kontrol
+    /// ediliyor…” / the first broken rule (`caption`) left, “7 / 24”
+    /// (`monoCounter`) right.
     private var statusRow: some View {
         HStack(alignment: .top) {
             ZStack(alignment: .leading) {
@@ -113,7 +123,8 @@ struct UsernameStepView: View {
                 .u2Font(.monoCounter)
                 .foregroundStyle(Color.u2.textSecondary)
                 .accessibilityLabel(
-                    StringTable.onboarding.text("a11y.onboarding.username.counter \(model.name.count)", locale: locale))
+                    StringTable.onboarding.text(
+                        "a11y.onboarding.username.counter \(UsernameRules.length(model.name))", locale: locale))
         }
         .padding(.horizontal, 4)
     }
@@ -125,44 +136,60 @@ struct UsernameStepView: View {
     }
 
     private var statusLabel: StatusLabel? {
-        if model.rejectedInput != nil {
-            return StatusLabel(id: "invalid", key: "onboarding.username.status.invalid", color: Color.u2.danger)
-        }
         switch model.status {
         case .available:
             return StatusLabel(id: "available", key: "onboarding.username.status.available", color: Color.u2.online)
+        case .meetsRules:
+            return StatusLabel(id: "meetsRules", key: "onboarding.username.status.meetsRules", color: Color.u2.online)
         case .taken:
             return StatusLabel(id: "taken", key: "onboarding.username.status.taken", color: Color.u2.danger)
         case .checking:
             return StatusLabel(
                 id: "checking", key: "onboarding.username.status.checking", color: Color.u2.textSecondary)
-        case .invalid:
-            return StatusLabel(id: "invalid", key: "onboarding.username.status.invalid", color: Color.u2.danger)
-        case .empty, .typing, .tooShort:
+        case .tooShort:
+            return StatusLabel(id: "tooShort", key: "onboarding.username.status.tooShort", color: Color.u2.danger)
+        case .invalid(let violation):
+            return StatusLabel(
+                id: "invalid.\(violation.rawValue)", key: Self.violationKey(violation, name: model.name),
+                color: Color.u2.danger)
+        case .empty, .typing:
             return nil
+        }
+    }
+
+    /// The status line for the first rule the name breaks.
+    static func violationKey(_ violation: UsernameRules.Violation, name: String) -> String.LocalizationValue {
+        switch violation {
+        case .turkishCharacters: "onboarding.username.status.turkish"
+        case .characters: "onboarding.username.status.invalid"
+        case .firstLetter: "onboarding.username.status.firstLetter"
+        case .length where UsernameRules.isTooShort(name): "onboarding.username.status.tooShort"
+        case .length: "onboarding.username.status.tooLong"
         }
     }
 }
 
 extension UsernameStepModel {
-    /// The example card illustrates the typed name once it is available.
-    var canShowOwnExample: Bool { status == .available && UsernameRules.isValid(name) && name.count >= 4 }
+    /// The example card illustrates the typed name once it can be used.
+    var canShowOwnExample: Bool {
+        (status == .available || status == .meetsRules) && UsernameRules.isValid(name) && name.count >= 4
+    }
 }
 
 /// The “TAM EŞLEŞME” card: a shortened handle is not found, the exact one is
 /// (`monoMatch` handles, `monoMatchStatus` results with 16 pt icons), and the
-/// footnote. With an available typed name it illustrates that name;
-/// otherwise the design's own example (@selin / @selin.n).
+/// footnote. With a usable typed name it illustrates that name;
+/// otherwise the design's own example (@selin / @selin_n).
 private struct ExactMatchCard: View {
     let name: String?
     @Environment(\.locale) private var locale
 
-    private var exact: String { name ?? "selin.n" }
+    private var exact: String { name ?? "selin_n" }
 
-    /// The exact name cut at its last separator (or by a third), never empty.
+    /// The exact name cut at its last underscore (or by a third), never empty.
     private var partial: String {
         guard let name else { return "selin" }
-        if let cut = name.lastIndex(where: { $0 == "." || $0 == "_" }), cut > name.startIndex {
+        if let cut = name.lastIndex(of: "_"), cut > name.startIndex {
             return String(name[..<cut])
         }
         return String(name.dropLast(max(1, name.count / 3)))

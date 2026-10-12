@@ -121,8 +121,12 @@ struct ChatHeader<Status: View, Trailing: View>: View {
     let palette: AvatarPalette
     var isVerified = false
     var showsOnlineDot = false
+    /// The peer's profile picture (proposed; `Peer.avatar`): the initial by default.
+    var avatar: AvatarPicture = .initials
     let onBack: () -> Void
     var onTapPeer: (() -> Void)? = nil
+    /// What a tap on the person opens, for VoiceOver.
+    var peerHint: Text? = nil
     @ViewBuilder let status: Status
     @ViewBuilder let trailing: Trailing
 
@@ -155,7 +159,8 @@ struct ChatHeader<Status: View, Trailing: View>: View {
             onTapPeer?()
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                Avatar(username: username, palette: palette, size: .header, showsOnlineDot: showsOnlineDot)
+                Avatar(
+                    username: username, palette: palette, size: .header, showsOnlineDot: showsOnlineDot, picture: avatar)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
                         Text(verbatim: username)
@@ -178,6 +183,7 @@ struct ChatHeader<Status: View, Trailing: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(onTapPeer == nil)
+        .accessibilityHint(peerHint ?? Text(verbatim: ""))
         .accessibilityIdentifier("chatHeader.peer")
     }
 }

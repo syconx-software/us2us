@@ -30,7 +30,7 @@ enum SystemShareSheet {
         _ items: [Any], excluding excluded: [UIActivity.ActivityType] = [],
         completion: (@MainActor (Bool) -> Void)? = nil
     ) {
-        guard let presenter = topViewController() else {
+        guard let presenter = SystemPresenter.topViewController() else {
             completion?(false)
             return
         }
@@ -45,8 +45,13 @@ enum SystemShareSheet {
         }
         presenter.present(controller, animated: true)
     }
+}
 
-    private static func topViewController() -> UIViewController? {
+/// Where system controllers (share sheet, Quick Look, the Files exporter)
+/// are presented from.
+@MainActor
+enum SystemPresenter {
+    static func topViewController() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         // The main window: the normal-level key window (the security window sits above it).
         let windows = scenes.flatMap(\.windows).filter { $0.windowLevel == .normal && !$0.isHidden }
@@ -55,6 +60,32 @@ enum SystemShareSheet {
             top = presented
         }
         return top
+    }
+
+    /// Presents `controller` (the photo picker, the camera) from the top of
+    /// the main window — over a full-screen cover when one is up — once
+    /// nothing there is being presented or dismissed: UIKit drops a
+    /// presentation started during another one (it only logs it), which
+    /// would leave the caller waiting for a picker that never rose. Asked
+    /// once: the photo picker's presentation is itself delayed until its
+    /// out-of-process view is ready. `false` when nothing settled within
+    /// about two seconds (nothing was presented).
+    static func present(_ controller: UIViewController, animated: Bool = true) async -> Bool {
+        for _ in 0..<40 {
+            if let top = topViewController(), isSettled(top) {
+                top.present(controller, animated: animated)
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return false
+    }
+
+    /// Nothing is presented over `controller`, and no transition involving
+    /// it is under way.
+    static func isSettled(_ controller: UIViewController) -> Bool {
+        controller.presentedViewController == nil && !controller.isBeingPresented && !controller.isBeingDismissed
+            && controller.transitionCoordinator == nil
     }
 }
 

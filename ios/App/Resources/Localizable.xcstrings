@@ -478,23 +478,6 @@
         }
       }
     },
-    "a11y.share" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paylaş"
-          }
-        }
-      }
-    },
     "a11y.step %lld %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -621,6 +604,42 @@
         }
       }
     },
+    "block.blocked" : {
+      "comment" : "Someone the user blocked (proposed): the 4.1 row in the preview's place, the 5.1 header's status line, VoiceOver for the mark by the contact screen's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocked"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engellendi"
+          }
+        }
+      }
+    },
+    "block.unblock" : {
+      "comment" : "Unblocks (proposed): the contact screen's “…” menu and blocked note, the bar of a blocked 5.1.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unblock"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engeli kaldır"
+          }
+        }
+      }
+    },
     "chats.line.closed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -668,6 +687,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hat açık · mesajlar geliyor"
+          }
+        }
+      }
+    },
+    "chats.line.revoked" : {
+      "comment" : "4.1 connection line when the server refused this phone’s token (restored on another phone, or the account deleted); nothing is retried.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line closed · signed out"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hat kapandı · oturum sona erdi"
           }
         }
       }
@@ -1023,19 +1060,19 @@
       }
     },
     "erase.confirm.body" : {
-      "comment" : "3.3 second confirmation paragraph.",
+      "comment" : "3.3 second confirmation paragraph. The vault is locked (code forgotten), so the relay account cannot be deleted from here; 180 = the relay's INACTIVE_ACCOUNT_DAYS (PROTOCOL §4.10).",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your chats, keys and settings will be permanently erased from this device. This can't be undone."
+            "value" : "Your chats, keys and settings will be permanently erased from this device. Your account stays on the server and messages sent to you won't reach you; it's removed automatically after 180 days without a connection. This can't be undone."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sohbetlerin, anahtarların ve ayarların bu cihazdan kalıcı olarak silinecek. Bu işlem geri alınamaz."
+            "value" : "Sohbetlerin, anahtarların ve ayarların bu cihazdan kalıcı olarak silinecek. Hesabın sunucuda kalır ve sana yazılanlar sana ulaşmaz; 180 gün hiç bağlanılmazsa kendiliğinden silinir. Bu işlem geri alınamaz."
           }
         }
       }
@@ -1822,6 +1859,24 @@
         }
       }
     },
+    "report.action" : {
+      "comment" : "Opens the report sheet (proposed): the contact screen's and 4.4's “…” menus, beside Engelle in every block confirmation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildir"
+          }
+        }
+      }
+    },
     "request.accept" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2141,6 +2196,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ghost mod açık · %@"
+          }
+        }
+      }
+    },
+    "system.safetyNumber.accepted" : {
+      "comment" : "5.1 system line: the user accepted a changed safety number without verifying it (no seal).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New safety number accepted · not verified"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni güvenlik numarası kabul edildi · doğrulanmadı"
           }
         }
       }

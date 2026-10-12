@@ -47,31 +47,14 @@ struct VerifiedView: View {
                 if let peer = model.peer {
                     ConnectionLine(
                         ownUsername: model.ownUsername, ownLabel: Text("safety.you", table: .verification),
-                        peer: peer, showsSeal: true, animatesSeal: model.verifiedEntrance,
+                        peer: peer, showsSeal: model.isVerified, animatesSeal: model.verifiedEntrance,
                         entranceDelay: model.verifiedEntranceDelay
                     )
                 }
-                VStack(spacing: 14) {
-                    U2DisplayText(
-                        StringTable.verification.resource("verified.title"),
-                        style: .displayTitleLBalanced, alignment: .center
-                    )
-                    .opacity(textShown ? 1 : 0)
-                    .animation(stagger(0), value: textShown)
-                    Text("verified.body \(model.peerName)", table: .verification)
-                        .u2Font(.body)
-                        .foregroundStyle(Color.u2.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(textShown ? 1 : 0)
-                        .animation(stagger(1), value: textShown)
-                }
-                .padding(.horizontal, 30)
-                if let info = model.info, let line = VerificationText.verifiedLine(info, locale: locale) {
-                    InfoPill(text: Text(verbatim: line))
-                        .opacity(textShown ? 1 : 0)
-                        .animation(stagger(2), value: textShown)
-                        .accessibilityIdentifier("verified.pill")
+                // Only a stored verification is announced: its hosts show
+                // 6.3 after one, and nothing here claims more than that.
+                if model.isVerified {
+                    verifiedText
                 }
             }
             .frame(maxHeight: .infinity)
@@ -86,6 +69,32 @@ struct VerifiedView: View {
         }
     }
 
+    /// Title, paragraph and the date · time · method pill.
+    @ViewBuilder private var verifiedText: some View {
+        VStack(spacing: 14) {
+            U2DisplayText(
+                StringTable.verification.resource("verified.title"),
+                style: .displayTitleLBalanced, alignment: .center
+            )
+            .opacity(textShown ? 1 : 0)
+            .animation(stagger(0), value: textShown)
+            Text("verified.body \(model.peerName)", table: .verification)
+                .u2Font(.body)
+                .foregroundStyle(Color.u2.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .opacity(textShown ? 1 : 0)
+                .animation(stagger(1), value: textShown)
+        }
+        .padding(.horizontal, 30)
+        if let info = model.info, let line = VerificationText.verifiedLine(info, locale: locale) {
+            InfoPill(text: Text(verbatim: line))
+                .opacity(textShown ? 1 : 0)
+                .animation(stagger(2), value: textShown)
+                .accessibilityIdentifier("verified.pill")
+        }
+    }
+
     private func stagger(_ step: Int) -> Animation? {
         guard model.verifiedEntrance else { return nil }
         return U2Motion.soft(U2Motion.Duration.state).delay(0.12 + model.verifiedEntranceDelay + 0.08 * Double(step))
@@ -97,7 +106,7 @@ struct VerifiedView: View {
     let model = VerificationModel(chatID: "deniz", messenger: app.messenger)
     return VerifiedView(model: model) {}
         .task {
-            await model.messenger.markVerified("deniz", method: .faceToFace)
+            await (model.messenger as? DesignFixturesService)?.markVerified("deniz", method: .faceToFace)
             await model.load()
         }
         .environment(app)

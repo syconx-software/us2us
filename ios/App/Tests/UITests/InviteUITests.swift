@@ -42,10 +42,10 @@ final class InviteUITests: XCTestCase {
         let preview = app.descendants(matching: .any)["invite.preview"]
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
         let text = preview.value as? String ?? ""
-        XCTAssertTrue(text.contains("Kullanıcı adım: @selin.n"), text)
-        XCTAssertTrue(text.contains("https://us2us.app/u/selin.n"), text)
+        XCTAssertTrue(text.contains("Kullanıcı adım: @selin_n"), text)
+        XCTAssertTrue(text.contains("https://us2us.app/u/selin_n"), text)
         assertChannels(app, titles: ["Mesaj", "WhatsApp", "E-posta", "Diğer", "Bağlantıyı kopyala"])
-        XCTAssertTrue(app.buttons["invite.channel.copy"].label.contains("us2us.app/u/selin.n"))
+        XCTAssertTrue(app.buttons["invite.channel.copy"].label.contains("us2us.app/u/selin_n"))
         attachScreenshot(app, "invite-tr-dark")
 
         // Copy: the row says so (and that the pasteboard forgets it).
@@ -109,7 +109,7 @@ final class InviteUITests: XCTestCase {
         XCTAssertTrue(app.buttons["invite.channel.sms"].waitForExistence(timeout: 8))
         let preview = app.descendants(matching: .any)["invite.preview"]
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
-        XCTAssertTrue((preview.value as? String ?? "").contains("My username: @selin.n"))
+        XCTAssertTrue((preview.value as? String ?? "").contains("My username: @selin_n"))
         assertChannels(app, titles: ["Messages", "WhatsApp", "Email", "More", "Copy link"])
         attachScreenshot(app, "invite-en-light")
     }

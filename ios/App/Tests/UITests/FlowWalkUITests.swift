@@ -68,7 +68,7 @@ final class FlowWalkUITests: XCTestCase {
         field.typeText("selin")
         XCTAssertTrue(app.staticTexts["Alınmış"].waitForExistence(timeout: 5))
         snap("04 2.1 Alınmış")
-        field.typeText(".k")
+        field.typeText("_k")
         let next = app.buttons["onboarding.username.continue"]
         XCTAssertTrue(next.wait(for: \.isEnabled, toEqual: true, timeout: 5))
         snap("05 2.1 Kullanılabilir")
@@ -209,14 +209,14 @@ final class FlowWalkUITests: XCTestCase {
     func test05RequestsPreviewAccept() {
         let app = launch(["-U2Start", "chats"])
         tap(app, "chats.requests", timeout: 8)
-        XCTAssertTrue(element(app, "request.n.aksoy").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "request.n_aksoy").waitForExistence(timeout: 5))
         settle()
         snap("01 4.3 Mesaj istekleri")
-        tap(app, "request.n.aksoy.delete")
-        XCTAssertTrue(element(app, "request.n.aksoy").waitForNonExistence(timeout: 5))
+        tap(app, "request.n_aksoy.delete")
+        XCTAssertTrue(element(app, "request.n_aksoy").waitForNonExistence(timeout: 5))
         settle()
         snap("02 4.3 after Sil")
-        tap(app, "request.kuzey.dev")
+        tap(app, "request.kuzey_dev")
         XCTAssertTrue(element(app, "preview.accept").waitForExistence(timeout: 5))
         settle()
         snap("03 4.4 İstek önizleme")
@@ -227,8 +227,8 @@ final class FlowWalkUITests: XCTestCase {
         tap(app, "chatHeader.back")
         // 4.4 was replaced by 5.1: back is 4.3, then 4.1.
         tap(app, "requests.back")
-        XCTAssertTrue(app.buttons["chat.kuzey.dev"].waitForExistence(timeout: 5), "the accepted chat is in 4.1")
-        snap("05 4.1 with kuzey.dev")
+        XCTAssertTrue(app.buttons["chat.kuzey_dev"].waitForExistence(timeout: 5), "the accepted chat is in 4.1")
+        snap("05 4.1 with kuzey_dev")
     }
 
     /// 4.1 note-pencil → 4.2 → exact lookup → “Mesaj yaz” → sheet down → 5.1 →
@@ -330,7 +330,7 @@ final class FlowWalkUITests: XCTestCase {
         settle(1.5)
         snap("08 5.1 Ghost changed")
         tap(app, "chatHeader.back")
-        tap(app, "chat.mert.k")
+        tap(app, "chat.mert_k")
         let viewOnce = element(app, "message.m6")
         XCTAssertTrue(viewOnce.waitForExistence(timeout: 6))
         settle()
@@ -425,11 +425,11 @@ final class FlowWalkUITests: XCTestCase {
         settle()
         snap("06 7.2 Yedeği dışa aktar")
         password.tap()
-        password.typeText("kuzey7deniz42k")
+        password.typeText("v7qz3kd9xw2mtr")
         tap(app, "backup.export")
         let confirmation = app.secureTextFields.element(boundBy: 1)
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
-        confirmation.typeText("kuzey7deniz42k")
+        confirmation.typeText("v7qz3kd9xw2mtr")
         tap(app, "backup.export")
         // The system share sheet (another process) with the encrypted file.
         let shareSheet = XCUIApplication(bundleIdentifier: "com.apple.springboard").otherElements["ActivityListView"]

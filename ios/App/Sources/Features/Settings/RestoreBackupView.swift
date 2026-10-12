@@ -20,6 +20,9 @@ final class RestoreBackupModel {
         /// Checking the password.
         case checking
         case wrongPassword
+        /// The password was right, but the server could not be asked whether
+        /// the backup still works (no connection): try again.
+        case unverified
         case restoring(RestoreProgress)
         case done(RestoreProgress)
         /// The picked file can't be restored.
@@ -54,6 +57,14 @@ final class RestoreBackupModel {
     /// The password was accepted (restoring or done).
     var isPasswordAccepted: Bool { progress != nil }
 
+    /// A live account backup: the account and contacts come back, message
+    /// history never does (PROTOCOL §5.5), so 7.3 lists only the keys.
+    var includesHistory: Bool { messenger.backupsIncludeHistory }
+
+    /// Restoring inside the lock (3.3 › 7.3): finishing setup replaces this
+    /// phone's vault, and its messages with it.
+    var replacesThisPhone: Bool { messenger.hasAccount }
+
     func pick(_ url: URL) async {
         withU2Animation(U2Motion.state) { stage = .inspecting }
         do {
@@ -73,7 +84,7 @@ final class RestoreBackupModel {
     }
 
     var canSubmitPassword: Bool {
-        (stage == .password || stage == .wrongPassword) && !password.isEmpty && file != nil
+        (stage == .password || stage == .wrongPassword || stage == .unverified) && !password.isEmpty && file != nil
     }
 
     func submitPassword() async {
@@ -86,9 +97,23 @@ final class RestoreBackupModel {
         case .wrongPassword:
             U2Haptics.error()
             withU2Animation(U2Motion.state) { stage = .wrongPassword }
-        case .damaged:
+        case .unverified:
             U2Haptics.error()
-            withU2Animation(U2Motion.state) { stage = .failed(.notABackup) }
+            withU2Animation(U2Motion.state) { stage = .unverified }
+        case .damaged:
+            refuse(.damaged)
+        case .noLongerValid:
+            refuse(.noLongerValid)
+        }
+    }
+
+    /// The file can never be restored: the card says why, and another file can be picked.
+    private func refuse(_ error: BackupFileError) {
+        U2Haptics.error()
+        withU2Animation(U2Motion.state) {
+            file = nil
+            password = ""
+            stage = .failed(error)
         }
     }
 
@@ -97,7 +122,8 @@ final class RestoreBackupModel {
         withU2Animation(U2Motion.state) {
             stage = .restoring(
                 RestoreProgress(
-                    fraction: 0, stage: .keys, messagesDone: 0, messagesTotal: 0, mediaBytes: 0, estimatedRemaining: 0))
+                    fraction: 0, stage: .keys, messagesDone: 0, messagesTotal: 0, mediaBytes: 0, estimatedRemaining: 0,
+                    includesHistory: includesHistory))
         }
         restoreTask = Task { [weak self] in
             var last: RestoreProgress?
@@ -354,6 +380,8 @@ struct RestoreBackupView: View {
             switch vm.stage {
             case .wrongPassword:
                 Text("restore.password.wrong", table: .settings).foregroundStyle(Color.u2.danger)
+            case .unverified:
+                Text("restore.password.unverified", table: .settings).foregroundStyle(Color.u2.danger)
             case .restoring, .done:
                 Text("restore.password.ok", table: .settings).foregroundStyle(Color.u2.textSecondary)
             case .checking:
@@ -389,7 +417,7 @@ struct RestoreBackupView: View {
             DottedMeter(progress: progress.fraction, pattern: .progress)
                 .u2Animation(U2Motion.micro, value: progress.fraction)
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(RestoreProgress.Stage.allCases, id: \.self) { stage in
+                ForEach(progress.stages, id: \.self) { stage in
                     stepRow(stage, progress: progress, isDone: isDone)
                 }
             }
@@ -444,7 +472,14 @@ struct RestoreBackupView: View {
     }
 
     private func note(_ vm: RestoreBackupModel) -> String {
-        switch vm.stage {
+        if let progress = vm.progress, !progress.includesHistory {
+            // What an account backup really brings back, and what restoring
+            // inside the lock costs this phone.
+            let key: String.LocalizationValue =
+                vm.replacesThisPhone ? "restore.note.account.replacing" : "restore.note.account"
+            return StringTable.settings.string(key, locale: locale)
+        }
+        return switch vm.stage {
         case .restoring: StringTable.settings.string("restore.note.restoring", locale: locale)
         case .done: StringTable.settings.string("restore.note.done", locale: locale)
         default: StringTable.settings.string("restore.note.private", locale: locale)
@@ -461,7 +496,7 @@ struct RestoreBackupView: View {
             .buttonStyle(.u2Primary)
             .allowsHitTesting(vm.stage != .inspecting)
             .accessibilityIdentifier("restore.action.pick")
-        case .password, .checking, .wrongPassword:
+        case .password, .checking, .wrongPassword, .unverified:
             Button { submitPassword(vm) } label: {
                 U2ButtonLabel(vm.stage == .checking ? Text("restore.checking", table: .settings) : Text("restore.submit", table: .settings),
                     isWorking: vm.stage == .checking)
@@ -537,6 +572,8 @@ struct RestoreBackupView: View {
         switch vm.stage {
         case .failed(.notABackup): Text("restore.error.notABackup", table: .settings)
         case .failed(.unreadable): Text("restore.error.unreadable", table: .settings)
+        case .failed(.damaged): Text("restore.error.damaged", table: .settings)
+        case .failed(.noLongerValid): Text("restore.error.noLongerValid", table: .settings)
         default: Text("restore.pick.caption", table: .settings)
         }
     }

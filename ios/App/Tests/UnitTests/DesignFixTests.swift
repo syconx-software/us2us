@@ -6,12 +6,14 @@ import Testing
 @Suite("Design fixes (comparison round)")
 @MainActor
 struct DesignFixTests {
-    /// 2.1: while “Geçersiz karakter” shows, the field shows no verdict.
-    @Test func rejectedInputHidesTheFieldVerdict() {
+    /// 2.1: while a broken rule shows (“Geçersiz karakter” …), the field shows no verdict.
+    @Test func brokenRuleHidesTheFieldVerdict() {
         let model = UsernameStepModel(messenger: DesignFixturesService(hasAccount: false, clock: .frozen(at: DesignFixtures.referenceDate)))
-        model.setForHarness(name: "selin.n", status: .available, rejected: .turkishCharacters)
+        model.setForHarness(name: "selin.n", status: .invalid(.characters))
         #expect(model.fieldStatus == .none)
-        model.setForHarness(name: "selin.n", status: .available)
+        model.setForHarness(name: "selin_n", status: .available)
+        #expect(model.fieldStatus == .positive)
+        model.setForHarness(name: "selin_n", status: .meetsRules)
         #expect(model.fieldStatus == .positive)
     }
 
@@ -33,8 +35,8 @@ struct DesignFixTests {
 
     /// 4.4 → 5.1: the swap after the morph is not animated.
     @Test func replaceTopWithoutAnimationKeepsThePath() {
-        let router = U2Router<AppRoute>(path: [.requests, .requestPreview("kuzey.dev")])
-        router.replaceTop(with: .conversation("kuzey.dev"), animated: false)
-        #expect(router.path == [.requests, .conversation("kuzey.dev")])
+        let router = U2Router<AppRoute>(path: [.requests, .requestPreview("kuzey_dev")])
+        router.replaceTop(with: .conversation("kuzey_dev"), animated: false)
+        #expect(router.path == [.requests, .conversation("kuzey_dev")])
     }
 }

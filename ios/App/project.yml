@@ -41,8 +41,8 @@ settings:
     # Version: MARKETING_VERSION is the store version (1.0.0, 1.0.1 …);
     # CURRENT_PROJECT_VERSION is the build number and must grow with every
     # upload to App Store Connect (README › Releasing).
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.0.8"
+    CURRENT_PROJECT_VERSION: "11"
   configs:
     Debug:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
@@ -104,6 +104,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
         LSApplicationCategoryType: public.app-category.social-networking
+        # Only to open a place in the Google Maps app when it is installed
+        # (otherwise google.com/maps in the browser) after the user chose
+        # “Google Maps'te aç” (5.2); no other app is ever queried.
+        LSApplicationQueriesSchemes: [comgooglemaps]
         UIApplicationSupportsIndirectInputEvents: true
         # ProMotion: without this key iPhone apps' own animations (SwiftUI,
         # Core Animation, display links) are capped at 60 Hz; the scroll view
@@ -116,17 +120,31 @@ targets:
         UIRequiredDeviceCapabilities: [arm64]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIStatusBarStyle: UIStatusBarStyleDefault
-        # The app implements end-to-end encryption (libsignal), which is not
-        # exempt encryption in Apple's terms; see README › Export compliance.
-        ITSAppUsesNonExemptEncryption: true
+        # Standard, published algorithms only (libsignal, SQLCipher) and no
+        # distribution in France: exempt from export compliance documentation
+        # in Apple's terms, so NO; see README › Export compliance.
+        ITSAppUsesNonExemptEncryption: false
         # Usage descriptions — localized in Resources/InfoPlist.xcstrings.
         NSFaceIDUsageDescription: us2us'ı açmak için yüzünü kullanır.
-        NSCameraUsageDescription: Kamera yalnızca güvenlik numarası QR kodunu okutmak için açılır; görüntü cihazdan çıkmaz.
+        # QR codes (6.2) and, since profile pictures (PROTOCOL §8.9), taking
+        # a profile photo on 7.1 › Profil görseli › Kamera.
+        NSCameraUsageDescription: "Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır."
+        # Add-only: the viewer's and the player's “Kaydet” and the share
+        # sheet's “Save Image / Save Video” write a photo or video the user
+        # chose to save (the sender of something received is told — SAVED,
+        # PROTOCOL §8.4); the app never reads the library (the picker runs
+        # out of process).
+        NSPhotoLibraryAddUsageDescription: "Fotoğraf ya da videoyu yalnızca sen kaydetmeyi seçtiğinde Fotoğraflar'a ekler; aldığın bir şeyi kaydettiğinde gönderen bunu görür. Arşivini okumaz."
         # Live location only (PROTOCOL §8.3): updates continue in the
         # background solely while the user shares live location, with the
         # system's location indicator visible; nothing else runs there.
         UIBackgroundModes: [location]
-        NSLocationWhenInUseUsageDescription: Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir.
+        # Sharing a place or live location, and the user's own position on
+        # the live-location map (shown on this device only, never sent).
+        NSLocationWhenInUseUsageDescription: Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir; canlı konum haritasında kendi yerini yalnızca bu cihazda gösterir.
+        # Voice messages only: the microphone is on while the user records
+        # one (press and hold the mic); nothing is recorded in the background.
+        NSMicrophoneUsageDescription: Mikrofon yalnızca sen sesli mesaj kaydederken açılır. Kayıt yalnızca sen gönderirsen telefonundan çıkar ve uçtan uca şifreli gider.
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: com.syconx.us2us.backup
             UTTypeDescription: us2us Backup

@@ -25,6 +25,7 @@ Files that belong to this spec:
 * **Paint notation**: `fill`, `rN` (corner radius; `a/b/c/d` = TL/TR/BR/BL), `border` (CSS border, drawn inside the frame), `shadow` (CSS box-shadow; `inset 0 0 0 Npx C` = an inner stroke of N pt), `opacity`, `filter`/`backdropFilter`.
 * **Layout notation**: `row`/`col` stack, `ai:` cross-axis alignment, `jc:` main-axis distribution, `gap`, `pad T R B L`, `mar T R B L`, `flex 1` (fills remaining space), `abs` (absolutely positioned overlay), `place:center` (centred content), `minH`, `maxW`, `self:` (own alignment in the parent stack).
 * Element ids (`r.4.1` …) are the DOM path under the screen root `r`; the same ids are used in `layout/*.json`.
+* **Usernames** follow PROTOCOL.md §3.1 on every screen (owner decision, 2026-10-11): 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` — no dot (see 2.1). Example usernames in this document are therefore written with `_` (selin_n, mert_k, ece_y, oya_t, kuzey_dev, n_aksoy); the reference PNGs and `layout/*.json` still show the design's dotted examples, which are not valid names.
 * Every Inter / Martian Mono text without its own line-height inherits **1.55 × size** (Nocturne body). Single-line labels: give them a frame of exactly that line height so vertical positions match. See `tokens.md › Typography` for the CSS→SwiftUI line-height conversion.
 * EN copy: “(09)” = shown in the design's English section 09; otherwise the EN text is a proposal in the same tone. Turkish is the primary language; every string goes into the String Catalog (tr + en). Upper-casing must always pass the locale (`Text(...).textCase(.uppercase)` uses the environment locale; raw `String` conversions must use `uppercased(with: Locale(identifier: "tr_TR"))` — see 9.3).
 
@@ -416,7 +417,7 @@ Colour legend 1.3:
 > **Section note (TR):** Üç adım: kullanıcı adı, gizli kod, geri dönüşsüzlük onayı. Kodun kurtarılamayacağı kurulumda iki kez ve açık dille söylenir.
 > **EN:** Three steps: username, secret code, irreversibility confirmation. The fact that the code cannot be recovered is said twice during setup, in plain language.
 
-Owner decisions that apply: secret code = 6 digits, asked twice (set + confirm); trivial codes rejected; Face ID optional; “Kurulumu tamamla” only after the checkbox.
+Owner decisions that apply: username = PROTOCOL.md §3.1, the same rule on every screen and platform (shared case table `spec/username-rules.json`); secret code = 6 digits, asked twice (set + confirm); trivial codes rejected; Face ID optional; “Kurulumu tamamla” only after the checkbox; a name found taken at “Kurulumu tamamla” sends the user back to 2.1 (see 2.3).
 
 ## 2.1 · Kullanıcı adı — Username
 
@@ -425,13 +426,15 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 > **Note (TR):** Uygunluk yazarken denetlenir. Öneri: kullanıcı adları ASCII küçük harfle sınırlansın; böylece İ/ı dönüşümü tam eşleşmeyi hiçbir dilde bozmaz.
 > **EN:** Availability is checked while typing. Recommendation: limit usernames to ASCII lower-case so the İ/ı conversion never breaks exact matching in any language.
 
+**Rule (owner decision, 2026-10-11).** Exactly PROTOCOL.md §3.1: a name is valid iff its normalized form matches `^[a-z][a-z0-9_]{2,23}$` — 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` (no dot). Normalized = Unicode `White_Space` trimmed at both ends, one leading “@” dropped, then the §3.1 normalization (`White_Space` trim, NFKC, locale-independent lower case), byte for byte what the username hash is made from. The typed text is never turned into another name: nothing is dropped, cut to a length or converted (“Kağan”, “Ali Veli”, “İsmail” stay as typed and are reported). The rules a name breaks, in this order: Turkish characters (ı ş ğ ü ö ç, or the “i” + U+0307 that İ becomes), other characters outside `a-z 0-9 _`, a first character that is not a letter, length. The same table of cases (`spec/username-rules.json`) tests the iOS app and the Kotlin core.
+
 **Purpose.** Pick the (immutable) username; explain exact-match discovery.
 
 **Layout.**
 - C6 header (“1 / 3”).
 - Title block pad 18 24 0, gap 12: “Kullanıcı adını seç” `displayTitleM` Doto 900 36/36.72 (2 lines, 24,118 354×73); paragraph `body` `text·68%` (2 lines).
-- Field block pad 22 20 0, gap 8: C23 field 20,273 362×60 (`surface`, ring + glow): “@” `text·68%` + value Mono 400 19 `text`, caret, flexible space, status icon 22 (`ph:check-circle` fill `online` when available). Below, row pad 0 4: “Kullanılabilir” `caption` Inter 400 13 `online` left; counter “7 / 20” `monoCounter` Mono 400 11.5 `text·68%` right.
-- Rules list pad 14 24 0, gap 8: 4×4 `accent400` bullet + gap 10 + `bullet` Inter 400 13.5/18.9 `text·68%`.
+- Field block pad 22 20 0, gap 8: C23 field 20,273 362×60 (`surface`, ring + glow): “@” `text·68%` + value Mono 400 19 `text`, caret, flexible space, status icon 22 (`ph:check-circle` fill `online` when available). Below, row pad 0 4: “Kullanılabilir” `caption` Inter 400 13 `online` left; counter “7 / 24” `monoCounter` Mono 400 11.5 `text·68%` right.
+- Rules list pad 14 24 0, gap 8: 4×4 `accent400` bullet + gap 10 + `bullet` Inter 400 13.5/18.9 `text·68%`. Four rows — length, first letter, characters, Turkish characters; the reference draws three (before the owner's decision): “Harfle başlar” sits between r.3.0 and r.3.1 with the same metrics, so everything below moves down 26.89 pt (18.89 + gap 8).
 - Example card 20,470 362×145, `surface` r16, pad 16, gap 12: kicker “TAM EŞLEŞME” `monoKicker` `accent300`; 2-column grid (1fr | auto, row gap 10): `monoMatch` Mono 400 14 `text` handle | status `monoMatchStatus` Mono 400 12.5 with a 16 pt icon, gap 6 (`ph:x-circle` regular `danger` “bulunamaz”; `ph:check-circle` regular `online` “bulunur”); footnote `captionTight` Inter 400 13/18.85 `text·68%`.
 - Spacer; C1 “Devam” 20,776 362×54 (pad 0 20 44).
 
@@ -443,9 +446,11 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 | Telefon numarası istemiyoruz. Seni yalnızca bu adı eksiksiz yazan bulabilir. | We don't ask for a phone number. Only someone who types this name exactly can find you. |
 | @ | @ |
 | Kullanılabilir | Available |
-| 7 / 20 | 7 / 20 |
-| 3–20 karakter | 3–20 characters |
-| Küçük harf, rakam, nokta ve alt çizgi | Lower-case letters, digits, dot and underscore |
+| Kurallara uygun *(live service, instead of “Kullanılabilir”: see States)* | Meets the rules |
+| 7 / 24 | 7 / 24 |
+| 3–24 karakter *(app copy since 2026-10-11, PROTOCOL.md §3.1; the reference drew “3–20 karakter”)* | 3–24 characters |
+| Harfle başlar *(added 2026-10-11)* | Starts with a letter |
+| Küçük harf, rakam ve alt çizgi *(app copy since 2026-10-11; the reference drew “Küçük harf, rakam, nokta ve alt çizgi”)* | Lower-case letters, digits and underscore |
 | Türkçe karakter yok: ı, İ, ş, ğ, ü, ö, ç | No Turkish characters: ı, İ, ş, ğ, ü, ö, ç |
 | Tam eşleşme | Exact match |
 | bulunamaz | not found |
@@ -453,14 +458,15 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 | Arama öneri ya da otomatik tamamlama sunmaz. | Search offers no suggestions or autocomplete. |
 | Devam | Continue |
 | *(proposed states)* Alınmış · Kontrol ediliyor… · Geçersiz karakter | Taken · Checking… · Invalid character |
+| *(the first broken rule, app copy since 2026-10-11)* Türkçe karakter kullanılamaz · Geçersiz karakter · Harfle başlamalı · En az 3 karakter · En fazla 24 karakter | Turkish characters can't be used · Invalid character · Must start with a letter · At least 3 characters · At most 24 characters |
 
-**States.** empty (placeholder, button disabled 45 %) → typing (debounced availability check; status icon hidden or `ph:circle-notch` `text·68%` spinning softly) → available (shown) → taken (`ph:x-circle` fill `danger`, label “Alınmış” `danger`, ring stays `accent` — proposed) → invalid (characters filtered as typed; the rule that is violated tints `danger`). Counter shows `n / 20`. Input: ASCII lowercase only, `[a-z0-9._]`, 3–20; keyboard `.asciiCapable`, no autocorrect/capitalisation/smart punctuation.
+**States.** empty (placeholder, button disabled 45 %) → typing (debounced availability check; status icon hidden or `ph:circle-notch` `text·68%` spinning softly) → available (shown) → taken (`ph:x-circle` fill `danger`, label “Alınmış” `danger`, ring stays `accent` — proposed) → invalid (the typed text stays as typed, nothing is filtered or converted; every rule the normalized name breaks tints `danger`, the status label names the first one, nothing is looked up and “Devam” stays disabled). Live service: the relay's directory answers only signed-in accounts (PROTOCOL.md §4.4) and there is none yet, so availability cannot be asked while typing; a name that meets the rules shows “Kurallara uygun” (`online`, with the check icon) and “Devam” continues, and a taken name is reported at 2.3 › “Kurulumu tamamla”. Counter shows `n / 24` (characters of the normalized name; past 24 the length rule tints `danger`, nothing is cut). Input: §3.1 (see Rule above); keyboard `.asciiCapable`, no autocorrect/capitalisation/smart punctuation.
 
-**Transitions.** Back → 1.3. “Devam” (enabled when available) → 2.2.
+**Transitions.** Back → 1.3. “Devam” (enabled when available; in the live service when the name meets the rules) → 2.2. 2.3 › “Başka bir ad seç” (the name was taken) → back here with the taken name still in the field, marked “Alınmış” and not accepted again in this setup; the code confirmed on 2.2 is kept, so “Devam” then goes straight to 2.3.
 
 **Animation.** Status icon cross-fade 0.24 s; label colour cross-fade 0.36 s. Field glow is static while focused.
 
-**Data.** `usernameAvailability(name) async -> available | taken | invalid` (relay lookup), local validation.
+**Data.** `usernameAvailability(name) async -> available | meetsRules | taken | invalid(violation)` (plus `empty` / `checking`; the live service answers from the rules alone and returns `meetsRules` for every valid name, the design fixtures answer `available` / `taken`, and `meetsRules` for the name they find taken at 2.3), local validation by `UsernameRules` (§3.1).
 
 **Elements.**
 
@@ -479,17 +485,17 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 | r.2 | 0,251.44 402×110.14 | stack |  |  |  |  | col gap 8 pad 22 20 0 20 |
 | r.2.0 | 20,273.44 362×60 | shape |  |  |  | fill surface · r16 · shadow inset 0 0 0 1.5px accent, 0 0 26px -10px accent | row ai:center gap 2 pad 0 16 0 16 |
 | r.2.0.0 | 36,288.72 13.31×29.44 | text | “@” | Mono 400 19/29.45 | text·68% |  |  |
-| r.2.0.1 | 51.31,288.72 93.11×29.44 | text | “selin.n” | Mono 400 19/29.45 | text |  |  |
+| r.2.0.1 | 51.31,288.72 93.11×29.44 | text | “selin_n” | Mono 400 19/29.45 | text |  |  |
 | r.2.0.2 | 147.42,291.44 2×24 | shape |  |  |  | fill accent400 · r1 | mar 0 0 0 1 |
 | r.2.0.3 | 151.42,303.44 190.58×0 | spacer |  |  |  |  | flex 1 |
 | r.2.0.4 | 344,292.44 22×22 | icon | ph:check-circle (fill) | 22pt | online |  |  |
 | r.2.1 | 20,341.44 362×20.14 | stack |  |  |  |  | row jc:space-between pad 0 4 0 4 |
 | r.2.1.0 | 24,341.44 73.17×20.14 | text | “Kullanılabilir” | Inter 400 13/20.15 | online |  |  |
-| r.2.1.1 | 329.69,341.44 48.31×20.14 | text | “7 / 20” | Mono 400 11.5/17.82 | text·68% |  |  |
+| r.2.1.1 | 329.69,341.44 48.31×20.14 | text | “7 / 24” | Mono 400 11.5/17.82 | text·68% |  |  |
 | r.3 | 0,361.58 402×86.67 | stack |  |  |  |  | col gap 8 pad 14 24 0 24 |
-| r.3.0 | 24,375.58 354×18.89 | text | “3–20 karakter” | Inter 400 13.5/18.9 | text·68% |  | row ai:center gap 10 |
+| r.3.0 | 24,375.58 354×18.89 | text | “3–24 karakter” | Inter 400 13.5/18.9 | text·68% |  | row ai:center gap 10 |
 | r.3.0.0 | 24,383.02 4×4 | shape |  |  |  | fill accent400 · r50% |  |
-| r.3.1 | 24,402.47 354×18.89 | text | “Küçük harf, rakam, nokta ve alt çizgi” | Inter 400 13.5/18.9 | text·68% |  | row ai:center gap 10 |
+| r.3.1 | 24,402.47 354×18.89 | text | “Küçük harf, rakam ve alt çizgi” | Inter 400 13.5/18.9 | text·68% |  | row ai:center gap 10 |
 | r.3.1.0 | 24,409.91 4×4 | shape |  |  |  | fill accent400 · r50% |  |
 | r.3.2 | 24,429.36 354×18.89 | text | “Türkçe karakter yok: ı, İ, ş, ğ, ü, ö, ç” | Inter 400 13.5/18.9 | text·68% |  | row ai:center gap 10 |
 | r.3.2.0 | 24,436.8 4×4 | shape |  |  |  | fill accent400 · r50% |  |
@@ -499,7 +505,7 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 | r.4.1.0 | 36,515.3 229.25×21.69 | text | “@selin” | Mono 400 14/21.7 | text |  |  |
 | r.4.1.1 | 265.25,516.45 100.75×19.38 | text | “bulunamaz” | Mono 400 12.5/19.38 | danger |  | row ai:center gap 6 |
 | r.4.1.1.0 | 265.25,518.14 16×16 | icon | ph:x-circle (regular) | 16pt | danger |  |  |
-| r.4.1.2 | 36,546.98 229.25×21.69 | text | “@selin.n” | Mono 400 14/21.7 | text |  |  |
+| r.4.1.2 | 36,546.98 229.25×21.69 | text | “@selin_n” | Mono 400 14/21.7 | text |  |  |
 | r.4.1.3 | 265.25,548.14 100.75×19.38 | text | “bulunur” | Mono 400 12.5/19.38 | online |  | row ai:center gap 6 |
 | r.4.1.3.0 | 265.25,549.83 16×16 | icon | ph:check-circle (regular) | 16pt | online |  |  |
 | r.4.2 | 36,580.67 330×18.84 | text | “Arama öneri ya da otomatik tamamlama sunmaz.” | Inter 400 13/18.85 | text·68% |  |  |
@@ -634,7 +640,7 @@ Reference `reference/2.3-geri-donus-yok.png` · light `reference/light/2.3-geri-
 | TR | EN |
 |---|---|
 | Unutursan geri dönüşü yok. | Forget it and there's no way back. |
-| Kodun yalnızca bu cihazda saklanır. Biz bilmeyiz, sıfırlayamayız. Unutursan tek yol uygulamayı silip baştan kurmak; tüm sohbetlerin kalıcı olarak silinir. | Your code is stored only on this device. We don't know it and can't reset it. If you forget it, the only way is to delete the app and start over; all your chats are permanently erased. |
+| Kodun hiçbir yerde saklanmaz. Biz bilmeyiz, sıfırlayamayız. Unutursan bu telefondaki sohbetlerin kalıcı olarak kaybolur; hesabını yalnızca yedeğin geri getirir. *(app copy since 2026-10-11; the reference drew “Kodun yalnızca bu cihazda saklanır … tek yol uygulamayı silip baştan kurmak …”, which is not accurate: the code is stored nowhere, and a backup restores the account)* | Your code isn't stored anywhere. We don't know it and can't reset it. If you forget it, the chats on this phone are lost for good; only your backup can bring your account back. |
 | Kod sıfırlama yok | No code reset |
 | Kod sunucuya hiç gönderilmez | The code is never sent to a server |
 | Tek güvencen şifreli yedek | Your only safeguard: an encrypted backup |
@@ -643,10 +649,12 @@ Reference `reference/2.3-geri-donus-yok.png` · light `reference/light/2.3-geri-
 | Tanımazsa kod istenir | If it doesn't recognise you, the code is asked |
 | Anladım: kodu unutursam verilerim kalıcı olarak silinir. | I understand: if I forget the code, my data is permanently erased. |
 | Kurulumu tamamla | Finish setup |
+| *(proposed, name taken)* Bu kullanıcı adı alınmış. | This username is already taken. |
+| *(proposed, name taken)* Başka bir ad seç | Choose another name |
 
-**States.** Checkbox unchecked (proposed: 24×24 r7, inner 1.5 pt `text·40%` stroke, no fill) → CTA disabled (45 %); checked → CTA enabled. Face ID toggle ON by default when biometrics are available; when the device has no Face ID, hide the card (proposed). Turning it on may trigger the system Face ID permission prompt (needs `NSFaceIDUsageDescription`).
+**States.** Checkbox unchecked (proposed: 24×24 r7, inner 1.5 pt `text·40%` stroke, no fill) → CTA disabled (45 %); checked → CTA enabled. Face ID toggle ON by default when biometrics are available; when the device has no Face ID, hide the card (proposed). Turning it on may trigger the system Face ID permission prompt (needs `NSFaceIDUsageDescription`). Name taken (proposed; the design has no state for it): in the live service availability cannot be checked on 2.1, so the relay refusing the registration with `username_taken` (409) is where a taken name shows: the inline message “Bu kullanıcı adı alınmış.” (`calloutL` `danger`) above the CTA, which becomes “Başka bir ad seç”.
 
-**Transitions.** Back → 2.2. “Kurulumu tamamla” → account creation (keys, relay registration) → 4.1 Chats (cross-fade, 0.5 s). Errors (network) → inline message above the CTA (proposed, `calloutL` `danger`).
+**Transitions.** Back → 2.2. “Kurulumu tamamla” → account creation (keys, relay registration) → 4.1 Chats (cross-fade, 0.5 s). Errors (network) → inline message above the CTA (proposed, `calloutL` `danger`). Name taken → “Başka bir ad seç” → 2.1 (pop), the code kept; “Devam” there returns to 2.3.
 
 **Animation.** Checkbox: fill + tick cross-fade/scale 0.24 s; CTA enable: opacity 0.45→1 over 0.36 s. Toggle `springSoft`.
 
@@ -900,7 +908,7 @@ Reference `reference/3.3-kodu-unuttum.png` · light `reference/light/3.3-kodu-un
 | TR | EN |
 |---|---|
 | Kod kurtarılamaz. | The code can't be recovered. |
-| Gizli kodun yalnızca bu cihazda, şifreli olarak durur. Sıfırlama bağlantısı, destek talebi ya da güvenlik sorusu yok. | Your secret code lives only on this device, encrypted. There's no reset link, support request or security question. |
+| Gizli kodun hiçbir yere gönderilmez, hiçbir yerde saklanmaz. Sıfırlama bağlantısı, destek talebi ya da güvenlik sorusu yok. *(app copy since 2026-10-11; the reference drew “… yalnızca bu cihazda, şifreli olarak durur.”: the code itself is stored nowhere)* | Your secret code is never sent or stored anywhere. There's no reset link, support request or security question. |
 | Yedekten geri yükle | Restore from backup |
 | Şifreli yedeğin ve parolası varsa sohbetlerin geri gelir. | If you have your encrypted backup and its password, your chats come back. |
 | Her şeyi sil, baştan başla | Erase everything, start over |
@@ -1115,12 +1123,12 @@ Reference `reference/4.1-sohbet-listesi.png` · urgent `reference/urgent/4.1-soh
 | user | avatar | line 1 | line 2 |
 |---|---|---|---|
 | deniz | A | verified seal · 18:10 | sent check + timer icon · “Süreli mesaj” · Ghost pill “23 sa” (urgent: “43 dk” red) |
-| mert.k | B + online dot | 18:44 in `accent300` (unread) | sticker icon · “Sticker” in `text` · badge “2” |
+| mert_k | B + online dot | 18:44 in `accent300` (unread) | sticker icon · “Sticker” in `text` · badge “2” |
 | ayla_ | C | 16:20 | delivered checks · “Fotoğraf · tek görüntülemelik” · urgent pill “38 dk” |
 | kaan | D | Dün | read checks · “Pazar kahvaltıya geliyor musun?” · pill “6 gün” |
-| ece.y | A | 24 Eyl | warning-circle · “İletilemedi · 14 gün açılmadı” (`danger`) |
+| ece_y | A | 24 Eyl | warning-circle · “İletilemedi · 14 gün açılmadı” (`danger`) |
 | bora | B | 22 Eyl | navigation-arrow · “Canlı konum paylaşımı bitti” |
-| oya.t | C | 19 Eyl | prohibit · “Bu mesaj herkesten silindi” |
+| oya_t | C | 19 Eyl | prohibit · “Bu mesaj herkesten silindi” |
 
 **Texts.**
 
@@ -1142,14 +1150,15 @@ Reference `reference/4.1-sohbet-listesi.png` · urgent `reference/urgent/4.1-soh
 | 23 sa · 38 dk · 6 gün · 43 dk | 23 h · 38 min · 6 days · 43 min (09) |
 | *(proposed)* Fotoğraf · Video · Sesli mesaj · Dosya · Konum · Canlı konum | Photo · Video · Voice message · File · Location · Live location |
 | *(empty, proposed)* Henüz sohbet yok. Birinin kullanıcı adını tam yazarak başla. | No chats yet. Start by typing someone's exact username. |
+| *(blocked, proposed)* Engellendi | Blocked |
 
-**States.** connection: open (line flows, copy as drawn) / connecting / closed (line static, packets hidden, copy changes — proposed, `text·68%`); requests card hidden when there are none; row variants per C16/C17; urgent Ghost (< 1 h) pill turns red; empty list (proposed copy above). Time formatting: today `HH:mm`; yesterday “Dün/Yesterday”; this year `d MMM` (“24 Eyl”/“Sep 24”); older `d.MM.yy` (proposed).
+**States.** connection: open (line flows, copy as drawn) / connecting / closed (line static, packets hidden, copy changes — proposed, `text·68%`); requests card hidden when there are none; row variants per C16/C17; urgent Ghost (< 1 h) pill turns red; empty list (proposed copy above); someone blocked (proposed): line 2 is `ph:prohibit` 15 + “Engellendi” (`preview`, `text·68%`), like a deleted message's line — a request blocked in 4.3 / 4.4 stays here as such a row (see Kişi ekranı · Engelle ve Bildir). Time formatting: today `HH:mm`; yesterday “Dün/Yesterday”; this year `d MMM` (“24 Eyl”/“Sep 24”); older `d.MM.yy` (proposed).
 
 **Transitions.** Row → 5.1 (push). Requests card → 4.3 (push). Compose → 4.2 (sheet). QR → 6.2 scanner or my-code sheet (proposed: a menu with “QR kodla ekle” / “Kodumu göster”, matching 4.2). Self avatar → 7.1 (push). Swipe actions on rows: not in the design (do not add).
 
 **Animation.** Packets on the header line (`linePacket`, 6 s loop, two directions offset 3 s; hidden with Reduce Motion or when the line is closed). Ghost pills update every minute; calm→urgent colour cross-fade 0.8 s. New message: row moves to the top with a soft 0.5 s reorder (`curveSoft`), preview cross-fades.
 
-**Data.** `connectionState`; `pendingRequestCount`; per chat: `peerUsername`, `avatarPalette`, `isVerified`, `isAcceptedContact`, `isOnline` (only if presence is shared), `lastMessage {kind, previewText, isOutgoing, status, sentAt, isDisappearing}`, `unreadCount`, `ghost {enabled, remaining}`.
+**Data.** `connectionState`; `pendingRequestCount`; per chat: `peerUsername`, `avatarPalette`, `isVerified`, `isAcceptedContact`, `isBlocked`, `isOnline` (only if presence is shared), `lastMessage {kind, previewText, isOutgoing, status, sentAt, isDisappearing}`, `unreadCount`, `ghost {enabled, remaining}`.
 
 **Urgent variant.** Only deniz's pill changes: fill `danger·14%`, filled ghost, “43 dk” in `danger` (`reference/urgent/4.1-sohbet-listesi-urgent.png`).
 
@@ -1205,7 +1214,7 @@ Reference `reference/4.1-sohbet-listesi.png` · urgent `reference/urgent/4.1-soh
 | r.5.0.0 | 53,402.98 15×15 | shape |  |  |  | fill online · r50% · shadow 0 0 0 3px bg | abs |
 | r.5.1 | 81,367.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.5.1.0 | 81,367.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert.k” | Mono 500 15/23.25 … | text |  |  |
+| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert_k” | Mono 500 15/23.25 … | text |  |  |
 | r.5.1.0.1 | 150,378.75 190.78×0 | spacer |  |  |  |  | flex 1 |
 | r.5.1.0.2 | 346.78,368.67 37.22×20.14 | text | “18:44” | Inter 400 13/20.15 tnum | accent300 |  |  |
 | r.5.1.1 | 81,394.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -1243,7 +1252,7 @@ Reference `reference/4.1-sohbet-listesi.png` · urgent `reference/urgent/4.1-soh
 | r.11.0 | 16,599.98 52×52 | text | “E” | Mono 500 19/19 | accent100 | fill accent800 · r50% | grid place:center |
 | r.11.1 | 81,601.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.11.1.0 | 81,601.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece.y” | Mono 500 15/23.25 … | text |  |  |
+| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece_y” | Mono 500 15/23.25 … | text |  |  |
 | r.11.1.0.1 | 139.5,612.75 199.81×0 | spacer |  |  |  |  | flex 1 |
 | r.11.1.0.2 | 345.31,602.67 38.69×20.14 | text | “24 Eyl” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.11.1.1 | 81,628.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -1265,7 +1274,7 @@ Reference `reference/4.1-sohbet-listesi.png` · urgent `reference/urgent/4.1-soh
 | r.15.0 | 16,755.98 52×52 | text | “O” | Mono 500 19/19 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.15.1 | 81,757.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.15.1.0 | 81,757.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya.t” | Mono 500 15/23.25 … | text |  |  |
+| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya_t” | Mono 500 15/23.25 … | text |  |  |
 | r.15.1.0.1 | 139.5,768.75 199.81×0 | spacer |  |  |  |  | flex 1 |
 | r.15.1.0.2 | 345.31,758.67 38.69×20.14 | text | “19 Eyl” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.15.1.1 | 81,784.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -1316,7 +1325,7 @@ Reference `reference/4.2-yeni-sohbet.png` · light `reference/light/4.2-yeni-soh
 - Search block (pad 10 16 0, gap 8): C23 field 16,129 370×56 on `bg` (ring + glow): “@” + Mono 400 18 value + caret + clear button `ph:x-circle` **fill** 20 `text·40%`; hint “Tam eşleşme · öneri ve otomatik tamamlama yok” `monoMeta` `text·68%` (pad 0 4).
 - Result card 16,228 370×146 (margin-top 18), `bg` r20, pad 16, gap 14: avatar 52 + name `monoUsernameL` Mono 500 16 + “Kullanıcı bulundu” `caption` `text·68%` + `ph:check-circle` fill 22 `online`; C1 (48 high) “Mesaj yaz” with `ph:paper-plane-tilt` 20.
 - Info row (pad 16 24 0, gap 12): `ph:tray` 18 `accent300` (top-aligned, +1) + `callout` Inter 400 13.5/19.58 `text·68%` with “Mesaj istekleri” emphasised in `text`.
-- Options group (pad 22 16 0): C13-style card on `bg` r18, rows 62 high: tile `ph:scan` · “QR kodla ekle” / “Yan yanaysanız ekler ve aynı anda doğrular”; tile `ph:qr-code` · “Kodumu göster” / “@selin.n”; dotted separator inset 57; chevrons.
+- Options group (pad 22 16 0): C13-style card on `bg` r18, rows 62 high: tile `ph:scan` · “QR kodla ekle” / “Yan yanaysanız ekler ve aynı anda doğrular”; tile `ph:qr-code` · “Kodumu göster” / “@selin_n”; dotted separator inset 57; chevrons.
 
 **Texts.**
 
@@ -1332,15 +1341,16 @@ Reference `reference/4.2-yeni-sohbet.png` · light `reference/light/4.2-yeni-soh
 | Yan yanaysanız ekler ve aynı anda doğrular | If you're side by side, adds and verifies at once |
 | Kodumu göster | Show my code |
 | *(proposed)* Kullanıcı bulunamadı · Kullanıcı adını eksiksiz yaz. | User not found · Type the full username. |
+| *(a name that breaks a rule: the first one, app copy since 2026-10-11)* Geçersiz kullanıcı adı · Türkçe karakter kullanılamaz. · … Yalnızca küçük harf, rakam ve alt çizgi. · … Harfle başlamalı. · … En fazla 24 karakter. | Not a valid username · Turkish characters can't be used. · … Only lower-case letters, digits and underscore. · … Must start with a letter. · … At most 24 characters. |
 | *(proposed)* Aranıyor… | Searching… |
 
-**States.** empty field (hint only, no card) → typing (debounced exact lookup; while searching `ph:circle-notch` `text·68%`) → found (card as drawn) → not found (card with C avatar placeholder `?`, title in `text·68%`, `ph:x-circle` `danger`, CTA hidden — proposed) → already a contact (CTA “Sohbete git” / “Go to chat”, proposed). The info row appears only when the user is found and not yet a contact.
+**States.** empty field (hint only, no card) → typing (debounced exact lookup; while searching `ph:circle-notch` `text·68%`) → found (card as drawn) → not found (card with C avatar placeholder `?`, title in `text·68%`, `ph:x-circle` `danger`, CTA hidden — proposed) → invalid (a name that breaks a rule: the same card, its subtitle names the first broken rule; nothing is looked up) → already a contact (CTA “Sohbete git” / “Go to chat”, proposed). The info row appears only when the user is found and not yet a contact.
 
 **Transitions.** “Vazgeç”/swipe down → dismiss to 4.1. “Mesaj yaz” → dismiss + push 5.1 with an empty, pending-request conversation. “QR kodla ekle” → 6.2. “Kodumu göster” → my QR (6.1-style card; proposed).
 
 **Animation.** Sheet presentation (`springSoft`), result card fade + 8 pt rise 0.36 s, info row fades in 0.36 s after the card.
 
-**Data.** `lookupExact(username)` → found(profile) / notFound; own username; whether a chat already exists.
+**Data.** `lookupExact(username)` → found(profile) / notFound; own username; whether a chat already exists. The query is normalized as on 2.1 (`White_Space` trimmed, one leading “@” dropped, §3.1 normalization) and never turned into another name; a query that breaks PROTOCOL.md §3.1 is not hashed or looked up, the typed text stays and the broken rule is reported.
 
 **Elements.**
 
@@ -1393,7 +1403,7 @@ Reference `reference/4.2-yeni-sohbet.png` · light `reference/light/4.2-yeni-soh
 | r.1.5.0.0.2.0.0 | 36,557.25 18×18 | icon | ph:qr-code (regular) | 18pt | accent300 |  |  |
 | r.1.5.0.0.2.1 | 73,544.08 271×44.34 | stack |  |  |  |  | col gap 2 flex 1 |
 | r.1.5.0.0.2.1.0 | 73,544.08 271×24.8 | text | “Kodumu göster” | Inter 400 16/24.8 | text |  |  |
-| r.1.5.0.0.2.1.1 | 73,570.88 271×17.55 | text | “@selin.n” | Inter 400 13/17.55 | text·68% |  |  |
+| r.1.5.0.0.2.1.1 | 73,570.88 271×17.55 | text | “@selin_n” | Inter 400 13/17.55 | text·68% |  |  |
 | r.1.5.0.0.2.2 | 357,558.75 15×15 | icon | ph:caret-right (regular) | 15pt | text·40% |  |  |
 
 </details>
@@ -1448,8 +1458,9 @@ Reference `reference/4.3-mesaj-istekleri.png` · light `reference/light/4.3-mesa
 | Sil | Delete |
 | Kabul et | Accept |
 | *(empty, proposed)* Bekleyen istek yok. | No pending requests. |
+| *(block confirmation, proposed)* {user} engellensin mi? · Sana bir daha yazamaz. Engellendiğini bilmez. · Engelle · Bildir · Vazgeç | Block {user}? · They can't message you again. They won't know they were blocked. · Block · Report · Cancel |
 
-**States.** list / empty; per request: plain text, media (placeholder text + eye-slash flag), link (danger flag), suspicious. Actions: Engelle → confirmation (proposed alert “{user} engellensin mi?”) → removed with a soft collapse (0.36 s); Sil → removed silently (sender is not told); Kabul et → chat moves to 4.1 and opens 5.1.
+**States.** list / empty; per request: plain text, media (placeholder text + eye-slash flag), link (danger flag), suspicious. Actions: Engelle → confirmation (proposed alert “{user} engellensin mi?” · Engelle · Bildir · Vazgeç) → removed with a soft collapse (0.36 s); the blocked request stays in 4.1 as a blocked, read-only chat, where “Engeli kaldır” makes it a request again. Bildir (in that alert, proposed) → the report sheet (Kişi ekranı · Engelle ve Bildir), “Bu kişiyi de engelle” on: a report that left the sheet removes the card like Engelle. Sil → removed silently (sender is not told); Kabul et → chat moves to 4.1 and opens 5.1.
 
 **Transitions.** Back → 4.1. Card tap → 4.4 preview. “…” → menu (proposed: “Tümünü sil” / “Delete all”).
 
@@ -1479,7 +1490,7 @@ Reference `reference/4.3-mesaj-istekleri.png` · light `reference/light/4.3-mesa
 | r.2.0.0.0 | 32,211.13 44×44 | text | “K” | Mono 500 16/16 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.2.0.0.1 | 88,211.13 284×67.84 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.2.0.0.1.0 | 88,211.13 284×23.25 | stack |  |  |  |  | row ai:center gap 8 |
-| r.2.0.0.1.0.0 | 88,211.13 94.5×23.25 | text | “kuzey.dev” | Mono 500 15/23.25 | text |  |  |
+| r.2.0.0.1.0.0 | 88,211.13 94.5×23.25 | text | “kuzey_dev” | Mono 500 15/23.25 | text |  |  |
 | r.2.0.0.1.0.1 | 190.5,222.75 148.73×0 | spacer |  |  |  |  | flex 1 |
 | r.2.0.0.1.0.2 | 347.23,213.06 24.77×19.38 | text | “2 sa” | Inter 400 12.5/19.38 | text·68% |  |  |
 | r.2.0.0.1.1 | 88,238.38 284×40.59 | text | “Merhaba! Dünkü meetup’taki sunumunu çok beğendim, slaytları paylaşa…” | Inter 400 14.5/20.3 clamp2 | text·84% |  |  |
@@ -1492,7 +1503,7 @@ Reference `reference/4.3-mesaj-istekleri.png` · light `reference/light/4.3-mesa
 | r.2.1.0.0 | 32,369.97 44×44 | text | “N” | Mono 500 16/16 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.2.1.0.1 | 88,369.97 284×67.81 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.2.1.0.1.0 | 88,369.97 284×23.25 | stack |  |  |  |  | row ai:center gap 8 |
-| r.2.1.0.1.0.0 | 88,369.97 73.5×23.25 | text | “n.aksoy” | Mono 500 15/23.25 | text |  |  |
+| r.2.1.0.1.0.0 | 88,369.97 73.5×23.25 | text | “n_aksoy” | Mono 500 15/23.25 | text |  |  |
 | r.2.1.0.1.0.1 | 169.5,381.59 170.69×0 | spacer |  |  |  |  | flex 1 |
 | r.2.1.0.1.0.2 | 348.19,371.91 23.81×19.38 | text | “Dün” | Inter 400 12.5/19.38 | text·68% |  |  |
 | r.2.1.0.1.1 | 88,397.22 284×20.3 | text | “Fotoğraf” | Inter 400 14.5/20.3 clamp2 | text·84% |  |  |
@@ -1551,7 +1562,7 @@ Reference `reference/4.4-istek-onizleme.png` · light `reference/light/4.4-istek
 **Purpose.** Read a request in context before deciding.
 
 **Layout.**
-- C8 chat header: avatar 38 (palette C), “kuzey.dev”, status “Mesaj isteği”, trailing C4-40 `ph:dots-three` 20; dotted rule at y 104.
+- C8 chat header: avatar 38 (palette C), “kuzey_dev”, status “Mesaj isteği”, trailing C4-40 `ph:dots-three` 20; dotted rule at y 104.
 - Messages column (pad 122 14 0, gap 6): profile block (pad 8 0 16, centred, gap 10): avatar 64 (Mono 500 23), name `monoUsernameXL` Mono 500 17, explanation `callout` `text·68%` centred, max width 290. Date separator (pad 6 2, gap 12): dotted rules (`text·28%`, r .8) either side of “BUGÜN 16:12” `monoSectionLabel` `text·68%`. Incoming bubbles (C15); the link bubble shows `ph:link-break` 16 `text·68%` + URL `monoLink` Mono 400 13 `text·84%`, caption `metaInBubble` Inter 400 12.5 `text·68%`, time.
 - Decision bar: bottom sheet-like panel 0,713 402×161, `surface`, top radius 30, pad 18 16 40, gap 14: explanation `callout` `text·68%` centred (pad 0 10); buttons row (gap 8, 50 high, r14): “Engelle” (flex 1, `danger`, inner `divider`), “Sil” (flex 1), “Kabul et” (flex 1.4, 1 pt `accent`, `accent300` Inter 500 16, glow `0 0 26px -8px accent·70%`). Button labels Inter 400/500 16.
 
@@ -1563,12 +1574,13 @@ Reference `reference/4.4-istek-onizleme.png` · light `reference/light/4.4-istek
 | Daha önce yazışmadınız. Seni kullanıcı adını tam yazarak buldu. | You haven't talked before. They found you by typing your exact username. |
 | Bugün 16:12 | Today 16:12 |
 | Bağlantı, kabul edene kadar açılmaz | The link won't open until you accept |
-| Kabul edersen sohbet açılır ve yanıt yazabilirsin. kuzey.dev isteği gördüğünü bilmez. | If you accept, the chat opens and you can reply. kuzey.dev won't know you've seen the request. |
+| Kabul edersen sohbet açılır ve yanıt yazabilirsin. kuzey_dev isteği gördüğünü bilmez. | If you accept, the chat opens and you can reply. kuzey_dev won't know you've seen the request. |
 | Engelle · Sil · Kabul et | Block · Delete · Accept |
+| *(“…” menu, proposed)* Bildir · Engelle · Sil | Report · Block · Delete |
 
-**States.** As 4.3 actions. Links are inert (no tap, no preview fetch). Media show as placeholders.
+**States.** As 4.3 actions (the block confirmation with Bildir included). Links are inert (no tap, no preview fetch). Media show as placeholders. “…” (proposed) → the floating menu: Bildir `ph:warning` · Engelle `ph:prohibit` `danger` · Sil `ph:trash` `danger`.
 
-**Transitions.** Back → 4.3. Kabul et → this screen becomes 5.1 (decision bar cross-fades into the composer C21, header status becomes the presence line). Engelle/Sil → pop to 4.3 with the card removed.
+**Transitions.** Back → 4.3. Kabul et → this screen becomes 5.1 (decision bar cross-fades into the composer C21, header status becomes the presence line). Engelle/Sil → pop to 4.3 with the card removed. Bildir → the report sheet; a report that blocked the sender closes back to 4.3 with the card gone, otherwise the preview stays.
 
 **Animation.** Accept: decision bar slides down 0.4 s while the composer fades in (`curveSoft`).
 
@@ -1586,7 +1598,7 @@ Reference `reference/4.4-istek-onizleme.png` · light `reference/light/4.4-istek
 | r.0.0.0 | 22,66.31 20×20 | icon | ph:caret-left (regular) | 20pt | text |  |  |
 | r.0.1 | 62,57.31 38×38 | text | “K” | Mono 500 14/14 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.0.2 | 110,54 228×44.63 | stack |  |  |  |  | col gap 2 flex 1 |
-| r.0.2.0 | 110,54 228×23.25 | text | “kuzey.dev” | Mono 500 15/23.25 | text |  | row ai:center gap 5 |
+| r.0.2.0 | 110,54 228×23.25 | text | “kuzey_dev” | Mono 500 15/23.25 | text |  | row ai:center gap 5 |
 | r.0.2.1 | 110,79.25 228×19.38 | text | “Mesaj isteği” | Inter 400 12.5/19.38 | text·68% |  | row ai:center gap 6 |
 | r.0.3 | 348,56.31 40×40 | shape |  |  |  | fill text·9% · r50% · shadow inset 0 0 0 0.5px text·18% | grid place:center |
 | r.0.3.0 | 358,66.31 20×20 | icon | ph:dots-three (regular) | 20pt | text |  |  |
@@ -1594,7 +1606,7 @@ Reference `reference/4.4-istek-onizleme.png` · light `reference/light/4.4-istek
 | r.2 | 0,0 402×543.73 | stack |  |  |  |  | col gap 6 pad 122 14 0 14 |
 | r.2.0 | 14,122 374×173.47 | stack |  |  |  |  | col ai:center gap 10 pad 8 0 16 0 |
 | r.2.0.0 | 169,130 64×64 | text | “K” | Mono 500 23/23 center | neutral100 | fill neutral800 · r50% | grid place:center |
-| r.2.0.1 | 147.44,204 107.11×26.34 | text | “kuzey.dev” | Mono 500 17/26.35 center | text |  |  |
+| r.2.0.1 | 147.44,204 107.11×26.34 | text | “kuzey_dev” | Mono 500 17/26.35 center | text |  |  |
 | r.2.0.2 | 56,240.34 290×39.13 | text | “Daha önce yazışmadınız. Seni kullanıcı adını tam yazarak buldu.” | Inter 400 13.5/19.57 center | text·68% |  | maxW 290 |
 | r.2.1 | 14,301.47 374×28.27 | text | “Bugün 16:12” | Mono 400 10.5/16.27 ls1.05 UPPER | text·68% |  | row ai:center gap 12 pad 6 2 6 2 |
 | r.2.1.0 | 16,314.59 126.8×2 | shape |  |  |  | fill radial-gradient(circle, text·28% 0.8px, transparent 1.2px) 0 50% / 5px 2px repeat-x | flex 1 |
@@ -1609,7 +1621,7 @@ Reference `reference/4.4-istek-onizleme.png` · light `reference/light/4.4-istek
 | r.2.4.1 | 27,501.98 233.31×17.25 | text | “Bağlantı, kabul edene kadar açılmaz” | Inter 400 12.5/17.25 | text·68% |  |  |
 | r.2.4.2 | 227.39,524.23 32.92×11.5 | text | “16:13” | Inter 400 11.5/11.5 tnum | text·68% |  | row ai:center self:flex-end gap 4 |
 | r.3 | 0,712.88 402×161.13 | shape |  |  |  | fill surface · r30/30/0/0 | col gap 14 pad 18 16 40 16 abs |
-| r.3.0 | 16,730.88 370×39.13 | text | “Kabul edersen sohbet açılır ve yanıt yazabilirsin. kuzey.dev isteği…” | Inter 400 13.5/19.57 center | text·68% |  | pad 0 10 0 10 |
+| r.3.0 | 16,730.88 370×39.13 | text | “Kabul edersen sohbet açılır ve yanıt yazabilirsin. kuzey_dev isteği…” | Inter 400 13.5/19.57 center | text·68% |  | pad 0 10 0 10 |
 | r.3.1 | 16,784 370×50 | stack |  |  |  |  | row gap 8 |
 | r.3.1.0 | 16,784 103.53×50 | text | “Engelle” | Inter 400 16/24.8 | danger | r14 · shadow inset 0 0 0 1px divider | grid place:center flex 1 |
 | r.3.1.1 | 127.53,784 103.53×50 | text | “Sil” | Inter 400 16/24.8 | text | r14 · shadow inset 0 0 0 1px divider | grid place:center flex 1 |
@@ -1682,9 +1694,10 @@ Reference `reference/5.1-sohbet.png` · urgent `reference/urgent/5.1-sohbet-urge
 | 5 dk | 5 min (09) |
 | Sohbet {43 dk} içinde iki taraftan silinecek. Bir mesaj sayacı sıfırlar. | Deleted from both ends in {43 min}. Any message resets the timer. (09) |
 | *(user content in the demo)* Bu akşam boş musun? · Şu yeni yer, Moda'da · Çok güzelmiş! 8 gibi olur mu? · Tamam, iskelede buluşalım · Kapı kodu 4471 | Are you free tonight? · That new place in Moda · Looks great! Around 8? · OK, meet you at the pier · Door code 4471 (09) |
+| *(blocked, proposed)* Engellendi · {user} engellendi. Yazdıkları sana ulaşmaz, sen de ona yazamazsın; engellendiğini bilmez. · Engeli kaldır | Blocked · {user} is blocked. Their messages don't reach you and you can't write to them; they don't know they're blocked. · Unblock |
 | *(system lines, proposed — 5.5 note)* Ghost mod açıldı · 24 saat · Ghost mod kapatıldı · Süreli mesajlar: 5 dk · {user} ekran görüntüsü aldı · Güvenlik numarası değişti | Ghost mode turned on · 24 hours · Ghost mode turned off · Disappearing messages: 5 min · {user} took a screenshot · Safety number changed |
 
-**States.** Ghost chip calm / urgent / off (5.2 “kapalı”); presence line variants (only for accepted contacts with presence shared — otherwise no status line or the last-seen line hidden); verified seal on/off; per-message C16 states; failed message shows “İletilemedi” sentence + “Tekrar gönder” (5.4 note); urgent banner; disappearing message meta badge; reactions; reply quotes; typing input grows (max 5 lines, proposed).
+**States.** Ghost chip calm / urgent / off (5.2 “kapalı”); presence line variants (only for accepted contacts with presence shared — otherwise no status line or the last-seen line hidden); verified seal on/off; per-message C16 states; failed message shows “İletilemedi” sentence + “Tekrar gönder” (5.4 note); urgent banner; disappearing message meta badge; reactions; reply quotes; typing input grows (max 5 lines, proposed); blocked (proposed): the status line says “Engellendi”, the Ghost chip stays as it is at 45 % and does nothing, the composer's place goes to 4.4's decision bar look (`surface`, top radius 30, pad 18 16 40, gap 14: the sentence in `callout` `text·68%`, centred, over “Engeli kaldır” 50 high r14, inner 1 pt `divider`, `rowTitle` `text`), and 5.3 has no reaction bar, no Yanıtla and no Herkesten sil (nothing reaches a blocked person). “Engeli kaldır” cross-fades the composer back.
 
 **Transitions.** Back → 4.1. Ghost chip → 5.5 sheet. Header avatar/name → contact info / verification 6.1 (proposed). Long-press a bubble → 5.3. Tap photo → media viewer; tap view-once → 5.6. “+” → attachment menu (photo, file, location, live location — proposed). Mic: hold to record (proposed).
 
@@ -1800,7 +1813,7 @@ Reference `reference/5.2-medya-ve-konum.png` · light `reference/light/5.2-medya
 > **Note (TR):** Aynı balon dili tüm içerik türlerine uzanır. Canlı konumun süresi balonun içinde geri sayar ve tek dokunuşla durur. Tek görüntülemelik medya önizleme göstermez; silinen mesaj yerinde iz bırakır.
 > **EN:** The same bubble language extends to every content type. Live location's time counts down inside the bubble and stops with one tap. View-once media shows no preview; a deleted message leaves a trace in its place.
 
-**Purpose.** Catalogue of content bubbles (chat with mert.k, Ghost off).
+**Purpose.** Catalogue of content bubbles (chat with mert_k, Ghost off).
 
 **Layout.**
 - C8 header: avatar 38 palette B with 11 pt online dot (`online`, ring 2 pt `bg`); status “Aktif” with a 7 pt `online` dot (gap 6); Ghost chip **off**: inner 1 pt `divider`, ghost 16 + “kapalı” Mono 400 12 `text·68%`.
@@ -1854,7 +1867,7 @@ Number formatting follows the locale (TR “2,1 MB”, EN “2.1 MB”; TR thous
 | r.0.1 | 62,57.31 38×38 | text | “M” | Mono 500 14/14 | accent100 | fill accent700 · r50% | grid place:center |
 | r.0.1.0 | 89,84.31 11×11 | shape |  |  |  | fill online · r50% · shadow 0 0 0 2px bg | abs |
 | r.0.2 | 110,54 173.59×44.63 | stack |  |  |  |  | col gap 2 flex 1 |
-| r.0.2.0 | 110,54 173.59×23.25 | text | “mert.k” | Mono 500 15/23.25 | text |  | row ai:center gap 5 |
+| r.0.2.0 | 110,54 173.59×23.25 | text | “mert_k” | Mono 500 15/23.25 | text |  | row ai:center gap 5 |
 | r.0.2.1 | 110,79.25 173.59×19.38 | text | “Aktif” | Inter 400 12.5/19.38 | text·68% |  | row ai:center gap 6 |
 | r.0.2.1.0 | 110,85.44 7×7 | shape |  |  |  | fill online · r50% |  |
 | r.0.3 | 293.59,59.31 94.41×34 | text | “kapalı” | Mono 400 12/18.6 | text·68% | r17 · shadow inset 0 0 0 1px divider | row ai:center gap 6 pad 0 12 0 10 |
@@ -2410,7 +2423,7 @@ Reference `reference/6.1-guvenlik-numarasi.png` · light `reference/light/6.1-gu
 | Doğrulandı olarak işaretle | Mark as verified |
 | *(already verified, proposed)* Doğrulandı · {date} · Doğrulamayı kaldır | Verified · {date} · Remove verification |
 
-**States.** unverified (as drawn) / verified (seal shown on the line as in 6.3, secondary button becomes “Doğrulamayı kaldır”) / number changed (banner “Güvenlik numarası değişti” `danger`-tinted, proposed). Share → share sheet with the digits as text (proposed).
+**States.** unverified (as drawn) / verified (seal shown on the line as in 6.3, secondary button becomes “Doğrulamayı kaldır”) / number changed (banner “Güvenlik numarası değişti” `danger`-tinted, proposed). Share → share sheet with the digits as text (proposed). In the contact screen (5.1 › the person, proposed) 6.1 is the Doğrulama tab and the share button moved into the header's “…” menu (“Numarayı paylaş”) beside Bildir and Engelle — next section.
 
 **Transitions.** Back → chat. “QR kodu okut” → 6.2 (full-screen). “Doğrulandı olarak işaretle” → confirmation (proposed) → 6.3.
 
@@ -2501,6 +2514,45 @@ Colour legend 6.1:
 | `accent` | #9184d9 | #796cbf |
 | `accent·70%` | #9184d9@70% | #796cbf@70% |
 | `text·80%` | #e9e9ed@80% | #292b31@80% |
+
+## 6.1 › Kişi ekranı · Engelle ve Bildir — Contact screen · Block and report (proposed)
+
+No design state: built in 6.1's and 4.4's language for App Review Guideline 1.2 (block abusive users, report offensive content, published contact information). Harness: `-U2Route safety:deniz/menu`, `…/block`, `…/blocked`, `…/report`, `…/report-address`; `conversation:deniz/5.1-blocked`; `chats:4.1-blocked`, `chats:4.4-report`.
+
+**Layout.**
+- The contact screen (5.1 › the person): C7 header (back · the name in `monoUsernameL` · C4 `ph:dots-three` 21 in 6.1's share button's place), C22 tabs Doğrulama · Fotoğraflar · Belgeler. “…” → the 4.3 / 4.4 floating menu (250 wide, rows 46) at design y 106, 16 from the right: “Numarayı paylaş” `ph:share-network` (Doğrulama only, once the number is known) ‖ “Bildir” `ph:warning` · “Engelle” `ph:prohibit` `danger` — “Engeli kaldır” `ph:prohibit` `text` while blocked.
+- Engelle → the request block's own alert (4.3): “{user} engellensin mi?” / “Sana bir daha yazamaz. Engellendiğini bilmez.” · Engelle (destructive) · Bildir · Vazgeç.
+- Blocked: `ph:prohibit` 16 `danger` after the name (after the seal when verified). Doğrulama starts, 16 below the tabs (gutter 16), with the 5.4 note card's look — inner 1 pt `danger·40%`, r20, pad 16 16 6 16, gap 14: `ph:prohibit` 22 `danger` · “{user} engellendi” `noteTitle` + the sentence `captionTight` `text·68%` (gap 4) · “Engeli kaldır” (`rowTitle` `accent300`, 36 high) under them.
+- Bildir → a full-height C18 sheet (the invite sheet's language): sheet bar “Vazgeç” · “Bildir”; the first line `callout` `text·68%` (pad 0 8); 20 below: “NEDEN” + a C13 card on `bg` with the five reasons (rows 48, `rowTitle`, the chosen one with `ph:check` 18 `accent300`, separators inset 14); 22 below: “NOT · İSTEĞE BAĞLI” + a field on `bg` r16, 96–160 high, `bubble` 16 `text`, placeholder `text·50%`, 1.5 pt `accent` ring while focused, at most 500 characters; 22 below: a C13 card on `bg` with a C14 row — danger icon tile (`danger·14%`, `ph:prohibit` 18 `danger`) · “Bu kişiyi de engelle” + subtitle `captionCompact` · toggle, ON by default (not shown for someone blocked already); 16 below: the privacy line (`ph:shield-check` 18 `accent300` + `callout` `text·68%`, pad 0 8). The form scrolls (content pad 12 16 12) above a bar pinned to the sheet's bottom (`surface`, pad 12 16 40 — 12 above the keyboard while it is up, a 16 pt fade from `surface` above it): after a failure “E-posta gönderilemedi. Tekrar dene.” `caption` `danger` (pad 0 8, 10 above the button), then C1 “E-postayla gönder” with `ph:paper-plane-tilt` 20 — at 45 % until a reason is chosen, the soft spinner while Mail is up.
+- No e-mail on this phone: the content cross-fades (0.36 s) to a centred block (pad-top 28, gap 14): C13 icon tile 52 r16 with `ph:paper-plane-tilt` 24; “Bu telefonda e-posta ayarlı değil” `rowTitleEmphasis` + the sentence `callout` `text·68%` (gap 6); 24 below a C13 row on `bg` (56 high, pad 0 12 0 16): “support@us2us.app” `monoUsername` `text` (selectable) + “Kopyala” (`rowTitle` `accent300` with `ph:copy` 18; “Kopyalandı” with `ph:check` once copied); 14 below, when the block followed: `ph:prohibit` 16 `danger` + “{user} engellendi.” `caption` `text·68%`; 28 below C1 “Tamam”. The bar's “Vazgeç” becomes “Kapat”.
+- 5.1 and 4.1 for someone blocked: 5.1 › States, 4.1 › States.
+
+**Texts.**
+
+| TR | EN |
+|---|---|
+| Numarayı paylaş · Bildir · Engelle · Engeli kaldır | Share number · Report · Block · Unblock |
+| {user} engellensin mi? · Sana bir daha yazamaz. Engellendiğini bilmez. · Engelle · Bildir · Vazgeç | Block {user}? · They can't message you again. They won't know they were blocked. · Block · Report · Cancel |
+| {user} engellendi · Yazdıkları sana ulaşmaz, sen de ona yazamazsın. Engellendiğini bilmez. · Engeli kaldır | {user} is blocked · Their messages don't reach you and you can't write to them. They don't know they're blocked. · Unblock |
+| Bildir | Report |
+| {user} hakkındaki bildirimin e-postayla us2us ekibine gider. Ne olduğunu seç; istersen kısa bir not ekle. | Your report about {user} goes to the us2us team by e-mail. Choose what happened and add a short note if you like. |
+| Neden · Spam · Taciz veya zorbalık · Uygunsuz içerik · Kimliğe bürünme · Diğer | Reason · Spam · Harassment or bullying · Inappropriate content · Impersonation · Other |
+| Not · isteğe bağlı · Ne oldu? Birkaç kelime yeter. | Note · optional · What happened? A few words are enough. |
+| Bu kişiyi de engelle · Bildirimi gönderince engellenir; vazgeçersen engellenmez. | Also block this person · Blocked when you send the report; not if you cancel. |
+| Mesajlar uçtan uca şifreli: bildirime hiçbir mesaj içeriği eklenmez, yalnızca kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider. İstersen e-postaya ekran görüntüsü ekleyebilirsin. | Messages are end-to-end encrypted: no message content is added to the report, only the username, the reason you chose, your note, the app version and the time. You can attach screenshots to the e-mail if you like. |
+| E-postayla gönder · E-posta gönderilemedi. Tekrar dene. | Send by e-mail · The e-mail couldn't be sent. Try again. |
+| Bu telefonda e-posta ayarlı değil · Bildirimini bu adrese e-postayla gönder: kullanıcı adını ve ne olduğunu yaz, istersen ekran görüntüsü ekle. · Kopyala · Kopyalandı · {user} engellendi. · Tamam | No e-mail is set up on this phone · Send your report to this address by e-mail: write the username and what happened, and attach screenshots if you like. · Copy · Copied · {user} is blocked. · Done |
+| *(e-mail)* us2us bildirimi: @{user} | us2us report: @{user} |
+| *(e-mail body)* Bildirilen kullanıcı: @{user} [(kullanıcı adı doğrulanmadı)] · Neden: {reason} · Not: {note or —} · Uygulama: us2us iOS {version} ({build}) · Zaman: {yyyy-MM-dd HH:mm} UTC · Mesajlar uçtan uca şifreli olduğu için bu bildirime hiçbir mesaj içeriği eklenmedi. İstersen ekran görüntüsü ekleyebilirsin. | Reported user: @{user} [(username not confirmed)] · Reason: {reason} · Note: {note or —} · App: us2us iOS {version} ({build}) · Time: {yyyy-MM-dd HH:mm} UTC · Messages are end-to-end encrypted, so no message content was added to this report. You may attach screenshots. |
+
+**States.**
+- Block (PROTOCOL §6.4): what the person sends is dropped on this phone, nothing more is sent to them (messages still waiting to go fail — “İletilemedi”, to be sent again after an unblock — and a live location shared with them ends) and the access key they had is replaced; they are not told. The chat stays, read only; if Ghost erases it, 4.2 › “Mesaj yaz” brings it back, still blocked. 7.1 › Engellenenler lists everyone blocked, chat or not, each with “Engeli kaldır” (the same unblock). “Engeli kaldır” needs no confirmation: the person is back in the state before the block (a contact gets the current access key and the profile again; a blocked request is a request again and leaves 4.1 — from the contact screen, back to 4.1 with it). What they sent meanwhile was never kept.
+- Report: an e-mail to support@us2us.app in the app's language with the subject and body above — the username alone names the person (marked when the directory did not confirm it; “kullanıcı adı bilinmiyor” when the phone has none); no message, key or account id is ever added. Mail when it can send (inside the app: no privacy cover, no lock), else another mail app through `mailto:` (outside the app: the lock follows on return), else the address to copy.
+- “Bu kişiyi de engelle” blocks only once the report left the sheet: sent by Mail, handed to another mail app, or the address shown to the user. Cancelling Mail, keeping a draft or a failure blocks nobody and keeps the form as it was.
+
+**Transitions.** “…” → menu (fade + scale from 0.96, 0.36 s). Engelle → alert → blocked in place (the note drops in, the mark fades in, 0.36 s). Bildir → sheet (`springSoft` + backdrop); from an alert it rises once the alert has gone. Mail: the system's own presentation over the sheet; sent → the sheet goes down. “Tamam” / “Vazgeç” / swipe down → dismiss.
+
+**Data.** `Peer.isBlocked`; `MessengerService.block(chat:)` / `unblock(chat:)` / `block(_ request:)`; `reportSubject(for:)` → username + whether the directory confirmed it.
 
 ## 6.2 · QR tarama — QR scan
 
@@ -2594,7 +2646,7 @@ Reference `reference/6.3-dogrulandi.png` · light `reference/light/6.3-dogruland
 | TR | EN |
 |---|---|
 | Hat doğrulandı. | Line verified. |
-| Sen ve deniz aynı güvenlik numarasını görüyorsunuz. Aradaki hatta başka kimse yok. | You and deniz see the same safety number. There's no one else on the line between you. |
+| Sen ve deniz aynı güvenlik numarasını görüyorsunuz: hatta yalnızca ikinizin anahtarı var. *(app copy since 2026-10-11; the reference drew “Aradaki hatta başka kimse yok.”: a matching number proves the keys, not more)* | You and deniz see the same safety number: only your two keys are on the line. |
 | 8 Ekim 2026 · 18:52 · yüz yüze | 8 October 2026 · 18:52 · face to face |
 | *(manual, proposed)* elle işaretlendi | marked manually |
 | Sohbete dön | Back to chat |
@@ -2686,19 +2738,20 @@ Reference `reference/7.1-ayarlar.png` · light `reference/light/7.1-ayarlar.png`
 - Top bar (pad 56 16 0): back C4 `ph:caret-left` 21; nothing on the right.
 - Title “Ayarlar” `displayTitle` Doto 900 38 at 20,108 (pad 12 20 0).
 - Content (pad 18 16 0, gap 18):
-  - Profile card 16,168 370×74, `surface` r18, pad 12 14, gap 14: avatar 50 (D, Mono 500 18) · “@selin.n” `monoUsernameL` + “Kullanıcı adın · değiştirilemez” `caption` `text·68%` · C4-40 `ph:qr-code` 20 `accent300`.
-  - Sections (C13): GİZLİLİK: Aktif durumu (`ph:circle-half`) “Kabul ettiklerim” › · Okundu bilgisi (`ph:checks`) toggle ON. GÜVENLİK: Face ID ile aç (custom Face ID glyph 18, stroke 1.8) toggle ON · Otomatik kilit (`ph:lock-simple`) “Hemen” › · Gizli kodu değiştir (`ph:password`) ›. SOHBETLER: Varsayılan Ghost süresi (`ph:ghost`) “24 saat” › · Varsayılan süreli mesaj (`ph:timer`) “Kapalı” ›. VERİ VE GÖRÜNÜM: Yedek (`ph:file-lock`) “Son: 8 Eki” › · Tema (`ph:moon`) “Sistem” › · Dil (`ph:translate`) “Türkçe” ›.
+  - Profile card 16,168 370×74, `surface` r18, pad 12 14, gap 14: avatar 50 (D, Mono 500 18) · “@selin_n” `monoUsernameL` + “Kullanıcı adın · değiştirilemez” `caption` `text·68%` · C4-40 `ph:qr-code` 20 `accent300`.
+  - Sections (C13): GİZLİLİK: Aktif durumu (`ph:circle-half`) “Kabul ettiklerim” › · Okundu bilgisi (`ph:checks`) toggle ON · *(proposed)* Engellenenler (`ph:prohibit`) with how many are blocked (nothing when nobody is) › (see 7.1 › Engellenenler). GÜVENLİK: Face ID ile aç (custom Face ID glyph 18, stroke 1.8) toggle ON · Otomatik kilit (`ph:lock-simple`) “Hemen” › · Gizli kodu değiştir (`ph:password`) ›. SOHBETLER: Varsayılan Ghost süresi (`ph:ghost`) “24 saat” › · Varsayılan süreli mesaj (`ph:timer`) “Kapalı” ›. VERİ VE GÖRÜNÜM: Yedek (`ph:file-lock`) “Son: 8 Eki” › · Tema (`ph:moon`) “Sistem” › · Dil (`ph:translate`) “Türkçe” ›.
 
 **Texts.**
 
 | TR | EN |
 |---|---|
 | Ayarlar | Settings |
-| @selin.n · Kullanıcı adın · değiştirilemez | Your username · can't be changed |
+| @selin_n · Kullanıcı adın · değiştirilemez | Your username · can't be changed |
 | Gizlilik | Privacy |
 | Aktif durumu · Kabul ettiklerim | Activity status · People I've accepted |
 | *(options, proposed from the note)* Kabul ettiklerim · Kimse | People I've accepted · Nobody |
 | Okundu bilgisi | Read receipts |
+| *(proposed)* Engellenenler · 2 | Blocked · 2 |
 | Güvenlik | Security |
 | Face ID ile aç | Unlock with Face ID |
 | Otomatik kilit · Hemen | Auto-lock · Immediately |
@@ -2741,7 +2794,7 @@ Section labels are uppercased with the Turkish locale (“GİZLİLİK”, “GÜ
 | r.2.0 | 16,168.25 370×74 | shape |  |  |  | fill surface · r18 | row ai:center gap 14 pad 12 14 12 14 |
 | r.2.0.0 | 30,180.25 50×50 | text | “S” | Mono 500 18/18 | accent300 | fill accent900 · r50% · shadow inset 0 0 0 1px accent700 | grid place:center |
 | r.2.0.1 | 94,181.28 224×47.94 | stack |  |  |  |  | col gap 3 flex 1 |
-| r.2.0.1.0 | 94,181.28 224×24.8 | text | “@selin.n” | Mono 500 16/24.8 | text |  |  |
+| r.2.0.1.0 | 94,181.28 224×24.8 | text | “@selin_n” | Mono 500 16/24.8 | text |  |  |
 | r.2.0.1.1 | 94,209.08 224×20.14 | text | “Kullanıcı adın · değiştirilemez” | Inter 400 13/20.15 | text·68% |  |  |
 | r.2.0.2 | 332,185.25 40×40 | shape |  |  |  | fill text·9% · r50% · shadow inset 0 0 0 0.5px text·18% | grid place:center |
 | r.2.0.2.0 | 342,195.25 20×20 | icon | ph:qr-code (regular) | 20pt | accent300 |  |  |
@@ -2853,6 +2906,35 @@ Colour legend 7.1:
 | `text·22%` | #e9e9ed@22% | #292b31@22% |
 | `accent` | #9184d9 | #796cbf |
 
+## 7.1 › Engellenenler — Blocked (proposed)
+
+No design state: built in 7.1's language. Harness: `-U2Route settings:blocked` (bora blocked, the chat still in 4.1; lale blocked, the chat erased), `settings:blocked-empty`, `settings:7.1-blocked` (7.1 with “Engellenenler · 2”).
+
+**Purpose.** Everyone the user blocked — also those whose chat is gone (Ghost erased it, or it was deleted), who could otherwise only be found again through 4.2 › “Mesaj yaz” — and the way to unblock them.
+
+**Layout.**
+- C7 header: back C4 `ph:caret-left` 21 · “Engellenenler” `navTitle` · empty slot. The page scrolls under 7.1's status-bar fade.
+- Content (pad 18 16 0): one C13 card `surface` r18, a row per person, by username (people whose username is unknown last). Row: pad 9 14, ≥ 62 high, gap 13 — avatar 44 (C12 initial in the person's palette; never a picture for someone blocked) · the username `monoUsername` `text` (one line, …), with “Kullanıcı adı bilinmiyor” `captionCompact` `text·68%` under it (gap 2) when the phone keeps none (a Ghost wipe with `wipe_contact` kept only the block; the name is then what 4.1 would show) · “Engeli kaldır” `rowTitle` `accent300`, 44 high. At accessibility text sizes “Engeli kaldır” goes under the name, and the name and “Kullanıcı adı bilinmiyor” may take two lines. Dotted separators inset 71 (under the name).
+- 7 below the card: the footnote, `footnote` `text·68%`, pad 0 16.
+- Nobody blocked: “Engellediğin kimse yok.” `callout` `text·68%`, centred, 120 below the content's top (4.3's empty state); no card, no footnote.
+
+**Texts.**
+
+| TR | EN |
+|---|---|
+| Engellenenler | Blocked |
+| Engeli kaldır | Unblock |
+| Kullanıcı adı bilinmiyor | Username unknown |
+| Yazdıkları sana ulaşmaz, sen de onlara yazamazsın; engellendiklerini bilmezler. Sohbet silinse de engel sürer. Engeli kaldırınca her şey eskisi gibi olur, ama bu arada yazdıkları gelmez. | Their messages don't reach you and you can't write to them; they don't know they're blocked. The block stays even when the chat is erased. Unblocking puts things back as they were, but what they sent meanwhile won't arrive. |
+| Engellediğin kimse yok. | You haven't blocked anyone. |
+| *(VoiceOver, after an unblock)* {user} artık engelli değil. | {user} is no longer blocked. |
+
+**States.** The list (people with and without a chat) · a row leaving · empty. On 7.1 the row's detail is the number (`label15` `text·68%`), nothing when it is 0.
+
+**Transitions.** 7.1 row → push (`screenPush`). “Engeli kaldır” needs no confirmation (as on the contact screen): selection haptic, the row fades and collapses (0.36 s, `u2Collapse`; Reduce Motion: a fade) and the rows below glide up; the last one cross-fades into the empty state. If the unblock cannot be stored the row comes back. Back → 7.1, whose count follows.
+
+**Data.** `MessengerService.blockedPeople` (`BlockedPerson`: the chat id = the account, the name, whether the username is known, the palette, the initial) — live from `AppRuntime.blockedContacts` (every blocked contact, with or without a conversation; empty while locked). `unblock(_:)` is `unblock(chat:)` for the person's account, chat or not: a contact is accepted again (it gets the current access key and the profile), a blocked request is a request again (back in 4.3 while its chat is there); someone without a chat stays without one until they write, and someone with nothing to go back to (no chat, and no contact before the block: a Ghost wipe with `wipe_contact` kept only the block) is forgotten — a stranger again, whom 4.2 › “Mesaj yaz” starts a new chat with. When someone was blocked is not recorded, so it is not shown.
+
 ## 7.2 · Yedeği dışa aktar — Export backup
 
 Reference `reference/7.2-yedegi-disa-aktar.png` · light `reference/light/7.2-yedegi-disa-aktar.png` · data `layout/7.2-yedegi-disa-aktar.json`
@@ -2896,7 +2978,7 @@ Reference `reference/7.2-yedegi-disa-aktar.png` · light `reference/light/7.2-ye
 
 **Animation.** Meter dots light up left→right 0.36 s as strength changes; toggle `springSoft`.
 
-**Data.** Backup estimate (chat count, message count, media bytes), toggles, password strength (zxcvbn-like estimate, local), export pipeline.
+**Data.** Backup estimate (chat count, message count, media bytes), toggles, password strength (local estimate), export pipeline. *(Implemented: the account backup holds the account, identity key and contacts only, so the toggles are replaced by a fixed list of what it holds and a footnote that messages and media are never in it; the strength estimate counts names, words, years, dates, runs, keyboard walks and repeats as the few guesses they are; “Güçlü parola oluştur” fills in a random 20-symbol password, shown with “Kopyala”.)*
 
 **Elements.**
 
@@ -3177,7 +3259,7 @@ Identical structure to 4.1 (same element ids and frames); colours from the light
 | r.5.0.0 | 53,402.98 15×15 | shape |  |  |  | fill online · r50% · shadow 0 0 0 3px bg | abs |
 | r.5.1 | 81,367.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.5.1.0 | 81,367.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert.k” | Mono 500 15/23.25 … | text |  |  |
+| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert_k” | Mono 500 15/23.25 … | text |  |  |
 | r.5.1.0.1 | 150,378.75 190.78×0 | spacer |  |  |  |  | flex 1 |
 | r.5.1.0.2 | 346.78,368.67 37.22×20.14 | text | “18:44” | Inter 400 13/20.15 tnum | accent300 |  |  |
 | r.5.1.1 | 81,394.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3215,7 +3297,7 @@ Identical structure to 4.1 (same element ids and frames); colours from the light
 | r.11.0 | 16,599.98 52×52 | text | “E” | Mono 500 19/19 | accent100 | fill accent800 · r50% | grid place:center |
 | r.11.1 | 81,601.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.11.1.0 | 81,601.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece.y” | Mono 500 15/23.25 … | text |  |  |
+| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece_y” | Mono 500 15/23.25 … | text |  |  |
 | r.11.1.0.1 | 139.5,612.75 199.81×0 | spacer |  |  |  |  | flex 1 |
 | r.11.1.0.2 | 345.31,602.67 38.69×20.14 | text | “24 Eyl” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.11.1.1 | 81,628.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3237,7 +3319,7 @@ Identical structure to 4.1 (same element ids and frames); colours from the light
 | r.15.0 | 16,755.98 52×52 | text | “O” | Mono 500 19/19 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.15.1 | 81,757.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.15.1.0 | 81,757.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya.t” | Mono 500 15/23.25 … | text |  |  |
+| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya_t” | Mono 500 15/23.25 … | text |  |  |
 | r.15.1.0.1 | 139.5,768.75 199.81×0 | spacer |  |  |  |  | flex 1 |
 | r.15.1.0.2 | 345.31,758.67 38.69×20.14 | text | “19 Eyl” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.15.1.1 | 81,784.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3507,7 +3589,7 @@ Same layout as 4.1 with the English strings (see 4.1 texts, “(09)”).
 | r.5.0.0 | 53,402.98 15×15 | shape |  |  |  | fill online · r50% · shadow 0 0 0 3px bg | abs |
 | r.5.1 | 81,367.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.5.1.0 | 81,367.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert.k” | Mono 500 15/23.25 … | text |  |  |
+| r.5.1.0.0 | 81,367.13 63×23.25 | text | “mert_k” | Mono 500 15/23.25 … | text |  |  |
 | r.5.1.0.1 | 150,378.75 190.78×0 | spacer |  |  |  |  | flex 1 |
 | r.5.1.0.2 | 346.78,368.67 37.22×20.14 | text | “18:44” | Inter 400 13/20.15 tnum | accent300 |  |  |
 | r.5.1.1 | 81,394.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3545,7 +3627,7 @@ Same layout as 4.1 with the English strings (see 4.1 texts, “(09)”).
 | r.11.0 | 16,599.98 52×52 | text | “E” | Mono 500 19/19 | accent100 | fill accent800 · r50% | grid place:center |
 | r.11.1 | 81,601.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.11.1.0 | 81,601.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece.y” | Mono 500 15/23.25 … | text |  |  |
+| r.11.1.0.0 | 81,601.13 52.5×23.25 | text | “ece_y” | Mono 500 15/23.25 … | text |  |  |
 | r.11.1.0.1 | 139.5,612.75 194.27×0 | spacer |  |  |  |  | flex 1 |
 | r.11.1.0.2 | 339.77,602.67 44.23×20.14 | text | “Sep 24” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.11.1.1 | 81,628.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3567,7 +3649,7 @@ Same layout as 4.1 with the English strings (see 4.1 texts, “(09)”).
 | r.15.0 | 16,755.98 52×52 | text | “O” | Mono 500 19/19 | neutral100 | fill neutral800 · r50% | grid place:center |
 | r.15.1 | 81,757.13 303×49.72 | stack |  |  |  |  | col gap 4 flex 1 |
 | r.15.1.0 | 81,757.13 303×23.25 | stack |  |  |  |  | row ai:center gap 6 |
-| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya.t” | Mono 500 15/23.25 … | text |  |  |
+| r.15.1.0.0 | 81,757.13 52.5×23.25 | text | “oya_t” | Mono 500 15/23.25 … | text |  |  |
 | r.15.1.0.1 | 139.5,768.75 194.27×0 | spacer |  |  |  |  | flex 1 |
 | r.15.1.0.2 | 339.77,758.67 44.23×20.14 | text | “Sep 19” | Inter 400 13/20.15 tnum | text·68% |  |  |
 | r.15.1.1 | 81,784.38 303×22.47 | stack |  |  |  |  | row ai:center gap 6 minH 22 |
@@ -3716,7 +3798,7 @@ Colour legend 9.2:
 
 Reference `reference/9.3-buyuk-harf.png` · data `layout/9.3-buyuk-harf.json`
 
-Rule (from the card): i ↔ İ and ı ↔ I mapping depends on the language. Upper-casing “istekler” without a language gives “ISTEKLER” (wrong in Turkish). In SwiftUI, `Text(key).textCase(.uppercase)` uses the environment locale; for raw `String` conversions pass the locale explicitly, e.g. `s.uppercased(with: Locale(identifier: "tr_TR"))`. Usernames are ASCII lower-case only, so exact matching is unaffected. Test table on the card:
+Rule (from the card): i ↔ İ and ı ↔ I mapping depends on the language. Upper-casing “istekler” without a language gives “ISTEKLER” (wrong in Turkish). In SwiftUI, `Text(key).textCase(.uppercase)` uses the environment locale; for raw `String` conversions pass the locale explicitly, e.g. `s.uppercased(with: Locale(identifier: "tr_TR"))`. Usernames follow PROTOCOL.md §3.1 — only `a-z`, `0-9` and `_`, normalized with the locale-independent lower case; Turkish letters are reported, never converted (see 2.1) — so exact matching is unaffected. Test table on the card:
 
 | source | `lang="tr"` | no language (wrong) |
 |---|---|---|

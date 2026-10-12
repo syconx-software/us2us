@@ -45,8 +45,11 @@ struct LockFlowView: View {
         #endif
         let model = LockFlowModel(
             messenger: messenger, biometry: biometry, isFrozenForHarness: frozen,
+            startsWiped: app.showsWipedOutcome,
             onUnlock: { [app] in app.didUnlock() },
-            onErase: { [app] in await app.eraseEverything() })
+            onErase: { [app] in await app.eraseEverything() },
+            onStartOver: { [app] restoring in app.leaveWipedLock(restoring: restoring) },
+            onWiped: { [app] in app.forgetAccountPreferences() })
         #if DEBUG
             harness?.apply(to: model, messenger: messenger)
         #endif
@@ -79,6 +82,11 @@ private struct LockFlowContent: View {
                     onFinished: { [app] in app.continueAfterRestore() }
                 )
                 .transition(.u2Push)
+            case .wiped:
+                // The optional wipe fired (PROTOCOL §5.2): what happened, and
+                // the two ways on — never “Kod yanlış”.
+                LockWipedScreen(flow: flow)
+                    .transition(.u2Fade)
             }
         }
         // “cover present instantly; content inside fades in 0.36 s”
