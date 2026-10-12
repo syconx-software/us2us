@@ -6,10 +6,16 @@ import com.syconx.us2us.core.attachment.AttachmentCipher
 import com.syconx.us2us.core.encoding.Hex
 import com.syconx.us2us.core.encoding.toHex
 import com.syconx.us2us.core.pow.ProofOfWork
+import com.syconx.us2us.core.profile.AvatarKey
+import com.syconx.us2us.core.profile.AvatarRecord
+import com.syconx.us2us.core.profile.InvalidAvatarRecordException
+import com.syconx.us2us.core.profile.TestImages
 import com.syconx.us2us.core.proto.AccountBackup
+import com.syconx.us2us.core.proto.ProfileAvatar
 import com.syconx.us2us.core.proto.SealedContent
 import com.syconx.us2us.core.proto.accountBackup
 import com.syconx.us2us.core.proto.backupContact
+import com.syconx.us2us.core.proto.profileAvatar
 import com.syconx.us2us.core.proto.sealedContent
 import com.syconx.us2us.core.safety.SafetyNumber
 import com.syconx.us2us.core.session.ContentPadding
@@ -30,6 +36,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -109,6 +116,7 @@ object VectorGenerator {
         "keyslot" to ::keyslot,
         "item" to ::item,
         "fingerprint" to ::fingerprint,
+        "avatar-record" to ::avatarRecord,
     )
 
     private fun username() = listOf(
@@ -373,6 +381,49 @@ object VectorGenerator {
     }
 
     /**
+     * PROTOCOL.md §8.10, with the cases the README requires: a preset, photos on both sides of every
+     * length boundary up to the largest, a version of 2^32 and above (the largest, 2^63 − 1, too),
+     * and a tampered record that must not open.
+     */
+    private fun avatarRecord(): List<JsonObject> {
+        class Case(val username: String, val accountSeed: Int, val version: Long, val avatar: ProfileAvatar)
+        val cases = listOf(
+            Case("kagan_y", 0x51, 1, profileAvatar { presetId = 1 }),
+            Case("kagan_y", 0x51, 2, TestImages.photoAvatarOfSize(8150)),
+            Case("kagan_y", 0x51, 3, TestImages.photoAvatarOfSize(8151)),
+            Case("alice_01", 0x61, 1L shl 32, TestImages.photoAvatarOfSize(16342)),
+            Case("alice_01", 0x61, (1L shl 32) + 1, TestImages.photoAvatarOfSize(16343)),
+            Case("bob_02", 0x71, 1_760_000_000_000, TestImages.photoAvatarOfSize(32726)),
+            Case("bob_02", 0x71, 1_760_000_000_001, TestImages.photoAvatarOfSize(32727)),
+            Case("a23456789012345678901234", 0x81, Long.MAX_VALUE, TestImages.photoAvatarOfSize(AvatarRecord.MAX_PROFILE_AVATAR_BYTES)),
+        )
+        val seeds = HashMap<String, ByteArray>()
+        val vectors = cases.mapIndexed { index, case ->
+            val accountId = AccountId.fromBytes(pattern(16, 1, case.accountSeed))
+            val seed = seeds.getOrPut(case.username) { AvatarKey.seed(Username(case.username)) }
+            val key = AvatarKey.derive(seed, accountId)
+            val nonce = pattern(12, 5, 0x90 + index)
+            val profileAvatar = case.avatar.toByteArray()
+            buildJsonObject {
+                put("username", case.username)
+                put("accountId", accountId.toBytes().toHex())
+                put("version", case.version.toString())
+                put("nonce", nonce.toHex())
+                put("profileAvatar", profileAvatar.toHex())
+                put("seed", seed.toHex())
+                put("avatarKey", key.bytes().toHex())
+                put("record", AvatarRecord.seal(profileAvatar, case.version, key, nonce).toHex())
+                put("valid", true)
+            }
+        }
+        val lengths = vectors.map { it.str("record").length / 2 }
+        check(lengths == listOf(8192, 8192, 16384, 16384, 32768, 32768, 49152, 49152)) { "record lengths $lengths" }
+        // A flipped ciphertext byte: the tag no longer matches.
+        val tampered = Hex.decode(vectors[0].str("record")).also { it[100] = (it[100].toInt() xor 0x01).toByte() }
+        return vectors + JsonObject(vectors[0] + mapOf("record" to JsonPrimitive(tampered.toHex()), "valid" to JsonPrimitive(false)))
+    }
+
+    /**
      * HPKE draws a fresh encapsulation every time, so sealed vectors cannot be reproduced. The key
      * pair and contents are fixed; only the envelopes vary between generations.
      */
@@ -496,6 +547,30 @@ object VectorVerifier {
                 )
                 assertEquals(v.str("displayable"), number.digits)
                 assertArrayEquals(v.hex("scannable"), number.scannable)
+            }
+            "avatar-record" -> {
+                val username = Username(v.str("username"))
+                val accountId = AccountId.fromBytes(v.hex("accountId"))
+                val seed = AvatarKey.seed(username)
+                assertEquals(v.str("seed"), seed.toHex(), "seed of '$username'")
+                val key = AvatarKey.derive(seed, accountId)
+                assertEquals(v.str("avatarKey"), key.bytes().toHex(), "avatar key of '$username'")
+                val record = v.hex("record")
+                if (!v.flag("valid", true)) {
+                    assertThrows<InvalidAvatarRecordException> { AvatarRecord.open(record, key) }
+                    return
+                }
+                val profileAvatar = v.hex("profileAvatar")
+                val version = v.str("version").toLong()
+                assertArrayEquals(record, AvatarRecord.seal(profileAvatar, version, key, v.hex("nonce")), "record of version $version")
+                assertEquals(version, AvatarRecord.version(record))
+                assertArrayEquals(profileAvatar, AvatarRecord.open(record, key))
+                ProfileAvatar.parseFrom(profileAvatar)
+                // Another username (its last character changed), or the same username of another account.
+                val otherUsername = Username(username.value.dropLast(1) + if (username.value.endsWith("z")) "y" else "z")
+                assertThrows<InvalidAvatarRecordException> { AvatarRecord.open(record, AvatarKey.derive(otherUsername, accountId)) }
+                val otherAccount = AccountId.fromBytes(accountId.toBytes().also { it[15] = (it[15].toInt() xor 0x01).toByte() })
+                assertThrows<InvalidAvatarRecordException> { AvatarRecord.open(record, AvatarKey.derive(seed, otherAccount)) }
             }
             "sealed" -> {
                 val recipient = IdentityKeyPair(v.hex("recipientIdentityKeyPair"))

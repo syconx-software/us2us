@@ -193,3 +193,15 @@ internal sealed class SocketFrame {
     @SerialName("ping")
     data object Ping : SocketFrame()
 }
+
+/** The answer to `GET /v1/accounts/{accountId}/avatar` (§4.12). */
+sealed interface AvatarFetch {
+    /** `200`: the record, not yet checked or opened (see `AvatarRecord`). */
+    class Found(val record: ByteArray) : AvatarFetch
+
+    /** `304`: the record is still the version named in `If-None-Match`. */
+    data object NotModified : AvatarFetch
+
+    /** `404`: no record, no such account, or a relay without avatars. */
+    data object None : AvatarFetch
+}

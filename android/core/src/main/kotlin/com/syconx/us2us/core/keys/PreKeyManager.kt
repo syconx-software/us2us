@@ -72,6 +72,14 @@ class PreKeyManager(
         )
     }
 
+    /** Deletes the private halves of [keys], a set from [generateFullSet] that no account uses (a failed registration). */
+    fun discard(keys: PreKeySet) {
+        store.removeSignedPreKey(keys.signedPreKey.keyId)
+        store.removeKyberPreKey(keys.kyberLastResortKey.keyId)
+        keys.oneTimePreKeys.forEach { store.removePreKey(it.keyId) }
+        keys.kyberOneTimePreKeys.forEach { store.removeKyberPreKey(it.keyId) }
+    }
+
     /**
      * Compares the relay's [status] with local state and returns the upload that rotates expired
      * keys and refills one-time keys, or `null` if nothing is due. Also retires replaced keys whose

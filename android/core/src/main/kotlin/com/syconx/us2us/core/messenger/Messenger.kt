@@ -22,6 +22,10 @@ import com.syconx.us2us.core.pow.ProofOfWork
 import com.syconx.us2us.core.presence.PresencePolicy
 import com.syconx.us2us.core.presence.PresenceStatus
 import com.syconx.us2us.core.presence.PresenceTracker
+import com.syconx.us2us.core.profile.AvatarKey
+import com.syconx.us2us.core.profile.AvatarRecord
+import com.syconx.us2us.core.profile.InvalidAvatarRecordException
+import com.syconx.us2us.core.profile.ProfilePicture
 import com.syconx.us2us.core.proto.AccountBackup
 import com.syconx.us2us.core.proto.Attachment
 import com.syconx.us2us.core.proto.BackupContact
@@ -48,6 +52,7 @@ import com.syconx.us2us.core.proto.sealedContent
 import com.syconx.us2us.core.proto.text
 import com.syconx.us2us.core.proto.typingMessage
 import com.syconx.us2us.core.relay.AccountIdentity
+import com.syconx.us2us.core.relay.AvatarFetch
 import com.syconx.us2us.core.relay.DeliveryAuthorization
 import com.syconx.us2us.core.relay.EphemeralEnvelope
 import com.syconx.us2us.core.relay.PowSubmission
@@ -137,7 +142,7 @@ class Messenger(
     private val contactLock = Any()
     private val sessionSetupLock = Mutex()
     private val sessions = SessionCrypto(store, account.accountId, config.clock)
-    private val directory = RelaySenderDirectory(relay)
+    private val directory = RelaySenderDirectory(relay, config.clock)
     private val receiver = MessageReceiver(account.accountId, store, sessions, SenderVerifier(store, directory), cryptoLock)
     private val preKeys = PreKeyManager(store, config.preKeyPolicy, config.clock)
     private val handledEnvelopes = Collections.synchronizedSet(
@@ -163,15 +168,55 @@ class Messenger(
     /** Contacts whose presence just changed; read the new state with [presence]. */
     val presenceUpdates: SharedFlow<AccountId> = presenceChanges.asSharedFlow()
 
+    /** Avatar record writes go one at a time, in order (§8.10). */
+    private val avatarLock = Mutex()
+
+    /** The relay answered an avatar write with `404`/`405`: it has no avatars until the next app start. */
+    @Volatile
+    private var avatarUnavailable = false
+
+    /**
+     * No avatar store (`PUT`) before this time (ms), after a `429` for one. Deletes have a budget
+     * of their own on the relay (§4.11) and their own wait: a refused store never holds up taking
+     * the picture out of search.
+     */
+    @Volatile
+    private var avatarStoreRetryAt = 0L
+
+    /** No avatar delete before this time (ms), after a `429` for one. */
+    @Volatile
+    private var avatarDeleteRetryAt = 0L
+
+    /** `seed` per normalized username (§8.10): slow to derive, kept in memory only. */
+    private val avatarSeeds = lruMap<String, ByteArray>(MAX_AVATAR_SEEDS)
+
+    /** Pictures from search per (account, normalized username), with the version they were opened from. */
+    private val searchPictures = lruMap<Pair<AccountId, String>, SearchPicture>(MAX_SEARCH_PICTURES)
+
+    /**
+     * The highest version opened per (account, normalized username) (§8.10 "Search" step 5): a
+     * record below it is a replay and is ignored. Not lowered by a `404` or a record that fails to
+     * open; kept in memory as long as the pictures.
+     */
+    private val searchVersions = lruMap<Pair<AccountId, String>, Long>(MAX_SEARCH_VERSIONS)
+
+    private class SearchPicture(val version: Long, val picture: ProfilePicture)
+
     // Directory and contacts
 
     /**
      * Looks up a username (exact match, §4.4) and records the account as a contact. Returns `null`
-     * if the input is not a valid username, nobody has it, or it is our own.
+     * if the input is not a valid username, nobody has it, or it is our own. Show a result at once
+     * with the initial letter; [searchPicture] then gives its picture (§8.10 "Search").
      */
     suspend fun findByUsername(input: String): Contact? {
         val username = Username.parse(input) ?: return null
-        val found: AccountIdentity = relay.lookupUsername(withContext(Dispatchers.Default) { username.hash() }) ?: return null
+        val answer: AccountIdentity? = relay.lookupUsername(withContext(Dispatchers.Default) { username.hash() })
+        // The answer is fresh: it replaces a stale owner that sender verification may have cached.
+        directory.remember(username, answer?.accountId)
+        // A picture found for this username before belongs to whoever has it now, or to nobody.
+        synchronized(searchPictures) { searchPictures.keys.removeAll { it.second == username.value && it.first != answer?.accountId } }
+        val found = answer ?: return null
         if (found.accountId == accountId) return null
         return editContact(found.accountId) {
             (it ?: Contact(found.accountId, username.value, ContactState.OUTGOING_REQUEST))
@@ -193,7 +238,10 @@ class Messenger(
         val contact = contacts.get(peer) ?: return UsernameStatus.UNCHECKED
         val claimed = contact.username ?: return UsernameStatus.UNCHECKED
         if (contact.usernameStatus != UsernameStatus.UNCHECKED) return contact.usernameStatus
-        val status = if (directory.accountFor(Username(claimed)) == peer) UsernameStatus.VERIFIED else UsernameStatus.MISMATCH
+        // The status is saved on the contact, so it is never taken from a cached answer that may be
+        // out of date (usernames move, §3.3); only one the relay gave within the last minute counts.
+        val owner = directory.accountFor(Username(claimed), refresh = true)
+        val status = if (owner == peer) UsernameStatus.VERIFIED else UsernameStatus.MISMATCH
         // A newer claim that arrived meanwhile is checked on its own.
         editContact(peer) { current -> current?.takeIf { it.username == claimed }?.copy(usernameStatus = status) }
         return status
@@ -266,6 +314,16 @@ class Messenger(
             }
         }
 
+    /**
+     * Sends a built-in sticker (PROTOCOL.md §8.8) with its pack, id, emoji and, for a sticker with
+     * words, the language they were shown in. Like every bubble it is receipted.
+     */
+    suspend fun sendSticker(to: AccountId, sticker: OutgoingSticker, expireTimerSeconds: Int = 0): SentMessage =
+        sendDataMessage(to) {
+            this.sticker = sticker.toProto()
+            expireTimerSeconds.takeIf { it > 0 }?.let { this.expireTimerSeconds = it }
+        }
+
     suspend fun sendReaction(to: AccountId, targetMessageId: ByteArray, emoji: String, remove: Boolean = false): SentMessage =
         sendDataMessage(to) {
             reaction = reaction {
@@ -285,9 +343,32 @@ class Messenger(
      */
     suspend fun sendReceipt(to: AccountId, type: ReceiptMessage.Type, messageIds: List<ByteArray>): SendReceipt? {
         require(messageIds.size <= MAX_RECEIPT_IDS) { "at most $MAX_RECEIPT_IDS ids per receipt" }
+        require(type != ReceiptMessage.Type.SAVED) { "SAVED goes through sendSavedReceipt, which checks the message (§8.4)" }
         val state = contacts.get(to)?.state ?: return null
         if (!MessageRequests.maySendReceiptsAndTyping(state) || messageIds.isEmpty()) return null
         return send(to, content { receipt = receiptMessage { this.type = type; this.messageIds += messageIds.map { it.toByteString() } } })
+    }
+
+    /**
+     * Tells [to] that the user saved or handed on [saved] — a photo, video or file [to] sent us —
+     * outside the app (PROTOCOL.md §8.4): `ReceiptMessage{SAVED}`, whatever the read-receipt setting,
+     * so the app must explain before the first save that the sender will know. Send it once per
+     * message. Returns `null` without sending to anyone but an accepted contact.
+     *
+     * Preconditions the caller keeps: [saved] is a message this phone still holds, not deleted, and
+     * [receivedFrom] is the account it came from (the [IncomingMessage.sender] it arrived with); it
+     * must be [to], so an id from one conversation never goes to another contact.
+     *
+     * @throws IllegalArgumentException for a message that cannot be saved ([SavedMedia.isSavable]:
+     *   view-once, disappearing, or not a photo, video or file), or one that did not come from [to].
+     */
+    suspend fun sendSavedReceipt(to: AccountId, saved: DataMessage, receivedFrom: AccountId): SendReceipt? {
+        require(receivedFrom == to) { "SAVED goes only to the sender of the saved message (§8.4)" }
+        require(SavedMedia.isSavable(saved)) { "only a permanent photo, video or file can be saved (§8.4)" }
+        require(saved.messageId.size() == MESSAGE_ID_LENGTH) { "the saved message has no valid id" }
+        val state = contacts.get(to)?.state ?: return null
+        if (!SavedMedia.maySend(state)) return null
+        return send(to, content { receipt = receiptMessage { type = ReceiptMessage.Type.SAVED; messageIds += saved.messageId } })
     }
 
     /**
@@ -325,9 +406,39 @@ class Messenger(
      * @return accepted contacts that could not be sent the new key yet (it is retried on the next send).
      */
     suspend fun block(accountId: AccountId): List<AccountId> {
-        editContact(accountId) { it?.copy(state = ContactState.BLOCKED) ?: Contact(accountId, null, ContactState.BLOCKED) }
+        editContact(accountId) { current ->
+            when {
+                current == null -> Contact(accountId, null, ContactState.BLOCKED)
+                current.state == ContactState.BLOCKED -> current
+                else -> current.copy(state = ContactState.BLOCKED, stateBeforeBlock = current.state)
+            }
+        }
         forgetPresence(accountId)
         return rotateAccessKey()
+    }
+
+    /**
+     * Unblocks [accountId] (§6.4): the contact returns to its state before [block], or becomes an
+     * incoming request if that is unknown ([Contact.stateBeforeBlock]). Nothing is sent unless it
+     * is accepted again; then it gets our current access key, which the block replaced without
+     * telling it, and our profile, so it delivers with the key instead of proof-of-work. The
+     * profile waits for the contact's key, as always.
+     *
+     * @return `false` if an accepted contact could not be sent our key or profile yet; they go
+     *   before our next message to it, or when it next writes.
+     */
+    suspend fun unblock(accountId: AccountId): Boolean {
+        val contact = editContact(accountId) { current ->
+            current?.takeIf { it.state == ContactState.BLOCKED }?.copy(
+                state = current.stateBeforeBlock ?: ContactState.INCOMING_REQUEST,
+                stateBeforeBlock = null,
+                // Key rotations and profile announcements while it was blocked passed it by.
+                accessKeyShared = false,
+                profileShared = false,
+            )
+        } ?: return true
+        if (contact.state != ContactState.ACCEPTED) return true
+        return attempt { shareOwnState(accountId) }
     }
 
     /** Replaces our access key at the relay and sends the new one to every accepted contact. */
@@ -348,8 +459,18 @@ class Messenger(
      * @return contacts that could not be told (they are told before the next send to them).
      */
     suspend fun changeUsername(newUsername: Username): List<AccountId> {
-        relay.changeUsername(withContext(Dispatchers.Default) { newUsername.hash() })
-        updateAccount { it.copy(username = newUsername) }
+        val hash = withContext(Dispatchers.Default) { newUsername.hash() }
+        // The relay deletes the avatar record with the change (§4.3), so no write may be under way.
+        avatarLock.withLock {
+            relay.changeUsername(hash)
+            updateAccount { old ->
+                val new = old.copy(username = newUsername)
+                // Publish again under the new username's key; with nothing to publish, the relay is in line.
+                val pending = if (searchRecordPicture(new) != null) new.pendingSetup + PendingSetup.SYNC_AVATAR else new.pendingSetup - PendingSetup.SYNC_AVATAR
+                new.copy(pendingSetup = pending)
+            }
+        }
+        attemptAvatarSync()
         return announceProfile()
     }
 
@@ -368,6 +489,113 @@ class Messenger(
         updateAccount { it.copy(presenceSharing = enabled) }
         if (!enabled) presenceTracker.clear()
         return announceProfile()
+    }
+
+    // Profile picture (§8.9, §8.10)
+
+    /**
+     * Sets the profile picture: a preset ([ProfilePicture.preset]), a photo ([ProfilePicture.photo])
+     * or `null` for the initial letter. Accepted contacts get it end-to-end encrypted in a
+     * `ProfileUpdate`; while "Show in search" is on, the avatar record on the relay follows
+     * ([syncAvatarRecord]), and with the initial letter it is deleted.
+     *
+     * @throws IllegalArgumentException for a picture this client may not send (an unknown preset,
+     *   or a photo that breaks §8.9).
+     * @return contacts that could not be told yet (they are told before the next send to them).
+     */
+    suspend fun setProfilePicture(picture: ProfilePicture?): List<AccountId> {
+        require(picture == null || picture.isSendable) { "this picture may not be sent (PROTOCOL.md §8.9)" }
+        updateSearchRecord { it.copy(profilePicture = picture) }
+        attemptAvatarSync()
+        return announceProfile()
+    }
+
+    /**
+     * "Aramada göster" / "Show in search" (§8.10). On, anyone who types the exact username sees the
+     * picture; off, the avatar record is deleted and only contacts see it. Contacts are not told:
+     * they get the picture either way (§8.7).
+     *
+     * @return whether the relay is in line already; if not, it is retried ([syncAvatarRecord]).
+     */
+    suspend fun setShowPictureInSearch(enabled: Boolean): Boolean {
+        updateSearchRecord { it.copy(showPictureInSearch = enabled) }
+        return attemptAvatarSync()
+    }
+
+    /**
+     * Brings the avatar record on the relay in line with the picture, "Show in search" and the
+     * username (§8.10, "Publishing"): a record of the picture under the username's key while the
+     * setting is on and the picture is not the initial letter, otherwise none. The setters call it,
+     * and [performMaintenance] and the receive loop retry it while [PendingSetup.SYNC_AVATAR] is set.
+     *
+     * Writes go one at a time, each with a version above every earlier one (kept in
+     * [LocalAccount.avatarVersion] before it is sent), so a late retry of an older write is refused
+     * instead of undoing a newer one. A `409 stale_version` is answered once with the relay's
+     * highest version + 1.
+     *
+     * @return whether the relay is in line now. `false` without an exception while it has to wait:
+     *   the relay has no avatar endpoints (`404`/`405`; again after the next app start), asked to
+     *   wait (`429`), or a restore's keys are not replaced yet.
+     * @throws IOException if the relay could not be reached or refused otherwise; retried later.
+     */
+    suspend fun syncAvatarRecord(): Boolean = avatarLock.withLock { syncAvatarLocked() }
+
+    /**
+     * The picture to show for [peer] in a search result or on our own message request (§8.9,
+     * §8.10 "Search" steps 3–4); `null` for the initial letter. Show the result at once with the
+     * initial letter and call this after an exact hit of [findByUsername], never while the user is
+     * still typing.
+     *
+     * An accepted contact whose `ProfileUpdate` arrived has its end-to-end encrypted copy; that is
+     * returned without asking the relay, which would learn who looked at whom. Otherwise the
+     * record is fetched (rate limited like the directory; revalidated against the copy from the last
+     * search), opened with the key of the verified username and checked. Any failure, also of the
+     * network, gives `null`; the next call tries again.
+     *
+     * An incoming message request is always `null` here: a stranger's photo is content nobody
+     * asked for, and decoding it hands attacker-chosen bytes to the image decoders, so nothing is
+     * fetched until the user asks for it ([requestPicture]) or accepts (§8.9). Safe for list rows.
+     */
+    suspend fun searchPicture(peer: AccountId): ProfilePicture? {
+        val contact = contacts.get(peer) ?: return null
+        if (contact.state == ContactState.INCOMING_REQUEST) return null
+        return pictureOf(contact)
+    }
+
+    /**
+     * The picture of an incoming message request's sender, fetched only because the user asked
+     * for it ([userConfirmed]: an explicit tap such as "Show picture" on the opened request,
+     * never a list row or any other automatic display; §8.9). Its record is opened with the
+     * username the sender verified (§6.3). Without [userConfirmed], and for every other contact,
+     * this is [searchPicture].
+     */
+    suspend fun requestPicture(peer: AccountId, userConfirmed: Boolean): ProfilePicture? {
+        val contact = contacts.get(peer) ?: return null
+        if (contact.state != ContactState.INCOMING_REQUEST || !userConfirmed) return searchPicture(peer)
+        return pictureOf(contact)
+    }
+
+    private suspend fun pictureOf(contact: Contact): ProfilePicture? {
+        if (contact.state == ContactState.BLOCKED) return null
+        if (contact.state == ContactState.ACCEPTED && contact.profileReceived) return contact.picture
+        if (contact.usernameStatus != UsernameStatus.VERIFIED) return null
+        val username = contact.username?.let(Username::parse) ?: return null
+        return fetchSearchPicture(contact.accountId, username)
+    }
+
+    /**
+     * Forgets the pictures from search and the derived username seeds kept in memory. Call it when
+     * the data key leaves memory (§5.4) if this instance is kept.
+     */
+    fun clearSearchPictures() {
+        synchronized(searchPictures) {
+            searchPictures.clear()
+            searchVersions.clear()
+        }
+        synchronized(avatarSeeds) {
+            avatarSeeds.values.forEach { it.fill(0) }
+            avatarSeeds.clear()
+        }
     }
 
     // Presence (§8.6)
@@ -397,6 +625,10 @@ class Messenger(
     suspend fun forgetContact(peer: AccountId) {
         cryptoLock.withLock { store.forget(peer) }
         synchronized(contactLock) { contacts.remove(peer) }
+        synchronized(searchPictures) {
+            searchPictures.keys.removeAll { it.first == peer }
+            searchVersions.keys.removeAll { it.first == peer }
+        }
         forgetPresence(peer)
     }
 
@@ -542,8 +774,11 @@ class Messenger(
         return true
     }
 
-    /** Irreversibly deletes the account at the relay. */
-    suspend fun deleteAccount() = relay.deleteAccount()
+    /** Irreversibly deletes the account at the relay, with its avatar record (§4.3). */
+    suspend fun deleteAccount() {
+        relay.deleteAccount()
+        clearSearchPictures()
+    }
 
     /**
      * Exports the account backup file (§5.5): identity, credentials and contacts, never messages,
@@ -554,8 +789,23 @@ class Messenger(
      */
     suspend fun exportBackup(password: String, iterations: Int = BackupFile.ITERATIONS): ByteArray {
         BackupPasswordPolicy.requireValid(password)
-        val account = currentAccount
-        val backup = accountBackup {
+        val backup = backupOf(currentAccount)
+        return withContext(Dispatchers.Default) { BackupFile.create(password, backup.toByteArray(), iterations) }
+    }
+
+    /**
+     * [exportBackup] on the calling thread, which it blocks for the key derivation: for an
+     * [AccountStore] that keeps the account in its backup file and has to write it before
+     * [AccountStore.save] returns (the CLI bot).
+     */
+    fun exportBackupBlocking(password: String, iterations: Int = BackupFile.ITERATIONS): ByteArray {
+        BackupPasswordPolicy.requireValid(password)
+        return BackupFile.create(password, backupOf(currentAccount).toByteArray(), iterations)
+    }
+
+    /** The `AccountBackup` of [account] with the accepted and blocked contacts, their identities and keys. */
+    private fun backupOf(account: LocalAccount): AccountBackup {
+        return accountBackup {
             version = BACKUP_VERSION
             accountId = account.accountId.toBytes().toByteString()
             authToken = account.authToken.toBytes().toByteString()
@@ -564,6 +814,8 @@ class Messenger(
             username = account.username.value
             displayName = account.displayName
             accessKey = account.accessKey.toBytes().toByteString()
+            account.profilePicture?.let { avatar = it.toProto() }
+            avatarSearchOff = !account.showPictureInSearch
             createdAt = config.clock.millis()
             contacts += this@Messenger.contacts.all()
                 .filter { it.state == ContactState.ACCEPTED || it.state == ContactState.BLOCKED }
@@ -582,10 +834,10 @@ class Messenger(
                         blocked = contact.state == ContactState.BLOCKED
                         contact.theirAccessKey?.let { theirAccessKey = it.toBytes().toByteString() }
                         presenceSharing = contact.presenceSharing
+                        contact.picture?.let { avatar = it.toProto() }
                     }
                 }
         }
-        return withContext(Dispatchers.Default) { BackupFile.create(password, backup.toByteArray(), iterations) }
     }
 
     // Internals: sending
@@ -700,6 +952,8 @@ class Messenger(
                     displayName = account.displayName
                     presenceSharing = account.presenceSharing
                     updatedAt = config.clock.millis()
+                    // Field 6 only; the deprecated field 2 is never set (§8.7).
+                    account.profilePicture?.let { profileAvatar = it.toProto() }
                 }
             }
         }
@@ -863,7 +1117,7 @@ class Messenger(
             } catch (_: IOException) {
                 // The relay still has keys or falls back to the last-resort key.
             }
-            if (currentAccount.pendingSetup.isEmpty()) return
+            if (pendingSetupDue().isEmpty()) return
             delay(backoff)
             backoff = (backoff * 2).coerceAtMost(config.setupRetryMaxDelay)
         }
@@ -886,11 +1140,167 @@ class Messenger(
             relay.uploadKeys(keys.toUploadRequest(replaceAll = true))
             updateAccount { it.copy(pendingSetup = it.pendingSetup - PendingSetup.REPLACE_PRE_KEYS) }
         }
+        // After the keys (§5.5 step 5). A relay that cannot take the record now must not hold up
+        // the profile announcement; the step stays pending and is retried.
+        if (PendingSetup.SYNC_AVATAR in currentAccount.pendingSetup) attemptAvatarSync()
         if (announce && PendingSetup.ANNOUNCE_PROFILE in currentAccount.pendingSetup) {
             // Contacts that cannot be reached now keep profileShared = false and get the profile
             // before our next message to them, or when they next write.
             announceProfile()
             updateAccount { it.copy(pendingSetup = it.pendingSetup - PendingSetup.ANNOUNCE_PROFILE) }
+        }
+    }
+
+    /** [LocalAccount.pendingSetup] without an avatar sync that has to wait for the next start or connection. */
+    private fun pendingSetupDue(): Set<PendingSetup> =
+        currentAccount.pendingSetup.let { if (avatarSyncDue()) it else it - PendingSetup.SYNC_AVATAR }
+
+    /** Whether the write the record now needs (a store, or a delete) may be made. */
+    private fun avatarSyncDue(): Boolean {
+        if (avatarUnavailable) return false
+        val retryAt = if (searchRecordPicture(currentAccount) != null) avatarStoreRetryAt else avatarDeleteRetryAt
+        return config.clock.millis() >= retryAt
+    }
+
+    // Internals: avatar record (§8.10)
+
+    /** The picture the avatar record should hold, or `null` when there should be none. */
+    private fun searchRecordPicture(account: LocalAccount): ProfilePicture? =
+        account.profilePicture?.takeIf { account.showPictureInSearch && it.isSendable }
+
+    /** Whether [a] and [b] want the same avatar record: the same picture under the same username, or none. */
+    private fun sameSearchRecord(a: LocalAccount, b: LocalAccount): Boolean {
+        val picture = searchRecordPicture(a)
+        return picture == searchRecordPicture(b) && (picture == null || a.username == b.username)
+    }
+
+    /** Applies [change] to the account and marks the avatar record for syncing if it changes what the record should be. */
+    private fun updateSearchRecord(change: (LocalAccount) -> LocalAccount) {
+        updateAccount { old ->
+            val new = change(old)
+            if (sameSearchRecord(old, new)) new else new.copy(pendingSetup = new.pendingSetup + PendingSetup.SYNC_AVATAR)
+        }
+    }
+
+    /** [syncAvatarRecord] whose failure is retried later; returns whether the relay is in line. */
+    private suspend fun attemptAvatarSync(): Boolean = try {
+        syncAvatarRecord()
+    } catch (_: IOException) {
+        false
+    }
+
+    private suspend fun syncAvatarLocked(): Boolean {
+        var staleRetried = false
+        while (true) {
+            val account = currentAccount
+            if (PendingSetup.SYNC_AVATAR !in account.pendingSetup) return true
+            if (PendingSetup.REPLACE_PRE_KEYS in account.pendingSetup || !avatarSyncDue()) return false
+            val version = account.avatarVersion + 1
+            // Past 2^63 − 1 nothing can be written; only a relay that sent such a highest version gets here.
+            if (version < 1) return false
+            // Kept before it is sent: a version is never used twice, whatever the answer.
+            updateAccount { it.copy(avatarVersion = maxOf(it.avatarVersion, version)) }
+            val picture = searchRecordPicture(account)
+            try {
+                if (picture != null) {
+                    val key = avatarKey(account.username, accountId)
+                    relay.putAvatar(withContext(Dispatchers.Default) { AvatarRecord.seal(picture.toProto(), version, key) })
+                } else {
+                    relay.deleteAvatar(version)
+                }
+            } catch (e: RelayException) {
+                val highest = e.avatarVersion
+                if (e.code == RelayErrorCode.STALE_VERSION && highest != null) {
+                    // The relay holds a higher version (written before a restore, or by another copy
+                    // of this account): the next write goes above it.
+                    updateAccount { it.copy(avatarVersion = maxOf(it.avatarVersion, highest)) }
+                }
+                when {
+                    e.code == RelayErrorCode.STALE_VERSION && highest != null && !staleRetried -> {
+                        staleRetried = true
+                        continue
+                    }
+                    e.httpStatus == HTTP_NOT_FOUND || e.httpStatus == HTTP_METHOD_NOT_ALLOWED -> {
+                        avatarUnavailable = true
+                        return false
+                    }
+                    e.httpStatus == HTTP_TOO_MANY_REQUESTS -> {
+                        val seconds = (e.retryAfterSeconds ?: DEFAULT_AVATAR_RETRY_SECONDS).coerceIn(1, MAX_AVATAR_RETRY_SECONDS)
+                        val retryAt = config.clock.millis() + seconds * 1000
+                        if (picture != null) avatarStoreRetryAt = retryAt else avatarDeleteRetryAt = retryAt
+                        return false
+                    }
+                    else -> throw e
+                }
+            }
+            staleRetried = false
+            // Done unless the picture, the setting or the username changed while the write was under way.
+            updateAccount { current ->
+                if (sameSearchRecord(current, account)) current.copy(pendingSetup = current.pendingSetup - PendingSetup.SYNC_AVATAR) else current
+            }
+        }
+    }
+
+    /** The avatar key of [username] for [account], from the in-memory seed if it was derived before. */
+    private suspend fun avatarKey(username: Username, account: AccountId): AvatarKey {
+        val seed = synchronized(avatarSeeds) { avatarSeeds[username.value] }
+            ?: withContext(Dispatchers.Default) { AvatarKey.seed(username) }.also { synchronized(avatarSeeds) { avatarSeeds[username.value] = it } }
+        return withContext(Dispatchers.Default) { AvatarKey.derive(seed, account) }
+    }
+
+    /** Steps 4 and 5 of §8.10 "Search". */
+    private suspend fun fetchSearchPicture(peer: AccountId, username: Username): ProfilePicture? {
+        val cacheKey = peer to username.value
+        val cached = synchronized(searchPictures) { searchPictures[cacheKey] }
+        val answer = try {
+            relay.fetchAvatar(peer, ifNoneMatch = cached?.version)
+        } catch (_: IOException) {
+            return null // No answer, 429 or 5xx: the initial letter; the next search tries again.
+        }
+        val found = when (answer) {
+            AvatarFetch.NotModified -> return cached?.picture
+            AvatarFetch.None -> null
+            is AvatarFetch.Found -> when (val opened = openSearchRecord(answer.record, username, peer)) {
+                // Older than a record opened before: a replay (step 5). The cached copy stays.
+                SearchRecord.Replayed -> return cached?.picture
+                SearchRecord.Unreadable -> null
+                is SearchRecord.Opened -> {
+                    // Authenticated, so its version counts even if the picture inside fails §8.9.
+                    synchronized(searchPictures) { searchVersions[cacheKey] = maxOf(searchVersions[cacheKey] ?: 0L, opened.version) }
+                    opened.picture?.let { SearchPicture(opened.version, it) }
+                }
+            }
+        }
+        synchronized(searchPictures) { if (found != null) searchPictures[cacheKey] = found else searchPictures.remove(cacheKey) }
+        return found?.picture
+    }
+
+    private sealed class SearchRecord {
+        /** The record opened under the username's key; [picture] is `null` if it fails §8.9. */
+        class Opened(val version: Long, val picture: ProfilePicture?) : SearchRecord()
+
+        /** A version below the highest opened for this account and username: ignored. */
+        object Replayed : SearchRecord()
+
+        /** Any failure: the initial letter. */
+        object Unreadable : SearchRecord()
+    }
+
+    /**
+     * Opens a fetched record. Length and header are checked first, then the version against the
+     * highest opened before (no key is derived for a replay), then the record itself.
+     */
+    private suspend fun openSearchRecord(record: ByteArray, username: Username, peer: AccountId): SearchRecord {
+        val version = AvatarRecord.version(record) ?: return SearchRecord.Unreadable
+        val highest = synchronized(searchPictures) { searchVersions[peer to username.value] }
+        if (highest != null && version < highest) return SearchRecord.Replayed
+        val key = avatarKey(username, peer)
+        return withContext(Dispatchers.Default) {
+            try {
+                SearchRecord.Opened(version, ProfilePicture.fromProto(AvatarRecord.openAvatar(record, key)))
+            } catch (_: InvalidAvatarRecordException) {
+                SearchRecord.Unreadable
+            }
         }
     }
 
@@ -968,7 +1378,9 @@ class Messenger(
     /**
      * A `ProfileUpdate` is the complete profile and replaces the stored one (§8.7); an empty or
      * malformed field means "none". Its username is only a claim: a new one is unchecked until
-     * [verifyUsername] runs (§3.3).
+     * [verifyUsername] runs (§3.3). The picture comes from `profile_avatar` (field 6) only; a
+     * malformed one is the initial letter and never costs the other fields (§8.9). Only an accepted
+     * contact's picture is taken: a message request shows the initial letter (§8.9).
      */
     private fun Contact.withProfile(profile: ProfileUpdate): Contact {
         val username = Username.parse(profile.username)?.value?.takeIf { it == profile.username }
@@ -978,6 +1390,12 @@ class Messenger(
             usernameStatus = if (username == this.username) usernameStatus else UsernameStatus.UNCHECKED,
             displayName = displayName,
             presenceSharing = profile.presenceSharing,
+            picture = when {
+                state != ContactState.ACCEPTED -> picture
+                profile.hasProfileAvatar() -> ProfilePicture.fromProto(profile.profileAvatar)
+                else -> null
+            },
+            profileReceived = profileReceived || state == ContactState.ACCEPTED,
         )
     }
 
@@ -1004,7 +1422,8 @@ class Messenger(
     private fun Content.sharesOwnState() = hasControl() && (control.hasAccessKey() || control.hasProfile())
 
     private fun LocalAccount.sameProfileAs(other: LocalAccount) =
-        username == other.username && displayName == other.displayName && presenceSharing == other.presenceSharing
+        username == other.username && displayName == other.displayName && presenceSharing == other.presenceSharing &&
+            profilePicture == other.profilePicture
 
     companion object {
         const val MESSAGE_ID_LENGTH = 16
@@ -1019,6 +1438,21 @@ class Messenger(
         private const val BACKUP_VERSION = 1
         private const val IDENTITY_KEY_LENGTH = 33
         private const val HANDLED_ENVELOPE_MEMORY = 2048
+        private const val MAX_AVATAR_SEEDS = 16
+        private const val MAX_SEARCH_PICTURES = 64
+        private const val MAX_SEARCH_VERSIONS = 1024
+        private const val HTTP_NOT_FOUND = 404
+        private const val HTTP_METHOD_NOT_ALLOWED = 405
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+
+        /** Wait after a `429` without `Retry-After` before the next avatar write, and the longest wait honoured. */
+        private const val DEFAULT_AVATAR_RETRY_SECONDS = 60L
+        private const val MAX_AVATAR_RETRY_SECONDS = 86_400L
+
+        /** A map that keeps its [capacity] most recently used entries. Not thread-safe: synchronize on it. */
+        private fun <K, V> lruMap(capacity: Int): MutableMap<K, V> = object : LinkedHashMap<K, V>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>) = size > capacity
+        }
 
         /** Envelopes per HTTP fetch; small enough that a page of 64 KiB envelopes stays a few MiB. */
         private const val FETCH_BATCH = 100
@@ -1040,6 +1474,10 @@ class Messenger(
          * [LocalAccount.pendingSetup] and [performMaintenance] finishes it, so neither the
          * credentials nor the username are ever lost.
          *
+         * A failure before that leaves nothing behind: no keys in [protocolStorage], nothing in
+         * [accountStore]. The caller can simply call this again with the same arguments, e.g. with
+         * another username after [RelayErrorCode.USERNAME_TAKEN].
+         *
          * @throws RelayException with [RelayErrorCode.USERNAME_TAKEN] if the username is in use.
          */
         suspend fun register(
@@ -1053,22 +1491,30 @@ class Messenger(
             val identity = Keys.generateIdentityKeyPair()
             val registrationId = Keys.generateRegistrationId()
             val store = ProtocolStore(identity, registrationId, protocolStorage, config.clock)
-            val keys = withContext(Dispatchers.Default) { PreKeyManager(store, config.preKeyPolicy, config.clock).generateFullSet() }
             val usernameHash = withContext(Dispatchers.Default) { username.hash() }
-            val challenge = relay.registrationChallenge()
-            val solution = ProofOfWork.solve(challenge.token, challenge.difficulty, config.powParallelism)
-            val registered = relay.register(
-                RegistrationRequest(
-                    usernameHash = usernameHash,
-                    identityKey = identity.publicKey.serialize(),
-                    registrationId = registrationId,
-                    signedPreKey = keys.signedPreKey,
-                    kyberLastResortKey = keys.kyberLastResortKey,
-                    oneTimePreKeys = keys.oneTimePreKeys,
-                    kyberOneTimePreKeys = keys.kyberOneTimePreKeys,
-                    pow = PowSubmission(solution.token, solution.nonce.toString()),
-                ),
-            )
+            val preKeys = PreKeyManager(store, config.preKeyPolicy, config.clock)
+            val keys = withContext(Dispatchers.Default) { preKeys.generateFullSet() }
+            val registered = try {
+                val challenge = relay.registrationChallenge()
+                val solution = ProofOfWork.solve(challenge.token, challenge.difficulty, config.powParallelism)
+                relay.register(
+                    RegistrationRequest(
+                        usernameHash = usernameHash,
+                        identityKey = identity.publicKey.serialize(),
+                        registrationId = registrationId,
+                        signedPreKey = keys.signedPreKey,
+                        kyberLastResortKey = keys.kyberLastResortKey,
+                        oneTimePreKeys = keys.oneTimePreKeys,
+                        kyberOneTimePreKeys = keys.kyberOneTimePreKeys,
+                        pow = PowSubmission(solution.token, solution.nonce.toString()),
+                    ),
+                )
+            } catch (e: Throwable) {
+                // Without the relay's answer no account of ours uses these keys: a taken username,
+                // the network or cancellation must not leave them in the caller's storage.
+                preKeys.discard(keys)
+                throw e
+            }
             val account = LocalAccount(
                 accountId = registered.accountId,
                 authToken = registered.authToken,
@@ -1095,8 +1541,10 @@ class Messenger(
          * 4. Uploads a fresh key set with `replaceAll`. A failure stays in
          *    [LocalAccount.pendingSetup] and is retried until it succeeds ([performMaintenance],
          *    and with backoff while [runReceiveLoop] is connected).
-         * 5. Then the receive loop sends a complete `ProfileUpdate` to every accepted contact, so
-         *    the conversations move to the new phone's sessions.
+         * 5. Then the avatar record is brought in line with the restored picture and "Show in
+         *    search" (§8.10; the backup holds no version, so a first `409` is answered once), and
+         *    the receive loop sends a complete `ProfileUpdate` to every accepted contact, so the
+         *    conversations move to the new phone's sessions.
          *
          * @throws com.syconx.us2us.core.vault.WrongBackupPasswordException if [password] is wrong.
          * @throws InvalidBackupException if the backup is malformed or of an unknown version.
@@ -1125,6 +1573,9 @@ class Messenger(
                 ?: throw InvalidBackupException("username is not normalized")
             if (backup.displayName.toByteArray(Charsets.UTF_8).size > MAX_DISPLAY_NAME_BYTES) throw InvalidBackupException("display name too long")
             val accessKey = parsed("access key") { AccessKey(backup.accessKey.toByteArray()) }
+            // A picture this client may not send (an unknown preset, a photo against §8.9) is the
+            // initial letter, never a reason to refuse the backup.
+            val picture = if (backup.hasAvatar()) ProfilePicture.fromProto(backup.avatar)?.takeIf { it.isSendable } else null
             val restoredContacts = backup.contactsList.map(::restoredContact)
             val contactIds = restoredContacts.map { it.contact.accountId }
             if (accountId in contactIds) throw InvalidBackupException("the account is its own contact")
@@ -1145,7 +1596,10 @@ class Messenger(
                 registrationId = backup.registrationId,
                 accessKey = accessKey,
                 displayName = backup.displayName,
-                pendingSetup = setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.ANNOUNCE_PROFILE),
+                profilePicture = picture,
+                // Absent in backups of older builds: on, the default.
+                showPictureInSearch = !backup.avatarSearchOff,
+                pendingSetup = setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE),
             )
             // The backup's token is revoked now: never lose the new one, whatever fails next.
             accountStore.save(account)
@@ -1187,6 +1641,10 @@ class Messenger(
                 profileShared = false,
                 // A claim as far as this phone knows; checked again lazily (§3.3).
                 usernameStatus = UsernameStatus.UNCHECKED,
+                // The contact's last ProfileUpdate.profile_avatar; a malformed one is the initial letter.
+                picture = if (saved.hasAvatar()) ProfilePicture.fromProto(saved.avatar) else null,
+                // Its profile was received on the old phone; contacts do not send it again by themselves.
+                profileReceived = true,
             )
             val trust = if (saved.identityUnaccepted) IdentityTrust.CHANGED else IdentityTrust.TRUSTED
             return RestoredContact(contact, identityKey, trust, saved.verified)
@@ -1215,3 +1673,9 @@ class Messenger(
 
 /** The user-visible `DataMessage`, or `null` for receipts, typing, presence and control messages. */
 val IncomingMessage.dataMessage: DataMessage? get() = content.takeIf { it.hasData() }?.data
+
+/** The sticker of a sticker message, decoded with its `lang` (§8.8); `null` for any other message. */
+val DataMessage.stickerInfo: StickerInfo? get() = if (hasSticker()) StickerInfo.from(sticker) else null
+
+/** The sticker of a received sticker message; `null` for any other message. */
+val IncomingMessage.sticker: StickerInfo? get() = dataMessage?.stickerInfo
