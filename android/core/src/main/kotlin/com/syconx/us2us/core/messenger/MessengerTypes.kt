@@ -18,6 +18,7 @@ import com.syconx.us2us.core.sticker.StickerSelection
 import com.syconx.us2us.core.username.Username
 import org.signal.libsignal.protocol.IdentityKeyPair
 import java.io.File
+import java.io.IOException
 import java.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -45,6 +46,13 @@ data class LocalAccount(
     val avatarVersion: Long = 0,
     /** Relay steps of registration or restore that are still due; see [Messenger.performMaintenance]. */
     val pendingSetup: Set<PendingSetup> = emptySet(),
+    /**
+     * The token [authToken] is being rotated to (PROTOCOL.md §4.3, §5.5 step 3): stored before the
+     * rotation is sent and kept until its outcome is known, so a lost answer never leaves the account
+     * without a token that works. While it is set, neither token is used for anything but finding
+     * out the outcome ([Messenger.finishPendingTokenRotation]). Persist it with the account.
+     */
+    val pendingAuthToken: AuthToken? = null,
 ) {
     override fun toString(): String = "LocalAccount($accountId, $username)"
 }
@@ -75,6 +83,40 @@ enum class PendingSetup {
      * cleared once the relay has accepted the write that matches them.
      */
     SYNC_AVATAR,
+}
+
+/** Whether the account's token can be used after [Messenger.finishPendingTokenRotation]. */
+enum class TokenRotationResult {
+    /**
+     * No rotation was pending, or it has just been settled: the account's token is the one the
+     * relay holds, and the backup's token (the old phone's) no longer works.
+     */
+    READY,
+
+    /**
+     * `401` for the backup's token and for the new one: another phone restored the same backup and
+     * rotated first, or the account was deleted. The relay refuses this installation from now on;
+     * every later call in this process says so again (§5.5 step 3.5).
+     */
+    BACKUP_NO_LONGER_VALID,
+}
+
+/** Where the account's avatar record for search stands (PROTOCOL.md §8.10, "Publishing"). */
+enum class AvatarRecordStatus {
+    /** The relay holds what the picture, "Show in search" and the username ask for: the record, or none. */
+    IN_SYNC,
+
+    /**
+     * A write is still owed: it got no answer, `429` or `5xx`, or a restore's keys or token
+     * rotation are not settled yet. It is made again at the next connection or the next change.
+     */
+    PENDING,
+
+    /**
+     * The relay has no avatar records (`404` or `405`): tried again after the next app start.
+     * Contacts still get the picture end to end.
+     */
+    UNAVAILABLE,
 }
 
 /** Persists [LocalAccount] whenever the facade changes it (token rotation, username, access key). */
@@ -228,6 +270,28 @@ class IdentityChangedException(val accountId: AccountId) : Exception("identity o
 
 /** The backup file decrypted, but its contents are malformed or of an unknown version (§5.5). */
 class InvalidBackupException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ * The relay refuses the backup's token and the new one (`401` for both, §5.5 step 3.4): another
+ * phone restored the same backup and rotated first, or the account was deleted. The backup can never
+ * be restored again, and this installation is signed out.
+ */
+class BackupNoLongerValidException : Exception("the relay refuses the backup's token: restored elsewhere, or deleted")
+
+/**
+ * The relay refused the new token (`400`, §5.5 step 3.5): nothing changed, so the backup's token,
+ * which the old phone also holds, is still the account's. A correct client never gets this. After a
+ * restore's first attempt the restore fails and the backup still works; while settling a pending
+ * rotation a fresh token is pending in its place, and the next attempt rotates to it.
+ */
+class TokenRefusedException : Exception("the relay refused the new auth token; the old one is still the account's")
+
+/**
+ * A token rotation's outcome is unknown, so nothing may use either token (§5.5 step 3.5): the
+ * request was not sent. [Messenger.finishPendingTokenRotation] settles it; the receive loop asks
+ * before every connection attempt.
+ */
+class TokenRotationPendingException : IOException("the auth token rotation is not settled yet; nothing was sent")
 
 /** Ephemeral sends need the contact's access key; the relay refuses proof-of-work for them (§4.6). */
 class AccessKeyRequiredException(val accountId: AccountId) : Exception("no access key for $accountId; ephemeral sends need one")

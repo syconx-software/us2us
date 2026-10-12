@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy: the words the runtime says itself, ported from the iOS runtime's
+     RuntimeStrings (Us2usRuntime, Support). -->
+<resources>
+    <string name="runtime_biometric_reason">us2us\'un kilidini aç</string>
+    <string name="runtime_biometric_use_code">Kodla aç</string>
+    <string name="runtime_screenshot_taken_by_me">Ekran görüntüsü aldın. Karşı taraf bilgilendirildi.</string>
+    <string name="runtime_screen_recording_by_me">Ekran kaydı algılandı. Karşı taraf bilgilendirildi.</string>
+    <string name="runtime_safety_number_changed_line">Güvenlik numarası değişti. Göndermeden önce doğrula.</string>
+    <string name="runtime_safety_number_accepted_line">Yeni güvenlik numarasını doğrulamadan kabul ettin.</string>
+    <string name="runtime_safety_number_verified_line">Güvenlik numarasını doğruladın.</string>
+    <string name="runtime_request_accepted_line">Mesaj isteği kabul edildi.</string>
+    <string name="runtime_deleted_for_everyone">Bu mesaj herkesten silindi</string>
+    <string name="runtime_line_open">Hat açık · mesajlar geliyor</string>
+    <string name="runtime_line_connecting">Hat kuruluyor…</string>
+    <string name="runtime_line_syncing">Bekleyen mesajlar alınıyor…</string>
+    <string name="runtime_line_offline">Hat kapalı</string>
+    <string name="runtime_line_waiting_for_network">İnternet yok · bekleniyor</string>
+    <string name="runtime_line_revoked">Bu telefonun hattı kapandı: hesap silindi ya da başka bir telefonda kullanılıyor</string>
+    <string name="runtime_line_locked">Kilitli</string>
+</resources>

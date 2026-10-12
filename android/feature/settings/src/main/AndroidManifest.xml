@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- 7.1 › Profil görseli › Kamera: where the camera app writes the photo (full size), for
+             this one capture only. -->
+        <provider
+            android:name="com.syconx.us2us.feature.settings.avatar.AvatarCameraFileProvider"
+            android:authorities="${applicationId}.avatar.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/avatar_camera_paths" />
+        </provider>
+    </application>
+</manifest>

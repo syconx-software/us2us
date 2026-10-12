@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 7.1 › Profil görseli › Kamera: the camera app writes the full-size photo here; it is read into
+     memory and deleted at once. -->
+<paths>
+    <cache-path name="avatar_camera" path="avatar-camera/" />
+</paths>

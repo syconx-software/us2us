@@ -30,7 +30,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -265,6 +267,60 @@ class RelayClientTest {
         val delete = take()
         assertEquals("DELETE", delete.method)
         assertEquals(Base64Url.encode(deleteToken), delete.headers["X-Delete-Token"])
+    }
+
+    @Test
+    fun `media downloads report their progress after every 64 KiB and at the end`() = runBlocking {
+        val mediaId = ByteArray(16) { 4 }
+        val blob = ByteArray(200_000) { it.toByte() }
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(blob)).build())
+        server.enqueue(MockResponse.Builder().code(206).body(Buffer().write(ByteArray(10) { 6 })).build())
+
+        val received = CopyOnWriteArrayList<Long>()
+        val sink = ByteArrayOutputStream()
+        assertEquals(200_000, anonymous.downloadMedia(mediaId, sink) { received += it })
+        assertArrayEquals(blob, sink.toByteArray())
+        // Never backwards, one report per 64 KiB, and the whole blob last.
+        assertEquals(received.sorted(), received.toList())
+        assertEquals(200_000 / (64 * 1024) + 1, received.size)
+        assertEquals(200_000L, received.last())
+
+        // A resumed download counts the bytes it already had.
+        val resumed = CopyOnWriteArrayList<Long>()
+        assertEquals(10, anonymous.downloadMedia(mediaId, ByteArrayOutputStream(), offset = 990) { resumed += it })
+        assertEquals(listOf(1000L), resumed.toList())
+    }
+
+    @Test
+    fun `token rotation sends the client's new token and leaves the client's own token alone`() = runBlocking {
+        val old = AuthToken(ByteArray(32) { 0x22 })
+        val fresh = AuthToken(ByteArray(32) { (it * 7).toByte() })
+        server.enqueue(noContent())
+        assertEquals(fresh, authed.rotateAuthToken(fresh, authenticatingWith = old))
+        val rotation = take()
+        assertEquals("POST", rotation.method)
+        assertEquals("/v1/accounts/me/token", rotation.url.encodedPath)
+        assertEquals(old.headerValue, rotation.headers["X-Auth-Token"])
+        assertEquals(fresh.headerValue, rotation.jsonBody()["newAuthToken"]?.jsonPrimitive?.content)
+
+        // A relay that predates client-chosen tokens answers with its own: that one is the account's now.
+        val chosen = AuthToken(ByteArray(32) { 0x11 })
+        server.enqueue(json(200, """{"authToken":"${chosen.headerValue}"}"""))
+        assertEquals(chosen, anonymous.rotateAuthToken(fresh, authenticatingWith = old))
+        assertEquals(old.headerValue, take().headers["X-Auth-Token"])
+
+        server.enqueue(json(401, """{"error":{"code":"unauthorized","message":"no"}}"""))
+        assertEquals(401, assertThrows<RelayException> { runBlocking { anonymous.rotateAuthToken(fresh, authenticatingWith = old) } }.httpStatus)
+        take()
+        // An answer that names no usable token leaves the outcome unknown.
+        server.enqueue(json(200, """{"authToken":"AAAA"}"""))
+        assertThrows<IOException> { runBlocking { anonymous.rotateAuthToken(fresh, authenticatingWith = old) } }
+        take()
+
+        // The client's own token is untouched.
+        server.enqueue(json(200, """{"oneTimePreKeys":1,"kyberOneTimePreKeys":1}"""))
+        authed.keyStatus()
+        assertEquals(token.headerValue, take().headers["X-Auth-Token"])
     }
 
     @Test

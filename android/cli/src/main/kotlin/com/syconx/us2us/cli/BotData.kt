@@ -49,7 +49,8 @@ import kotlin.time.Duration.Companion.seconds
  *
  * A restore rotates the auth token and revokes the backup's, so the account goes through this
  * [AccountStore]: a change of what the backup holds of it is written before [save] returns, the
- * restore's own one included. Contact changes (an accepted request, a contact's new key or profile)
+ * restore's own one included. While the rotation's outcome is unknown (PROTOCOL.md §5.5 step 3.4)
+ * the file keeps the backup's token; the save that settles it writes the token the relay holds. Contact changes (an accepted request, a contact's new key or profile)
  * follow [backupDelay] later from [runBackups], coalesced: every write derives the backup key anew.
  * A shutdown ([flush]) while the relay is creating the account or rotating its token waits until
  * the account is saved.
@@ -181,6 +182,9 @@ internal class BotData private constructor(
         val account = messenger?.account ?: latest ?: return
         // Inside register: the first backup is written once it returns ([attach]).
         if (messenger == null && restoring == null) return
+        // A token rotation whose outcome is unknown: nothing new for the file, which keeps the
+        // backup's token until the save that settles it.
+        if (account.pendingAuthToken != null) return
         val pendingContacts = contactsChanged.getAndSet(false)
         try {
             val file = if (messenger != null) {

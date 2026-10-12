@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="conversation_android_liveshare_body">Bildirimlere izin vermezsen uygulamadan çıkınca paylaşım durur.</string>
+    <string name="conversation_android_liveshare_allow">Bildirimlere izin ver</string>
+    <string name="conversation_android_liveshare_anyway">Yine de paylaş</string>
+</resources>

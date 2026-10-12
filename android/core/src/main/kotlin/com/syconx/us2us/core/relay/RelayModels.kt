@@ -68,6 +68,11 @@ class AccountInfo(
 @Serializable
 internal class UsernameChangeRequest(@Serializable(with = Base64UrlBytes::class) val usernameHash: ByteArray)
 
+/** `POST /v1/accounts/me/token` (§4.3): the token the client chose and stored before asking. */
+@Serializable
+internal class TokenRotationRequest(@Serializable(with = Base64UrlBytes::class) val newAuthToken: ByteArray)
+
+/** The answer of a relay that predates client-chosen tokens: the token it chose itself. */
 @Serializable
 internal class TokenResponse(val authToken: String)
 

@@ -1,9 +1,11 @@
 package com.syconx.us2us.cli
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.syconx.us2us.core.messenger.BackupNoLongerValidException
 import com.syconx.us2us.core.messenger.InvalidBackupException
 import com.syconx.us2us.core.messenger.Messenger
 import com.syconx.us2us.core.messenger.MessengerConfig
+import com.syconx.us2us.core.messenger.TokenRefusedException
 import com.syconx.us2us.core.relay.RelayClient
 import com.syconx.us2us.core.relay.RelayErrorCode
 import com.syconx.us2us.core.relay.RelayException
@@ -123,10 +125,9 @@ internal suspend fun startWithData(data: BotData, username: Username?, relay: Re
     }
     val messenger = try {
         data.restore(saved, relay, config)
-    } catch (e: RelayException) {
-        if (e.code == RelayErrorCode.UNAUTHORIZED) {
-            throw StartFailure("the relay refused the token in ${data.dir}: the account was restored elsewhere or deleted", StartFailure.FOR_GOOD)
-        }
+    } catch (_: BackupNoLongerValidException) {
+        throw StartFailure("the relay refused the token in ${data.dir}: the account was restored elsewhere or deleted", StartFailure.FOR_GOOD)
+    } catch (e: TokenRefusedException) {
         throw StartFailure("restore failed: ${e.message}")
     } catch (e: IOException) {
         throw StartFailure("restore failed: ${e.message}")

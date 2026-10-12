@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="media_android_saved_toast">Galeriye kaydedildi</string>
+    <string name="media_android_gallery_denied_title">Galeriye kaydetme kapalı</string>
+    <string name="media_android_gallery_denied_body">us2us\'ın bu cihazın depolama alanına kaydetme izni yok. Ayarlar\'dan açabilirsin; us2us galerini hiçbir zaman okumaz.</string>
+    <string name="media_android_location_open_maps">Haritalar uygulamasında aç</string>
+    <string name="media_android_location_open_maps_detail">Bu cihazdaki bir harita uygulaması</string>
+    <string name="media_android_location_open_osm">OpenStreetMap’te aç</string>
+    <string name="media_android_location_open_osm_detail">Tarayıcıda openstreetmap.org açılır</string>
+    <string name="media_android_livemap_tiles">Harita bu telefonda çizilir; görüntülenen bölgeyi hiçbir harita servisi görmez.</string>
+    <string name="media_android_viewonce_screenshot_body">Ekran görüntüsü alınamaz; yine de %s bildirildi.</string>
+</resources>
