@@ -18,7 +18,7 @@ struct MigrationTests {
         let storage = try environment.open()
         let version = try storage.database.locked { try $0.scalar("PRAGMA user_version") }
         #expect(version == .integer(Int64(Schema.latestVersion)))
-        #expect(Schema.latestVersion == 3)
+        #expect(Schema.latestVersion == 6)
     }
 
     @Test("an older database is upgraded in place, keeping its data")

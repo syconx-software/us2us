@@ -34,6 +34,21 @@ extension AppRuntime {
             at: url, directories: environment.directories, durationMs: durationMs, waveform: waveform)
     }
 
+    /// A voice note recorded by the app and held in memory (AAC in M4A, up
+    /// to 100 waveform samples): written to a staging file (complete
+    /// protection) for ``sendMedia(_:to:viewOnce:quote:messageId:)``, which
+    /// encrypts it into storage and deletes the staged copy. Like any
+    /// attachment, each upload attempt then decrypts a staging copy of its
+    /// own, deleted after the upload (and at the latest at the next lock or
+    /// launch, which empty both staging folders).
+    public func prepareVoiceNote(_ audio: Data, durationMs: UInt32, waveform: Data) async throws -> PreparedMedia {
+        try requireUnlocked()
+        let directories = environment.directories
+        return try await Task.detached(priority: .userInitiated) {
+            try MediaPreparation.prepareVoice(audio, directories: directories, durationMs: durationMs, waveform: waveform)
+        }.value
+    }
+
     /// A document as it is — except photos and videos, which lose their
     /// metadata (GPS, camera, capture time) like any other photo or video
     /// (§7): an image keeps its pixels and format, a video is re-muxed
@@ -53,12 +68,15 @@ extension AppRuntime {
     /// Sends prepared media; `viewOnce` for photos and videos that can be
     /// opened once. A view-once item is sent without its thumbnail and
     /// waveform, and a caption is refused (`EngineError.notAllowed`):
-    /// nothing of it may be visible before it is opened.
+    /// nothing of it may be visible before it is opened. `messageId`: the id
+    /// the app gave the bubble it showed while the media was being prepared
+    /// (``RandomId/make()``), so the stored message takes that bubble's place.
     @discardableResult
-    public func sendMedia(_ media: PreparedMedia, to peer: AccountId, viewOnce: Bool = false, quote: QuoteInfo? = nil)
-        async throws -> MessageId
-    {
-        try await engine().send(.media(media), to: peer, quote: quote, viewOnce: viewOnce)
+    public func sendMedia(
+        _ media: PreparedMedia, to peer: AccountId, viewOnce: Bool = false, quote: QuoteInfo? = nil,
+        messageId: MessageId? = nil
+    ) async throws -> MessageId {
+        try await engine().send(.media(media), to: peer, quote: quote, viewOnce: viewOnce, messageId: messageId)
     }
 
     @discardableResult
@@ -66,11 +84,34 @@ extension AppRuntime {
         try await engine().send(.location(location), to: peer)
     }
 
+    /// Sends a built-in sticker (PROTOCOL.md §8.8). `lang` is the language
+    /// its words were shown in (“tr”, “en”); empty for a wordless sticker.
+    /// `quote`: the message it answers, as for a text.
     @discardableResult
-    public func sendSticker(packId: String, stickerId: UInt32, emoji: String, to peer: AccountId) async throws
-        -> MessageId
-    {
-        try await engine().send(.sticker(packId: packId, stickerId: stickerId, emoji: emoji), to: peer)
+    public func sendSticker(
+        packId: String, stickerId: UInt32, emoji: String, lang: String = "", quote: QuoteInfo? = nil,
+        to peer: AccountId
+    ) async throws -> MessageId {
+        try await engine().send(
+            .sticker(packId: packId, stickerId: stickerId, emoji: emoji, lang: lang), to: peer, quote: quote)
+    }
+
+    /// The sticker picker's recents (ids the app chose, newest first), from
+    /// the vault's encrypted runtime state. ``RuntimeError/locked`` while locked.
+    public func recentStickers() async throws -> [String] {
+        try await engine().recentStickers()
+    }
+
+    /// Replaces the sticker picker's recents (at most 12 short ids) in the
+    /// vault's encrypted runtime state — never in UserDefaults.
+    public func setRecentStickers(_ ids: [String]) async throws {
+        try await engine().setRecentStickers(ids)
+    }
+
+    /// Puts one sticker id at the front of the recents, in one step inside
+    /// the engine, so sends close together never lose an entry.
+    public func noteRecentSticker(_ id: String) async throws {
+        try await engine().noteRecentSticker(id)
     }
 
     /// Starts live location (§8.3); returns the session id for updates.
@@ -163,6 +204,39 @@ extension AppRuntime {
         try await engine().closeViewOnce(message, peer: peer, displayedFile: file)
     }
 
+    /// A received voice note was played for the first time: it is marked
+    /// played here, and — like read receipts, only while they are on and
+    /// never for a request — VIEWED goes to the sender (§8.4).
+    public func markVoiceNotePlayed(_ message: MessageId, peer: AccountId) async throws {
+        try await engine().markVoiceNotePlayed(message, peer: peer)
+    }
+
+    /// A photo, video or file was saved outside the app (to Photos or
+    /// Files): recorded once here, and for a received one SAVED goes to the
+    /// sender (§8.4) — always, whatever the read-receipt setting, so the UI
+    /// tells the user before saving. View-once, disappearing and deleted
+    /// items cannot be saved (`EngineError.invalidMessage`).
+    public func markMediaSaved(_ message: MessageId, peer: AccountId) async throws {
+        try await engine().markMediaSaved(message, peer: peer)
+    }
+
+    /// The conversation's photos and videos (`.visual`) or files
+    /// (`.documents`), newest first, `limit` at a time: pass the last item's
+    /// id as `before` for the next page. Never view-once, disappearing,
+    /// deleted or expired items. An empty page when `before` is gone
+    /// meanwhile; ``messageRevisions`` says when to read the list again.
+    public func mediaMessages(with peer: AccountId, kind: MediaKind, before: MessageId?, limit: Int) async throws
+        -> [MessageItem]
+    {
+        try await engine().mediaMessages(with: peer, kind: kind, before: before, limit: limit)
+    }
+
+    /// One message as it is now — for an item of ``mediaMessages(with:kind:before:limit:)``
+    /// whose conversation is not open (its download state); `nil` once gone.
+    public func messageItem(_ message: MessageId, peer: AccountId) async throws -> MessageItem? {
+        try await engine().messageItem(message, peer: peer)
+    }
+
     public func unblock(_ peer: AccountId) async throws {
         try await engine().unblock(peer)
     }
@@ -208,27 +282,65 @@ extension AppRuntime {
         return try await session?.backend.safetyNumber(with: peer)
     }
 
-    /// Compares a scanned QR payload; marks the contact verified on a match.
-    public func verifySafetyNumber(with peer: AccountId, scanned: Data) async throws -> Bool {
-        guard let number = try await safetyNumber(with: peer) else { return false }
-        let matches = (try? number.matches(scanned: scanned)) ?? false
-        if matches { try await session?.backend.markVerified(true, contact: peer) }
-        return matches
+    // Every verification is bound to the key it was made about: the
+    // comparison and the stored decision happen in one step (Us2usKit
+    // `Messenger`), so a key that changes meanwhile is never sealed.
+
+    /// 6.2: compares a safety-number QR payload scanned from the contact's
+    /// phone with the current number and, on a match, marks the contact
+    /// verified (“yüz yüze”). Returns whether it matched and was verified.
+    public func verifySafetyNumber(_ peer: AccountId, scanned: Data) async throws -> Bool {
+        let verified = try await engine().verifySafetyNumber(peer, scanned: scanned)
+        if verified { safetyNumberChanges.remove(peer) }
+        return verified
     }
 
-    public func setVerified(_ verified: Bool, peer: AccountId) async throws {
-        try requireUnlocked()
-        try await session?.backend.markVerified(verified, contact: peer)
+    /// 6.1 “Doğrulandı olarak işaretle” (“elle işaretlendi”): verifies only if
+    /// the safety number is still `comparedNumber` — the
+    /// `SafetyNumber.scannable` of the number the user compared. `false`
+    /// when the key changed since; show the new number.
+    public func markVerified(_ peer: AccountId, comparedNumber: Data) async throws -> Bool {
+        let verified = try await engine().markVerified(peer, comparedNumber: comparedNumber)
+        if verified { safetyNumberChanges.remove(peer) }
+        return verified
+    }
+
+    /// “QR kodla ekle”: pins `identityKey` — the key the directory serves
+    /// for `peer`, whose fingerprint the caller found equal to the one in
+    /// the contact code scanned side by side — as verified (PROTOCOL.md §5).
+    /// Call it once the conversation exists. `false` when this phone holds
+    /// another key for the contact: nothing is verified.
+    public func verifyContactCode(_ peer: AccountId, identityKey: Data) async throws -> Bool {
+        let verified = try await engine().verifyContactCode(peer, identityKey: identityKey)
+        if verified { safetyNumberChanges.remove(peer) }
+        return verified
+    }
+
+    /// “Doğrulamayı kaldır”.
+    public func clearVerification(_ peer: AccountId) async throws {
+        try await engine().clearVerification(peer)
+    }
+
+    /// When and how the contact's current key was verified (`nil`: not
+    /// verified, or verified without a record — restored from a backup or
+    /// verified by an earlier version).
+    public func identityVerification(for peer: AccountId) async throws -> IdentityVerification? {
+        try await engine().identityVerification(for: peer)
     }
 
     public func identityTrust(for peer: AccountId) async throws -> IdentityTrust {
         try await engine().identityTrust(for: peer)
     }
 
-    /// Accepts a changed safety number, which unblocks sending.
-    public func acceptSafetyNumberChange(_ peer: AccountId) async throws {
-        try await engine().acceptSafetyNumberChange(peer)
-        safetyNumberChanges.remove(peer)
+    /// Accepts a changed safety number without verifying it, which unblocks
+    /// sending — only for the key whose number the user was shown
+    /// (`shownNumber`, the `SafetyNumber.scannable` on screen): refused —
+    /// `false` — when the key changed since or no change is pending.
+    @discardableResult
+    public func acceptSafetyNumberChange(_ peer: AccountId, shownNumber: Data) async throws -> Bool {
+        let accepted = try await engine().acceptSafetyNumberChange(peer, shownNumber: shownNumber)
+        if accepted { safetyNumberChanges.remove(peer) }
+        return accepted
     }
 
     // MARK: Settings
@@ -300,6 +412,24 @@ extension AppRuntime {
             try AccountBackupFile.export(backup, password: password)
         }.value
         return try AccountBackupService.writeToStaging(data, storage: session.storage, now: environment.clock.now())
+    }
+
+    /// The exported file was saved (the share sheet completed): records
+    /// `date` (default: now) in the vault's encrypted runtime state, so 7.1
+    /// shows it after every relaunch. Call it only for a file that was
+    /// really saved; a cancelled share records nothing.
+    ///
+    /// Also allowed while the locked app's store is still open (the grace
+    /// period, §5.4): a share to another app often finishes after the app
+    /// has left the foreground. Nothing observable changes then; the next
+    /// unlock reads it. Once the store is closed: ``RuntimeError/locked``.
+    public func recordBackupSaved(at date: Date? = nil) async throws {
+        guard let session, lockState == .unlocked || session.inGrace || session.liveLocationOnly else {
+            throw RuntimeError.locked
+        }
+        let saved = date ?? environment.clock.now()
+        try await session.engine.recordBackupSaved(at: saved)
+        if isCurrent(session) { lastBackupAt = saved }
     }
 
     // MARK: Pasteboard

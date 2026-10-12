@@ -66,6 +66,53 @@ struct ContactTests {
         }
     }
 
+    @Test("the blocked list: every blocked account, with a conversation or without one")
+    func blockedList() throws {
+        let env = try Env()
+        let (erin, frank, gina) = (AccountId(uuid: UUID()), AccountId(uuid: UUID()), AccountId(uuid: UUID()))
+        try env.storage.write { tx throws in
+            try tx.contacts.create(erin, state: .accepted)
+            _ = try tx.conversations.ensure(for: erin)
+            try tx.contacts.create(frank, state: .incomingRequest)
+            try tx.contacts.create(gina, state: .accepted)
+            #expect(try tx.contacts.blocked().isEmpty)
+            try tx.contacts.block(erin)
+            try tx.contacts.block(frank)
+            #expect(Set(try tx.contacts.blocked().map(\.accountId)) == [erin, frank])
+            try tx.contacts.unblock(frank)
+            #expect(try tx.contacts.blocked().map(\.accountId) == [erin])
+        }
+    }
+
+    @Test("unblocking with nothing to go back to forgets the account; anything else keeps it")
+    func unblockLeavingNothing() throws {
+        let env = try Env()
+        let (stranger, request, friend, kept) = (
+            AccountId(uuid: UUID()), AccountId(uuid: UUID()), AccountId(uuid: UUID()), AccountId(uuid: UUID())
+        )
+        try env.storage.write { tx throws in
+            try tx.contacts.block(stranger)
+            try tx.contacts.create(request, state: .incomingRequest)
+            try tx.contacts.block(request)
+            try tx.contacts.create(friend, state: .accepted)
+            try tx.contacts.block(friend)
+            try tx.contacts.block(kept)
+            _ = try tx.conversations.ensure(for: kept)
+
+            #expect(try tx.contacts.unblockLeavingNothing(stranger))
+            #expect(try tx.contacts.get(stranger) == nil)
+            #expect(try tx.contacts.unblockLeavingNothing(request))
+            #expect(try tx.contacts.get(request) == nil)
+            #expect(try !tx.contacts.unblockLeavingNothing(friend), "an accepted contact goes back to accepted")
+            #expect(try tx.contacts.requestState(of: friend) == .blocked)
+            #expect(try !tx.contacts.unblockLeavingNothing(kept), "a conversation is something to go back to")
+            #expect(try tx.contacts.requestState(of: kept) == .blocked)
+            try tx.contacts.unblock(friend)
+            #expect(try !tx.contacts.unblockLeavingNothing(friend), "not blocked")
+            #expect(try tx.contacts.requestState(of: friend) == .accepted)
+        }
+    }
+
     @Test("access keys both ways, rotation bookkeeping")
     func accessKeys() throws {
         let env = try Env()
@@ -139,10 +186,12 @@ struct MessageTests {
         location.latitude = 41.0082
         location.longitude = 28.9784
         location.name = "İstanbul"
+        // A built-in sticker with words keeps the language it was shown in (§8.8).
         var sticker = BRPSticker()
-        sticker.packID = "cb.basic"
-        sticker.stickerID = 7
-        sticker.emoji = "😀"
+        sticker.packID = "us2us.words"
+        sticker.stickerID = 103
+        sticker.emoji = "🫂"
+        sticker.lang = "en"
         var customSticker = BRPSticker()
         customSticker.custom = sampleAttachment()
         var live = BRPLiveLocation()
@@ -513,8 +562,12 @@ struct PlumbingTests {
         var account = try #require(try env.storage.read { try $0.account.load() })
         account.pendingSetup = [.replacePreKeys]
         try env.storage.accountSaver(account)
+        #expect(env.storage.hasSavedAccount)
         env.storage.close()
+        // A durable fact: still known once the database can no longer be read.
+        #expect(env.storage.hasSavedAccount)
         let reopened = try env.environment.open()
+        #expect(!reopened.hasSavedAccount, "only saves through this instance count")
         #expect(try reopened.read { try $0.account.load() } == account)
         #expect(throws: StorageError.self) {
             try reopened.accountSaver(

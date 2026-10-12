@@ -114,7 +114,7 @@ extension MessagingEngine {
         case .data(let data):
             try receiveData(data, message: message, state: state, tx: tx, now: now, outcome: &outcome)
         case .receipt(let receipt):
-            try receiveReceipt(receipt, from: sender, tx: tx, now: now, outcome: &outcome)
+            try receiveReceipt(receipt, from: sender, state: state, tx: tx, now: now, outcome: &outcome)
         case .typing(let typingMessage):
             if MessageRequestPolicy.maySendTypingIndicators(state: state, userEnabled: settings.typingIndicators) {
                 outcome.typing = typingMessage.started
@@ -161,9 +161,12 @@ extension MessagingEngine {
     // MARK: Receipts
 
     private func receiveReceipt(
-        _ receipt: BRPReceiptMessage, from sender: AccountId, tx: StorageTransaction, now: Date,
-        outcome: inout InboundOutcome
+        _ receipt: BRPReceiptMessage, from sender: AccountId, state: ConversationRequestState, tx: StorageTransaction,
+        now: Date, outcome: inout InboundOutcome
     ) throws {
+        // SAVED comes only from accepted contacts (§8.4); our own photos,
+        // videos and files are checked by the repository.
+        if receipt.type == .saved, state != .accepted { return }
         guard let conversation = try tx.conversations.forContact(sender) else { return }
         let changed = try tx.messages.applyReceipt(receipt, in: conversation.id, at: now)
         if receipt.type == .viewed {
@@ -311,11 +314,15 @@ extension MessagingEngine {
         try tx.contacts.setProfileSent(at: now, to: account)
     }
 
+    /// The complete `ProfileUpdate` (§8.7): the display name and presence
+    /// setting from the runtime state, the username and the profile picture
+    /// (§8.9) from the account in the vault.
     func ownProfile(_ tx: StorageTransaction, now: Date) throws -> BRPContent {
         guard let account = try tx.account.load() else { throw EngineError.stopped }
         return .profileUpdate(
             displayName: String(settings.displayName.utf8Prefix(ContentLimits.maxDisplayNameBytes)),
-            username: account.username, presenceSharing: settings.presenceSharing, updatedAt: now)
+            username: account.username, presenceSharing: settings.presenceSharing, picture: account.profilePicture,
+            updatedAt: now)
     }
 
     /// A conversation just became accepted. Settings we wrote while it was

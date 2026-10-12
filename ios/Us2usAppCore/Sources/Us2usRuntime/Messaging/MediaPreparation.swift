@@ -278,6 +278,25 @@ public enum MediaPreparation {
             waveform: Data(waveform.prefix(ContentLimits.maxWaveformSamples)))
     }
 
+    /// A voice note the app recorded and holds in memory (AAC in M4A): its
+    /// bytes go to a staging file (complete protection), which storing the
+    /// message encrypts and deletes at once. The staging folder is emptied at
+    /// every lock and launch, so a copy left by a crash goes too.
+    public static func prepareVoice(_ audio: Data, directories: AppDirectories, durationMs: UInt32, waveform: Data)
+        throws -> PreparedMedia
+    {
+        let output = directories.stagingFile(extension: "m4a")
+        do {
+            try ProtectedFiles.write(audio, to: output)
+        } catch {
+            try? FileManager.default.removeItem(at: output)
+            throw error
+        }
+        return PreparedMedia(
+            file: output, kind: .voice, contentType: "audio/mp4", size: UInt64(audio.count), durationMs: durationMs,
+            waveform: Data(waveform.prefix(ContentLimits.maxWaveformSamples)))
+    }
+
     /// A document the user picked, sent as it is (its name is shown to the
     /// recipient; documents can carry their own author metadata, which the
     /// app cannot strip for every format) — except photos: picking one as a

@@ -9,7 +9,7 @@
 /// is additionally an item under the conversation key CK (§5.3), so
 /// crypto-shredding a conversation leaves only unreadable ciphertext.
 enum Schema {
-    static let migrations: [Migration] = [v1, v2, v3]
+    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6]
 
     static var latestVersion: Int { migrations.map(\.version).max() ?? 0 }
 
@@ -225,5 +225,48 @@ enum Schema {
                 WHERE quote_target IS NOT NULL
             """,
             "UPDATE processed_envelopes SET processed_at = processed_at - (processed_at % 86400000)",
+        ])
+
+    /// Identity verification review (2026-10-11): when and how the current
+    /// key of a contact was verified (`IdentityVerification`, PROTOCOL.md §5),
+    /// stored with the key, so a change of the key drops it together with the
+    /// verification. Rows verified before keep `NULL` (no date is shown).
+    static let v4 = Migration(
+        version: 4,
+        statements: [
+            "ALTER TABLE identities ADD COLUMN verified_at INTEGER",
+            "ALTER TABLE identities ADD COLUMN verified_method INTEGER",
+            // While a change awaits approval: whether the previous (approved)
+            // key was verified, and when and how — a return to it keeps that
+            // verification (PROTOCOL §5). NULL reads as not verified.
+            "ALTER TABLE identities ADD COLUMN previous_verified INTEGER",
+            "ALTER TABLE identities ADD COLUMN previous_verified_at INTEGER",
+            "ALTER TABLE identities ADD COLUMN previous_verified_method INTEGER",
+        ])
+
+    /// Profile pictures (2026-10-11, PROTOCOL.md §8.9): `contacts.avatar`
+    /// holds the contact's last `ProfileUpdate.profile_avatar` (a serialized
+    /// `ProfileAvatar` that passed the §8.9 checks) instead of the deprecated
+    /// `ProfileUpdate.avatar` attachment, which no client ever sent. Whatever
+    /// an earlier build may have kept there is dropped (`secure_delete`
+    /// overwrites it); the contact's next `ProfileUpdate` brings the picture.
+    static let v5 = Migration(
+        version: 5,
+        statements: [
+            "UPDATE contacts SET avatar = NULL WHERE avatar IS NOT NULL"
+        ])
+
+    /// Saved media (2026-10-11, PROTOCOL.md §8.4 `SAVED`): when the contact
+    /// said it saved one of our photos, videos or files outside the app
+    /// (`saved_by_peer_at`), and when we saved one (`saved_by_me_at`).
+    /// Existing rows read `NULL`: nothing was saved before this version
+    /// could tell. A partial index lets the media list of a conversation
+    /// walk its attachment rows only, newest first, like a page.
+    static let v6 = Migration(
+        version: 6,
+        statements: [
+            "ALTER TABLE messages ADD COLUMN saved_by_peer_at INTEGER",
+            "ALTER TABLE messages ADD COLUMN saved_by_me_at INTEGER",
+            "CREATE INDEX messages_attachments ON messages(conversation_id, id) WHERE kind = 2",
         ])
 }

@@ -47,17 +47,53 @@ public final class AppRuntime {
     public internal(set) var chats: [ChatSummary] = []
     /// Incoming message requests ("Mesaj istekleri").
     public internal(set) var requests: [ChatSummary] = []
+    /// Everyone blocked, with or without a conversation ("Engellenenler"):
+    /// a ghost wipe or a deleted conversation keeps the block, and these
+    /// are not in ``chats`` then.
+    public internal(set) var blockedContacts: [ContactInfo] = []
     /// The conversation on screen and its messages (oldest first).
     public internal(set) var openPeer: AccountId?
     public internal(set) var openMessages: [MessageItem] = []
+    /// Attachments of the open conversation downloading right now: the
+    /// fraction received (0…1) by message id. Memory only.
+    public internal(set) var downloadProgress: [MessageId: Double] = [:]
+    /// Grows each time a conversation's stored messages change (received,
+    /// sent, downloaded, saved, deleted, expired, wiped), open or not: a
+    /// screen that lists a conversation's items outside it (the contact
+    /// screen's media) reads them again. Memory only; empty while locked.
+    public internal(set) var messageRevisions: [AccountId: Int] = [:]
     /// "Active" / "Active N min ago" of eligible contacts (§8.6).
     public internal(set) var presence: [AccountId: PresenceStatus] = [:]
     public internal(set) var typing: Set<AccountId> = []
     public internal(set) var settings = UserSettings()
+    /// When an exported backup was last saved (7.1 “Yedek · Son: …”), from
+    /// the vault's encrypted runtime state (``recordBackupSaved(at:)``), so
+    /// it survives relaunches; `nil` while locked and before the first one.
+    public internal(set) var lastBackupAt: Date?
     public internal(set) var ownUsername: String?
+    /// The own profile picture, "Show in search" and the state of the search
+    /// record (§8.9, §8.10), from the vault; `nil` while locked. Changed with
+    /// ``setAvatar(_:showInSearch:)`` (AppRuntime+Avatar.swift).
+    public internal(set) var ownAvatar: OwnProfilePicture?
     /// Contacts whose safety number changed and was not accepted yet.
     public internal(set) var safetyNumberChanges: Set<AccountId> = []
     public internal(set) var wipeAfterTenFailures = false
+    /// The last ``createAccount(username:displayName:code:confirmation:)`` or
+    /// ``restore(backupFile:password:code:confirmation:replacingLockedVault:)``
+    /// failed after its account was saved: the new vault is kept, locked
+    /// under the new code, and its next unlock finishes what is missing.
+    /// The UI then goes to the lock instead of offering to try again
+    /// (a retry would find a vault and fail). `false` again when the next
+    /// setup starts.
+    public internal(set) var keptAccountAfterFailedSetup = false
+    /// A restore's token rotation got no answer yet (PROTOCOL §5.5 step
+    /// 3.4): until the relay says which token the account has, the old phone
+    /// may still have access to the account, and this one does not connect.
+    /// Read from the account at every unlock and whenever the connection
+    /// changes (every connection attempt asks the relay first, from the
+    /// first unlock after a launch on); `false` while locked.
+    /// ``checkPendingTokenRotation()`` asks at once.
+    public internal(set) var tokenRotationPending = false
     /// Cover the UI (app switcher snapshot, inactive states).
     public internal(set) var isPrivacyCoverVisible = false
     /// The screen is recorded or mirrored: hide conversation content.
@@ -503,6 +539,8 @@ public final class AppRuntime {
         lockState = .unlocked
         recordingNotified = []
         ownUsername = await session.backend.username().value
+        ownAvatar = await session.backend.ownAvatar()
+        await refreshTokenRotationState(session)
         pendingRefresh = PendingRefresh(all: true)
         await performRefresh()
         startTicking()
@@ -527,14 +565,20 @@ public final class AppRuntime {
         tickTask = nil
         chats = []
         requests = []
+        blockedContacts = []
         openPeer = nil
         openMessages = []
+        downloadProgress = [:]
+        messageRevisions = [:]
         presence = [:]
         typing = []
         banner = nil
         safetyNumberChanges = []
         settings = UserSettings()
+        lastBackupAt = nil
         ownUsername = nil
+        ownAvatar = nil
+        tokenRotationPending = false
         pasteboard.clearIfOwned()
     }
 
@@ -550,6 +594,7 @@ public final class AppRuntime {
         async throws
     {
         guard lockState == .needsSetup else { throw RuntimeError.alreadySetUp }
+        keptAccountAfterFailedSetup = false
         let username: NormalizedUsername
         do {
             username = try NormalizedUsername(rawUsername)
@@ -579,26 +624,63 @@ public final class AppRuntime {
         }
     }
 
-    /// Restores an account from a backup file on a new phone (§5.5): decrypts
-    /// and fully verifies it first, then creates a new vault with the new
-    /// code, rotates the token (the old phone loses access) and uploads new
-    /// keys. Contacts see no safety-number change.
+    /// Restores an account from a backup file (§5.5): on a new phone, or —
+    /// `replacingLockedVault`, a forgotten code (3.3 › 7.3) — in place of
+    /// the locked vault on this one. In this order, and nothing on this phone
+    /// changes before the first two steps have passed:
     ///
-    /// Once the rotated token is saved it is the account's only credential
-    /// (the backup's token is revoked): whatever fails after that, nothing is
-    /// erased. The vault stays, locked under the new code; the next unlock
-    /// finishes what is missing (pre-key upload, profile announcement).
-    public func restore(backupFile: URL, password: String, code: String, confirmation: String) async throws {
-        guard lockState == .needsSetup else { throw RuntimeError.alreadySetUp }
+    /// 1. The new code is checked, the file decrypted and the **whole**
+    ///    backup verified (`AccountBackupError.invalidFile` otherwise).
+    /// 2. The relay is asked, read-only, whether the backup's token still
+    ///    works: ``RuntimeError/backupRevoked`` if not, the relay's error if
+    ///    it cannot be asked.
+    /// 3. Only now is this phone erased — with the locked vault goes its
+    ///    message history, which a backup never holds — and a new vault is
+    ///    created under the new code.
+    /// 4. The token is rotated (the old phone loses access) and new keys are
+    ///    uploaded. Contacts see no safety-number change. The rotation also
+    ///    makes the restored file unusable, so the restored account starts
+    ///    with no backup on record (``lastBackupAt`` is `nil`; 7.1 shows
+    ///    “Hiç alınmadı” until a new one is saved).
+    ///
+    /// Once the restored account is saved it is kept whatever fails next
+    /// (the backup's token may already be replaced): the vault stays, locked
+    /// under the new code, and the next unlock finishes what is missing (a
+    /// token rotation whose answer was lost, the pre-key upload, the profile
+    /// announcement). Only when the relay refuses the backup during the
+    /// rotation — another phone restored it since step 2 — is the new vault
+    /// erased again (``RuntimeError/backupRevoked``).
+    public func restore(
+        backupFile: URL, password: String, code: String, confirmation: String, replacingLockedVault: Bool = false
+    ) async throws {
+        let previous = lockState
+        switch previous {
+        case .needsSetup: break
+        case .locked where replacingLockedVault: break
+        case .locked, .working, .unlocked: throw RuntimeError.alreadySetUp
+        }
+        keptAccountAfterFailedSetup = false
+        do {
+            try SecretCode.validate(code, confirmation: confirmation)
+        } catch {
+            throw VaultError.invalidNewCode(error)
+        }
         lockState = .working
         leftDuringWork = false
+        let backup: BRPAccountBackup
+        do {
+            backup = try await Self.readBackup(backupFile, password: password)
+            try await checkOnRelay(backup)
+        } catch {
+            // Nothing was changed: a locked vault stays as it was, under its code.
+            if lockState == .working { lockState = previous }
+            await refreshLockScreen()
+            throw error
+        }
         var key: SecretKeyMaterial?
         var storage: LocalStorage?
         do {
-            let backup = try await Task.detached(priority: .userInitiated) {
-                guard let data = try? Data(contentsOf: backupFile) else { throw RuntimeError.unreadableBackup }
-                return try AccountBackupFile.import(data, password: password)
-            }.value
+            // Only now: the locked vault, or leftovers of an earlier installation.
             await eraseLocalData()
             lockState = .working
             let created = try await vault.create(code: code, confirmation: confirmation)
@@ -611,8 +693,49 @@ public final class AppRuntime {
             let session = try makeSession(key: created, storage: opened, backend: backend)
             await session.engine.start()
             await becomeUnlocked(session)
+        } catch let refusal as BackupRestoreError {
+            // The relay refused the backup's token and the new one: no token
+            // of this vault works, so nothing in it is worth keeping.
+            let error: any Error = refusal == .backupNoLongerValid ? RuntimeError.backupRevoked : refusal
+            try await settleAfterFailedSetup(error, key: key, storage: storage, keepingAccount: false)
         } catch {
             try await settleAfterFailedSetup(error, key: key, storage: storage)
+        }
+    }
+
+    /// 7.3: opens a backup file and asks the relay, read-only, whether its
+    /// token still works — the checks ``restore(backupFile:password:code:confirmation:replacingLockedVault:)``
+    /// makes before it changes anything — and changes nothing on this phone,
+    /// and on the relay only the account's last-seen day (§4.10), as any
+    /// authenticated request does. Allowed in every state.
+    ///
+    /// - Throws: `AccountBackupError` (wrong password; a damaged or malformed
+    ///   backup), ``RuntimeError/unreadableBackup``,
+    ///   ``RuntimeError/backupRevoked``, or the relay's error when it could
+    ///   not be asked.
+    public func checkBackup(backupFile: URL, password: String) async throws {
+        let backup = try await Self.readBackup(backupFile, password: password)
+        try await checkOnRelay(backup)
+    }
+
+    /// Decrypts and fully verifies a backup file, off the main actor (about
+    /// a second: PBKDF2 with 10⁶ iterations).
+    nonisolated private static func readBackup(_ file: URL, password: String) async throws -> BRPAccountBackup {
+        try await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: file) else { throw RuntimeError.unreadableBackup }
+            return try AccountBackupFile.import(data, password: password)
+        }.value
+    }
+
+    /// The backup's token still works on the relay: one read-only request on
+    /// a client of its own, nothing stored.
+    private func checkOnRelay(_ backup: BRPAccountBackup) async throws {
+        do {
+            try await environment.backends.checkBackup(backup)
+        } catch BackupRestoreError.backupNoLongerValid {
+            throw RuntimeError.backupRevoked
+        } catch let error as RelayError where Self.meansAccountGone(error) {
+            throw RuntimeError.backupRevoked
         }
     }
 
@@ -629,15 +752,20 @@ public final class AppRuntime {
     /// After a failed registration or restore: a saved account (its token
     /// is the only credential now) is kept, locked; anything earlier is
     /// erased so onboarding can start over. Rethrows `error`.
-    private func settleAfterFailedSetup(_ error: Error, key: SecretKeyMaterial?, storage: LocalStorage?) async throws
-        -> Never
-    {
-        if let storage, Self.holdsAccount(storage) {
+    ///
+    /// - Parameter keepingAccount: `false` when the relay refused every token
+    ///   the saved account holds: it is erased like the rest.
+    private func settleAfterFailedSetup(
+        _ error: Error, key: SecretKeyMaterial?, storage: LocalStorage?, keepingAccount: Bool = true
+    ) async throws -> Never {
+        if keepingAccount, let storage, Self.holdsAccount(storage) {
             if session?.storage === storage { session = nil }
             storage.close()
             key?.wipe()
             clearUnlockedState()
-            lockState = await vault.hasVault ? .locked : .needsSetup
+            let kept = await vault.hasVault
+            lockState = kept ? .locked : .needsSetup
+            keptAccountAfterFailedSetup = kept
             RuntimeLog.lifecycle.notice("setup interrupted after the account was saved; kept, locked")
             await refreshLockScreen()
             throw error
@@ -646,10 +774,17 @@ public final class AppRuntime {
         storage?.close()
         await eraseLocalData()
         lockState = .needsSetup
+        keptAccountAfterFailedSetup = false
         throw error
     }
 
+    /// Whether the new vault holds an account worth keeping. Decided first
+    /// from the durable fact that one was saved through this storage (its
+    /// write committed), so a read failing now — the database closed, an I/O
+    /// error — never erases a vault whose saved token may be the account's
+    /// only credential (§5.5); then from reading it back.
     nonisolated private static func holdsAccount(_ storage: LocalStorage) -> Bool {
+        if storage.hasSavedAccount { return true }
         guard storage.isOpen else { return false }
         return (try? storage.read { try $0.account.load() }) != nil
     }
@@ -675,13 +810,22 @@ public final class AppRuntime {
     /// credentials that can delete the account, which would then stay
     /// registered for 180 days (§4.10) with its username taken.
     public func deleteAccountAndEraseEverything() async throws {
+        try await deleteAccountOnRelay()
+        await eraseEverything()
+    }
+
+    /// The first half of ``deleteAccountAndEraseEverything()`` on its own:
+    /// `DELETE /v1/accounts/me`, nothing erased. For a UI that erases
+    /// (``eraseEverything()``) only once its confirmation has left the
+    /// screen. Throws when the relay does not confirm; 401/404 (the account
+    /// is gone already) count as deleted.
+    public func deleteAccountOnRelay() async throws {
         guard lockState == .unlocked, let session else { throw RuntimeError.locked }
         do {
             try await session.backend.deleteAccount()
         } catch let error as RelayError where Self.meansAccountGone(error) {
             RuntimeLog.lifecycle.info("account already gone on the relay")
         }
-        await eraseEverything()
     }
 
     /// ``deleteAccountAndEraseEverything()`` or ``eraseEverything()``.
@@ -732,6 +876,10 @@ public final class AppRuntime {
 
     // MARK: Security settings
 
+    /// The code is a counted attempt: a wrong one updates ``unlockStatus``
+    /// (failures, delay) as on the lock screen; if the optional "wipe after
+    /// 10" fires, everything is erased and the error is
+    /// `UnlockError.vault(.wiped)`.
     public func enableQuickUnlock(code: String) async throws {
         try requireUnlocked()
         do {
@@ -739,9 +887,16 @@ public final class AppRuntime {
         } catch UnlockError.vault(.wiped) {
             await erasedByWrongCodes()
             throw UnlockError.vault(.wiped)
+        } catch {
+            await refreshLockScreen()
+            throw error
         }
         await refreshLockScreen()
     }
+
+    /// Whether quick unlock could be turned on now: the device has Face ID
+    /// or Touch ID, enrolled and not locked out. Asked before the code is.
+    public var quickUnlockAvailable: Bool { environment.biometrics.availability().isUsable }
 
     public func disableQuickUnlock() async {
         await vault.disableQuickUnlock()
@@ -794,6 +949,11 @@ public final class AppRuntime {
             Task { await self.endLiveLocationOnlySessionIfIdle() }
         }
         switch change {
+        case .messages(let peer) where lockState == .unlocked, .wiped(let peer) where lockState == .unlocked:
+            messageRevisions[peer, default: 0] += 1
+        default: break
+        }
+        switch change {
         case .conversations: pendingRefresh.chats = true
         case .messages(let peer): if peer == openPeer { pendingRefresh.messages = true }
         case .presence: pendingRefresh.presence = true
@@ -806,6 +966,10 @@ public final class AppRuntime {
             if peer == openPeer { pendingRefresh.messages = true }
         case .safetyNumberChanged(let peer):
             safetyNumberChanges.insert(peer)
+        case .downloadProgress(let message, let peer, let fraction):
+            // The bubble's ring only; the messages themselves did not change.
+            if peer == openPeer { downloadProgress[message] = max(downloadProgress[message] ?? 0, fraction) }
+            return
         }
         scheduleRefresh()
     }
@@ -813,6 +977,43 @@ public final class AppRuntime {
     private func connectionChanged(_ status: ConnectionStatus) {
         guard lockState == .unlocked || session?.inGrace == true else { return }
         connection = status
+        // Every connection attempt settles a pending rotation first (§5.5
+        // step 3.4): once it has, the notice goes.
+        if tokenRotationPending, let session {
+            Task { await self.refreshTokenRotationState(session) }
+        }
+    }
+
+    // MARK: Token rotation after a restore (§5.5 step 3.4)
+
+    /// “Şimdi kontrol et”: asks the relay now which token the account has
+    /// (the same requests a connection attempt makes first), instead of
+    /// waiting for the connection's next attempt. Shares an attempt that is
+    /// already running. Once the outcome is known, either way, the
+    /// connection is tried at once: it opens, or — refused — ends as
+    /// revoked.
+    public func checkPendingTokenRotation() async -> TokenRotationCheck {
+        guard lockState == .unlocked, let session else { return .unanswered }
+        let outcome: TokenRotationCheck
+        do {
+            switch try await session.backend.finishPendingTokenRotation() {
+            case .ready: outcome = .settled
+            case .backupNoLongerValid: outcome = .refused
+            }
+        } catch {
+            RuntimeLog.relay.info("token rotation still unanswered: \(error.logLabel, privacy: .public)")
+            outcome = .unanswered
+        }
+        guard isCurrent(session) else { return outcome }
+        await refreshTokenRotationState(session)
+        if outcome != .unanswered, phase == .active, isCurrent(session) { await session.supervisor.start() }
+        return outcome
+    }
+
+    private func refreshTokenRotationState(_ session: Session) async {
+        let pending = await session.backend.hasPendingTokenRotation()
+        guard isCurrent(session) else { return }
+        tokenRotationPending = pending
     }
 
     /// Coalesces bursts (a backlog of hundreds of messages) into one refresh.
@@ -835,18 +1036,23 @@ public final class AppRuntime {
         let now = environment.clock.now()
         if work.chats || work.all {
             let summaries = try? await engine.chatSummaries()
+            let blocked = try? await engine.blockedContacts()
             let current = await engine.currentSettings()
+            let lastBackup = await engine.lastBackupAt()
             guard isCurrent(session) else { return }
             if let summaries {
                 chats = summaries.filter { !$0.isRequest }
                 requests = summaries.filter(\.isRequest)
             }
+            if let blocked { blockedContacts = blocked }
             settings = current
+            lastBackupAt = lastBackup
         }
         if work.messages || work.all, let peer = openPeer {
             let messages = (try? await engine.messages(of: peer)) ?? []
             guard isCurrent(session), openPeer == peer else { return }
             openMessages = messages
+            pruneDownloadProgress()
             try? await engine.markDisplayed(peer)
         }
         if work.presence || work.all {
@@ -929,6 +1135,7 @@ public final class AppRuntime {
         let messages = (try? await engine.messages(of: peer)) ?? []
         guard isCurrent(session), openPeer == peer else { return }
         openMessages = messages
+        pruneDownloadProgress()
         try? await engine.markDisplayed(peer)
         notifyRecordingIfNeeded()
         Task { await engine.verifyUsernameIfNeeded(peer) }
@@ -940,6 +1147,19 @@ public final class AppRuntime {
     public func closeConversation() {
         openPeer = nil
         openMessages = []
+        downloadProgress = [:]
+    }
+
+    /// Progress is kept only for attachments that are still transferring.
+    private func pruneDownloadProgress() {
+        guard !downloadProgress.isEmpty else { return }
+        var transferring: Set<MessageId> = []
+        for item in openMessages {
+            if case .attachment(let attachment) = item.body, attachment.availability == .transferring {
+                transferring.insert(item.messageId)
+            }
+        }
+        downloadProgress = downloadProgress.filter { transferring.contains($0.key) }
     }
 
     /// Opens a conversation with `username` (exact match only, §4.4).
@@ -960,6 +1180,22 @@ public final class AppRuntime {
     public func conversation(_ peer: AccountId) async -> ConversationInfo? {
         try? await session?.engine.conversationInfo(peer)
     }
+}
+
+/// What ``AppRuntime/checkPendingTokenRotation()`` found out (§5.5 step 3.4).
+public enum TokenRotationCheck: Sendable, Equatable {
+    /// Nothing is pending (any more): the relay holds this phone's token,
+    /// and the backup's token — the old phone's — no longer works.
+    case settled
+    /// Still no answer (no connection, `429`, `5xx`): both tokens stay
+    /// stored and unused; every connection attempt asks again. Also when the
+    /// relay refused the new token (`400`, step 3.5): the old phone's token
+    /// still works, a fresh new one is pending in its place.
+    case unanswered
+    /// The relay refused both tokens: another phone restored the same
+    /// backup and rotated first, or the account was deleted. This phone is
+    /// signed out for good.
+    case refused
 }
 
 /// What the next refresh must reload.

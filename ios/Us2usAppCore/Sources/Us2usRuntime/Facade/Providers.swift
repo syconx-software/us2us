@@ -13,8 +13,17 @@ public protocol BackendFactory: Sendable {
     func open(account: LocalAccount, storage: LocalStorage) throws -> any MessagingBackend
     /// Restores an account from a decrypted backup into a fresh `storage`
     /// (§5.5): full validation first, identity and contacts, token rotation
-    /// (saved before the key upload), fresh pre-keys.
+    /// (the new token stored before it is sent, the outcome saved before the
+    /// key upload), fresh pre-keys. Throws `BackupRestoreError` when the
+    /// relay refuses the backup.
     func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend
+    /// The read-only relay check of a backup before anything on this phone
+    /// is replaced: one authenticated `GET /v1/keys/status` with the backup's
+    /// token, nothing stored; on the relay only the account's last-seen day
+    /// changes (§4.10), as with any authenticated request. Throws
+    /// `BackupRestoreError.backupNoLongerValid` when the relay refuses the
+    /// token, and the relay's error when it could not be asked.
+    func checkBackup(_ backup: BRPAccountBackup) async throws
 }
 
 /// The production backend factory: one ``RelayClient`` per account, built by
@@ -59,5 +68,11 @@ public struct RelayBackendFactory: BackendFactory {
         guard let protocolStore = storage.protocolStore else { throw StorageError.invalidState("no identity") }
         return MessengerBackend(
             messenger: messenger, accountId: await messenger.account.accountId, protocolStore: protocolStore)
+    }
+
+    public func checkBackup(_ backup: BRPAccountBackup) async throws {
+        // Its own client: nothing of an open session is used or changed.
+        let relay = try NetworkPolicy.makeRelayClient(baseURL: relayURL)
+        try await Messenger.checkBackup(backup, relay: relay)
     }
 }

@@ -83,6 +83,10 @@ public protocol MessagingBackend: Sendable {
     func uploadAttachment(fileAt url: URL, kind: BRPAttachment.Kind, contentType: String, fileName: String?)
         async throws -> BRPAttachment
     func downloadAttachment(_ attachment: BRPAttachment, to destination: URL) async throws
+    /// The same, reporting the fraction received (0…1) while it downloads.
+    func downloadAttachment(
+        _ attachment: BRPAttachment, to destination: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws
     /// Unsend: deletes our uploaded blob from the relay (§4.9).
     func deleteUploadedMedia(_ attachment: BRPAttachment) async throws
 
@@ -93,12 +97,77 @@ public protocol MessagingBackend: Sendable {
 
     func safetyNumber(with contact: AccountId) async throws -> SafetyNumber?
     func identityTrust(for contact: AccountId) async throws -> IdentityTrust
-    func approveIdentityChange(for contact: AccountId) async throws
-    func markVerified(_ verified: Bool, contact: AccountId) async throws
+    // Key-bound identity decisions (§5; Us2usKit `Messenger`): each compares
+    // and stores in one step on the messenger's actor.
+    /// Accepts a pending change without verifying, if the current key's
+    /// number is `shownNumber`; whether a change was accepted.
+    func approveIdentityChange(for contact: AccountId, shownNumber: Data) async throws -> Bool
+    /// Verifies the stored key if its number is still `comparedNumber`.
+    func markVerified(contact: AccountId, comparedNumber: Data, verification: IdentityVerification) async throws
+        -> Bool
+    /// Verifies the stored key if a scanned safety-number payload matches it.
+    func verifySafetyNumber(contact: AccountId, scanned: Data, verification: IdentityVerification) async throws
+        -> Bool
+    /// Pins the key a contact code committed to (verified, approved).
+    func pinVerifiedIdentity(_ identityKey: Data, for contact: AccountId, verification: IdentityVerification)
+        async throws -> Bool
+    func clearVerification(contact: AccountId) async throws
+    func identityVerification(for contact: AccountId) async throws -> IdentityVerification?
     func forgetContact(_ contact: AccountId) async throws
 
     func makeBackup(displayName: String, contacts: [BRPBackupContact]) async throws -> BRPAccountBackup
     func deleteAccount() async throws
+
+    /// A restore's token rotation is still unconfirmed (§5.5 step 3.4): the
+    /// relay has not said yet whether it holds the new token or still the
+    /// backup's, so the old phone may still have access.
+    func hasPendingTokenRotation() async -> Bool
+    /// §5.5 step 3.4 now: asks the relay which of the two stored tokens the
+    /// account has and keeps that one. ``TokenRotationResult/ready`` also
+    /// when nothing was pending; throws while the outcome is still unknown
+    /// (no answer, `429`, `5xx`).
+    func finishPendingTokenRotation() async throws -> TokenRotationResult
+
+    // Profile pictures (§8.9, §8.10). The own picture and "Show in search"
+    // are kept with the account in the vault (`LocalAccount`), where the
+    // engine reads them for every `ProfileUpdate`.
+    /// The own picture, the setting and the state of the search record.
+    func ownAvatar() async -> OwnProfilePicture
+    /// Saves both; a change of the search record is owed from then on
+    /// (``syncAvatarRecord()``).
+    func setOwnAvatar(_ picture: ProfilePicture, showInSearch: Bool) async throws
+    /// Makes a record write still owed now, one at a time (§8.10); the
+    /// relay's answer is in the result, never thrown.
+    func syncAvatarRecord() async -> AvatarRecordStatus
+    /// The picture of a search result (§8.10 step 4); the initial letter on
+    /// any failure.
+    func searchAvatar(username: NormalizedUsername, account: AccountId) async -> ProfilePicture
+}
+
+extension MessagingBackend {
+    /// Backends without token rotations (test doubles) never have one pending.
+    public func hasPendingTokenRotation() async -> Bool { false }
+
+    public func finishPendingTokenRotation() async throws -> TokenRotationResult { .ready }
+
+    /// Backends without profile pictures (test doubles) show the initial
+    /// letter and publish nothing.
+    public func ownAvatar() async -> OwnProfilePicture {
+        OwnProfilePicture(picture: .initials, showInSearch: true, searchRecord: .inSync)
+    }
+
+    public func setOwnAvatar(_ picture: ProfilePicture, showInSearch: Bool) async throws {}
+
+    public func syncAvatarRecord() async -> AvatarRecordStatus { .inSync }
+
+    public func searchAvatar(username: NormalizedUsername, account: AccountId) async -> ProfilePicture { .initials }
+
+    /// Backends that cannot report progress download without it.
+    public func downloadAttachment(
+        _ attachment: BRPAttachment, to destination: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        try await downloadAttachment(attachment, to: destination)
+    }
 }
 
 /// ``RelayStream`` on Us2usKit's `RelayConnection` + `Messenger.run`.
@@ -149,8 +218,15 @@ public struct MessengerBackend: MessagingBackend {
     public func username() async -> NormalizedUsername { await messenger.account.username }
     public func currentAccessKey() async -> Data { await messenger.account.accessKey }
 
+    /// Settles a token rotation whose answer was lost first (§5.5 step 3.4):
+    /// until the relay has said which token the account has, the socket does
+    /// not open, and the supervisor's backoff asks again. A relay that
+    /// refuses both tokens ends the connection like any revoked token.
     public func openStream() async throws -> any RelayStream {
-        MessengerStream(
+        if try await messenger.finishPendingTokenRotation() == .backupNoLongerValid {
+            throw RelayError.server(status: 401, code: .unauthorized, message: nil)
+        }
+        return MessengerStream(
             messenger: messenger, connection: try messenger.relay.connect(keepAliveInterval: keepAliveInterval),
             protocolStore: protocolStore)
     }
@@ -194,6 +270,12 @@ public struct MessengerBackend: MessagingBackend {
         try await messenger.downloadAttachment(attachment, to: destination)
     }
 
+    public func downloadAttachment(
+        _ attachment: BRPAttachment, to destination: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        try await messenger.downloadAttachment(attachment, to: destination, progress: progress)
+    }
+
     public func deleteUploadedMedia(_ attachment: BRPAttachment) async throws {
         try await messenger.relay.deleteMedia(id: attachment.mediaID, deleteToken: attachment.deleteToken)
     }
@@ -218,12 +300,34 @@ public struct MessengerBackend: MessagingBackend {
         try await messenger.identityTrust(for: contact)
     }
 
-    public func approveIdentityChange(for contact: AccountId) async throws {
-        try await messenger.approveIdentityChange(for: contact)
+    public func approveIdentityChange(for contact: AccountId, shownNumber: Data) async throws -> Bool {
+        try await messenger.approveIdentityChange(for: contact, shownNumber: shownNumber)
     }
 
-    public func markVerified(_ verified: Bool, contact: AccountId) async throws {
-        try await messenger.markVerified(verified, contact: contact)
+    public func markVerified(
+        contact: AccountId, comparedNumber: Data, verification: IdentityVerification
+    ) async throws -> Bool {
+        try await messenger.markVerified(contact: contact, comparedNumber: comparedNumber, verification: verification)
+    }
+
+    public func verifySafetyNumber(
+        contact: AccountId, scanned: Data, verification: IdentityVerification
+    ) async throws -> Bool {
+        try await messenger.verifySafetyNumber(contact: contact, scanned: scanned, verification: verification)
+    }
+
+    public func pinVerifiedIdentity(
+        _ identityKey: Data, for contact: AccountId, verification: IdentityVerification
+    ) async throws -> Bool {
+        try await messenger.pinVerifiedIdentity(identityKey, for: contact, verification: verification)
+    }
+
+    public func clearVerification(contact: AccountId) async throws {
+        try await messenger.clearVerification(contact: contact)
+    }
+
+    public func identityVerification(for contact: AccountId) async throws -> IdentityVerification? {
+        try await messenger.identityVerification(for: contact)
     }
 
     public func forgetContact(_ contact: AccountId) async throws { try await messenger.forgetContact(contact) }
@@ -233,4 +337,22 @@ public struct MessengerBackend: MessagingBackend {
     }
 
     public func deleteAccount() async throws { try await messenger.deleteAccount() }
+
+    public func hasPendingTokenRotation() async -> Bool { await messenger.account.pendingAuthToken != nil }
+
+    public func finishPendingTokenRotation() async throws -> TokenRotationResult {
+        try await messenger.finishPendingTokenRotation()
+    }
+
+    public func ownAvatar() async -> OwnProfilePicture { await messenger.ownProfilePicture }
+
+    public func setOwnAvatar(_ picture: ProfilePicture, showInSearch: Bool) async throws {
+        try await messenger.setProfilePicture(picture, showInSearch: showInSearch)
+    }
+
+    public func syncAvatarRecord() async -> AvatarRecordStatus { await messenger.syncAvatarRecord() }
+
+    public func searchAvatar(username: NormalizedUsername, account: AccountId) async -> ProfilePicture {
+        await messenger.searchAvatar(username: username, account: account)
+    }
 }
