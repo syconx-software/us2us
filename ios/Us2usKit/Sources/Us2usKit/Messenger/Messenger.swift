@@ -64,7 +64,16 @@ public actor Messenger {
     private let configuration: Configuration
     private let saveAccount: AccountSaver
     private var pendingSessions: [AccountId: Task<Void, Error>] = [:]
+    /// The token rotation being settled, shared by concurrent callers (§5.5 step 3).
+    var tokenRotation: Task<TokenRotationOutcome, any Error>?
+    /// The relay refused both tokens of a rotation settled in this process:
+    /// ``finishPendingTokenRotation()`` keeps saying so, also once nothing
+    /// is pending any more.
+    var tokenRotationRefused = false
     private var recentRelayIds = RecentIds(capacity: 2048)
+    /// Profile-picture state kept in memory only (seeds, search copies, the
+    /// record write in progress; Messenger+Avatar.swift).
+    var avatarSession = AvatarSession()
 
     /// - Parameter saveAccount: persists ``account`` whenever it changes.
     public init(
@@ -81,7 +90,8 @@ public actor Messenger {
             directory: directory ?? RelayIdentityDirectory(relay: relay),
             storedIdentity: { [store] in try store.identity(for: $0.protocolAddress, context: NullContext()) })
         self.configuration = configuration
-        relay.setCredentials(account.credentials)
+        // None while a token rotation is unresolved: see finishPendingTokenRotation().
+        relay.setCredentials(account.usableCredentials)
     }
 
     // MARK: Registration and restore (§4.3, §5.5)
@@ -133,9 +143,18 @@ public actor Messenger {
     ///    the contacts' identity keys are written to it as they were: trusted
     ///    keys stay trusted, so nobody sees a safety-number change, and a
     ///    change the user had not accepted (`identity_unaccepted`) stays
-    ///    blocked until ``approveIdentityChange(for:)``.
-    /// 3. The auth token is rotated (the old phone loses access) and the
-    ///    account is handed to `saveAccount` before anything else can fail.
+    ///    blocked until ``approveIdentityChange(for:shownNumber:)``.
+    /// 3. The auth token is rotated, so the old phone loses access, to a new
+    ///    token chosen here: the account goes to `saveAccount` with the
+    ///    backup's token and the new one as ``LocalAccount/pendingAuthToken``
+    ///    before the relay hears of it, and once more, with only the token
+    ///    the relay holds, when the answer says which one that is. If no
+    ///    answer arrives (also not to the follow-up questions of step 3.4),
+    ///    the restore still returns, with both tokens kept and none used:
+    ///    ``finishPendingTokenRotation()`` settles it later, before anything
+    ///    else is sent. `401` for both tokens throws
+    ///    ``BackupRestoreError/backupNoLongerValid``, `400`
+    ///    ``BackupRestoreError/tokenRefused``.
     /// 4. Fresh pre-keys are uploaded with `replaceAll`. A failure stays in
     ///    ``LocalAccount/pendingSetup`` and is retried by
     ///    ``performMaintenance(now:)`` and while ``run(_:deliver:onQueueEmpty:)``
@@ -143,7 +162,10 @@ public actor Messenger {
     /// 5. The app then creates its contacts from `backup.contacts` (state,
     ///    access keys, `presence_sharing`) and sends a complete `ProfileUpdate`
     ///    to every accepted contact with ``announceProfile(_:to:)``: the
-    ///    restored phone has no sessions until it writes first.
+    ///    restored phone has no sessions until it writes first. The profile
+    ///    picture and "Show in search" come back with the account, and once
+    ///    the keys are uploaded the avatar record is brought in line with
+    ///    them (``syncAvatarRecord()``; also by maintenance, if it could not).
     ///
     /// - Parameter makeStore: creates the new store for the restored identity
     ///   and registration id.
@@ -161,17 +183,37 @@ public actor Messenger {
                 identity, for: contact.account, approved: !contact.unaccepted, verified: contact.verified)
         }
 
-        relay.setCredentials(RelayCredentials(accountId: restored.accountId, authToken: backup.authToken))
-        let rotated = try await relay.rotateAuthToken()
+        // §5.5 step 3.1: the new token is stored next to the backup's before
+        // anything is sent, so whichever answer gets lost, one of them works.
+        // The picture and its setting come back with the account; the relay's
+        // record is brought in line once the keys are replaced (step 5). The
+        // backup holds no version, so that write may be answered 409 first.
         let account = LocalAccount(
-            accountId: restored.accountId, authToken: rotated.authToken, username: restored.username,
-            accessKey: backup.accessKey, pendingSetup: [.replacePreKeys, .announceProfile])
-        // The backup's token is revoked now: never lose the new one, whatever fails next.
+            accountId: restored.accountId, authToken: backup.authToken, username: restored.username,
+            accessKey: backup.accessKey, pendingSetup: [.replacePreKeys, .announceProfile],
+            pendingAuthToken: TokenRotation.newToken(),
+            profileAvatar: ProfilePicture(backup.hasAvatar ? backup.avatar : nil).serializedProfileAvatar,
+            avatarSearchOff: backup.avatarSearchOff, avatarRecordPending: true)
         try saveAccount(account)
         let messenger = Messenger(
             account: account, store: store, relay: relay, directory: directory, configuration: configuration,
             saveAccount: saveAccount)
-        try? await messenger.completePendingSetup(now: now)
+        let outcome: TokenRotationOutcome?
+        do {
+            outcome = try await messenger.settleTokenRotation(firstAttempt: true)
+        } catch {
+            // The outcome is unknown (step 3.4): both tokens stay stored and
+            // unused until finishPendingTokenRotation() finds it out.
+            return messenger
+        }
+        switch outcome {
+        case .committed?, nil: break
+        case .unchanged?: throw BackupRestoreError.tokenRefused
+        case .backupNoLongerValid?: throw BackupRestoreError.backupNoLongerValid
+        }
+        if (try? await messenger.completePendingSetup(now: now)) != nil {
+            await messenger.syncAvatarRecord()
+        }
         return messenger
     }
 
@@ -229,11 +271,18 @@ public actor Messenger {
     /// their identity fields — the current key, `verified` and
     /// `identity_unaccepted` — are taken from the store, so an unaccepted
     /// safety-number change stays blocked on the new phone (§5.5).
+    ///
+    /// A token rotation whose outcome is unknown is settled first, so the
+    /// backup carries the token the relay holds; a backup made with the other
+    /// one could never be restored.
     public func makeBackup(
         displayName: String, contacts: [BRPBackupContact], now: Date = Date()
-    ) throws
+    ) async throws
         -> BRPAccountBackup
     {
+        if try await finishPendingTokenRotation() == .backupNoLongerValid {
+            throw BackupRestoreError.backupNoLongerValid
+        }
         var backup = BRPAccountBackup()
         backup.version = AccountBackupFile.currentVersion
         backup.accountID = account.accountId.bytes
@@ -243,11 +292,15 @@ public actor Messenger {
         backup.username = account.username.value
         backup.displayName = displayName
         backup.accessKey = account.accessKey
+        if let avatar = account.profilePicture.profileAvatar { backup.avatar = avatar }
+        backup.avatarSearchOff = account.avatarSearchOff
         backup.contacts = try contacts.map { contact in
             var contact = contact
             contact.identityKey = Data()
             contact.verified = false
             contact.identityUnaccepted = false
+            // Only a picture that passes §8.9 goes into the file.
+            if contact.hasAvatar, ProfilePicture.validated(contact.avatar) == nil { contact.clearAvatar() }
             guard let account = AccountId(bytes: contact.accountID) else { return contact }
             switch try store.identityTrust(for: account) {
             case .unknown:
@@ -262,6 +315,11 @@ public actor Messenger {
             return contact
         }
         backup.createdAt = now.millisecondsSince1970
+        // A file a restore would refuse is no backup: what is written is
+        // checked by the same rules as what is read (§5.5 step 1), so local
+        // data outside them fails the export (``MessengerError/invalidBackup``)
+        // instead of producing a file that opens as damaged when needed.
+        try Self.validate(backup)
         return backup
     }
 
@@ -270,7 +328,9 @@ public actor Messenger {
     /// Exact-match directory lookup (§4.4); `nil` if nobody has this username.
     public func findAccount(username: NormalizedUsername) async throws -> IdentityResponse? {
         let hash = await Task.detached(priority: .userInitiated) { username.hash() }.value
-        return try await relay.lookup(usernameHash: hash)
+        let found = try await relay.lookup(usernameHash: hash)
+        noteDirectoryAnswer(for: username, account: found?.accountId)
+        return found
     }
 
     /// Checks a contact's username claim against the directory (§3.3): the
@@ -285,12 +345,15 @@ public actor Messenger {
     }
 
     /// Changes the username on the relay (§3.3). Afterwards send a complete
-    /// ``BRPContent/profileUpdate(displayName:username:presenceSharing:avatar:updatedAt:)``
-    /// to every accepted contact (§8.7).
+    /// ``BRPContent/profileUpdate(displayName:username:presenceSharing:picture:updatedAt:)``
+    /// to every accepted contact (§8.7). The relay deleted the avatar record
+    /// with the change; a published picture is sealed again under the new
+    /// name in the background (§8.10).
     public func changeUsername(to username: NormalizedUsername) async throws {
         let hash = await Task.detached(priority: .userInitiated) { username.hash() }.value
         try await relay.changeUsername(hash: hash)
         try updateAccount { $0.username = username }
+        republishAvatarAfterUsernameChange()
     }
 
     /// Replaces our access key (e.g. after blocking someone, §6.4) and returns
@@ -338,7 +401,18 @@ public actor Messenger {
         try saveAccount(account)
     }
 
+    /// Saves `settled` and only then uses it: the relay client authenticates
+    /// with its token, or with none while a token rotation is pending.
+    func commitAccount(_ settled: LocalAccount) throws {
+        try saveAccount(settled)
+        account = settled
+        relay.setCredentials(settled.usableCredentials)
+    }
+
+    /// `DELETE /v1/accounts/me`. A pending token rotation is settled first,
+    /// so the request carries the token the relay holds.
     public func deleteAccount() async throws {
+        try await finishPendingTokenRotation()
         try await relay.deleteAccount()
     }
 
@@ -348,23 +422,83 @@ public actor Messenger {
         try store.identityTrust(for: contact)
     }
 
-    /// Accepts a changed safety number, which unblocks sending.
-    public func approveIdentityChange(for contact: AccountId) throws {
-        if case .changed(_, let current) = try store.identityTrust(for: contact) {
-            try store.approveIdentity(current, for: contact)
-        }
+    // Every call below that trusts or verifies a key is bound to the safety
+    // number the user saw or compared, and checks it in the same step that
+    // stores the decision: a key that changes meanwhile (§5) is never
+    // accepted or sealed by a decision made about another key.
+
+    /// Accepts a pending safety-number change without verifying it (sending
+    /// resumes; the contact stays unverified) — only if the current key is
+    /// the one whose number the user was shown (`shownNumber`,
+    /// ``SafetyNumber/scannable``). Returns whether a change was accepted.
+    public func approveIdentityChange(for contact: AccountId, shownNumber: Data) throws -> Bool {
+        guard case .changed(_, let current) = try store.identityTrust(for: contact),
+            try safetyNumber(with: contact, remoteIdentity: current).scannable == shownNumber
+        else { return false }
+        return try store.acceptIdentity(current, for: contact)
     }
 
-    public func markVerified(_ verified: Bool, contact: AccountId) throws {
-        try store.setIdentityVerified(verified, for: contact)
+    /// Marks `contact` verified after the user compared the safety number
+    /// another way — only if it is still the number they compared
+    /// (`comparedNumber`, ``SafetyNumber/scannable``). A pending change of
+    /// that key is accepted with it. Returns `false` and changes nothing
+    /// when the key changed since.
+    public func markVerified(
+        contact: AccountId, comparedNumber: Data, verification: IdentityVerification
+    ) throws -> Bool {
+        guard let remote = try store.identity(for: contact.protocolAddress, context: NullContext()),
+            try safetyNumber(with: contact, remoteIdentity: remote).scannable == comparedNumber
+        else { return false }
+        return try store.verifyIdentity(remote, for: contact, verification: verification)
+    }
+
+    /// Compares a safety-number QR payload scanned from the contact's phone
+    /// with the number of the stored key and, on a match, marks that key
+    /// verified — in one step. Returns whether it matched and was verified.
+    public func verifySafetyNumber(
+        contact: AccountId, scanned: Data, verification: IdentityVerification
+    ) throws -> Bool {
+        guard let remote = try store.identity(for: contact.protocolAddress, context: NullContext()) else { return false }
+        let number = try safetyNumber(with: contact, remoteIdentity: remote)
+        guard (try? number.matches(scanned: scanned)) == true else { return false }
+        return try store.verifyIdentity(remote, for: contact, verification: verification)
+    }
+
+    /// Pins the identity key a contact code committed to (§5): `identityKey`
+    /// is the key the directory serves, after its fingerprint was found equal
+    /// to the one in the code scanned side by side. See
+    /// ``ProtocolStore/pinVerifiedIdentity(_:for:verification:)``; `false`
+    /// when another key is stored (or the key is malformed).
+    public func pinVerifiedIdentity(
+        _ identityKey: Data, for contact: AccountId, verification: IdentityVerification
+    ) throws -> Bool {
+        guard contact != account.accountId, identityKey.count == 33,
+            let key = try? IdentityKey(bytes: identityKey)
+        else { return false }
+        return try store.pinVerifiedIdentity(key, for: contact, verification: verification)
+    }
+
+    /// Removes the verification (the seal); the key stays accepted.
+    public func clearVerification(contact: AccountId) throws {
+        try store.setIdentityVerified(false, for: contact)
+    }
+
+    /// When and how the contact's current key was verified (`nil`: not
+    /// verified, or verified without a record).
+    public func identityVerification(for contact: AccountId) throws -> IdentityVerification? {
+        try store.identityVerification(for: contact)
     }
 
     /// The safety number with `contact`, or `nil` before any key is known.
     public func safetyNumber(with contact: AccountId) throws -> SafetyNumber? {
         guard let remote = try store.identity(for: contact.protocolAddress, context: NullContext()) else { return nil }
+        return try safetyNumber(with: contact, remoteIdentity: remote)
+    }
+
+    private func safetyNumber(with contact: AccountId, remoteIdentity: IdentityKey) throws -> SafetyNumber {
         let local = try store.identityKeyPair(context: NullContext()).identityKey
         return try SafetyNumber(
-            local: account.accountId, localIdentity: local, remote: contact, remoteIdentity: remote)
+            local: account.accountId, localIdentity: local, remote: contact, remoteIdentity: remoteIdentity)
     }
 
     // MARK: Sending (§4.6, §5, §6)
@@ -504,19 +638,24 @@ public actor Messenger {
     /// `destination`, then deletes the blob from the relay, as recipients
     /// must once a download is complete (§4.9). The download stops at the blob
     /// size the declared `size` implies (§7), so a lying sender cannot fill the
-    /// disk; sizes above 2^40 bytes are refused outright.
+    /// disk; sizes above 2^40 bytes are refused outright. `progress` hears
+    /// the fraction of the blob received (0…1) while it downloads.
     public func downloadAttachment(
-        _ attachment: BRPAttachment, to destination: URL, deleteFromRelay: Bool = true
+        _ attachment: BRPAttachment, to destination: URL, deleteFromRelay: Bool = true,
+        progress: (@Sendable (Double) -> Void)? = nil
     ) async throws {
         guard attachment.mediaID.count == RandomId.byteCount, attachment.size <= Self.maxAttachmentBytes else {
             throw AttachmentError.sizeMismatch
         }
         let blobURL = configuration.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".blob")
         defer { try? FileManager.default.removeItem(at: blobURL) }
+        let blobSize = AttachmentCipher.blobSize(forPlaintextSize: attachment.size)
+        var received: (@Sendable (UInt64) -> Void)?
+        if let progress {
+            received = { bytes in progress(blobSize > 0 ? min(1, Double(bytes) / Double(blobSize)) : 0) }
+        }
         do {
-            try await relay.downloadMedia(
-                id: attachment.mediaID, to: blobURL,
-                maxBytes: AttachmentCipher.blobSize(forPlaintextSize: attachment.size))
+            try await relay.downloadMedia(id: attachment.mediaID, to: blobURL, maxBytes: blobSize, progress: received)
         } catch RelayError.payloadTooLarge {
             throw AttachmentError.sizeMismatch
         }
@@ -631,6 +770,8 @@ public actor Messenger {
             }
         case .queueEmpty:
             await retryPendingSetup()
+            // A record write still owed goes out once per connection (§8.10).
+            scheduleAvatarSync()
             await onQueueEmpty()
         case .pong:
             await retryPendingSetup()
@@ -674,12 +815,18 @@ public actor Messenger {
     /// ``PendingRelaySetup/announceProfile``, which needs the app's contacts), refills one-time pre-keys
     /// below 20 back to 100, rotates the signed and Kyber last-resort keys every
     /// 30 days, and deletes replaced ones 30 days after their replacement.
+    /// An avatar-record write still owed (§8.10) is made after the setup.
     public func performMaintenance(now: Date = Date()) async throws {
         try await completePendingSetup(now: now)
+        await syncAvatarRecord()
         try await maintainPreKeys(now: now)
     }
 
     private func completePendingSetup(now: Date) async throws {
+        // Nothing reaches the relay before a token rotation is settled (§5.5 step 3.3).
+        if try await finishPendingTokenRotation() == .backupNoLongerValid {
+            throw BackupRestoreError.backupNoLongerValid
+        }
         if account.pendingSetup.contains(.publishAccessKey) {
             try await relay.setAccessKeyHash(AccessKey.hash(account.accessKey))
             try updateAccount { $0.pendingSetup.remove(.publishAccessKey) }

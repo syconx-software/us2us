@@ -13,6 +13,28 @@ public enum IdentityTrust: Equatable, Sendable {
     case changed(previous: IdentityKey?, current: IdentityKey)
 }
 
+/// How the user verified a contact's identity key (PROTOCOL.md §5).
+public enum IdentityVerificationMethod: Int, Sendable, CaseIterable {
+    /// The safety number was compared another way (read out, another
+    /// channel) and marked as verified by hand.
+    case manual = 1
+    /// A QR code was scanned side by side: the contact's safety-number code,
+    /// or their contact code, whose key fingerprint pinned the key.
+    case qrCode = 2
+}
+
+/// When and how the contact's current identity key was verified. It belongs
+/// to that key: a change of the key drops it together with the verification.
+public struct IdentityVerification: Equatable, Sendable {
+    public let method: IdentityVerificationMethod
+    public let verifiedAt: Date
+
+    public init(method: IdentityVerificationMethod, verifiedAt: Date) {
+        self.method = method
+        self.verifiedAt = verifiedAt
+    }
+}
+
 /// The three independent key-id spaces (key ids are 1…16777215, §4.3).
 public enum PreKeyIdSpace: Sendable, CaseIterable {
     case oneTime
@@ -50,7 +72,36 @@ public protocol ProtocolStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore,
     /// Accepts `identity` for `account` (after a safety-number change, or after
     /// verifying it in person), which unblocks sending.
     func approveIdentity(_ identity: IdentityKey, for account: AccountId) throws
+    /// Sets the verified flag of whatever key is stored (verifying also
+    /// accepts it). Clearing is always safe; to verify, prefer
+    /// ``verifyIdentity(_:for:verification:)``, which is bound to the key the
+    /// user compared.
     func setIdentityVerified(_ verified: Bool, for account: AccountId) throws
+
+    /// Accepts the stored key only if it is `expected` — the key whose safety
+    /// number the user was shown: a pending change is approved (unverified),
+    /// which unblocks sending. Returns `false` and changes nothing when
+    /// another key, or none, is stored.
+    func acceptIdentity(_ expected: IdentityKey, for account: AccountId) throws -> Bool
+    /// Verifies the stored key only if it is `expected` — the key the user
+    /// compared — and accepts it (a pending change is approved). Returns
+    /// `false` and changes nothing when another key, or none, is stored.
+    func verifyIdentity(_ expected: IdentityKey, for account: AccountId, verification: IdentityVerification) throws
+        -> Bool
+    /// Pins `identity` for `account` after it was checked side by side (a
+    /// scanned contact code carries the key's fingerprint, §5): with nothing
+    /// stored it is stored verified and approved, so a later bundle or
+    /// message under another key is a change (sending blocked, warning shown);
+    /// a stored `identity` is verified and approved. Another stored key
+    /// changes nothing: returns `false` — also when `identity` is a pending
+    /// change of the approved key (the client holds that other key; the
+    /// change is accepted by comparing safety numbers).
+    func pinVerifiedIdentity(_ identity: IdentityKey, for account: AccountId, verification: IdentityVerification)
+        throws -> Bool
+    /// When and how the current key was verified; `nil` when it is not
+    /// verified, or was verified without a record (restored from a backup,
+    /// verified by an older app version).
+    func identityVerification(for account: AccountId) throws -> IdentityVerification?
     /// Records a contact's identity from an account backup as it was on the
     /// old phone (§5.5), replacing whatever is stored: approved, or — for a
     /// change the user had not accepted — ``IdentityTrust/changed(previous:current:)``

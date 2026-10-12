@@ -196,6 +196,20 @@ struct FingerprintVector: Codable {
     var scannable: String
 }
 
+/// PROTOCOL.md §8.10: one sealed avatar record and its inputs.
+struct AvatarRecordVector: Codable, Equatable {
+    var username: String
+    var accountId: String
+    /// Decimal, since versions go up to 2^63 − 1.
+    var version: String
+    var nonce: String
+    var profileAvatar: String
+    var seed: String
+    var avatarKey: String
+    var record: String
+    var valid: Bool
+}
+
 enum VectorCategory: String, CaseIterable, Sendable {
     case username, pow, padding
     case attachmentPadding = "attachment-padding"
@@ -203,6 +217,7 @@ enum VectorCategory: String, CaseIterable, Sendable {
     case secretCode = "secret-code"
     case backupPassword = "backup-password"
     case keyslot, item, fingerprint
+    case avatarRecord = "avatar-record"
 }
 
 /// Reading and writing `spec/test-vectors/<generator>/<category>.json`.

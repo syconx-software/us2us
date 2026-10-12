@@ -18,6 +18,13 @@ public final class InMemoryProtocolStore: ProtocolStore {
         var previous: Data?
         var approved: Bool
         var verified: Bool
+        /// When and how `key` was verified (only while `verified`).
+        var verification: IdentityVerification? = nil
+        /// While `key` awaits approval: whether `previous` (the approved key)
+        /// was verified, and when and how. A return to it keeps that
+        /// verification (§5), so a key injected once cannot strip the seal.
+        var previousVerified = false
+        var previousVerification: IdentityVerification? = nil
     }
 
     private struct KyberEntry {
@@ -79,12 +86,20 @@ public final class InMemoryProtocolStore: ProtocolStore {
             }
             if existing.key == key { return .newOrUnchanged }
             let approvedKey = existing.approved ? existing.key : existing.previous
+            // That key's verification, if it had one.
+            let approvedVerified = existing.approved ? existing.verified : existing.previousVerified
+            let approvedRecord = existing.approved ? existing.verification : existing.previousVerification
             if key == approvedKey {
-                // Back to the key the user already accepted: nothing left to approve.
-                state.identities[account] = IdentityRecord(key: key, previous: nil, approved: true, verified: false)
+                // Back to the key the user already accepted: nothing left to
+                // approve, and its verification stands (§5).
+                state.identities[account] = IdentityRecord(
+                    key: key, previous: nil, approved: true, verified: approvedVerified,
+                    verification: approvedVerified ? approvedRecord : nil)
             } else {
                 state.identities[account] = IdentityRecord(
-                    key: key, previous: approvedKey, approved: false, verified: false)
+                    key: key, previous: approvedKey, approved: false, verified: false,
+                    previousVerified: approvedKey != nil && approvedVerified,
+                    previousVerification: approvedKey != nil && approvedVerified ? approvedRecord : nil)
             }
             return .replacedExisting
         }
@@ -273,21 +288,73 @@ public final class InMemoryProtocolStore: ProtocolStore {
     public func approveIdentity(_ identity: IdentityKey, for account: AccountId) throws {
         let key = identity.serialize()
         state.withLock { state in
-            let verified = state.identities[account].map { $0.approved && $0.key == key && $0.verified } ?? false
-            state.identities[account] = IdentityRecord(key: key, previous: nil, approved: true, verified: verified)
+            let kept = state.identities[account].flatMap { $0.approved && $0.key == key && $0.verified ? $0 : nil }
+            state.identities[account] = IdentityRecord(
+                key: key, previous: nil, approved: true, verified: kept != nil, verification: kept?.verification)
         }
     }
 
     public func setIdentityVerified(_ verified: Bool, for account: AccountId) throws {
         state.withLock { state in
             guard var record = state.identities[account] else { return }
-            record.verified = verified
             if verified {
                 // Verifying the current key in person also accepts it.
+                if !(record.approved && record.verified) { record.verification = nil }
                 record.approved = true
                 record.previous = nil
+                record.previousVerified = false
+                record.previousVerification = nil
+            } else {
+                record.verification = nil
             }
+            record.verified = verified
             state.identities[account] = record
+        }
+    }
+
+    public func acceptIdentity(_ expected: IdentityKey, for account: AccountId) throws -> Bool {
+        let key = expected.serialize()
+        return state.withLock { state in
+            guard let record = state.identities[account], record.key == key else { return false }
+            if !record.approved {
+                state.identities[account] = IdentityRecord(key: key, previous: nil, approved: true, verified: false)
+            }
+            return true
+        }
+    }
+
+    public func verifyIdentity(_ expected: IdentityKey, for account: AccountId, verification: IdentityVerification)
+        throws -> Bool
+    {
+        let key = expected.serialize()
+        return state.withLock { state in
+            guard let record = state.identities[account], record.key == key else { return false }
+            state.identities[account] = IdentityRecord(
+                key: key, previous: nil, approved: true, verified: true, verification: verification)
+            return true
+        }
+    }
+
+    public func pinVerifiedIdentity(
+        _ identity: IdentityKey, for account: AccountId, verification: IdentityVerification
+    ) throws -> Bool {
+        let key = identity.serialize()
+        return state.withLock { state in
+            if let record = state.identities[account] {
+                // Another key is held: a different one, or the approved key a
+                // pending change to this one would replace (§5).
+                guard record.key == key, record.approved || record.previous == nil else { return false }
+            }
+            state.identities[account] = IdentityRecord(
+                key: key, previous: nil, approved: true, verified: true, verification: verification)
+            return true
+        }
+    }
+
+    public func identityVerification(for account: AccountId) throws -> IdentityVerification? {
+        state.withLock { state in
+            guard let record = state.identities[account], record.approved, record.verified else { return nil }
+            return record.verification
         }
     }
 

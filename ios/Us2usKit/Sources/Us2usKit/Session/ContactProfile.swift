@@ -23,13 +23,15 @@ public struct ContactProfile: Sendable, Equatable {
     /// The contact shares "active now" status. False until its first
     /// `ProfileUpdate` arrives (§8.6).
     public var presenceSharing: Bool
-    public var avatar: BRPAttachment?
+    /// The contact's last `ProfileUpdate.profile_avatar` (§8.9), checked when
+    /// it arrived; the initial letter without one or for a malformed one.
+    public var avatar: ProfilePicture
     /// `ProfileUpdate.updated_at` of the profile shown (ms since the epoch).
     public var updatedAt: UInt64
 
     public init(
         username: NormalizedUsername? = nil, usernameStatus: UsernameStatus = .unchecked, displayName: String? = nil,
-        presenceSharing: Bool = false, avatar: BRPAttachment? = nil, updatedAt: UInt64 = 0
+        presenceSharing: Bool = false, avatar: ProfilePicture = .initials, updatedAt: UInt64 = 0
     ) {
         self.username = username
         self.usernameStatus = usernameStatus
@@ -42,7 +44,10 @@ public struct ContactProfile: Sendable, Equatable {
     /// The profile after receiving `update`. Every `ProfileUpdate` is complete
     /// and replaces the stored profile; an empty or malformed field means
     /// "none" (§8.7). Its username is only a claim: a new one is unchecked,
-    /// while repeating the current one keeps the earlier result.
+    /// while repeating the current one keeps the earlier result. The picture
+    /// is `profile_avatar` (field 6); the deprecated `avatar` (field 2) is
+    /// ignored, and a malformed picture is the initial letter while the other
+    /// fields still apply.
     public func applying(_ update: BRPProfileUpdate) -> ContactProfile {
         let claimed = (try? NormalizedUsername(update.username)).flatMap { $0.value == update.username ? $0 : nil }
         let displayName =
@@ -51,7 +56,7 @@ public struct ContactProfile: Sendable, Equatable {
         return ContactProfile(
             username: claimed, usernameStatus: claimed == username ? usernameStatus : .unchecked,
             displayName: displayName, presenceSharing: update.presenceSharing,
-            avatar: update.hasAvatar ? update.avatar : nil, updatedAt: update.updatedAt)
+            avatar: ProfilePicture(update.hasProfileAvatar ? update.profileAvatar : nil), updatedAt: update.updatedAt)
     }
 
     /// Whether the username claim still needs a directory check.

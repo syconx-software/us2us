@@ -10,8 +10,10 @@ public enum UsernameError: Error, Equatable, Sendable {
 
 /// A normalized, valid username (PROTOCOL.md §3).
 ///
-/// A username is only a findable label for an account id; no key or local data
-/// is derived from it (§3.3), so it can change at any time.
+/// A username is only a findable label for an account id; no local data and
+/// no key is derived from it except the key of the account's avatar record
+/// for search, which is made again after every change (§3.3, §8.10), so it
+/// can change at any time.
 public struct NormalizedUsername: Hashable, Sendable, CustomStringConvertible {
     public static let minLength = 3
     public static let maxLength = 24

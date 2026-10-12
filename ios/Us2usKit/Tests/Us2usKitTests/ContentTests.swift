@@ -96,6 +96,34 @@ struct ContentRulesTests {
         try content.validateStructure()
     }
 
+    @Test("a sticker's language (field 5) round-trips and is invisible when empty (§8.8)")
+    func stickerLanguage() throws {
+        var bare = BRPSticker()
+        bare.packID = "us2us.words"
+        bare.stickerID = 101
+        bare.emoji = "👋"
+        var shown = bare
+        shown.lang = "tr"
+        let bareBytes: Data = try bare.serializedBytes()
+        let shownBytes: Data = try shown.serializedBytes()
+        // Field 5, wire type 2: tag 0x2A, length 2, "tr" — a build without the
+        // field skips it as an unknown field.
+        #expect(shownBytes == bareBytes + Data([0x2A, 0x02, 0x74, 0x72]))
+        let parsed = try BRPSticker(serializedBytes: shownBytes)
+        #expect(parsed == shown)
+        #expect(parsed.lang == "tr")
+        #expect(try BRPSticker(serializedBytes: bareBytes).lang.isEmpty)
+        let content = BRPContent(data: BRPDataMessage(payload: .sticker(shown)))
+        try content.validateStructure()
+        try content.validateForSending()
+        let roundTripped = try BRPContent(serializedBytes: try content.serializedBytes() as Data)
+        guard case .sticker(let sticker)? = roundTripped.data.payload else {
+            Issue.record("not a sticker")
+            return
+        }
+        #expect(sticker.lang == "tr")
+    }
+
     @Test("settings: last writer wins, ties go to the smaller account id")
     func settingsResolution() throws {
         let a = try #require(AccountId(bytes: .id(1)))

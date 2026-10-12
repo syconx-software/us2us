@@ -575,7 +575,7 @@ struct KeychainDeviceSecretTests {
         directory = try TemporaryDirectory()
     }
 
-    @Test("store, replace, delete; AfterFirstUnlockThisDeviceOnly; vault on top")
+    @Test("store, replace, delete; WhenUnlockedThisDeviceOnly; vault on top")
     func keychain() throws {
         let provider = KeychainDeviceSecretProvider(service: "com.syconx.us2us.tests", account: UUID().uuidString)
         defer { try? provider.deleteDeviceSecret() }
@@ -585,6 +585,21 @@ struct KeychainDeviceSecretTests {
         #expect(try provider.loadDeviceSecret() == secret)
         try provider.storeDeviceSecret(Data.pattern(32, seed: 6))
         #expect(try provider.loadDeviceSecret() == Data.pattern(32, seed: 6))
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: provider.service,
+            kSecAttrAccount as String: provider.account,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        #expect(status == errSecSuccess)
+        let attributes = result as? [String: Any]
+        #expect(
+            attributes?[kSecAttrAccessible as String] as? String
+                == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String)
+        #expect((attributes?[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue != true)
         try provider.deleteDeviceSecret()
         #expect(try provider.loadDeviceSecret() == nil)
 
