@@ -27,12 +27,20 @@
       "protobuf" : "0a2d0a100b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b108580b3c19c3372120a0863622e626173696310031a04f09f9882"
     },
     {
+      "case" : "sticker_lang",
+      "protobuf" : "0a340a100d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d108880b3c19c3372190a0b75733275732e776f72647310651a04f09f918b2a027472"
+    },
+    {
       "case" : "reaction",
       "protobuf" : "0a350a100c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c108680b3c19c337a1a0a10010101010101010101010101010101011206e29da4efb88f"
     },
     {
       "case" : "receipt",
       "protobuf" : "12260802121001010101010101010101010101010101121002020202020202020202020202020202"
+    },
+    {
+      "case" : "receipt_saved",
+      "protobuf" : "12140804121003030303030303030303030303030303"
     },
     {
       "case" : "typing",
@@ -57,6 +65,14 @@
     {
       "case" : "profile",
       "protobuf" : "221c321a0a064b61c49f616e188980b3c19c3322076b6167616e5f792801"
+    },
+    {
+      "case" : "profile_avatar_preset",
+      "protobuf" : "2220321e0a064b61c49f616e188a80b3c19c3322076b6167616e5f79280132020801"
+    },
+    {
+      "case" : "profile_avatar_photo",
+      "protobuf" : "22283226188b80b3c19c3322076b6167616e5f79321412120a0a696d6167652f6a7065671204ffd8ffd9"
     },
     {
       "case" : "sealed_content",
