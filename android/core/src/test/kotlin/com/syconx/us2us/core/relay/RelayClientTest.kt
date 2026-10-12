@@ -14,6 +14,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import okhttp3.Cache
+import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -319,6 +321,72 @@ class RelayClientTest {
         val failed = events.single() as SocketEvent.Failed
         assertEquals(401, failed.httpStatus)
         assertFalse(failed.isRetryable)
+    }
+
+    @Test
+    fun `avatar writes carry the record or the version, and a stale one learns the highest`() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(204).addHeader("ETag", "\"3\"").build())
+        server.enqueue(json(409, """{"error":{"code":"stale_version","message":"stale"}}""", "X-Avatar-Version" to "7"))
+        server.enqueue(noContent())
+
+        val record = ByteArray(8192) { it.toByte() }
+        authed.putAvatar(record)
+        val stale = assertThrows<RelayException> { runBlocking { authed.deleteAvatar(5) } }
+        assertEquals(RelayErrorCode.STALE_VERSION, stale.code)
+        assertEquals(409, stale.httpStatus)
+        assertEquals(7L, stale.avatarVersion)
+        authed.deleteAvatar(Long.MAX_VALUE)
+        assertThrows<IllegalArgumentException> { runBlocking { authed.deleteAvatar(0) } }
+
+        val put = take()
+        assertEquals("PUT", put.method)
+        assertEquals("/v1/accounts/me/avatar", put.url.encodedPath)
+        assertEquals(token.headerValue, put.headers["X-Auth-Token"])
+        assertEquals("application/octet-stream", put.headers["Content-Type"])
+        assertEquals("8192", put.headers["Content-Length"])
+        assertArrayEquals(record, put.body!!.toByteArray())
+        assertEquals("5", take().headers["X-Avatar-Version"])
+        val delete = take()
+        assertEquals("DELETE", delete.method)
+        assertEquals("/v1/accounts/me/avatar", delete.url.encodedPath)
+        assertEquals(Long.MAX_VALUE.toString(), delete.headers["X-Avatar-Version"])
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun `avatar fetches revalidate, bound the body and never use an HTTP cache`() = runBlocking {
+        val cacheDirectory = kotlin.io.path.createTempDirectory("us2us-cache").toFile()
+        try {
+            // An app that gave the client an HTTP cache, and a relay that wrongly allows caching.
+            val cached = RelayClient(server.url("/").toString(), OkHttpClient.Builder().cache(Cache(cacheDirectory, 1024 * 1024)).build()).withAuthToken(token)
+            val record = ByteArray(8192) { 1 }
+            repeat(2) {
+                server.enqueue(MockResponse.Builder().code(200).addHeader("ETag", "\"4\"").addHeader("Cache-Control", "max-age=3600").body(Buffer().write(record)).build())
+            }
+            server.enqueue(MockResponse.Builder().code(304).addHeader("ETag", "\"4\"").build())
+            server.enqueue(json(404, """{"error":{"code":"not_found","message":"no"}}"""))
+            server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(ByteArray(49153))).build())
+            server.enqueue(json(405, """{"error":{"code":"bad_request","message":"method"}}"""))
+
+            assertArrayEquals(record, (cached.fetchAvatar(peer) as AvatarFetch.Found).record)
+            assertArrayEquals(record, (cached.fetchAvatar(peer) as AvatarFetch.Found).record)
+            assertEquals(AvatarFetch.NotModified, cached.fetchAvatar(peer, ifNoneMatch = 4))
+            assertEquals(AvatarFetch.None, cached.fetchAvatar(peer))
+            assertThrows<java.io.IOException> { runBlocking { cached.fetchAvatar(peer) } }
+            assertEquals(405, assertThrows<RelayException> { runBlocking { cached.fetchAvatar(peer) } }.httpStatus)
+
+            val first = take()
+            assertEquals("GET", first.method)
+            assertEquals("/v1/accounts/$peer/avatar", first.url.encodedPath)
+            assertEquals(token.headerValue, first.headers["X-Auth-Token"])
+            assertNull(first.headers["If-None-Match"])
+            assertNull(take().headers["If-None-Match"], "the second fetch reached the relay, not a cache")
+            assertEquals("\"4\"", take().headers["If-None-Match"])
+            assertEquals(6, server.requestCount)
+            assertEquals(0, cacheDirectory.walk().count { it.isFile && it.length() >= record.size }, "nothing of the record on disk")
+        } finally {
+            cacheDirectory.deleteRecursively()
+        }
     }
 
     private fun dummyRegistration(): RegistrationRequest {

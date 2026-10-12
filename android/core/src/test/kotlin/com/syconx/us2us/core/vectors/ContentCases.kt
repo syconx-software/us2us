@@ -10,6 +10,7 @@ import com.syconx.us2us.core.proto.ReceiptMessage
 import com.syconx.us2us.core.proto.SealedContent
 import com.syconx.us2us.core.proto.accessKeyUpdate
 import com.syconx.us2us.core.proto.attachment
+import com.syconx.us2us.core.proto.avatarPhoto
 import com.syconx.us2us.core.proto.content
 import com.syconx.us2us.core.proto.controlMessage
 import com.syconx.us2us.core.proto.conversationSettings
@@ -19,6 +20,7 @@ import com.syconx.us2us.core.proto.ghostMode
 import com.syconx.us2us.core.proto.liveLocation
 import com.syconx.us2us.core.proto.location
 import com.syconx.us2us.core.proto.presenceMessage
+import com.syconx.us2us.core.proto.profileAvatar
 import com.syconx.us2us.core.proto.profileUpdate
 import com.syconx.us2us.core.proto.quote
 import com.syconx.us2us.core.proto.reaction
@@ -92,10 +94,18 @@ object ContentCases {
             "sticker" to content {
                 data = dataMessage { messageId = id(11); sentAt = 1760000000005; sticker = sticker { packId = "cb.basic"; stickerId = 3; emoji = "😂" } }
             },
+            "sticker_lang" to content {
+                data = dataMessage {
+                    messageId = id(13)
+                    sentAt = 1760000000008
+                    sticker = sticker { packId = "us2us.words"; stickerId = 101; emoji = "👋"; lang = "tr" }
+                }
+            },
             "reaction" to content {
                 data = dataMessage { messageId = id(12); sentAt = 1760000000006; reaction = reaction { targetMessageId = id(1); emoji = "❤️" } }
             },
             "receipt" to content { receipt = receiptMessage { type = ReceiptMessage.Type.READ; messageIds += listOf(id(1), id(2)) } },
+            "receipt_saved" to content { receipt = receiptMessage { type = ReceiptMessage.Type.SAVED; messageIds += id(3) } },
             "typing" to content { typing = typingMessage { started = true } },
             "presence" to content { presence = presenceMessage { state = PresenceMessage.State.ONLINE; validForSeconds = 300; reply = true } },
             "ghost_settings" to content {
@@ -112,6 +122,28 @@ object ContentCases {
             "profile" to content {
                 control = controlMessage {
                     profile = profileUpdate { displayName = "Kağan"; updatedAt = 1760000000009; username = "kagan_y"; presenceSharing = true }
+                }
+            },
+            "profile_avatar_preset" to content {
+                control = controlMessage {
+                    profile = profileUpdate {
+                        displayName = "Kağan"
+                        updatedAt = 1760000000010
+                        username = "kagan_y"
+                        presenceSharing = true
+                        profileAvatar = profileAvatar { presetId = 1 }
+                    }
+                }
+            },
+            "profile_avatar_photo" to content {
+                control = controlMessage {
+                    profile = profileUpdate {
+                        updatedAt = 1760000000011
+                        username = "kagan_y"
+                        profileAvatar = profileAvatar {
+                            photo = avatarPhoto { contentType = "image/jpeg"; data = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte()).toByteString() }
+                        }
+                    }
                 }
             },
             "sealed_content" to sealedContent {

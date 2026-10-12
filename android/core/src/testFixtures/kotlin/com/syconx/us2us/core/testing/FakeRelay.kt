@@ -50,11 +50,17 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         val kyberOneTimePreKeys = ArrayDeque<JsonObject>()
         val mailbox = LinkedHashMap<String, JsonObject>()
         var socket: WebSocket? = null
+
+        /** §4.12: the highest version of a store or delete, which outlives the record. */
+        var avatarHighestVersion = 0L
+        var avatarRecord: ByteArray? = null
     }
 
     private class Blob(val bytes: ByteArray, val deleteToken: String)
 
     private class Failure(val status: Int, val code: String, message: String) : Exception(message)
+
+    private class StaleVersion(val highest: Long) : Exception("stale avatar version")
 
     private val accounts = HashMap<AccountId, Account>()
     private val directory = HashMap<String, AccountId>()
@@ -82,6 +88,39 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
     var directoryLookups = 0
         private set
 
+    /** Avatar fetches (`GET /v1/accounts/{id}/avatar`) and how many of them were answered `304`. */
+    @Volatile
+    var avatarFetches = 0
+        private set
+
+    @Volatile
+    var avatarNotModified = 0
+        private set
+
+    /** Avatar writes (`PUT` and `DELETE /v1/accounts/me/avatar`) received, whatever the answer. */
+    @Volatile
+    var avatarWrites = 0
+        private set
+
+    /** Behave like a relay from before §4.12: the avatar paths are unknown (`404`). */
+    @Volatile
+    var avatarsSupported = true
+
+    /** The avatar record the relay holds for [accountId], or `null`. */
+    fun avatarRecord(accountId: AccountId): ByteArray? = synchronized(lock) { accounts[accountId]?.avatarRecord?.copyOf() }
+
+    /** The highest avatar version of [accountId] (0 if none, or no such account). */
+    fun avatarHighestVersion(accountId: AccountId): Long = synchronized(lock) { accounts[accountId]?.avatarHighestVersion ?: 0 }
+
+    /**
+     * Serves [record] (or a `404` for `null`) for [accountId] from now on, whatever was written, as a
+     * hostile relay replaying an earlier record would (PROTOCOL.md §9 "Rollback"). The highest
+     * version is left alone.
+     */
+    fun replaceAvatarRecord(accountId: AccountId, record: ByteArray?) = synchronized(lock) {
+        accounts.getValue(accountId).avatarRecord = record?.copyOf()
+    }
+
     /** JSON `ping` frames received, per account (WebSocket-level pings are not counted, as on the real relay). */
     private val pings = CopyOnWriteArrayList<AccountId>()
 
@@ -94,6 +133,12 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
     fun failNext(matches: (RecordedRequest) -> Boolean) = synchronized(lock) { failures += matches }
 
     private val failures = ArrayList<(RecordedRequest) -> Boolean>()
+
+    /** Makes the next request matching [method] and [path] fail with `429` and `Retry-After: [seconds]`. */
+    fun rateLimitNext(method: String, path: String, seconds: Long) =
+        synchronized(lock) { rateLimits += ({ r: RecordedRequest -> r.method == method && r.url.encodedPath == path } to seconds) }
+
+    private val rateLimits = ArrayList<Pair<(RecordedRequest) -> Boolean, Long>>()
 
     /** How the most recent sealed send to [recipient] was authorized. */
     fun lastDeliveryTo(recipient: AccountId): String? = deliveries.lastOrNull { it.first == recipient }?.second
@@ -123,7 +168,16 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
                 failures.removeAt(injected)
                 return error(503, "internal", "injected failure")
             }
+            val limited = rateLimits.indexOfFirst { it.first(request) }
+            if (limited >= 0) {
+                val seconds = rateLimits.removeAt(limited).second
+                return error(429, "rate_limited", "injected limit").newBuilder().addHeader("Retry-After", seconds.toString()).build()
+            }
             route(request)
+        } catch (e: StaleVersion) {
+            error(409, "stale_version", "avatar version is not above the highest").newBuilder()
+                .addHeader("X-Avatar-Version", e.highest.toString())
+                .build()
         } catch (e: Failure) {
             error(e.status, e.code, e.message ?: "")
         } catch (e: IllegalArgumentException) {
@@ -144,6 +198,10 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
             r.method == "POST" && p == listOf("accounts", "me", "token") -> rotateToken(authenticate(r))
             r.method == "PUT" && p == listOf("accounts", "me", "access-key") -> setAccessKey(authenticate(r), r)
             r.method == "DELETE" && p == listOf("accounts", "me") -> deleteAccount(authenticate(r))
+            p.size == 3 && p[0] == "accounts" && p[2] == "avatar" && !avatarsSupported -> unknownAvatarPath(r)
+            r.method == "PUT" && p == listOf("accounts", "me", "avatar") -> putAvatar(authenticate(r), r)
+            r.method == "DELETE" && p == listOf("accounts", "me", "avatar") -> deleteAvatar(authenticate(r), r)
+            r.method == "GET" && p.size == 3 && p[0] == "accounts" && p[2] == "avatar" -> fetchAvatar(r, p[1])
             r.method == "GET" && p.size == 3 && p[0] == "accounts" && p[2] == "identity" -> identity(r, AccountId.parse(p[1]))
             r.method == "GET" && p.size == 2 && p[0] == "directory" -> lookup(r, p[1])
             r.method == "PUT" && p == listOf("keys") -> uploadKeys(authenticate(r), body(r))
@@ -219,6 +277,7 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         reservedUsernames.remove(hash)
         directory[hash] = account.id
         account.usernameHash = hash
+        account.avatarRecord = null // §4.3: the record goes with the old username; the version stays.
         return noContent()
     }
 
@@ -252,6 +311,64 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         directoryLookups++
         val account = directory[hash]?.let(accounts::get) ?: throw Failure(404, "not_found", "no such username")
         return json(200, buildJsonObject { put("accountId", account.id.toString()); put("identityKey", account.identityKey) })
+    }
+
+    // Avatar records (§4.12)
+
+    /** A relay from before §4.12: the request is counted, and the path is unknown. */
+    private fun unknownAvatarPath(r: RecordedRequest): MockResponse {
+        if (r.method == "GET") avatarFetches++ else avatarWrites++
+        throw Failure(404, "not_found", "no route for ${r.method} ${r.url.encodedPath}")
+    }
+
+    private fun putAvatar(account: Account, r: RecordedRequest): MockResponse {
+        avatarWrites++
+        val record = r.body?.toByteArray() ?: ByteArray(0)
+        if (record.size > AVATAR_MAX_LENGTH) throw Failure(413, "payload_too_large", "avatar record too large")
+        if (record.size !in AVATAR_LENGTHS) throw Failure(400, "bad_request", "avatar record length")
+        if (!record.copyOfRange(0, 5).contentEquals(byteArrayOf(0x42, 0x52, 0x50, 0x41, 0x01))) throw Failure(400, "bad_request", "avatar record header")
+        val version = (5 until 13).fold(0L) { v, i -> (v shl 8) or (record[i].toLong() and 0xff) }
+        if (version < 1) throw Failure(400, "bad_request", "avatar record version")
+        checkAvatarVersion(account, version)
+        account.avatarHighestVersion = version
+        account.avatarRecord = record
+        return MockResponse.Builder().code(204).addHeader("ETag", "\"$version\"").build()
+    }
+
+    private fun deleteAvatar(account: Account, r: RecordedRequest): MockResponse {
+        avatarWrites++
+        val header = r.headers["X-Avatar-Version"] ?: throw Failure(400, "bad_request", "X-Avatar-Version missing")
+        val version = header.takeIf { it.matches(Regex("[0-9]{1,19}")) }?.toLongOrNull()?.takeIf { it >= 1 }
+            ?: throw Failure(400, "bad_request", "malformed X-Avatar-Version")
+        checkAvatarVersion(account, version)
+        account.avatarHighestVersion = version
+        account.avatarRecord = null
+        return noContent()
+    }
+
+    private fun checkAvatarVersion(account: Account, version: Long) {
+        if (version <= account.avatarHighestVersion) throw StaleVersion(account.avatarHighestVersion)
+    }
+
+    private fun fetchAvatar(r: RecordedRequest, id: String): MockResponse {
+        authenticate(r)
+        avatarFetches++
+        val accountId = AccountId.parse(id)
+        val account = accounts[accountId]
+        val record = account?.avatarRecord ?: throw Failure(404, "not_found", "no avatar record")
+        // The version in the stored record's header, as the relay reads it (§4.12).
+        val etag = "\"${(5 until 13).fold(0L) { version, i -> (version shl 8) or (record[i].toLong() and 0xff) }}\""
+        if (r.headers["If-None-Match"] == etag) {
+            avatarNotModified++
+            return MockResponse.Builder().code(304).addHeader("ETag", etag).build()
+        }
+        return MockResponse.Builder()
+            .code(200)
+            .addHeader("Content-Type", "application/octet-stream")
+            .addHeader("ETag", etag)
+            .addHeader("Cache-Control", "no-store")
+            .body(Buffer().write(record))
+            .build()
     }
 
     // Keys
@@ -501,6 +618,11 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body.toString()).build()
 
     private fun noContent() = MockResponse.Builder().code(204).build()
+
+    private companion object {
+        val AVATAR_LENGTHS = setOf(8192, 16384, 32768, 49152)
+        const val AVATAR_MAX_LENGTH = 49152
+    }
 
     private fun error(status: Int, code: String, message: String) = json(
         status,

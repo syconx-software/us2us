@@ -96,7 +96,8 @@ abstract class ConversationScenario {
             alice.job.cancelAndJoin()
             val restored = Messenger.restore(backup, "yeni telefon 42", RelayClient(relayUrl), InMemoryProtocolStorage(), InMemoryContactStore(), TestClient.testConfig)
             // Keys are replaced at once; the profile announcement waits for the receive loop (§5.5).
-            assertEquals(setOf(PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
+            // (The avatar record is in line too, unless the relay predates §4.12.)
+            assertEquals(setOf(PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup - PendingSetup.SYNC_AVATAR)
             val oldPhone = assertThrows<RelayException> { runBlocking { alice.messenger.maintainPreKeys() } }
             assertEquals(RelayErrorCode.UNAUTHORIZED, oldPhone.code)
 

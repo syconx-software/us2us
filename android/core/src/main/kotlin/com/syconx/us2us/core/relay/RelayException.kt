@@ -10,6 +10,10 @@ enum class RelayErrorCode(val wire: String) {
     POW_INVALID("pow_invalid"),
     NOT_FOUND("not_found"),
     USERNAME_TAKEN("username_taken"),
+
+    /** An avatar write whose version is not above the account's highest (§4.12); see [RelayException.avatarVersion]. */
+    STALE_VERSION("stale_version"),
+
     PAYLOAD_TOO_LARGE("payload_too_large"),
     RATE_LIMITED("rate_limited"),
     INTERNAL("internal"),
@@ -34,4 +38,6 @@ class RelayException(
     val relayMessage: String,
     /** Seconds from the `Retry-After` header of a `429`, if present. */
     val retryAfterSeconds: Long? = null,
+    /** The account's highest avatar version from the `X-Avatar-Version` header of a `409 stale_version` (§4.12). */
+    val avatarVersion: Long? = null,
 ) : IOException("relay error $httpStatus ${code.wire}: $relayMessage")
