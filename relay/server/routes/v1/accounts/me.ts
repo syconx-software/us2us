@@ -11,7 +11,7 @@ export default defineApiRoute({
     return { accountId: formatUuid(accountId), usernameHash: encodeB64u(usernameHash) }
   },
 
-  /** §4.3 Delete account: the account, its keys, its mailbox and the media it uploaded. Irreversible. */
+  /** §4.3 Delete account: the account, its keys, its mailbox, the media it uploaded and its avatar record. Irreversible. */
   DELETE: async (event) => {
     const accountId = await requireAccount(event)
     await useRelay().deleteAccount(accountId)

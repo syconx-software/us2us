@@ -18,7 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "nuxt build && vitest run",
-    "test:only": "vitest run"
+    "test:only": "vitest run",
+    "audit": "pnpm audit --audit-level=low"
   },
   "dependencies": {
     "crossws": "0.3.5",
@@ -36,5 +37,18 @@
     "typescript": "5.9.3",
     "vitest": "5.0.3",
     "vue-tsc": "^3.3.12"
+  },
+  "pnpm": {
+    "overrides": {
+      "@nuxt/devtools>simple-git@<4.0.2": "4.0.2",
+      "simple-git>@simple-git/argv-parser@<2.0.1": "2.0.1",
+      "@esbuild-kit/core-utils>esbuild@<0.25.0": "0.25.12"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
+    }
   }
 }

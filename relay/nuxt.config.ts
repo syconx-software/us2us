@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FONTS, SITE_SCRIPT, STYLESHEET, THEME_COLOR, THEME_SCRIPT, THREE_VERSION, VERSIONED_FILES, withVersion } from './app/content/assets'
+import { FONTS, ICON_LINKS, SITE_SCRIPT, STYLESHEET, THEME_COLOR, THEME_SCRIPT, THREE_VERSION, VERSIONED_FILES, withVersion } from './app/content/assets'
 import { SITE_ASSET_HEADERS, SITE_HEADERS, SITE_PAGES } from './server/lib/website'
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
@@ -64,7 +64,7 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: THEME_COLOR },
       ],
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        ...ICON_LINKS,
         { rel: 'stylesheet', href: asset(STYLESHEET) },
         fontPreload(FONTS.interLatin),
         fontPreload(FONTS.dotoLatin),
@@ -96,7 +96,7 @@ export default defineNuxtConfig({
     '/js/**': { headers: { ...SITE_ASSET_HEADERS, 'cache-control': IMMUTABLE } },
     '/css/**': { headers: { ...SITE_ASSET_HEADERS, 'cache-control': IMMUTABLE } },
     '/licenses/**': { headers: { ...SITE_ASSET_HEADERS } },
-    '/favicon.svg': { headers: { ...SITE_ASSET_HEADERS } },
+    ...Object.fromEntries(ICON_LINKS.map(link => [link.href, { headers: { ...SITE_ASSET_HEADERS } }])),
     '/robots.txt': { headers: { ...SITE_ASSET_HEADERS } },
   },
 

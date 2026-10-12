@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, lt, lte, ne } from 'drizzle-orm'
 import { isDuplicateKey, type Database, type Db } from '../db/client'
-import { accounts, envelopes, media, oneTimePreKeys, usernames } from '../db/schema'
+import { accounts, avatars, envelopes, media, oneTimePreKeys, usernames } from '../db/schema'
 import { constantTimeEqual, sha256 } from '../lib/crypto'
 import type { RegistrationRequest } from '../lib/validation'
 import { insertOneTimePreKeys } from './prekeys'
@@ -26,6 +26,12 @@ export interface DirectoryEntry {
 
 /** `gone`: the account was deleted while the change waited for it. */
 export type UsernameChange = 'changed' | 'unchanged' | 'taken' | 'gone'
+
+/**
+ * `stale`: the account's token is no longer the one the request was
+ * authenticated with. `taken`: the new token is another account's.
+ */
+export type TokenRotation = 'replaced' | 'unchanged' | 'stale' | 'taken' | 'gone'
 
 /** Accounts and username hashes (PROTOCOL.md §3.3, §4.3, §4.4). */
 export class AccountStore {
@@ -115,6 +121,10 @@ export class AccountStore {
    * account, and a deletion racing with a change, run one after the other,
    * and a change that waited for a deletion finds the account gone instead
    * of leaving a name behind that nobody could ever take again.
+   *
+   * A change also deletes the account's avatar record, whose key the old
+   * username gave, and keeps its highest version (§4.12); a hash that is
+   * taken, or the current one, changes nothing.
    */
   async changeUsername(accountId: Buffer, usernameHash: Buffer, now: number, holdMs: number): Promise<UsernameChange> {
     try {
@@ -137,6 +147,8 @@ export class AccountStore {
           await tx.insert(usernames).values({ usernameHash, accountId, heldUntil: null })
         }
 
+        await tx.update(avatars).set({ record: null }).where(eq(avatars.accountId, accountId))
+
         // Every other current name of the account (normally exactly one) is now a previous one.
         const previous = and(eq(usernames.accountId, accountId), isNull(usernames.heldUntil), ne(usernames.usernameHash, usernameHash))
         await (holdMs === 0
@@ -151,8 +163,30 @@ export class AccountStore {
     }
   }
 
-  async setAuthTokenHash(accountId: Buffer, authTokenHash: Buffer): Promise<void> {
-    await this.database.db.update(accounts).set({ authTokenHash }).where(eq(accounts.id, accountId))
+  /**
+   * Replaces the auth token hash `current` with `next` (§4.3). Under the
+   * account row lock, only the token that authenticated the request can be
+   * replaced: of two rotations started with the same token (two phones
+   * restoring one backup), one wins and the other finds it `stale`. A
+   * rotation to the token the account already has is `unchanged`, so a
+   * repeated request succeeds without changing anything.
+   */
+  async rotateAuthTokenHash(accountId: Buffer, current: Buffer, next: Buffer): Promise<TokenRotation> {
+    try {
+      return await this.database.transaction(async (tx) => {
+        const [row] = await tx.select({ authTokenHash: accounts.authTokenHash }).from(accounts)
+          .where(eq(accounts.id, accountId)).for('update')
+        if (!row) return 'gone'
+        if (row.authTokenHash.equals(next)) return 'unchanged'
+        if (!row.authTokenHash.equals(current)) return 'stale'
+        await tx.update(accounts).set({ authTokenHash: next }).where(eq(accounts.id, accountId))
+        return 'replaced'
+      })
+    } catch (error) {
+      // `next` is another account's token.
+      if (isDuplicateKey(error)) return 'taken'
+      throw error
+    }
   }
 
   async setAccessKeyHash(accountId: Buffer, accessKeyHash: Buffer | null): Promise<void> {
@@ -185,6 +219,7 @@ export class AccountStore {
       await tx.delete(media).where(eq(media.uploader, accountId))
       await tx.delete(envelopes).where(eq(envelopes.recipient, accountId))
       await tx.delete(oneTimePreKeys).where(eq(oneTimePreKeys.accountId, accountId))
+      await tx.delete(avatars).where(eq(avatars.accountId, accountId))
       await tx.delete(usernames).where(eq(usernames.accountId, accountId))
       await tx.delete(accounts).where(eq(accounts.id, accountId))
       return uploads.map(row => row.id)

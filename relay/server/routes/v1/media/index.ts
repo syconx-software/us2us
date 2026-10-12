@@ -1,5 +1,4 @@
 import { createWriteStream } from 'node:fs'
-import { rename } from 'node:fs/promises'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { getRequestHeader, setResponseStatus } from 'h3'
@@ -42,7 +41,8 @@ export default defineApiRoute({
     if (!await relay.media.create(id, accountId, sha256(deleteToken), size, expiresAt)) throw unauthorized()
     try {
       await receive(event.node.req, relay.media.partPathOf(id), size)
-      await rename(relay.media.partPathOf(id), relay.media.pathOf(id))
+      // Deleted while the body arrived.
+      if (!await relay.media.publish(id)) throw unauthorized()
     } catch (error) {
       // If even this fails, the row expires and the retention sweep removes both files.
       await relay.media.remove(id).catch(() => undefined)

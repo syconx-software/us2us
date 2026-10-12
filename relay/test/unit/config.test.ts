@@ -35,6 +35,9 @@ describe('loadConfig', () => {
     expect(config.rateLimits.mediaBytes).toEqual({ limit: 2 * 1024 ** 3, windowMs: 86_400_000 })
     expect(config.rateLimits.ephemeral).toEqual({ limit: 3000, windowMs: 60_000 })
     expect(config.rateLimits.authFail).toEqual({ limit: 30, windowMs: 60_000 })
+    expect(config.rateLimits.avatarFetch).toEqual({ limit: 60, windowMs: 3_600_000 })
+    expect(config.rateLimits.avatarWrite).toEqual({ limit: 30, windowMs: 86_400_000 })
+    expect(config.rateLimits.avatarDelete).toEqual({ limit: 200, windowMs: 86_400_000 })
     expect(config).toMatchObject({ mailboxMaxEnvelopes: 10_000, mailboxMaxBytes: 50 * 1024 * 1024, diskMinFreeBytes: 1024 * 1024 * 1024 })
   })
 

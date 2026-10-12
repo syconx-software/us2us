@@ -38,3 +38,23 @@ export const FONTS = {
 
 /** Background colour of the dark theme, for `theme-color` and the 404 page. */
 export const THEME_COLOR = '#161826'
+
+/**
+ * The site icons, all in public/: the us2us mark on the app icon's ground.
+ * favicon.svg is the one browsers use (at 24 px and smaller it draws the line
+ * thicker, so it stays crisp at 16 px); favicon.ico holds 16, 32 and 48 px
+ * renders of it for browsers without SVG icons; apple-touch-icon.png is the
+ * iOS app icon at 180 px, for home screens. The ICO's `sizes` keeps Chrome
+ * on the SVG. Every page names them: the head in nuxt.config.ts, the invite
+ * page and the 404 page (ICON_LINKS_HTML).
+ */
+export const ICON_LINKS = [
+  { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
+  { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+  { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+] as const
+
+/** ICON_LINKS as HTML, for the string-template pages. */
+export const ICON_LINKS_HTML = ICON_LINKS
+  .map(link => `<link ${Object.entries(link).map(([name, value]) => `${name}="${value}"`).join(' ')}>`)
+  .join('\n')

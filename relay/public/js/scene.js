@@ -177,7 +177,7 @@ export function mountUs2usScene(canvas, opts = {}) {
   }
 
   let raf = 0, last = performance.now(), time = 0, mx = 0, my = 0, tmx = 0, tmy = 0, w0 = 0, h0 = 0, lastOp = -1
-  let lastInput = 0, lastDraw = 0
+  let lastInput = 0, lastDraw = 0, intro = 0
   const onPointer = e => { tmx = e.clientX / innerWidth - 0.5; tmy = e.clientY / innerHeight - 0.5; lastInput = performance.now() }
   const onScroll = () => { lastInput = performance.now() }
   window.addEventListener('pointermove', onPointer, { passive: true })
@@ -202,13 +202,16 @@ export function mountUs2usScene(canvas, opts = {}) {
     const [s, q] = readScroll()
     const narrow = clamp((1.2 - w / h) / 0.6, 0, 1)
     mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05
-    const kk = 1 + narrow * 0.75
+    // Entrance (1.6 s, every frame): fade up as the camera settles in.
+    if (intro < 1) { intro = Math.min(1, intro + dt / 1.6); lastInput = now }
+    const rest = (1 - intro) ** 3
+    const kk = (1 + narrow * 0.75) * (1 + rest * 0.3)
     camera.position.set(s.tx + (s.cx - s.tx) * kk + mx * 0.35, s.ty + (s.cy - s.ty) * kk - my * 0.2, s.tz + (s.cz - s.tz) * kk)
     camera.lookAt(s.tx, s.ty, s.tz)
     world.position.x = s.wx * (1 - narrow)
-    world.rotation.y = s.ry + Math.sin(time * 0.3) * 0.07
+    world.rotation.y = s.ry + Math.sin(time * 0.3) * 0.07 - rest * 0.5
     world.rotation.x = Math.sin(time * 0.21) * 0.03
-    const op = Math.round((1 - s.dim * 0.8) * (1 - narrow * 0.45) * 100) / 100
+    const op = Math.round((1 - s.dim * 0.8) * (1 - narrow * 0.45) * (1 - rest) * 100) / 100
     if (op !== lastOp) { canvas.style.opacity = String(op); lastOp = op }
 
     const gq = q.ghost

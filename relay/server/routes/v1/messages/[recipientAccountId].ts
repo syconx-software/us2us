@@ -50,11 +50,22 @@ export default defineApiRoute({
     }
 
     await authorize(event, recipient, target)
-    // Storage limits apply to every send, so a refusal says nothing about the recipient being online.
-    if (relay.persister.overloaded || !relay.disk.reserve(body.length)) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
-    if (!relay.mailbox.admits(recipientKey, body.length, relay.persister.held(recipientKey))) {
+    // Storage limits apply to every send and count the recipient's envelopes
+    // wherever they are (live session, persister, mailbox), so a refusal
+    // says nothing about the recipient being online.
+    // Only right after start-up, and for every recipient alike: the mailboxes are counted once.
+    if (!relay.mailbox.loaded) {
+      await relay.countMailboxes().catch(() => {
+        throw unavailable(UNAVAILABLE_RETRY_SECONDS)
+      })
+    }
+    // From here on nothing waits, so the checks and the hand-over see the same state.
+    if (relay.sessions.overloaded) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
+    if (!relay.mailbox.admits(recipientKey, body.length, relay.sessions.inMemory(recipientKey))) {
       throw rateLimited(MAILBOX_FULL_RETRY_SECONDS, 'the recipient’s mailbox is full')
     }
+    // Last, so that a refused envelope takes nothing from the free space.
+    if (!relay.disk.reserve(body.length)) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
     const id = relay.envelopeIds.next(now)
     const envelope: PendingEnvelope = { recipient, recipientKey, id, idKey: id.toString('hex'), serverTimestamp: now, body, acked: false }
     if (!relay.sessions.deliver(envelope)) relay.persister.enqueue([envelope])

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LICENCES_ANCHOR, site, SUPPORT_EMAIL, type Locale } from '~/content/site'
+import { BETA_ANCHOR, LICENCES_ANCHOR, site, SUPPORT_EMAIL, type Locale } from '~/content/site'
 
 const props = defineProps<{ locale: Locale }>()
 const text = computed(() => site[props.locale].support)
@@ -19,6 +19,22 @@ const other = computed<Locale>(() => (props.locale === 'tr' ? 'en' : 'tr'))
           <span class="contact-label">{{ text.emailLabel }}</span>
           <a class="contact-email" :href="`mailto:${SUPPORT_EMAIL}`">{{ SUPPORT_EMAIL }}</a>
         </p>
+
+        <!-- Beta testers: what keeps their data safe, and where bugs and security problems go. -->
+        <section :id="BETA_ANCHOR" class="prose-section" aria-labelledby="beta-title">
+          <h2 id="beta-title" class="h2 h2-prose">{{ text.beta.title }}</h2>
+          <p>{{ text.beta.intro }}</p>
+          <ul class="notes">
+            <li v-for="note in text.beta.notes" :key="note.title" class="card elev-sm note" :class="note.tone && `note-${note.tone}`">
+              <span class="feature-icon note-icon"><SiteIcon :name="note.icon" /></span>
+              <div class="note-copy">
+                <h3 class="card-title note-title">{{ note.title }}</h3>
+                <p class="note-body">{{ note.body }}</p>
+                <a v-if="note.email" class="note-email" :href="`mailto:${note.email}`">{{ note.email }}</a>
+              </div>
+            </li>
+          </ul>
+        </section>
 
         <h2 class="h2 h2-prose">{{ text.faqTitle }}</h2>
         <div class="faq">

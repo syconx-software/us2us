@@ -67,6 +67,7 @@ export function defineApiHandler<T>(handler: (event: H3Event<EventHandlerRequest
       if (apiError.status === 401) recordUnauthorized(useRelay(), clientAddress(event), apiError)
       setResponseStatus(event, apiError.status)
       if (apiError.retryAfterSeconds !== undefined) setResponseHeader(event, 'retry-after', apiError.retryAfterSeconds)
+      if (apiError.headers) setResponseHeaders(event, apiError.headers)
       return apiError.toBody()
     }
   })
@@ -192,7 +193,16 @@ export function isClientAbort(error: unknown): boolean {
 }
 
 export async function readJson(event: H3Event, maxBytes: number): Promise<unknown> {
+  return parseJson(await readBytes(event, maxBytes))
+}
+
+/** `readJson` for a request whose body may be left out: an empty body is `undefined`. */
+export async function readOptionalJson(event: H3Event, maxBytes: number): Promise<unknown> {
   const body = await readBytes(event, maxBytes)
+  return body.length === 0 ? undefined : parseJson(body)
+}
+
+function parseJson(body: Buffer): unknown {
   try {
     return JSON.parse(body.toString('utf8')) as unknown
   } catch {
