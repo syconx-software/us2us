@@ -1,8 +1,8 @@
 // us2us progressive enhancement; the pages are complete without it. Adds the
 // section-keeping language switch, slow scrolling to in-page sections (so the
-// 3D backdrop's transitions play out), the pinned status steps, the countdown
-// and, when affordable, the 3D backdrop (scene.js, at idle time). The theme
-// toggle is theme.js's; this file follows its state.
+// 3D backdrop's transitions play out), the pinned status steps, the countdown,
+// the scroll reveal and, when affordable, the 3D backdrop (scene.js, at idle
+// time). The theme toggle is theme.js's; this file follows its state.
 
 const root = document.documentElement
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -57,6 +57,8 @@ function glideTo(target) {
   const from = scrollY
   const to = target.id === 'top' ? 0 : Math.min(max, Math.max(0, target.getBoundingClientRect().top + from - offset))
   const distance = to - from
+  // Focus moves at once, even if the glide is cut short or not needed (skip link).
+  target.focus({ preventScroll: true })
   if (Math.abs(distance) < 2) return
   const duration = Math.min(SCROLL_MS_MAX, Math.max(SCROLL_MS_MIN, SCROLL_MS_MIN + (Math.abs(distance) / innerHeight) * SCROLL_MS_PER_SCREEN))
   const start = performance.now()
@@ -70,8 +72,6 @@ function glideTo(target) {
     else {
       glide = 0
       root.classList.remove('gliding')
-      // Keyboard and screen-reader users continue from the section.
-      target.focus({ preventScroll: true })
     }
   }
   glide = requestAnimationFrame(step)
@@ -80,7 +80,8 @@ function glideTo(target) {
 document.addEventListener('click', (event) => {
   if (!motionAllowed() || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   const link = event.target instanceof Element ? event.target.closest('a[href*="#"]') : null
-  if (!link || link.hasAttribute('data-lang-link') || link.origin !== location.origin || link.pathname !== location.pathname) return
+  // Source marks and their way back ("why we built it") are footnote jumps: the browser's quicker scroll.
+  if (!link || link.closest('.cite, .source-back') || link.hasAttribute('data-lang-link') || link.origin !== location.origin || link.pathname !== location.pathname) return
   const id = decodeURIComponent(link.hash.slice(1))
   const target = id && document.getElementById(id)
   if (!target) return
@@ -294,3 +295,28 @@ addEventListener('pageshow', (event) => {
 if (sceneWelcome()) root.classList.add('scene')
 measurePins()
 scheduleScene()
+
+// ── reveal: blocks below the fold rise in once, as they are scrolled to
+// (site.css). Those on screen at load are left alone, so nothing blinks.
+// Blocks arriving together follow each other (entries come in DOM order).
+const REVEAL = '.section-copy > :not(.status-list), .status, main .card, .kinds-title, .kind, .stat, .band-line, .prose > :not(.faq, .prose-section), .prose-section > :not(.notes), .faq-item'
+if (motionAllowed() && 'IntersectionObserver' in window) {
+  const watch = new IntersectionObserver((entries) => {
+    let next = 0
+    for (const { isIntersecting, target } of entries) {
+      if (!isIntersecting) continue
+      target.style.setProperty('--rv-delay', `${Math.min(next++, 8) * 70}ms`)
+      target.classList.add('is-in')
+      watch.unobserve(target)
+    }
+  }, { rootMargin: '0px 0px -48px 0px' })
+  const all = [...document.querySelectorAll(REVEAL)]
+  for (const block of all) {
+    if (all.some(other => other !== block && other.contains(block))) continue // moves with its block
+    const below = block.getBoundingClientRect().top >= innerHeight
+    block.classList.add('rv')
+    if (below) watch.observe(block)
+    else block.classList.add('is-in')
+  }
+  root.classList.add('reveal')
+}

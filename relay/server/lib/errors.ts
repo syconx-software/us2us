@@ -6,6 +6,7 @@ export type ErrorCode =
   | 'pow_invalid'
   | 'not_found'
   | 'username_taken'
+  | 'stale_version'
   | 'payload_too_large'
   | 'rate_limited'
   | 'internal'
@@ -16,6 +17,8 @@ export class ApiError extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly retryAfterSeconds?: number,
+    /** Further response headers the error carries, such as `X-Avatar-Version` (§4.12). */
+    readonly headers?: Readonly<Record<string, string>>,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -33,6 +36,9 @@ export const accessDenied = (message = 'a valid access key or proof-of-work is r
 export const powInvalid = () => new ApiError(403, 'pow_invalid', 'proof-of-work is missing, wrong, expired or reused')
 export const notFound = (what = 'resource') => new ApiError(404, 'not_found', `${what} not found`)
 export const usernameTaken = () => new ApiError(409, 'username_taken', 'username is already taken')
+/** §4.12: an avatar write whose version is not above the account's highest; the client writes again with `highest + 1`. */
+export const staleVersion = (highest: bigint) =>
+  new ApiError(409, 'stale_version', 'the version is not above the highest one written', undefined, { 'x-avatar-version': highest.toString() })
 export const payloadTooLarge = (limit: number) =>
   new ApiError(413, 'payload_too_large', `body exceeds the limit of ${limit} bytes`)
 export const rateLimited = (retryAfterSeconds: number, message = 'too many requests') =>

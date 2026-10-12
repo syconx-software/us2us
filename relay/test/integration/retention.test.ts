@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { lutimes, mkdir, symlink, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Api, eventually, register } from '../support/client'
@@ -56,6 +56,42 @@ describe('retention sweep', () => {
     expect(existsSync(`${path(expired)}.part`)).toBe(false)
     expect(existsSync(path(live))).toBe(true)
     expect(await db.count('media WHERE id = ?', [live])).toBe(1)
+  })
+
+  it('deletes old media files that have no row, and nothing else', async () => {
+    // One subdirectory is checked per run, so every one gets the same files.
+    const old = new Date(Date.now() - 2 * 3_600_000)
+    const plant = async (path: string, mtime = old) => {
+      await writeFile(path, randomBytes(10))
+      await utimes(path, mtime, mtime)
+      return path
+    }
+    const idIn = (subdir: number) => Buffer.concat([Buffer.from([subdir]), randomBytes(15)])
+    const live = Array.from({ length: 256 }, (_, i) => idIn(i))
+    await db.query(`INSERT INTO media (id, uploader, delete_token_hash, size, expires_at) VALUES ${live.map(() => '(?, ?, ?, 10, ?)').join(', ')}`,
+      live.flatMap(id => [id, randomBytes(16), randomBytes(32), Date.now() + DAY]))
+
+    const outside = await plant(join(relay.mediaDir, 'outside'))
+    const orphans: string[] = []
+    const kept: string[] = [outside]
+    for (let i = 0; i < 256; i++) {
+      const subdir = join(relay.mediaDir, i.toString(16).padStart(2, '0'))
+      const orphan = join(subdir, idIn(i).toString('hex'))
+      // The .part first: a sweep between the two leaves the finished file, which is then not counted as swept.
+      await plant(`${orphan}.part`)
+      orphans.push(await plant(orphan))
+      kept.push(await plant(join(subdir, live[i]!.toString('hex'))))
+      kept.push(await plant(join(subdir, idIn(i).toString('hex')), new Date()))
+      kept.push(await plant(join(subdir, 'README')))
+      const link = join(subdir, idIn(i).toString('hex'))
+      await symlink(outside, link)
+      await lutimes(link, old, old)
+      kept.push(link)
+    }
+
+    const swept = await eventually(() => orphans.find(path => !existsSync(path)))
+    await eventually(() => !existsSync(`${swept}.part`))
+    for (const path of kept) expect(existsSync(path), path).toBe(true)
   })
 
   it('forgets used proof-of-work tokens once they expire', async () => {

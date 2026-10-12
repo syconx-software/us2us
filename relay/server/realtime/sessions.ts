@@ -4,7 +4,7 @@ import { describeError } from '../lib/errors'
 import type { Logger } from '../lib/logger'
 import { MAX_ACK_IDS } from '../lib/validation'
 import type { Mailbox, StoredEnvelope } from '../services/mailbox'
-import type { EnvelopePersister, PendingEnvelope } from './persister'
+import type { EnvelopePersister, HeldUsage, PendingEnvelope } from './persister'
 
 /** The parts of a WebSocket the session logic needs; adapted from a crossws peer. */
 export interface SessionSocket {
@@ -38,6 +38,13 @@ const DRAIN_POLL_MS = 25
 const ENVELOPE_LIMIT = 64 * 1024
 /** At most this much of the backlog is in memory at once, so a 14-day mailbox costs the same as a small one. */
 const SYNC_SLICE_ROWS = Math.floor(2 * 1024 * 1024 / ENVELOPE_LIMIT)
+/**
+ * Above this many envelope bytes in memory, live sessions and the persister
+ * together, the relay takes no new sealed envelopes. Live envelopes leave
+ * memory within their hold limit, so it is only reached while MySQL cannot
+ * keep up or under a flood.
+ */
+const MAX_HELD_BYTES = 128 * 1024 * 1024
 
 type OutboxItem =
   | { kind: 'envelope', entry: PendingEnvelope }
@@ -46,7 +53,11 @@ type OutboxItem =
 
 export class LiveSession {
   state: 'syncing' | 'live' | 'closed' = 'syncing'
-  /** Sent (or, while syncing or over budget, held back) and not yet acknowledged or handed to the persister. */
+  /**
+   * Sent (or, while syncing or over budget, held back) and not yet
+   * acknowledged or handed to the persister. Changed only by the manager's
+   * hold() and release(), which keep its counts.
+   */
   readonly pending = new Map<string, PendingEnvelope>()
   /** Frames waiting to be written, in order. */
   outbox: OutboxItem[] = []
@@ -100,12 +111,22 @@ const byId = (a: StoredEnvelope, b: StoredEnvelope) => Buffer.compare(a.id, b.id
  * exactly one place: a session's pending map, the persister, or the mailbox.
  * Two online users chatting cause no database writes at all.
  *
+ * An envelope stays in sessions for a limited time from when one first
+ * took it (`holdUntil`): a reconnect moves it to the new session but does
+ * not extend that time, and neither does a long backlog. What sessions hold
+ * is counted per recipient, and a sealed send counts it, together with what
+ * the persister holds, against the recipient's mailbox limits (`inMemory`),
+ * so memory is bounded like the mailbox whether or not anyone acknowledges.
+ *
  * Writes to a socket happen after the request that caused them has been
  * answered (they are queued in the session's outbox), so the time a send
  * takes does not depend on whether its recipient is connected.
  */
 export class SessionManager {
   private readonly sessions = new Map<string, LiveSession>()
+  /** What the sessions' pending maps hold per recipient, and in total. */
+  private readonly perRecipient = new Map<string, HeldUsage>()
+  private totalBytes = 0
   private shuttingDown = false
 
   constructor(private readonly deps: {
@@ -114,10 +135,42 @@ export class SessionManager {
     ackTimeoutMs: number
     idleTimeoutMs: number
     logger: Logger
+    /** How long an envelope may stay in sessions; by default its ack timeout plus STALL_TIMEOUT_MS. */
+    maxHoldMs?: number
+    /** By default MAX_HELD_BYTES. */
+    maxHeldBytes?: number
   }) {}
 
   isOnline(accountKey: string): boolean {
     return this.sessions.has(accountKey)
+  }
+
+  /** Envelopes a recipient's session holds, sent or not, and not yet acknowledged or stored. */
+  held(recipientKey: string): HeldUsage {
+    const usage = this.perRecipient.get(recipientKey)
+    return usage ? { ...usage } : { count: 0, bytes: 0 }
+  }
+
+  /** Bytes held by all sessions. */
+  get heldBytes(): number {
+    return this.totalBytes
+  }
+
+  /**
+   * Everything accepted for a recipient that is not in its mailbox yet: in
+   * its session or in the persister. It counts against the mailbox limits
+   * like stored envelopes (§4.6), so a full mailbox is refused at the same
+   * point whether or not the recipient is online.
+   */
+  inMemory(recipientKey: string): HeldUsage {
+    const live = this.held(recipientKey)
+    const queued = this.deps.persister.held(recipientKey)
+    return { count: live.count + queued.count, bytes: live.bytes + queued.bytes }
+  }
+
+  /** True while so much is held in memory that new sealed envelopes must be refused. */
+  get overloaded(): boolean {
+    return this.totalBytes + this.deps.persister.heldBytes > (this.deps.maxHeldBytes ?? MAX_HELD_BYTES)
   }
 
   /**
@@ -140,11 +193,11 @@ export class SessionManager {
     this.sessions.set(accountKey, session)
     if (previous) {
       this.retire(previous)
-      for (const entry of previous.pending.values()) {
-        clearTimeout(entry.ackTimer)
-        session.pending.set(entry.idKey, entry)
+      // They keep their hold limit, so reconnecting cannot keep them in memory.
+      for (const entry of [...previous.pending.values()]) {
+        this.release(previous, entry)
+        this.hold(session, entry)
       }
-      previous.pending.clear()
       end(previous.socket, CLOSE_REPLACED, 'replaced')
     }
     void this.sync(session)
@@ -167,7 +220,7 @@ export class SessionManager {
   deliver(entry: PendingEnvelope): boolean {
     const session = this.sessions.get(entry.recipientKey)
     if (!session || this.shuttingDown) return false
-    session.pending.set(entry.idKey, entry)
+    this.hold(session, entry)
     if (session.state === 'live') this.transmit(session, entry)
     return true
   }
@@ -216,8 +269,7 @@ export class SessionManager {
     this.sessions.delete(accountKey)
     if (discard) {
       session.discarded = true
-      for (const entry of session.pending.values()) clearTimeout(entry.ackTimer)
-      session.pending.clear()
+      for (const entry of [...session.pending.values()]) this.release(session, entry)
     } else {
       this.persistPending(session)
     }
@@ -263,8 +315,7 @@ export class SessionManager {
       const idKey = id.toString('hex')
       const entry = session?.pending.get(idKey)
       if (entry) {
-        clearTimeout(entry.ackTimer)
-        session!.pending.delete(idKey)
+        this.release(session!, entry)
       } else if (!this.deps.persister.acknowledge(accountKey, idKey)) {
         stored.push(id)
       }
@@ -297,23 +348,58 @@ export class SessionManager {
   private persistPending(session: LiveSession): void {
     if (session.pending.size === 0) return
     const entries = [...session.pending.values()]
-    session.pending.clear()
+    for (const entry of entries) this.release(session, entry)
     this.deps.persister.enqueue(entries)
   }
 
-  /** Queues a pending envelope for the socket; its ack timer runs from now, sent yet or not. */
-  private transmit(session: LiveSession, entry: PendingEnvelope): void {
+  /**
+   * Puts an envelope in a session's pending map and counts it. Its hold
+   * limit is set the first time a session takes it and never moves; until
+   * it is transmitted, its timer runs to that limit.
+   */
+  private hold(session: LiveSession, entry: PendingEnvelope): void {
+    if (session.pending.has(entry.idKey)) return
+    session.pending.set(entry.idKey, entry)
+    const holdUntil = entry.holdUntil ??= Date.now() + (this.deps.maxHoldMs ?? this.deps.ackTimeoutMs + STALL_TIMEOUT_MS)
+    const usage = this.perRecipient.get(entry.recipientKey)
+    if (usage) {
+      usage.count++
+      usage.bytes += entry.body.length
+    } else {
+      this.perRecipient.set(entry.recipientKey, { count: 1, bytes: entry.body.length })
+    }
+    this.totalBytes += entry.body.length
+    this.arm(session, entry, holdUntil - Date.now())
+  }
+
+  /** Takes an envelope out of a session's pending map and stops its timer; false if the session does not hold it. */
+  private release(session: LiveSession, entry: PendingEnvelope): boolean {
+    if (session.pending.get(entry.idKey) !== entry) return false
+    session.pending.delete(entry.idKey)
     clearTimeout(entry.ackTimer)
-    entry.ackTimer = setTimeout(() => this.ackTimedOut(session, entry), this.deps.ackTimeoutMs)
+    const usage = this.perRecipient.get(entry.recipientKey)!
+    if (--usage.count === 0) this.perRecipient.delete(entry.recipientKey)
+    else usage.bytes -= entry.body.length
+    this.totalBytes -= entry.body.length
+    return true
+  }
+
+  private arm(session: LiveSession, entry: PendingEnvelope, delayMs: number): void {
+    clearTimeout(entry.ackTimer)
+    entry.ackTimer = setTimeout(() => this.ackTimedOut(session, entry), Math.max(0, delayMs))
     entry.ackTimer.unref()
+  }
+
+  /** Queues a pending envelope for the socket; its ack timer runs from now, sent yet or not, but not past its hold limit. */
+  private transmit(session: LiveSession, entry: PendingEnvelope): void {
+    this.arm(session, entry, Math.min(this.deps.ackTimeoutMs, entry.holdUntil! - Date.now()))
     session.outbox.push({ kind: 'envelope', entry })
     this.scheduleFlush(session)
   }
 
+  /** No ack in time, or the hold limit passed: the envelope goes to the mailbox. */
   private ackTimedOut(session: LiveSession, entry: PendingEnvelope): void {
-    if (session.pending.get(entry.idKey) !== entry) return
-    session.pending.delete(entry.idKey)
-    this.deps.persister.enqueue([entry])
+    if (this.release(session, entry)) this.deps.persister.enqueue([entry])
   }
 
   private scheduleFlush(session: LiveSession): void {
@@ -358,10 +444,11 @@ export class SessionManager {
   /**
    * Envelopes a session took back from the persister but can no longer
    * deliver, because a newer connection replaced it in the meantime: they go
-   * to that connection, or back to the persister.
+   * to that connection, or back to the persister. Those acknowledged over
+   * HTTP while they were taken back are gone.
    */
   private redistribute(entries: PendingEnvelope[]): void {
-    const undelivered = entries.filter(entry => !this.deliver(entry))
+    const undelivered = entries.filter(entry => !entry.acked && !this.deliver(entry))
     if (undelivered.length > 0) this.deps.persister.enqueue(undelivered)
   }
 
@@ -379,7 +466,8 @@ export class SessionManager {
         if (!session.discarded) this.redistribute(reclaimed)
         return
       }
-      for (const entry of reclaimed) session.pending.set(entry.idKey, entry)
+      // An HTTP ack can reach the persister while reclaim waits for a write.
+      for (const entry of reclaimed) if (!entry.acked) this.hold(session, entry)
       let after: Buffer | undefined
       for (;;) {
         const slice = await mailbox.fetch(session.account, SYNC_SLICE_ROWS, after)

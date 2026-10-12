@@ -12,12 +12,12 @@
  * relay, directory or database lookup (the relay only knows username hashes
  * anyway, PROTOCOL.md §3.2), so the page looks the same for every
  * well-formed name and cannot be used to find out which accounts exist. A
- * name outside the alphabet gets the normal 404. No client JavaScript is
+ * name outside the §3.1 rule gets the normal 404. No client JavaScript is
  * needed (theme.js only applies a saved light/dark choice), no cookies,
  * noindex.
  */
 
-import { FONTS, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
+import { FONTS, ICON_LINKS_HTML, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
 import { ICONS, type IconName } from './icons'
 import { LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from './site'
 
@@ -25,16 +25,14 @@ import { LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from './si
 export const INVITE_PREFIX = '/u/'
 
 /**
- * A username the page accepts: exactly the characters any us2us username can
- * have, already normalized (lower-case). That is the union of the app's
- * rules (design 2.1: `[a-z0-9._]`, 3–20) and PROTOCOL.md §3.1
- * (`^[a-z][a-z0-9_]{2,23}$`), so every link the app can build works while
- * the owner settles the dot question (ios/App/README.md › Open points 1),
- * with at least one letter or digit (no `/u/...`). None of these
- * characters means anything in HTML, so nothing a visitor
- * types can reach the markup unescaped; the page escapes the name anyway.
+ * A username the page accepts: exactly PROTOCOL.md §3.1, already normalized
+ * (3–24 characters, a lower-case letter first, then `a-z`, `0-9` and `_`),
+ * the same rule the apps use for every name they register, look up or put
+ * into a link. None of these characters means anything in HTML, so nothing a
+ * visitor types can reach the markup unescaped; the page escapes the name
+ * anyway.
  */
-export const INVITE_USERNAME = /^(?=[a-z0-9._]*[a-z0-9])[a-z0-9._]{3,24}$/
+export const INVITE_USERNAME = /^[a-z][a-z0-9_]{2,23}$/
 
 /**
  * The username of an invite path (`/u/<username>`, optionally with a
@@ -138,7 +136,7 @@ ${locale === 'tr' ? `${preload(FONTS.interTurkish)}\n` : ''}<meta name="robots" 
 <meta property="og:title" content="${escapeHtml(text.title(name))}">
 <meta property="og:description" content="${escapeHtml(text.description(name))}">
 <meta property="og:locale" content="${locale === 'tr' ? 'tr_TR' : 'en_US'}">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+${ICON_LINKS_HTML}
 </head>
 <body>
 <a class="skip-link" href="#main">${common.skipLink}</a>
@@ -164,6 +162,7 @@ ${locale === 'tr' ? `${preload(FONTS.interTurkish)}\n` : ''}<meta name="robots" 
 <li><a class="btn btn-primary store" role="link" aria-disabled="true">${icon('apple-logo-fill', 'store-icon')}App Store<span class="visually-hidden">, </span><span class="tag tag-accent store-soon">${common.home.stores.comingSoon}</span></a></li>
 <li><a class="btn btn-secondary store" role="link" aria-disabled="true">${icon('google-play-logo-fill', 'store-icon store-icon-play')}Google Play<span class="visually-hidden">, </span><span class="tag tag-neutral store-soon">${common.home.stores.comingSoon}</span></a></li>
 </ul>
+<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>${common.home.stores.beta}</p>
 <ul class="facts">
 ${common.home.hero.facts.map(fact => `<li>${icon(fact.icon)}${fact.text}</li>`).join('\n')}
 </ul>
@@ -181,12 +180,14 @@ ${text.steps(name).map(step => `<li>${escapeHtml(step)}</li>`).join('\n')}
 <footer class="site-footer"><div class="container footer-inner"><div class="hr"></div>
 <nav class="footer-row" aria-label="${common.footer.label}">
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
+<a class="footer-link" href="${paths[locale].why}">${common.nav.why}</a>
 <a class="footer-link" href="${paths[locale].privacy}">${common.footer.privacy}</a>
 <a class="footer-link" href="${paths[locale].privacy}#${SECURITY_ANCHOR[locale]}">${common.footer.security}</a>
 <a class="footer-link" href="${paths[locale].support}">${common.footer.press}</a>
 <a class="footer-link" href="${paths[locale].support}">${common.footer.contact}</a>
 <a class="footer-link footer-legal" href="${paths[locale].support}#${LICENCES_ANCHOR[locale]}">${common.footer.licence}</a>
 </nav>
+<p class="footer-fine">${common.footer.noTracking}</p>
 </div></footer>
 </body>
 </html>

@@ -12,6 +12,7 @@ import { EnvelopePersister } from './realtime/persister'
 import { CLOSE_UNAUTHORIZED, SessionManager } from './realtime/sessions'
 import { AccountCache } from './services/account-cache'
 import { AccountStore } from './services/accounts'
+import { AvatarStore } from './services/avatars'
 import { Mailbox } from './services/mailbox'
 import { MediaStore } from './services/media'
 import { PreKeyStore } from './services/prekeys'
@@ -29,6 +30,7 @@ export class Relay {
   readonly database: Database
   readonly accounts: AccountStore
   readonly accountCache: AccountCache
+  readonly avatars: AvatarStore
   readonly preKeys: PreKeyStore
   readonly mailbox: Mailbox
   readonly media: MediaStore
@@ -42,12 +44,14 @@ export class Relay {
   private readonly retention: RetentionSweeper
   private readonly timers: NodeJS.Timeout[] = []
   private retentionRun: Promise<void> | null = null
+  private mailboxCount: Promise<void> | null = null
 
   constructor(readonly config: RelayConfig) {
     this.logger = new Logger(config.logLevel)
     this.database = createDatabase(config.databaseUrl, config.dbPoolSize)
     this.accounts = new AccountStore(this.database)
     this.accountCache = new AccountCache(this.accounts, this.logger)
+    this.avatars = new AvatarStore(this.database)
     this.preKeys = new PreKeyStore(this.database)
     this.mailbox = new Mailbox(this.database, { maxEnvelopes: config.mailboxMaxEnvelopes, maxBytes: config.mailboxMaxBytes })
     this.media = new MediaStore(this.database, config.mediaDir)
@@ -76,6 +80,8 @@ export class Relay {
   }
 
   async start(): Promise<void> {
+    // Sealed sends wait for this count (and try it again if it fails).
+    this.countMailboxes().catch(() => {})
     await this.media.init()
     await this.refreshDiskSpace()
     this.every(DISK_CHECK_INTERVAL_MS, () => void this.refreshDiskSpace())
@@ -114,6 +120,24 @@ export class Relay {
   }
 
   /**
+   * The one count of stored envelopes that the mailbox limits need (§4.6),
+   * started at start-up; sealed sends wait for it. A failed count is logged
+   * once, however many sends waited for it, and the next send tries again.
+   */
+  countMailboxes(): Promise<void> {
+    if (this.mailbox.loaded) return Promise.resolve()
+    this.mailboxCount ??= this.mailbox.load()
+      .catch((error: unknown) => {
+        this.logger.warn('counting the stored envelopes failed', { error: describeError(error) })
+        throw error
+      })
+      .finally(() => {
+        this.mailboxCount = null
+      })
+    return this.mailboxCount
+  }
+
+  /**
    * The only place a client address can reach the log: with LOG_IPS=1, a
    * request refused by a per-IP rate limit is logged, to investigate abuse.
    */
@@ -129,7 +153,10 @@ export class Relay {
     this.sessions.disconnect(accountKey, CLOSE_UNAUTHORIZED, 'account deleted', true)
     this.persister.drop(accountKey)
     this.mailbox.forgetUsage(accountKey)
-    await this.media.removeFiles(uploads)
+    // The account is gone either way; files left here are found by the retention sweep.
+    await this.media.removeFiles(uploads).catch((error: unknown) => {
+      this.logger.warn('removing the media files of a deleted account failed', { error: describeError(error) })
+    })
   }
 
   /**
