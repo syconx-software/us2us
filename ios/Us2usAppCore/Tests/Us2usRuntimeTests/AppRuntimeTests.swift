@@ -10,6 +10,17 @@ import Us2usStorage
 final class FakeBackendFactory: BackendFactory, @unchecked Sendable {
     let backend = FakeBackend(username: "selin_n")
     let registrations = LockedState(0)
+    /// What the relay answers to the read-only backup check (`nil`: the token works).
+    let backupCheckFailure = LockedState<(any Error)?>(nil)
+    let backupChecks = LockedState(0)
+    /// Thrown by a restore once the account is saved: the relay refused the rotation.
+    let restoreFailure = LockedState<(any Error)?>(nil)
+    let restores = LockedState(0)
+
+    func checkBackup(_ backup: BRPAccountBackup) async throws {
+        backupChecks.withLock { $0 += 1 }
+        if let failure = backupCheckFailure.withLock({ $0 }) { throw failure }
+    }
 
     func register(username: NormalizedUsername, storage: LocalStorage) async throws -> any MessagingBackend {
         registrations.withLock { $0 += 1 }
@@ -29,12 +40,14 @@ final class FakeBackendFactory: BackendFactory, @unchecked Sendable {
     }
 
     func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend {
+        restores.withLock { $0 += 1 }
         _ = try storage.createIdentity(
             try IdentityKeyPair(bytes: backup.identityKeyPair), registrationId: backup.registrationID)
         let account = LocalAccount(
             accountId: AccountId(bytes: backup.accountID)!, authToken: Data(repeating: 8, count: 32),
             username: try NormalizedUsername(backup.username), accessKey: backup.accessKey)
         try storage.accountSaver(account)
+        if let failure = restoreFailure.withLock({ $0 }) { throw failure }
         try storage.write { tx in try AccountBackupService.restoreContacts(backup, tx) }
         return try open(account: account, storage: storage)
     }
@@ -247,6 +260,22 @@ struct AppRuntimeTests {
         try await eventually { fixture.runtime.chats.first?.lastMessage?.body == .text("kalıcı mı?") }
     }
 
+    @Test func aWrongCodeWhileTurningOnQuickUnlockIsCountedOnScreen() async throws {
+        let fixture = try RuntimeFixture()
+        try await fixture.onboard()
+        #expect(fixture.runtime.quickUnlockAvailable)
+        await #expect(throws: UnlockError.vault(.wrongCode)) {
+            try await fixture.runtime.enableQuickUnlock(code: "730415")
+        }
+        // The same count the lock screen shows: the warning on 7.1 is never stale.
+        #expect(fixture.runtime.unlockStatus?.failures == 1)
+        try await fixture.runtime.enableQuickUnlock(code: RuntimeFixture.code)
+        #expect(fixture.runtime.unlockStatus?.failures == 0)
+
+        fixture.biometrics.availabilityValue = BiometricAvailability(kind: .faceID, enrollmentState: nil)
+        #expect(!fixture.runtime.quickUnlockAvailable)
+    }
+
     @Test func eraseEverythingLeavesNothing() async throws {
         let fixture = try RuntimeFixture()
         try await fixture.onboard()
@@ -294,6 +323,25 @@ struct AppRuntimeTests {
         }
         fixture.capture.setCaptured(false)
         #expect(!fixture.runtime.isScreenCaptured)
+    }
+
+    @Test func aConversationThatIsNotOpenStillReportsThatItsMessagesChanged() async throws {
+        let fixture = try RuntimeFixture()
+        try await fixture.onboard()
+        try await fixture.connect()
+        let deniz = try fixture.acceptedContact()
+        let other = try fixture.acceptedContact()
+        await fixture.runtime.openConversation(other)
+        #expect(fixture.runtime.messageRevisions[deniz] == nil)
+        // deniz's chat is not open: nothing is loaded or marked displayed,
+        // but a screen listing its items learns that they changed.
+        fixture.push(.textMessage("kapalıyken"), from: deniz)
+        try await eventually { (fixture.runtime.messageRevisions[deniz] ?? 0) > 0 }
+        #expect(!fixture.runtime.openMessages.contains { $0.body == .text("kapalıyken") })
+        try await eventually { fixture.runtime.chats.first { $0.id == deniz }?.unreadCount == 1 }
+        // Gone with the lock, like everything observable.
+        fixture.runtime.scenePhaseChanged(.background)
+        #expect(fixture.runtime.messageRevisions.isEmpty)
     }
 
     @Test func bannersForOtherConversationsShowNoContent() async throws {

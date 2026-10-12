@@ -1,4 +1,5 @@
 import Foundation
+import LibSignalClient
 import Us2usKit
 import Us2usStorage
 
@@ -35,13 +36,15 @@ extension AppRuntime {
         return session?.backend.accountId
     }
 
-    /// The own identity key as the relay serves it to others (what a scanned
-    /// contact code is compared with on the other phone).
+    /// The own identity key (serialized public key) for the contact code's
+    /// fingerprint. It is this phone's own key, never what the relay serves:
+    /// the other phone compares the code with the key the relay gives it, so
+    /// a relay that hands out another key is caught there (PROTOCOL.md §5).
     public func ownIdentityKey() async throws -> Data? {
         guard lockState == .unlocked, let session, let backend = session.backend as? MessengerBackend else {
             throw RuntimeError.locked
         }
-        return try await backend.messenger.relay.identity(of: backend.accountId)?.identityKey
+        return try backend.protocolStore.identityKeyPair(context: NullContext()).identityKey.serialize()
     }
 
     /// Checks the current code while unlocked (7.1 code change, first step).

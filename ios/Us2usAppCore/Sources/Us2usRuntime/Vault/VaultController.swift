@@ -23,14 +23,27 @@ public enum UnlockError: Error, Equatable, Sendable {
 /// codes, an optional wipe after 10, biometric quick unlock through a Secure
 /// Enclave key bound to the current biometric enrollment, re-wrapping on a code
 /// change, and crypto-shredding for "forgot code" / "erase everything".
+/// Vaults are format v2 where the phone has a Secure Enclave: every code
+/// attempt also needs a Secure Enclave key of this phone
+/// (``SecureEnclaveVaultKey``), and v1 vaults move to v2 at their next unlock.
 ///
 /// The controller never keeps the DEK: every successful unlock returns a fresh
 /// ``SecretKeyMaterial`` that the caller wipes when the app locks.
 public actor VaultController {
     public struct Configuration: Sendable {
         public var iterations: Int
-        public init(iterations: Int = VaultFormat.defaultIterations) {
+        /// The per-guess hardware step of vault format v2 (§5.2).
+        public var hardwareKey: VaultHardwareKeyChoice
+        /// A software stand-in for the Secure Enclave, for this package's
+        /// tests only (internal on purpose: a vault sealed with a software
+        /// key is no stronger than v1). Takes precedence over `hardwareKey`.
+        var hardwareKeyStandIn: (any VaultHardwareKey)?
+
+        public init(
+            iterations: Int = VaultFormat.defaultIterations, hardwareKey: VaultHardwareKeyChoice = .secureEnclave
+        ) {
             self.iterations = iterations
+            self.hardwareKey = hardwareKey
         }
     }
 
@@ -60,10 +73,20 @@ public actor VaultController {
     static let sidecarName = "vault-settings.json"
     private var sidecarURL: URL { directories.vault.appendingPathComponent(Self.sidecarName) }
 
+    /// The hardware key the vault uses, `nil` when v2 is turned off.
+    private var hardwareKey: (any VaultHardwareKey)? {
+        if let standIn = configuration.hardwareKeyStandIn { return standIn }
+        switch configuration.hardwareKey {
+        case .secureEnclave: return SecureEnclaveVaultKey(store: secureItems)
+        case .disabled: return nil
+        }
+    }
+
     private func vault() -> LocalVault {
         let clock = self.clock
         return LocalVault(
             directory: directories.vault, deviceSecrets: DeviceSecretItem(store: secureItems),
+            hardwareKey: hardwareKey,
             configuration: LocalVault.Configuration(
                 iterations: configuration.iterations,
                 wipeAfterFailures: sidecar.wipeAfterTenFailures ? LocalVault.Configuration.wipeOptionFailures : nil),
@@ -85,8 +108,20 @@ public actor VaultController {
         defer { SecretKeyMaterial.zeroize(&dek) }
         sidecar = VaultSidecar(lastCodeEntry: clock.now())
         saveSidecar()
-        RuntimeLog.vault.info("vault created")
+        if vault.formatVersion == .v2 {
+            RuntimeLog.vault.info("vault created, format 2")
+        } else {
+            RuntimeLog.vault.info("vault created, format 1")
+            logHardwareStepMissing()
+        }
         return SecretKeyMaterial(copying: dek)
+    }
+
+    /// A device with a Secure Enclave whose vault is still v1: creating or
+    /// using the hardware key failed; the next unlock tries again (§5.2).
+    private func logHardwareStepMissing() {
+        guard hardwareKey?.isAvailable == true else { return }
+        RuntimeLog.vault.notice("hardware key failed, vault stays on format 1")
     }
 
     // MARK: Code unlock
@@ -98,19 +133,30 @@ public actor VaultController {
 
     /// Opens the vault with the code. Throws `UnlockError.vault(.wiped)` when
     /// the optional wipe fired: the caller must then erase everything else.
+    /// A v1 vault moves to format v2 here where the phone has a Secure
+    /// Enclave (§5.2); the DEK, and so the biometric wrap, stays the same.
     public func unlock(code: String) throws(UnlockError) -> SecretKeyMaterial {
         guard !unlockInFlight else { throw .busy }
         unlockInFlight = true
         defer { unlockInFlight = false }
+        let vault = vault()
+        let formatBefore = vault.formatVersion
         var dek: Data
         do throws(VaultError) {
-            dek = try vault().unlock(code: code)
+            dek = try vault.unlock(code: code)
         } catch {
             if error == .wiped { removeLeftovers() }
             RuntimeLog.vault.notice("code unlock refused")
             throw .vault(error)
         }
         defer { SecretKeyMaterial.zeroize(&dek) }
+        if formatBefore == .v1 {
+            if vault.formatVersion == .v2 {
+                RuntimeLog.vault.info("vault moved to format 2")
+            } else {
+                logHardwareStepMissing()
+            }
+        }
         sidecar.lastCodeEntry = clock.now()
         sidecar.quickUnlock?.failures = 0
         refreshQuickUnlockWrap(dek: dek)
@@ -255,9 +301,10 @@ public actor VaultController {
 
     // MARK: Crypto-shredding
 
-    /// Destroys every key that protects local data: the device secret (a
-    /// Keychain item), the vault file and attempt counter, the Secure Enclave
-    /// key and its wrap. Without them the database, key slots and media are
+    /// Destroys every key that protects local data: the device secret and the
+    /// vault's Secure Enclave key of format v2 (Keychain items), the vault file
+    /// and attempt counter, the biometric Secure Enclave key and its wrap.
+    /// Without them the database, key slots and media are
     /// unreadable ciphertext; ``AppDirectories/eraseAll()`` then removes it.
     public func destroyKeys() {
         try? vault().destroy()
@@ -266,7 +313,10 @@ public actor VaultController {
     }
 
     private func removeLeftovers() {
+        // The device secret and the vault's Secure Enclave key (format v2)
+        // are items of this store; a test stand-in is deleted on its own.
         try? secureItems.deleteAll()
+        try? hardwareKey?.deleteKey()
         biometrics.deleteKey()
         sidecar = VaultSidecar()
         try? FileManager.default.removeItem(at: sidecarURL)

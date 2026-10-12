@@ -59,6 +59,19 @@ struct KeychainTests {
         let attributes = try #require(try store.attributes(of: "device-secret"))
         #expect(attributes.accessible == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
         #expect(attributes.synchronizable == false)
+
+        // The vault's Secure Enclave key of format v2 is kept as an item of
+        // the same store (only its blob; the key never leaves the hardware).
+        let hardwareKey = SecureEnclaveVaultKey(store: store)
+        if hardwareKey.isAvailable {
+            try hardwareKey.createKey()
+            #expect(try hardwareKey.evaluate(codeKey: Data(repeating: 1, count: 32)).count == 32)
+        } else {
+            try store.write(Data([7]), for: SecureEnclaveVaultKey.itemName)
+        }
+        let keyAttributes = try #require(try store.attributes(of: SecureEnclaveVaultKey.itemName))
+        #expect(keyAttributes.accessible == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
+        #expect(keyAttributes.synchronizable == false)
     }
 }
 
@@ -169,6 +182,25 @@ struct PasteboardTests {
         #expect(board.items.isEmpty)
         pasteboard.copy("code", sensitivity: .sensitive)
         board.externalCopy()
+        pasteboard.clearIfOwned()
+        #expect(board.items.count == 1)
+    }
+
+    /// The generated backup password is copied to be pasted into a password
+    /// manager: leaving the app (which locks it) must not clear it, so only
+    /// its one-minute expiry does; it never leaves the device.
+    @Test func aHandOffSurvivesLeavingTheAppAndExpires() {
+        let board = FakePasteboard()
+        let now = self.now
+        let pasteboard = SecurePasteboard(pasteboard: board, now: { now })
+        #expect(pasteboard.copy("k7mq-x2pd-9tfa-wn3h-b8ze", sensitivity: .handOff))
+        #expect(board.localOnly)
+        #expect(board.expiresAt == now.addingTimeInterval(60))
+        pasteboard.clearIfOwned()
+        #expect(board.items.count == 1, "cleared before it could be pasted")
+        // A sensitive copy made before is replaced, and nothing clears the hand-off.
+        pasteboard.copy("12345 67890", sensitivity: .sensitive)
+        pasteboard.copy("k7mq-x2pd-9tfa-wn3h-b8ze", sensitivity: .handOff)
         pasteboard.clearIfOwned()
         #expect(board.items.count == 1)
     }

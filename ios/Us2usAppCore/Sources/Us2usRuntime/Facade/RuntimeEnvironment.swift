@@ -80,4 +80,8 @@ public enum RuntimeError: Error, Equatable, Sendable {
     case unreadableBackup
     /// The relay revoked this installation's token (restored on another phone).
     case revoked
+    /// The relay refuses the backup's token: the backup was restored on
+    /// another phone since, or its account was deleted. Restoring it can
+    /// never succeed.
+    case backupRevoked
 }

@@ -141,6 +141,11 @@ public struct MessageTimestamps: Sendable, Equatable {
     public var failedAt: Date?
     /// Incoming: first displayed on this phone (starts the disappearing timer, §8.1).
     public var displayedAt: Date?
+    /// Outgoing photo, video or file: the contact saved it outside the app
+    /// (their `ReceiptMessage{SAVED}`, §8.4).
+    public var savedByPeerAt: Date?
+    /// First saved outside the app on this phone.
+    public var savedByMeAt: Date?
 }
 
 public struct StoredMessage: Sendable, Equatable {

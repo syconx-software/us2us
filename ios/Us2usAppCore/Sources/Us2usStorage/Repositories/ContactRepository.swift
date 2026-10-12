@@ -48,6 +48,15 @@ public struct ContactRepository {
         ).map(contact(from:))
     }
 
+    /// Every blocked account, with a conversation or without one (a ghost
+    /// wipe or a deleted conversation leaves the block, §6.4).
+    public func blocked() throws -> [Contact] {
+        try tx.connection.query(
+            "SELECT \(Self.columns) FROM contacts WHERE request_state = ? AND pending_forget = 0",
+            [ConversationRequestState.blocked.rawValue]
+        ).map(contact(from:))
+    }
+
     public func requestState(of account: AccountId) throws -> ConversationRequestState? {
         try tx.connection.queryOne("SELECT request_state FROM contacts WHERE account = ?", [account.bytes])?
             .text("request_state").flatMap(ConversationRequestState.init(rawValue:))
@@ -125,18 +134,59 @@ public struct ContactRepository {
             [ConversationRequestState.blocked.rawValue, current.rawValue, account.bytes])
     }
 
-    public func unblock(_ account: AccountId) throws {
+    /// Blocked → the state before the block. Returns `false` (and changes
+    /// nothing) when the account is not blocked.
+    @discardableResult
+    public func unblock(_ account: AccountId) throws -> Bool {
         try tx.requireWritable()
         guard
             let row = try tx.connection.queryOne(
                 "SELECT request_state, state_before_block FROM contacts WHERE account = ?", [account.bytes]),
             row.text("request_state") == ConversationRequestState.blocked.rawValue
-        else { return }
+        else { return false }
         let previous =
             row.text("state_before_block").flatMap(ConversationRequestState.init(rawValue:)) ?? .incomingRequest
         try tx.connection.run(
             "UPDATE contacts SET request_state = ?, state_before_block = NULL WHERE account = ?",
             [previous.rawValue, account.bytes])
+        return true
+    }
+
+    /// Unblocking an account with nothing to go back to: no conversation,
+    /// and before the block no contact either (blocked as a stranger, or
+    /// kept as a bare block by “leave no trace”, `stripToBlock`) or only an
+    /// incoming request, whose messages went with the conversation. It is
+    /// forgotten, a stranger again: writing to it starts a new chat and a
+    /// message from it is a new request, never an empty one. Returns
+    /// `false` (and changes nothing) for any other account.
+    @discardableResult
+    public func unblockLeavingNothing(_ account: AccountId) throws -> Bool {
+        try tx.requireWritable()
+        guard
+            let row = try tx.connection.queryOne(
+                "SELECT request_state, state_before_block FROM contacts WHERE account = ?", [account.bytes]),
+            row.text("request_state") == ConversationRequestState.blocked.rawValue,
+            [nil, ConversationRequestState.incomingRequest.rawValue].contains(row.text("state_before_block")),
+            try tx.conversations.forContact(account) == nil
+        else { return false }
+        try forget(account)
+        return true
+    }
+
+    /// The user writes to a blocked account again (4.2) that has no state
+    /// to go back to — blocked before it was a contact, or kept as a bare
+    /// block by “leave no trace” (`stripToBlock`): unblocking it then makes
+    /// it an outgoing request, as a new chat would be. A state kept from
+    /// before the block stays as it is.
+    public func unblockAsOutgoingRequest(_ account: AccountId) throws {
+        try tx.requireWritable()
+        try tx.connection.run(
+            """
+            UPDATE contacts SET state_before_block = ?
+            WHERE account = ? AND request_state = ? AND state_before_block IS NULL
+            """,
+            [ConversationRequestState.outgoingRequest.rawValue, account.bytes,
+             ConversationRequestState.blocked.rawValue])
     }
 
     // MARK: Access keys (§4.6, §6.4)
@@ -180,9 +230,11 @@ public struct ContactRepository {
         return profile
     }
 
+    /// Stores `profile`; its picture as a serialized `ProfileAvatar` (none
+    /// for the initial letter), inside the encrypted database only (§8.9).
     public func setProfile(_ profile: ContactProfile, for account: AccountId) throws {
         try tx.requireWritable()
-        let avatar = try profile.avatar.map { try $0.serializedBytes() as Data }
+        let avatar = profile.avatar.serializedProfileAvatar
         try update(
             account,
             """
@@ -278,7 +330,8 @@ public struct ContactRepository {
             let state = row.text("request_state").flatMap(ConversationRequestState.init(rawValue:))
         else { throw StorageError.integrity }
         let username = row.text("username").flatMap { try? NormalizedUsername($0) }
-        let avatar = try row.blob("avatar").map { try BRPAttachment(serializedBytes: $0) }
+        // Checked again on the way out: anything malformed is the initial letter.
+        let avatar = ProfilePicture(serialized: row.blob("avatar"))
         let profile = ContactProfile(
             username: username,
             usernameStatus: row.text("username_status").flatMap(ContactProfile.UsernameStatus.init(rawValue:))

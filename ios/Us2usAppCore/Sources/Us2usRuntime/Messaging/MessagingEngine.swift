@@ -16,6 +16,9 @@ public enum EngineChange: Sendable, Equatable {
     case wiped(AccountId)
     /// A safety number changed; sending to this contact is blocked until accepted.
     case safetyNumberChanged(AccountId)
+    /// An attachment of the message is downloading: the fraction received
+    /// (0…1), at most every 2 %.
+    case downloadProgress(MessageId, AccountId, Double)
 }
 
 public enum EngineError: Error, Equatable, Sendable {
@@ -192,6 +195,8 @@ public actor MessagingEngine {
         collectNoticeGarbage()
         resetInterruptedTransfers()
         refreshHeld()
+        // Before the outbox loop runs, so the stops go out with the first sends.
+        stopOrphanedLiveLocations()
         tasks.append(Task { [weak self] in await self?.outboxLoop() })
         tasks.append(Task { [weak self] in await self?.schedulerLoop() })
         tasks.append(Task { [weak self] in await self?.presenceRefreshLoop() })

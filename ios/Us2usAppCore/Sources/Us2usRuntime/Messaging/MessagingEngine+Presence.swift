@@ -191,6 +191,52 @@ extension MessagingEngine {
         afterLocalChange(peer)
     }
 
+    /// Our live-location bubbles that still look live although this engine
+    /// sends nothing for them: the process ended while sharing (killed in
+    /// the background, a crash, a relaunch) or the vault was locked, so the
+    /// session's memory is gone. Each one gets its normal stop message now,
+    /// at the first start after that (§8.3), so the contact never watches a
+    /// frozen position that claims to be live for up to 8 hours. Sharing is
+    /// never resumed by itself: that needs the user's tap. Expired sessions
+    /// end on their own on both phones and are left alone.
+    func stopOrphanedLiveLocations() {
+        let now = clock.now()
+        let nowMilliseconds = now.millisecondsSince1970
+        let running = liveSessions
+        let orphans: [(session: Data, peer: AccountId)]
+        do {
+            orphans = try read { tx -> [(session: Data, peer: AccountId)] in
+                // Only the rows that carry a session are read and decrypted:
+                // this runs at every unlock.
+                let candidates = try tx.messages.outgoingLiveLocations(now: now)
+                guard !candidates.isEmpty else { return [] }
+                var contacts: [ConversationId: AccountId] = [:]
+                for conversation in try tx.conversations.all() { contacts[conversation.id] = conversation.contact }
+                var found: [(session: Data, peer: AccountId)] = []
+                var seen: Set<Data> = []
+                for message in candidates where message.isOutgoing && !message.isDeleted {
+                    guard case .liveLocation(let live)? = message.content?.payload, !live.stopped,
+                        live.expiresAt > nowMilliseconds, running[live.sessionID] == nil,
+                        let peer = contacts[message.conversationId], seen.insert(live.sessionID).inserted
+                    else { continue }
+                    found.append((live.sessionID, peer))
+                }
+                return found
+            }
+        } catch {
+            RuntimeLog.messaging.error("orphaned live locations not checked: \(error.logLabel, privacy: .public)")
+            return
+        }
+        for orphan in orphans {
+            do {
+                try stopLiveLocation(orphan.session, peer: orphan.peer)
+                RuntimeLog.messaging.info("stopped a live location this process no longer shares")
+            } catch {
+                RuntimeLog.messaging.error("orphaned live location not stopped: \(error.logLabel, privacy: .public)")
+            }
+        }
+    }
+
     /// Our live-location sessions still running (the app keeps the store
     /// open in the background only for these, §8.3).
     public func activeLiveLocationSessions() -> [Data] {
