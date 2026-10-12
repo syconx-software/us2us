@@ -137,4 +137,47 @@ struct DeliveryReceiptTests {
         #expect(ReceiptPolicy.receipts(.read, messageIds: ids).count == 2)
         #expect(ReceiptPolicy.receipts(.read, messageIds: []).isEmpty)
     }
+
+    @Test("SAVED covers permanent photos, videos and files only")
+    func savable() {
+        func attachment(_ kind: BRPAttachment.Kind, viewOnce: Bool = false, timer: UInt32 = 0) -> BRPDataMessage {
+            var attachment = BRPAttachment()
+            attachment.kind = kind
+            var data = BRPDataMessage(payload: .attachment(attachment))
+            data.viewOnce = viewOnce
+            data.expireTimerSeconds = timer
+            return data
+        }
+        for kind in [BRPAttachment.Kind.image, .video, .file] {
+            #expect(ReceiptPolicy.isSavable(attachment(kind)))
+            // View-once and disappearing media cannot be saved, so never SAVED.
+            #expect(!ReceiptPolicy.isSavable(attachment(kind, viewOnce: true)))
+            #expect(!ReceiptPolicy.isSavable(attachment(kind, timer: 3600)))
+        }
+        for kind in [BRPAttachment.Kind.voice, .stickerImage, .unspecified, .UNRECOGNIZED(9)] {
+            #expect(!ReceiptPolicy.isSavable(attachment(kind)))
+        }
+        #expect(!ReceiptPolicy.isSavable(BRPDataMessage(payload: .text(BRPText()))))
+        #expect(!ReceiptPolicy.isSavable(BRPDataMessage(payload: .sticker(BRPSticker()))))
+        #expect(!ReceiptPolicy.isSavable(BRPDataMessage(payload: .location(BRPLocation()))))
+    }
+
+    @Test("SAVED goes to accepted contacts only, whatever the read-receipt setting")
+    func savedReceiptRecipients() throws {
+        #expect(MessageRequestPolicy.maySendSavedReceipts(state: .accepted))
+        for state in [ConversationRequestState.incomingRequest, .outgoingRequest, .blocked] {
+            #expect(!MessageRequestPolicy.maySendSavedReceipts(state: state))
+        }
+        let content = BRPContent(receipt: .saved, messageIds: [RandomId.make()])
+        try content.validateForSending()
+        // Type 4 on the wire: builds that predate it read an unknown type and ignore the receipt.
+        let bytes: Data = try content.serializedBytes()
+        let decoded = try BRPContent(serializedBytes: bytes)
+        guard case .receipt(let receipt) = decoded.body else {
+            Issue.record("not a receipt")
+            return
+        }
+        #expect(receipt.type == .saved)
+        #expect(receipt.type.rawValue == 4)
+    }
 }

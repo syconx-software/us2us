@@ -11,7 +11,9 @@
 // us2us — end-to-end encrypted content schema.
 //
 // Everything in this file travels ONLY inside end-to-end encryption.
-// The relay never sees any of these messages in plaintext.
+// The relay never sees any of these messages in plaintext. (ProfileAvatar
+// is also the plaintext of the avatar record for search, encrypted under a
+// key derived from the username: docs/PROTOCOL.md §8.10.)
 //
 // Compatibility rules:
 //   * Never reuse or renumber a field. Add new fields with new numbers.
@@ -445,18 +447,19 @@ public nonisolated struct BRPSticker: @unchecked Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// built-in pack identifier, e.g. "cb.basic"
+  /// built-in pack identifier, e.g. "us2us.cups" (docs/PROTOCOL.md §8.8)
   public var packID: String {
     get {_storage._packID}
     set {_uniqueStorage()._packID = newValue}
   }
 
+  /// unique across all built-in packs, never reused
   public var stickerID: UInt32 {
     get {_storage._stickerID}
     set {_uniqueStorage()._stickerID = newValue}
   }
 
-  /// associated emoji (accessibility / fallback)
+  /// associated emoji (accessibility / fallback); always set
   public var emoji: String {
     get {_storage._emoji}
     set {_uniqueStorage()._emoji = newValue}
@@ -471,6 +474,12 @@ public nonisolated struct BRPSticker: @unchecked Sendable {
   public var hasCustom: Bool {_storage._custom != nil}
   /// Clears the value of `custom`. Subsequent reads from it will return its default value.
   public mutating func clearCustom() {_uniqueStorage()._custom = nil}
+
+  /// built-in sticker with words: BCP-47 language they were shown in ("tr", "en"); else empty
+  public var lang: String {
+    get {_storage._lang}
+    set {_uniqueStorage()._lang = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -527,6 +536,13 @@ public nonisolated struct BRPReceiptMessage: Sendable {
 
     /// view-once / voice note opened
     case viewed // = 3
+
+    /// The recipient saved this photo, video or file outside the app (to the
+    /// phone's photos or files). Sent only by the recipient, only for a
+    /// permanent IMAGE / VIDEO / FILE attachment (never view-once, never with
+    /// a disappearing timer), whatever the read-receipt setting; receivers
+    /// ignore it for anything else (docs/PROTOCOL.md §8.4).
+    case saved // = 4
     case UNRECOGNIZED(Int)
 
     public init() {
@@ -539,6 +555,7 @@ public nonisolated struct BRPReceiptMessage: Sendable {
       case 1: self = .delivery
       case 2: self = .read
       case 3: self = .viewed
+      case 4: self = .saved
       default: self = .UNRECOGNIZED(rawValue)
       }
     }
@@ -549,6 +566,7 @@ public nonisolated struct BRPReceiptMessage: Sendable {
       case .delivery: return 1
       case .read: return 2
       case .viewed: return 3
+      case .saved: return 4
       case .UNRECOGNIZED(let i): return i
       }
     }
@@ -559,6 +577,7 @@ public nonisolated struct BRPReceiptMessage: Sendable {
       .delivery,
       .read,
       .viewed,
+      .saved,
     ]
 
   }
@@ -905,7 +924,7 @@ public nonisolated struct BRPProfileUpdate: @unchecked Sendable {
     set {_uniqueStorage()._displayName = newValue}
   }
 
-  /// optional
+  /// DEPRECATED, never sent: senders MUST NOT set it, receivers ignore it (§8.7)
   public var avatar: BRPAttachment {
     get {_storage._avatar ?? BRPAttachment()}
     set {_uniqueStorage()._avatar = newValue}
@@ -932,11 +951,80 @@ public nonisolated struct BRPProfileUpdate: @unchecked Sendable {
     set {_uniqueStorage()._presenceSharing = newValue}
   }
 
+  /// profile picture; absent = the initial letter (§8.9)
+  public var profileAvatar: BRPProfileAvatar {
+    get {_storage._profileAvatar ?? BRPProfileAvatar()}
+    set {_uniqueStorage()._profileAvatar = newValue}
+  }
+  /// Returns true if `profileAvatar` has been explicitly set.
+  public var hasProfileAvatar: Bool {_storage._profileAvatar != nil}
+  /// Clears the value of `profileAvatar`. Subsequent reads from it will return its default value.
+  public mutating func clearProfileAvatar() {_uniqueStorage()._profileAvatar = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// A profile picture (docs/PROTOCOL.md §8.9): a built-in preset or a photo.
+/// No ProfileAvatar at all means the initial letter of the username.
+/// Travels to accepted contacts in ProfileUpdate.profile_avatar and, while
+/// "Show in search" is on, as the plaintext of the account's avatar record
+/// on the relay (§8.10). Serialized size at most 49110 bytes. Anything
+/// malformed is shown as the initial letter, never a reason to drop the
+/// message or record around it.
+public nonisolated struct BRPProfileAvatar: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var kind: BRPProfileAvatar.OneOf_Kind? = nil
+
+  /// built-in preset (§8.9 catalog); unique, never reused; 0 is invalid
+  public var presetID: UInt32 {
+    get {
+      if case .presetID(let v)? = kind {return v}
+      return 0
+    }
+    set {kind = .presetID(newValue)}
+  }
+
+  public var photo: BRPAvatarPhoto {
+    get {
+      if case .photo(let v)? = kind {return v}
+      return BRPAvatarPhoto()
+    }
+    set {kind = .photo(newValue)}
+  }
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public nonisolated enum OneOf_Kind: Equatable, Sendable {
+    /// built-in preset (§8.9 catalog); unique, never reused; 0 is invalid
+    case presetID(UInt32)
+    case photo(BRPAvatarPhoto)
+
+  }
+
+  public init() {}
+}
+
+public nonisolated struct BRPAvatarPhoto: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// "image/jpeg" or "image/heic"
+  public var contentType: String = String()
+
+  /// one still image, square, <= 256x256 px, no EXIF/GPS/XMP metadata (§8.9)
+  public var data: Data = Data()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
 }
 
 /// ---------------------------------------------------------------------------
@@ -974,9 +1062,24 @@ public nonisolated struct BRPAccountBackup: Sendable {
 
   public var createdAt: UInt64 = 0
 
+  /// own profile picture; absent = the initial letter (§8.9)
+  public var avatar: BRPProfileAvatar {
+    get {_avatar ?? BRPProfileAvatar()}
+    set {_avatar = newValue}
+  }
+  /// Returns true if `avatar` has been explicitly set.
+  public var hasAvatar: Bool {self._avatar != nil}
+  /// Clears the value of `avatar`. Subsequent reads from it will return its default value.
+  public mutating func clearAvatar() {self._avatar = nil}
+
+  /// "Show in search" is off (§8.10); false = on, the default
+  public var avatarSearchOff: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _avatar: BRPProfileAvatar? = nil
 }
 
 public nonisolated struct BRPBackupContact: Sendable {
@@ -1004,12 +1107,25 @@ public nonisolated struct BRPBackupContact: Sendable {
   /// the contact's last ProfileUpdate.presence_sharing (§8.6)
   public var presenceSharing: Bool = false
 
-  /// identity_key is a change the user has not accepted yet:
+  /// identity_key is a change the user has not accepted yet: restore it as
+  /// changed, sending blocked (§5.5, §6.3)
   public var identityUnaccepted: Bool = false
+
+  /// the contact's last ProfileUpdate.profile_avatar (§8.9); absent = none
+  public var avatar: BRPProfileAvatar {
+    get {_avatar ?? BRPProfileAvatar()}
+    set {_avatar = newValue}
+  }
+  /// Returns true if `avatar` has been explicitly set.
+  public var hasAvatar: Bool {self._avatar != nil}
+  /// Clears the value of `avatar`. Subsequent reads from it will return its default value.
+  public mutating func clearAvatar() {self._avatar = nil}
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _avatar: BRPProfileAvatar? = nil
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
@@ -1693,13 +1809,14 @@ nonisolated extension BRPLiveLocation: SwiftProtobuf.Message, SwiftProtobuf._Mes
 
 nonisolated extension BRPSticker: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Sticker"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pack_id\0\u{3}sticker_id\0\u{1}emoji\0\u{1}custom\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pack_id\0\u{3}sticker_id\0\u{1}emoji\0\u{1}custom\0\u{1}lang\0")
 
   fileprivate class _StorageClass {
     var _packID: String = String()
     var _stickerID: UInt32 = 0
     var _emoji: String = String()
     var _custom: BRPAttachment? = nil
+    var _lang: String = String()
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -1714,6 +1831,7 @@ nonisolated extension BRPSticker: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       _stickerID = source._stickerID
       _emoji = source._emoji
       _custom = source._custom
+      _lang = source._lang
     }
   }
 
@@ -1736,6 +1854,7 @@ nonisolated extension BRPSticker: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         case 2: try { try decoder.decodeSingularUInt32Field(value: &_storage._stickerID) }()
         case 3: try { try decoder.decodeSingularStringField(value: &_storage._emoji) }()
         case 4: try { try decoder.decodeSingularMessageField(value: &_storage._custom) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._lang) }()
         default: break
         }
       }
@@ -1760,6 +1879,9 @@ nonisolated extension BRPSticker: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       try { if let v = _storage._custom {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
       } }()
+      if !_storage._lang.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._lang, fieldNumber: 5)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1773,6 +1895,7 @@ nonisolated extension BRPSticker: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         if _storage._stickerID != rhs_storage._stickerID {return false}
         if _storage._emoji != rhs_storage._emoji {return false}
         if _storage._custom != rhs_storage._custom {return false}
+        if _storage._lang != rhs_storage._lang {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -1888,7 +2011,7 @@ nonisolated extension BRPReceiptMessage: SwiftProtobuf.Message, SwiftProtobuf._M
 }
 
 nonisolated extension BRPReceiptMessage.TypeEnum: SwiftProtobuf._ProtoNameProviding {
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0TYPE_UNSPECIFIED\0\u{1}DELIVERY\0\u{1}READ\0\u{1}VIEWED\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0TYPE_UNSPECIFIED\0\u{1}DELIVERY\0\u{1}READ\0\u{1}VIEWED\0\u{1}SAVED\0")
 }
 
 nonisolated extension BRPTypingMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -2319,7 +2442,7 @@ nonisolated extension BRPScreenshotNotice: SwiftProtobuf.Message, SwiftProtobuf.
 
 nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ProfileUpdate"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}display_name\0\u{1}avatar\0\u{3}updated_at\0\u{1}username\0\u{3}presence_sharing\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}display_name\0\u{1}avatar\0\u{3}updated_at\0\u{1}username\0\u{3}presence_sharing\0\u{3}profile_avatar\0")
 
   fileprivate class _StorageClass {
     var _displayName: String = String()
@@ -2327,6 +2450,7 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
     var _updatedAt: UInt64 = 0
     var _username: String = String()
     var _presenceSharing: Bool = false
+    var _profileAvatar: BRPProfileAvatar? = nil
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -2342,6 +2466,7 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
       _updatedAt = source._updatedAt
       _username = source._username
       _presenceSharing = source._presenceSharing
+      _profileAvatar = source._profileAvatar
     }
   }
 
@@ -2365,6 +2490,7 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
         case 3: try { try decoder.decodeSingularUInt64Field(value: &_storage._updatedAt) }()
         case 4: try { try decoder.decodeSingularStringField(value: &_storage._username) }()
         case 5: try { try decoder.decodeSingularBoolField(value: &_storage._presenceSharing) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._profileAvatar) }()
         default: break
         }
       }
@@ -2392,6 +2518,9 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
       if _storage._presenceSharing != false {
         try visitor.visitSingularBoolField(value: _storage._presenceSharing, fieldNumber: 5)
       }
+      try { if let v = _storage._profileAvatar {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2406,6 +2535,7 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
         if _storage._updatedAt != rhs_storage._updatedAt {return false}
         if _storage._username != rhs_storage._username {return false}
         if _storage._presenceSharing != rhs_storage._presenceSharing {return false}
+        if _storage._profileAvatar != rhs_storage._profileAvatar {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -2415,9 +2545,106 @@ nonisolated extension BRPProfileUpdate: SwiftProtobuf.Message, SwiftProtobuf._Me
   }
 }
 
+nonisolated extension BRPProfileAvatar: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ProfileAvatar"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}preset_id\0\u{1}photo\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try {
+        var v: UInt32?
+        try decoder.decodeSingularUInt32Field(value: &v)
+        if let v = v {
+          if self.kind != nil {try decoder.handleConflictingOneOf()}
+          self.kind = .presetID(v)
+        }
+      }()
+      case 2: try {
+        var v: BRPAvatarPhoto?
+        var hadOneofValue = false
+        if let current = self.kind {
+          hadOneofValue = true
+          if case .photo(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.kind = .photo(v)
+        }
+      }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    switch self.kind {
+    case .presetID?: try {
+      guard case .presetID(let v)? = self.kind else { preconditionFailure() }
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 1)
+    }()
+    case .photo?: try {
+      guard case .photo(let v)? = self.kind else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    }()
+    case nil: break
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: BRPProfileAvatar, rhs: BRPProfileAvatar) -> Bool {
+    if lhs.kind != rhs.kind {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension BRPAvatarPhoto: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".AvatarPhoto"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}content_type\0\u{1}data\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.contentType) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.contentType.isEmpty {
+      try visitor.visitSingularStringField(value: self.contentType, fieldNumber: 1)
+    }
+    if !self.data.isEmpty {
+      try visitor.visitSingularBytesField(value: self.data, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: BRPAvatarPhoto, rhs: BRPAvatarPhoto) -> Bool {
+    if lhs.contentType != rhs.contentType {return false}
+    if lhs.data != rhs.data {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension BRPAccountBackup: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".AccountBackup"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}version\0\u{3}account_id\0\u{3}auth_token\0\u{3}identity_key_pair\0\u{3}registration_id\0\u{1}username\0\u{3}display_name\0\u{3}access_key\0\u{1}contacts\0\u{3}created_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}version\0\u{3}account_id\0\u{3}auth_token\0\u{3}identity_key_pair\0\u{3}registration_id\0\u{1}username\0\u{3}display_name\0\u{3}access_key\0\u{1}contacts\0\u{3}created_at\0\u{1}avatar\0\u{3}avatar_search_off\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2435,12 +2662,18 @@ nonisolated extension BRPAccountBackup: SwiftProtobuf.Message, SwiftProtobuf._Me
       case 8: try { try decoder.decodeSingularBytesField(value: &self.accessKey) }()
       case 9: try { try decoder.decodeRepeatedMessageField(value: &self.contacts) }()
       case 10: try { try decoder.decodeSingularUInt64Field(value: &self.createdAt) }()
+      case 11: try { try decoder.decodeSingularMessageField(value: &self._avatar) }()
+      case 12: try { try decoder.decodeSingularBoolField(value: &self.avatarSearchOff) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if self.version != 0 {
       try visitor.visitSingularUInt32Field(value: self.version, fieldNumber: 1)
     }
@@ -2471,6 +2704,12 @@ nonisolated extension BRPAccountBackup: SwiftProtobuf.Message, SwiftProtobuf._Me
     if self.createdAt != 0 {
       try visitor.visitSingularUInt64Field(value: self.createdAt, fieldNumber: 10)
     }
+    try { if let v = self._avatar {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    } }()
+    if self.avatarSearchOff != false {
+      try visitor.visitSingularBoolField(value: self.avatarSearchOff, fieldNumber: 12)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2485,6 +2724,8 @@ nonisolated extension BRPAccountBackup: SwiftProtobuf.Message, SwiftProtobuf._Me
     if lhs.accessKey != rhs.accessKey {return false}
     if lhs.contacts != rhs.contacts {return false}
     if lhs.createdAt != rhs.createdAt {return false}
+    if lhs._avatar != rhs._avatar {return false}
+    if lhs.avatarSearchOff != rhs.avatarSearchOff {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2492,7 +2733,7 @@ nonisolated extension BRPAccountBackup: SwiftProtobuf.Message, SwiftProtobuf._Me
 
 nonisolated extension BRPBackupContact: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".BackupContact"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}account_id\0\u{1}username\0\u{3}display_name\0\u{3}identity_key\0\u{1}verified\0\u{1}blocked\0\u{3}their_access_key\0\u{3}presence_sharing\0\u{3}identity_unaccepted\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}account_id\0\u{1}username\0\u{3}display_name\0\u{3}identity_key\0\u{1}verified\0\u{1}blocked\0\u{3}their_access_key\0\u{3}presence_sharing\0\u{3}identity_unaccepted\0\u{1}avatar\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2509,12 +2750,17 @@ nonisolated extension BRPBackupContact: SwiftProtobuf.Message, SwiftProtobuf._Me
       case 7: try { try decoder.decodeSingularBytesField(value: &self.theirAccessKey) }()
       case 8: try { try decoder.decodeSingularBoolField(value: &self.presenceSharing) }()
       case 9: try { try decoder.decodeSingularBoolField(value: &self.identityUnaccepted) }()
+      case 10: try { try decoder.decodeSingularMessageField(value: &self._avatar) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.accountID.isEmpty {
       try visitor.visitSingularBytesField(value: self.accountID, fieldNumber: 1)
     }
@@ -2542,6 +2788,9 @@ nonisolated extension BRPBackupContact: SwiftProtobuf.Message, SwiftProtobuf._Me
     if self.identityUnaccepted != false {
       try visitor.visitSingularBoolField(value: self.identityUnaccepted, fieldNumber: 9)
     }
+    try { if let v = self._avatar {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2555,6 +2804,7 @@ nonisolated extension BRPBackupContact: SwiftProtobuf.Message, SwiftProtobuf._Me
     if lhs.theirAccessKey != rhs.theirAccessKey {return false}
     if lhs.presenceSharing != rhs.presenceSharing {return false}
     if lhs.identityUnaccepted != rhs.identityUnaccepted {return false}
+    if lhs._avatar != rhs._avatar {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

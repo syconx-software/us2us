@@ -27,6 +27,10 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     private static let handlers = Locked<[String: Handler]>([:])
 
+    /// A handler's reply that makes the request fail without an answer, as
+    /// when the connection drops (`URLError.networkConnectionLost`).
+    static let noAnswer: (status: Int, headers: [String: String], body: Data) = (-1, [:], Data())
+
     /// A unique host for a fake server, and a client configuration routed here.
     static func makeEndpoint() -> (baseURL: URL, configuration: URLSessionConfiguration) {
         let configuration = RelayClient.defaultConfiguration()
@@ -58,6 +62,10 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
             headers: request.allHTTPHeaderFields ?? [:],
             body: request.httpBody ?? request.httpBodyStream.map(Self.readAll) ?? Data())
         let reply = handler(recorded)
+        guard reply.status >= 0 else {
+            client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+            return
+        }
         let response = HTTPURLResponse(
             url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

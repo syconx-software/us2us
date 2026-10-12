@@ -27,12 +27,22 @@ final class FakeRelay: Sendable {
         var media: [Data: (blob: Data, deleteToken: Data)] = [:]
         var requests: [RecordedRequest] = []
         var clock: Int64 = 1_760_000_000_000
-        /// `(method, path)` pairs answered once with a 500, to simulate outages.
-        var injectedFailures: [(method: String, path: String)] = []
+        /// Outages for the next `(method, path)` requests, used up in order:
+        /// a 500, no answer at all, or an answer lost after the request was carried out.
+        var injections: [(method: String, path: String, kind: Injection)] = []
         /// Accounts treated as having an open WebSocket.
         var online: Set<AccountId> = []
         /// Ephemeral envelopes "forwarded over the WebSocket" to online accounts.
         var live: [AccountId: [RelayEnvelope]] = [:]
+        /// Avatar records (§4.12): the highest version and the stored record.
+        var avatars: [AccountId: AvatarState] = [:]
+        /// `false`: a relay that predates avatar records (their paths are 404).
+        var avatarsSupported = true
+    }
+
+    struct AvatarState: Equatable {
+        var highest: UInt64 = 0
+        var record: Data?
     }
 
     let powDifficulty: Int
@@ -69,7 +79,47 @@ final class FakeRelay: Sendable {
 
     /// Makes the next `method path` request fail with a 500.
     func failNext(_ method: String, _ path: String) {
-        state.withLock { $0.injectedFailures.append((method, path)) }
+        state.withLock { $0.injections.append((method, path, .serverError)) }
+    }
+
+    /// The next `method path` request gets no answer and never reaches the relay.
+    func dropNext(_ method: String, _ path: String) {
+        state.withLock { $0.injections.append((method, path, .noAnswer)) }
+    }
+
+    /// The next `method path` request is carried out, but its answer is lost
+    /// (the connection drops before it arrives).
+    func loseNextAnswer(_ method: String, _ path: String) {
+        state.withLock { $0.injections.append((method, path, .lostAnswer)) }
+    }
+
+    /// The next `method path` request gets `429 rate_limited` with
+    /// `Retry-After: seconds` and is not carried out.
+    func rateLimitNext(_ method: String, _ path: String, retryAfter seconds: Int) {
+        state.withLock { $0.injections.append((method, path, .rateLimited(seconds))) }
+    }
+
+    /// The avatar state of an account (§4.12), `nil` before its first write.
+    func avatar(_ id: AccountId) -> AvatarState? { state.withLock { $0.avatars[id] } }
+
+    /// Sets an account's avatar state directly (e.g. what an old phone left).
+    func setAvatar(_ avatar: AvatarState?, for id: AccountId) {
+        state.withLock { $0.avatars[id] = avatar }
+    }
+
+    /// Turns the relay into one without avatar records (`404` on their paths).
+    func disableAvatars() {
+        state.withLock { $0.avatarsSupported = false }
+    }
+
+    /// Requests to the avatar paths so far.
+    var avatarRequests: [RecordedRequest] { requests.filter { $0.path.hasSuffix("/avatar") } }
+
+    /// Rotations (`POST /v1/accounts/me/token`) so far, with the token each was authenticated with.
+    var tokenRotations: [Data] {
+        requests.filter { $0.method == "POST" && $0.path == "/v1/accounts/me/token" }.compactMap {
+            $0.header("X-Auth-Token").flatMap(Data.init(base64URLEncoded:))
+        }
     }
 
     /// Changes an account's server-side state directly.
@@ -107,16 +157,39 @@ final class FakeRelay: Sendable {
         }
     }
 
+    fileprivate enum Injection {
+        case serverError, noAnswer, lostAnswer
+        case rateLimited(Int)
+    }
+
     private func handle(_ request: RecordedRequest) -> Reply {
-        let injected = state.withLock { state -> Bool in
+        let injection = state.withLock { state -> Injection? in
             state.requests.append(request)
-            guard let index = state.injectedFailures.firstIndex(where: { $0 == (request.method, request.path) }) else {
-                return false
-            }
-            state.injectedFailures.remove(at: index)
-            return true
+            guard
+                let index = state.injections.firstIndex(where: {
+                    $0.method == request.method && $0.path == request.path
+                })
+            else { return nil }
+            return state.injections.remove(at: index).kind
         }
-        if injected { return error(500, "internal") }
+        switch injection {
+        case .serverError?:
+            return error(500, "internal")
+        case .noAnswer?:
+            return StubURLProtocol.noAnswer
+        case .lostAnswer?:
+            _ = respond(request)
+            return StubURLProtocol.noAnswer
+        case .rateLimited(let seconds)?:
+            var reply = error(429, "rate_limited")
+            reply.headers["Retry-After"] = String(seconds)
+            return reply
+        case nil:
+            return respond(request)
+        }
+    }
+
+    private func respond(_ request: RecordedRequest) -> Reply {
         if request.header("Authorization") != nil {
             return error(400, "bad_request", "Authorization header must not be used")
         }
@@ -164,12 +237,21 @@ final class FakeRelay: Sendable {
                 return error(409, "username_taken")
             }
             update(me) { $0.usernameHash = data }
+            // §4.3: the avatar record goes with the old name; the version stays.
+            state.withLock { $0.avatars[me]?.record = nil }
             return (204, [:], Data())
         }
+        if route.match("PUT", "accounts/me/avatar") != nil {
+            return putAvatar(request, for: me)
+        }
+        if route.match("DELETE", "accounts/me/avatar") != nil {
+            return deleteAvatar(request, for: me)
+        }
+        if let captured = route.match("GET", "accounts/*/avatar") {
+            return getAvatar(captured[0], request)
+        }
         if route.match("POST", "accounts/me/token") != nil {
-            let fresh = SecureRandom.bytes(32)
-            update(me) { $0.tokenHash = fresh.sha256Digest }
-            return json(200, ["authToken": fresh.base64URLEncodedString()])
+            return rotateToken(request, for: me)
         }
         if route.match("PUT", "accounts/me/access-key") != nil {
             guard let body = try? request.json(), body.keys.contains("accessKeyHash") else {
@@ -181,7 +263,10 @@ final class FakeRelay: Sendable {
             return (204, [:], Data())
         }
         if route.match("DELETE", "accounts/me") != nil {
-            state.withLock { $0.accounts[me] = nil }
+            state.withLock {
+                $0.accounts[me] = nil
+                $0.avatars[me] = nil  // record and version (§4.3)
+            }
             return (204, [:], Data())
         }
         if let captured = route.match("GET", "accounts/*/identity") {
@@ -421,6 +506,91 @@ final class FakeRelay: Sendable {
             state.media[id] = nil
             return (204, [:], Data())
         }
+    }
+
+    /// §4.3: the client chooses the token. Only the token that authenticated
+    /// the request is replaced; asking again with the new token is `204`
+    /// without a change. The deprecated empty body is refused here, so a
+    /// client that still sends it fails the tests.
+    private func rotateToken(_ request: RecordedRequest, for me: AccountId) -> Reply {
+        guard let encoded = (try? request.json())?["newAuthToken"] as? String,
+            let token = Data(base64URLEncoded: encoded), token.count == 32, Set(token).count >= 16
+        else { return error(400, "bad_request") }
+        let hash = token.sha256Digest
+        let taken = state.withLock { state in state.accounts.values.contains { $0.tokenHash == hash && $0.id != me } }
+        if taken { return error(400, "bad_request") }
+        update(me) { $0.tokenHash = hash }
+        return (204, [:], Data())
+    }
+
+    // MARK: §4.12 Avatar records
+
+    private static let avatarLengths: Set<Int> = [8192, 16384, 32768, 49152]
+
+    /// A decimal version in 1 … 2^63 − 1.
+    private static func avatarVersion(_ text: String?) -> UInt64? {
+        guard let text, !text.isEmpty, text.utf8.allSatisfy({ (48...57).contains($0) }), let value = UInt64(text),
+            value >= 1, value < 1 << 63
+        else { return nil }
+        return value
+    }
+
+    /// The version in a record's header, if the length and header are right.
+    private static func recordVersion(_ body: Data) -> UInt64? {
+        let body = Data(body)
+        guard avatarLengths.contains(body.count), body.prefix(4) == Data("BRPA".utf8), body[4] == 0x01 else {
+            return nil
+        }
+        let version = body[5..<13].reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
+        return version >= 1 && version < 1 << 63 ? version : nil
+    }
+
+    private func staleVersion(_ highest: UInt64) -> Reply {
+        var reply = error(409, "stale_version")
+        reply.headers["X-Avatar-Version"] = String(highest)
+        return reply
+    }
+
+    private func putAvatar(_ request: RecordedRequest, for me: AccountId) -> Reply {
+        guard state.withLock({ $0.avatarsSupported }) else { return error(404, "not_found") }
+        guard request.header("Content-Type") == "application/octet-stream" else { return error(400, "bad_request") }
+        guard request.body.count <= 49152 else { return error(413, "payload_too_large") }
+        guard let version = Self.recordVersion(request.body) else { return error(400, "bad_request") }
+        return state.withLock { state -> Reply in
+            var avatar = state.avatars[me] ?? AvatarState()
+            guard version > avatar.highest else { return staleVersion(avatar.highest) }
+            avatar.highest = version
+            avatar.record = Data(request.body)
+            state.avatars[me] = avatar
+            return (204, ["ETag": "\"\(version)\""], Data())
+        }
+    }
+
+    private func deleteAvatar(_ request: RecordedRequest, for me: AccountId) -> Reply {
+        guard state.withLock({ $0.avatarsSupported }) else { return error(404, "not_found") }
+        guard let version = Self.avatarVersion(request.header("X-Avatar-Version")) else {
+            return error(400, "bad_request")
+        }
+        return state.withLock { state -> Reply in
+            var avatar = state.avatars[me] ?? AvatarState()
+            guard version > avatar.highest else { return staleVersion(avatar.highest) }
+            avatar.highest = version
+            avatar.record = nil
+            state.avatars[me] = avatar
+            return (204, [:], Data())
+        }
+    }
+
+    private func getAvatar(_ id: String, _ request: RecordedRequest) -> Reply {
+        guard state.withLock({ $0.avatarsSupported }) else { return error(404, "not_found") }
+        guard let id = AccountId(string: id) else { return error(400, "bad_request") }
+        // No record and no account: the same 404.
+        guard let record = state.withLock({ $0.avatars[id]?.record }), let version = Self.recordVersion(record) else {
+            return error(404, "not_found")
+        }
+        let etag = "\"\(version)\""
+        if request.header("If-None-Match") == etag { return (304, ["ETag": etag], Data()) }
+        return (200, ["Content-Type": "application/octet-stream", "ETag": etag, "Cache-Control": "no-store"], record)
     }
 
     // MARK: Responses

@@ -91,16 +91,19 @@ extension BRPContent {
 
     /// The complete profile shared with accepted contacts only (§3.3, §8.7):
     /// every field is set, and the receiver replaces its stored profile with
-    /// it. Sent once after the access-key exchange and again on every change.
+    /// it. Sent once after the access-key exchange and again on every change
+    /// (a new profile picture is one, §8.9). The picture goes in
+    /// `profile_avatar` (field 6), the initial letter as none; the deprecated
+    /// `avatar` (field 2) is never set.
     public static func profileUpdate(
-        displayName: String, username: NormalizedUsername, presenceSharing: Bool, avatar: BRPAttachment? = nil,
+        displayName: String, username: NormalizedUsername, presenceSharing: Bool, picture: ProfilePicture = .initials,
         updatedAt: Date = Date()
     ) -> BRPContent {
         var profile = BRPProfileUpdate()
         profile.displayName = displayName
         profile.username = username.value
         profile.presenceSharing = presenceSharing
-        if let avatar { profile.avatar = avatar }
+        if let avatar = picture.profileAvatar { profile.profileAvatar = avatar }
         profile.updatedAt = updatedAt.millisecondsSince1970
         return BRPContent(control: .profile(profile))
     }
@@ -154,6 +157,13 @@ extension BRPContent {
         if case .control(let control) = body, case .profile(let profile) = control.action {
             guard profile.displayName.utf8.count <= ContentLimits.maxDisplayNameBytes else {
                 throw .tooLarge("profile.display_name")
+            }
+            // §8.7: field 2 is never sent; a picture must pass §8.9 as sent.
+            guard !profile.hasAvatar else { throw .malformedField("profile.avatar") }
+            if profile.hasProfileAvatar {
+                guard let picture = ProfilePicture.validated(profile.profileAvatar), picture.isSendable else {
+                    throw .malformedField("profile.profile_avatar")
+                }
             }
         }
     }
@@ -212,8 +222,12 @@ extension BRPControlMessage {
             if settings.ghost.enabled, !ContentLimits.ghostTimeoutRange.contains(settings.ghost.timeoutSeconds) {
                 throw .malformedField("settings.ghost.timeout_seconds")
             }
-        case .profile(let profile):
-            if profile.hasAvatar { try profile.avatar.validateStructure() }
+        case .profile:
+            // Nothing here can make a ProfileUpdate unusable (§8.7): the
+            // deprecated `avatar` (field 2) is ignored unvalidated, and a
+            // malformed `profile_avatar` reads as the initial letter
+            // (``ContactProfile/applying(_:)``).
+            break
         case .requestResponse, .wipe, .screenshot, .none: break
         }
     }

@@ -17,6 +17,8 @@ public struct RelayErrorCode: RawRepresentable, Hashable, Sendable, CustomString
     public static let powInvalid = RelayErrorCode(rawValue: "pow_invalid")
     public static let notFound = RelayErrorCode(rawValue: "not_found")
     public static let usernameTaken = RelayErrorCode(rawValue: "username_taken")
+    /// An avatar write whose version is not above the account's highest (§4.12).
+    public static let staleVersion = RelayErrorCode(rawValue: "stale_version")
     public static let payloadTooLarge = RelayErrorCode(rawValue: "payload_too_large")
     public static let rateLimited = RelayErrorCode(rawValue: "rate_limited")
     public static let `internal` = RelayErrorCode(rawValue: "internal")

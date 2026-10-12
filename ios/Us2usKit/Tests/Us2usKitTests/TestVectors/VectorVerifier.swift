@@ -84,7 +84,9 @@ enum VectorVerifier {
         }
     }
 
-    static func content(_ vectors: [ContentVector]) -> [String] {
+    /// - Parameter optional: cases that may be missing (added on this side
+    ///   first); present ones are still checked.
+    static func content(_ vectors: [ContentVector], optional: Set<String> = []) -> [String] {
         let cases = Dictionary(uniqueKeysWithValues: ContentCases.all.map { ($0.name, $0.content) })
         var failures: [String] = []
         for vector in vectors {
@@ -109,6 +111,7 @@ enum VectorVerifier {
             }
         }
         let missing = Set(cases.keys).union([ContentCases.sealedContentName]).subtracting(vectors.map(\.caseName))
+            .subtracting(optional)
         if !missing.isEmpty { failures.append("content: missing cases \(missing.sorted())") }
         return failures
     }
@@ -226,6 +229,45 @@ enum VectorVerifier {
         }
     }
 
+    static func avatarRecord(_ vectors: [AvatarRecordVector]) -> [String] {
+        var seeds: [String: Data] = [:]
+        func seed(_ username: NormalizedUsername) -> Data {
+            if let cached = seeds[username.value] { return cached }
+            let derived = AvatarRecord.seed(for: username)
+            seeds[username.value] = derived
+            return derived
+        }
+        let stranger = try! NormalizedUsername("zz_not_the_owner")
+        return vectors.enumerated().compactMap { index, vector -> String? in
+            let label = "avatar-record[\(index)]"
+            guard let username = try? NormalizedUsername(vector.username), username.value == vector.username,
+                let account = AccountId(bytes: vector.accountId.hexBytes), let version = UInt64(vector.version)
+            else { return "\(label): malformed inputs" }
+            let key = AvatarRecordKey(seed: seed(username), accountId: account)
+            guard seed(username).hexString == vector.seed.lowercased() else { return "\(label): seed differs" }
+            guard key.bytes.hexString == vector.avatarKey.lowercased() else { return "\(label): avatarKey differs" }
+            let record = vector.record.hexBytes
+            guard vector.valid else {
+                return (try? AvatarRecord.open(record, key: key)) == nil ? nil : "\(label): tampered record opened"
+            }
+            let profileAvatar = vector.profileAvatar.hexBytes
+            guard
+                let sealed = try? AvatarRecord.seal(
+                    profileAvatar, version: version, key: key, nonce: vector.nonce.hexBytes),
+                sealed == record
+            else { return "\(label): sealing gives another record" }
+            guard let opened = try? AvatarRecord.open(record, key: key), opened.version == version,
+                opened.profileAvatar == profileAvatar
+            else { return "\(label): open failed" }
+            let otherName = AvatarRecordKey(seed: seed(stranger), accountId: account)
+            let otherAccount = AvatarRecordKey(seed: seed(username), accountId: AccountId(uuid: UUID()))
+            guard (try? AvatarRecord.open(record, key: otherName)) == nil,
+                (try? AvatarRecord.open(record, key: otherAccount)) == nil
+            else { return "\(label): opens with another username or account" }
+            return nil
+        }
+    }
+
     /// Reads one category of `generator` and verifies it.
     static func verify(generator: String, _ category: VectorCategory) throws -> [String] {
         switch category {
@@ -241,7 +283,10 @@ enum VectorVerifier {
             return attachment(try VectorStore.read(AttachmentVector.self, generator: generator, category: category))
         case .sealed: return sealed(try VectorStore.read(SealedVector.self, generator: generator, category: category))
         case .content:
-            return content(try VectorStore.read(ContentVector.self, generator: generator, category: category))
+            // The other implementation may not have written the newest cases yet.
+            return content(
+                try VectorStore.read(ContentVector.self, generator: generator, category: category),
+                optional: generator == "swift" ? [] : ContentCases.newestCases)
         case .vault: return vault(try VectorStore.read(VaultVector.self, generator: generator, category: category))
         case .backup: return backup(try VectorStore.read(BackupVector.self, generator: generator, category: category))
         case .secretCode:
@@ -254,6 +299,8 @@ enum VectorVerifier {
         case .item: return item(try VectorStore.read(ItemVector.self, generator: generator, category: category))
         case .fingerprint:
             return fingerprint(try VectorStore.read(FingerprintVector.self, generator: generator, category: category))
+        case .avatarRecord:
+            return avatarRecord(try VectorStore.read(AvatarRecordVector.self, generator: generator, category: category))
         }
     }
 }

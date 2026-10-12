@@ -75,6 +75,67 @@ public enum BackupPassword {
     }
 }
 
+// MARK: - Generated passwords
+
+extension BackupPassword {
+    /// The symbols of a generated password: lower-case letters and digits
+    /// without the look-alikes `0 o 1 l i` (31 symbols). Lower case only, so
+    /// typing it on a new phone never depends on Shift or auto-capitalisation.
+    public static let generatedAlphabet: [Character] = Array("abcdefghjkmnpqrstuvwxyz23456789")
+    /// Random symbols in a generated password.
+    public static let generatedSymbolCount = 20
+    /// Symbols per group; groups are joined by ``generatedSeparator``.
+    public static let generatedGroupLength = 4
+    /// Joins the groups. It is part of the password.
+    public static let generatedSeparator: Character = "-"
+    /// The exact strength of a generated password: 20 × log2(31) ≈ 99.08 bits.
+    public static let generatedEntropyBits = Double(generatedSymbolCount) * log2(Double(generatedAlphabet.count))
+
+    /// A new random backup password (PROTOCOL.md §5.5, generated backup
+    /// passwords): 20 symbols drawn uniformly from ``generatedAlphabet`` with
+    /// the system's secure random generator, written as five groups of four
+    /// joined by `-`, like `k7mq-x2pd-9tfa-wn3h-b8ze` (24 characters). It
+    /// always passes ``validate(_:)``.
+    public static func generate() -> String {
+        generate(randomBytes: SecureRandom.bytes)
+    }
+
+    /// ``generate()`` drawing from `randomBytes` (tests).
+    static func generate(randomBytes: (Int) -> Data) -> String {
+        let alphabet = generatedAlphabet
+        // Rejection sampling: only bytes below the largest multiple of the
+        // alphabet size (248) are used, so every symbol is exactly equally
+        // likely. A plain `byte % 31` would favour the first eight symbols.
+        let limit = UInt8(256 / alphabet.count * alphabet.count)
+        var symbols: [Character] = []
+        symbols.reserveCapacity(generatedSymbolCount)
+        while symbols.count < generatedSymbolCount {
+            for byte in randomBytes(generatedSymbolCount) where byte < limit && symbols.count < generatedSymbolCount {
+                symbols.append(alphabet[Int(byte) % alphabet.count])
+            }
+        }
+        var password = ""
+        for (index, symbol) in symbols.enumerated() {
+            if index > 0, index.isMultiple(of: generatedGroupLength) { password.append(generatedSeparator) }
+            password.append(symbol)
+        }
+        return password
+    }
+
+    /// Whether `password` has the generator's shape: five groups of four
+    /// symbols of ``generatedAlphabet`` joined by `-`. It says nothing about
+    /// how the symbols were chosen.
+    public static func isGeneratedFormat(_ password: String) -> Bool {
+        let groups = password.split(separator: generatedSeparator, omittingEmptySubsequences: false)
+        return groups.count == generatedSymbolCount / generatedGroupLength
+            && groups.allSatisfy { group in
+                group.count == generatedGroupLength && group.allSatisfy { generatedAlphabetSet.contains($0) }
+            }
+    }
+
+    private static let generatedAlphabetSet = Set(generatedAlphabet)
+}
+
 extension Array where Element: Equatable {
     fileprivate func containsContiguous(_ needle: [Element]) -> Bool {
         guard !needle.isEmpty, needle.count <= count else { return needle.isEmpty }
