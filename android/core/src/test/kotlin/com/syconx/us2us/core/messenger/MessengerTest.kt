@@ -2,6 +2,7 @@ package com.syconx.us2us.core.messenger
 
 import com.google.protobuf.kotlin.toByteString
 import com.syconx.us2us.core.AccountId
+import com.syconx.us2us.core.attachment.AttachmentCipher
 import com.syconx.us2us.core.attachment.AttachmentIntegrityException
 import com.google.protobuf.ByteString
 import com.syconx.us2us.core.contacts.ContactState
@@ -48,6 +49,7 @@ import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -323,7 +325,12 @@ class MessengerTest : ConversationScenario() {
             )
             // The avatar record waits for the keys (§5.5 step 5).
             assertEquals(setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
-            assertNotEquals(alice.messenger.account.authToken, saved.single().authToken, "the rotated token is saved at once")
+            // The new token is saved as pending before the relay hears of it, then as the account's (§5.5 step 3).
+            assertEquals(2, saved.size)
+            assertEquals(alice.messenger.account.authToken, saved.first().authToken)
+            val chosen = checkNotNull(saved.first().pendingAuthToken)
+            assertEquals(chosen, saved.last().authToken, "the rotated token is saved at once")
+            assertNull(saved.last().pendingAuthToken)
 
             // The receive loop finishes the setup after the backlog; the relay then serves only new keys.
             val newPhone = TestClient(restored, this)
@@ -411,8 +418,13 @@ class MessengerTest : ConversationScenario() {
             assertThrows<AttachmentIntegrityException> { runBlocking { bob.messenger.downloadAttachment(malformed, ByteArrayOutputStream()) } }
 
             val honest = ByteArrayOutputStream()
-            bob.messenger.downloadAttachment(upload, honest)
+            val fractions = CopyOnWriteArrayList<Double>()
+            bob.messenger.downloadAttachment(upload, honest) { fractions += it }
             assertEquals(100_000, honest.size())
+            // The progress of the blob, after every 64 KiB and ending with all of it.
+            assertEquals(1.0, fractions.last())
+            assertEquals(fractions.sorted(), fractions.toList())
+            assertEquals(AttachmentCipher.blobSize(100_000) / (64 * 1024) + 1, fractions.size.toLong())
             listOf(alice, bob).forEach { it.job.cancelAndJoin() }
         }
     }

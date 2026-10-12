@@ -77,11 +77,14 @@ import com.syconx.us2us.core.store.ProtocolStore
 import com.syconx.us2us.core.username.Username
 import com.syconx.us2us.core.vault.BackupFile
 import com.syconx.us2us.core.vault.BackupPasswordPolicy
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -100,6 +103,7 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.util.Collections
+import kotlin.coroutines.cancellation.CancellationException
 
 /** A message that left this phone: its id (for receipts, reactions, deletes) and the relay's answer. */
 class SentMessage(val messageId: ByteArray, val sentAt: Long, val receipt: SendReceipt)
@@ -113,6 +117,11 @@ class SentMessage(val messageId: ByteArray, val sentAt: Long, val receipt: SendR
  * with proof-of-work while no key is known. Receiving: [runReceiveLoop] holds the WebSocket and
  * hands each verified, decrypted message to a [MessageHandler] before acknowledging it; it also
  * sends delivery receipts (§8.4), keeps pre-keys in shape (§5) and runs presence (§8.6).
+ *
+ * While a restore's token rotation is unsettled ([tokenRotationPending], §5.5 step 3), nothing uses
+ * either token: authenticated calls fail with [TokenRotationPendingException] without being sent,
+ * until [finishPendingTokenRotation] (which the receive loop calls before every connection attempt)
+ * finds out which token the relay holds.
  *
  * All functions are main-safe; CPU-heavy work runs on [Dispatchers.Default], file I/O on
  * [Dispatchers.IO].
@@ -137,12 +146,24 @@ class Messenger(
     val account: LocalAccount get() = currentAccount
     val accountId: AccountId = account.accountId
 
-    private val relay = publicRelay.withAuthToken(account.authToken)
+    /** The client with the account's token; `null` while a token rotation is unsettled (§5.5 step 3.5). */
+    @Volatile
+    private var authenticatedRelay: RelayClient? = authenticatedRelayFor(account)
+
+    /** The authenticated client. Nothing is sent while a token rotation is unsettled. */
+    private val relay: RelayClient get() = authenticatedRelay ?: throw TokenRotationPendingException()
+
     private val cryptoLock = Mutex()
     private val contactLock = Any()
     private val sessionSetupLock = Mutex()
     private val sessions = SessionCrypto(store, account.accountId, config.clock)
-    private val directory = RelaySenderDirectory(relay, config.clock)
+    private val directory = RelaySenderDirectory(
+        { relay },
+        config.clock,
+        RelaySenderDirectory.DEFAULT_USERNAME_TTL,
+        RelaySenderDirectory.DEFAULT_MIN_REFRESH_INTERVAL,
+        RelaySenderDirectory.DEFAULT_CACHE_SIZE,
+    )
     private val receiver = MessageReceiver(account.accountId, store, sessions, SenderVerifier(store, directory), cryptoLock)
     private val preKeys = PreKeyManager(store, config.preKeyPolicy, config.clock)
     private val handledEnvelopes = Collections.synchronizedSet(
@@ -168,12 +189,45 @@ class Messenger(
     /** Contacts whose presence just changed; read the new state with [presence]. */
     val presenceUpdates: SharedFlow<AccountId> = presenceChanges.asSharedFlow()
 
+    private val tokenRotationPendingState = MutableStateFlow(account.pendingAuthToken != null)
+
+    /**
+     * A restore's token rotation is unsettled (§5.5 step 3.4): its answer was lost, so the old phone
+     * may still have access, and this one does not connect until [finishPendingTokenRotation] finds
+     * out which token the relay holds. The app says so plainly while this is `true` and offers to
+     * ask again.
+     */
+    val tokenRotationPending: StateFlow<Boolean> = tokenRotationPendingState.asStateFlow()
+
+    /** Rotation attempts run one at a time; a caller that waited for one shares its outcome. */
+    private val tokenRotationLock = Mutex()
+
+    /** Attempts finished so far, and the outcome of the last one (guarded by [tokenRotationLock]). */
+    @Volatile
+    private var tokenRotationAttempts = 0L
+    private var lastTokenRotation: Result<TokenRotationOutcome?>? = null
+
+    /**
+     * The relay refused both tokens of a rotation settled in this process: [finishPendingTokenRotation]
+     * keeps saying so, also once nothing is pending any more.
+     */
+    @Volatile
+    private var tokenRotationRefused = false
+
     /** Avatar record writes go one at a time, in order (§8.10). */
     private val avatarLock = Mutex()
 
     /** The relay answered an avatar write with `404`/`405`: it has no avatars until the next app start. */
     @Volatile
     private var avatarUnavailable = false
+
+    private val avatarRecordState = MutableStateFlow(avatarRecordStatusOf(account))
+
+    /**
+     * Where the avatar record for search stands (§8.10, "Publishing"): in line with the picture,
+     * "Show in search" and the username, a write still owed, or a relay without avatar records.
+     */
+    val avatarRecordStatus: StateFlow<AvatarRecordStatus> = avatarRecordState.asStateFlow()
 
     /**
      * No avatar store (`PUT`) before this time (ms), after a `429` for one. Deletes have a budget
@@ -193,6 +247,9 @@ class Messenger(
     /** Pictures from search per (account, normalized username), with the version they were opened from. */
     private val searchPictures = lruMap<Pair<AccountId, String>, SearchPicture>(MAX_SEARCH_PICTURES)
 
+    /** [searchAvatar] fetches under way; a search for the same account and username joins one (guarded by [searchPictures]). */
+    private val searchesInFlight = HashMap<Pair<AccountId, String>, CompletableDeferred<ProfilePicture?>>()
+
     /**
      * The highest version opened per (account, normalized username) (§8.10 "Search" step 5): a
      * record below it is a replay and is ignored. Not lowered by a `404` or a record that fails to
@@ -200,7 +257,11 @@ class Messenger(
      */
     private val searchVersions = lruMap<Pair<AccountId, String>, Long>(MAX_SEARCH_VERSIONS)
 
-    private class SearchPicture(val version: Long, val picture: ProfilePicture)
+    /**
+     * A record opened from search: its version (`ETag`), its picture (`null` when it fails §8.9) and
+     * when the relay last confirmed it (ms of [MessengerConfig.clock]).
+     */
+    private class SearchPicture(val version: Long, val picture: ProfilePicture?, val checkedAt: Long)
 
     // Directory and contacts
 
@@ -211,17 +272,26 @@ class Messenger(
      */
     suspend fun findByUsername(input: String): Contact? {
         val username = Username.parse(input) ?: return null
-        val answer: AccountIdentity? = relay.lookupUsername(withContext(Dispatchers.Default) { username.hash() })
-        // The answer is fresh: it replaces a stale owner that sender verification may have cached.
-        directory.remember(username, answer?.accountId)
-        // A picture found for this username before belongs to whoever has it now, or to nobody.
-        synchronized(searchPictures) { searchPictures.keys.removeAll { it.second == username.value && it.first != answer?.accountId } }
-        val found = answer ?: return null
+        val found = findAccount(username) ?: return null
         if (found.accountId == accountId) return null
         return editContact(found.accountId) {
             (it ?: Contact(found.accountId, username.value, ContactState.OUTGOING_REQUEST))
                 .copy(username = username.value, usernameStatus = UsernameStatus.VERIFIED)
         }
+    }
+
+    /**
+     * Exact-match directory lookup (§4.4) that records nothing: `null` if nobody has [username].
+     * Use it for a search (4.2), then [searchAvatar] for the result's picture; [findByUsername]
+     * also keeps the account as a contact.
+     */
+    suspend fun findAccount(username: Username): AccountIdentity? {
+        val answer = relay.lookupUsername(withContext(Dispatchers.Default) { username.hash() })
+        // The answer is fresh: it replaces a stale owner that sender verification may have cached.
+        directory.remember(username, answer?.accountId)
+        // A picture found for this username before belongs to whoever has it now, or to nobody.
+        synchronized(searchPictures) { forgetSearches(username.value, keeping = answer?.accountId) }
+        return answer
     }
 
     fun contact(accountId: AccountId): Contact? = contacts.get(accountId)
@@ -535,10 +605,20 @@ class Messenger(
      *
      * @return whether the relay is in line now. `false` without an exception while it has to wait:
      *   the relay has no avatar endpoints (`404`/`405`; again after the next app start), asked to
-     *   wait (`429`), or a restore's keys are not replaced yet.
+     *   wait (`429`), or a restore's keys or token rotation are not settled yet.
      * @throws IOException if the relay could not be reached or refused otherwise; retried later.
      */
     suspend fun syncAvatarRecord(): Boolean = avatarLock.withLock { syncAvatarLocked() }
+
+    /**
+     * [syncAvatarRecord] that never throws, as the iOS client's: where the record stands afterwards
+     * ([avatarRecordStatus]). A write that failed stays owed and is made again at the next
+     * connection or the next change.
+     */
+    suspend fun trySyncAvatarRecord(): AvatarRecordStatus {
+        attemptAvatarSync()
+        return avatarRecordState.value
+    }
 
     /**
      * The picture to show for [peer] in a search result or on our own message request (§8.9,
@@ -581,6 +661,66 @@ class Messenger(
         if (contact.usernameStatus != UsernameStatus.VERIFIED) return null
         val username = contact.username?.let(Username::parse) ?: return null
         return fetchSearchPicture(contact.accountId, username)
+    }
+
+    /**
+     * The picture of a search result (§8.10 "Search", step 4) that needs no contact: [account] is
+     * what the directory returned for exactly [username] ([findAccount], step 2). Fetches the avatar
+     * record (with `If-None-Match` when a copy for this account and username is kept), opens it
+     * with the key of [username] and [account], and checks the picture (§8.9). Every failure (no
+     * record, no answer, `429`, `5xx`, a record that does not open) is `null`, the initial letter;
+     * nothing is thrown. A record older than one opened before for this account and username is a
+     * replay (step 5): it is ignored, and the kept copy, if any, stays. Our own account shows our
+     * own picture without a request.
+     *
+     * Call it only for an exact directory hit the user searched for, never while typing nor for
+     * lookups the app makes by itself, and not for accepted contacts, whose `ProfileUpdate` carries
+     * the picture, nor for blocked ones (the app decides, as on iOS): every fetch tells the relay
+     * who looked at whom. Copies live in memory only ([clearSearchPictures]); a search answered
+     * within the last minute is not asked again (the fetch limit is 60 per hour, §4.11), and a
+     * search while the same one is under way waits for it.
+     */
+    suspend fun searchAvatar(username: Username, account: AccountId): ProfilePicture? {
+        if (account == accountId) return currentAccount.profilePicture
+        val key = account to username.value
+        while (true) {
+            val now = config.clock.millis()
+            val mine = CompletableDeferred<ProfilePicture?>()
+            var cached: SearchPicture? = null
+            val running = synchronized(searchPictures) {
+                forgetSearches(username.value, keeping = account)
+                searchesInFlight[key] ?: run {
+                    val kept = searchPictures[key]
+                    if (kept != null && now - kept.checkedAt in 0 until SEARCH_FRESHNESS_MS) return kept.picture
+                    cached = kept
+                    searchesInFlight[key] = mine
+                    null
+                }
+            }
+            if (running != null) {
+                try {
+                    return running.await()
+                } catch (_: CancellationException) {
+                    // The search we joined was cancelled, not this one: ask ourselves.
+                    currentCoroutineContext().ensureActive()
+                    continue
+                }
+            }
+            try {
+                return fetchSearchedAvatar(key, username, cached).also { mine.complete(it) }
+            } finally {
+                mine.cancel()
+                synchronized(searchPictures) { if (searchesInFlight[key] === mine) searchesInFlight.remove(key) }
+            }
+        }
+    }
+
+    /**
+     * Derives the record key of [username] ahead of its search result, e.g. while the directory
+     * lookup runs (§8.10 step 1): the slow PBKDF2 step, kept in memory only.
+     */
+    suspend fun prepareAvatarSearch(username: Username) {
+        avatarSeed(username)
     }
 
     /**
@@ -669,20 +809,30 @@ class Messenger(
      * the blob from the relay as recipients should (§4.9). The download is cut off at the blob size
      * the declared plaintext size implies, so a hostile sender or relay cannot fill the disk.
      *
+     * @param progress hears the fraction of the blob received (0…1) while it downloads, ending with
+     *   1 once all of it is here (before it is verified and decrypted). Called on a background
+     *   thread; keep it cheap.
      * @throws AttachmentIntegrityException if the reference is malformed or the blob was tampered with.
      * @throws IOException on network failure, or if the blob is larger than its declared size allows.
      */
-    suspend fun downloadAttachment(attachment: Attachment, output: OutputStream, deleteFromRelay: Boolean = true) {
+    suspend fun downloadAttachment(
+        attachment: Attachment,
+        output: OutputStream,
+        deleteFromRelay: Boolean = true,
+        progress: ((Double) -> Unit)? = null,
+    ) {
         if (attachment.mediaId.size() != MEDIA_ID_LENGTH || attachment.key.size() != AttachmentCipher.KEY_LENGTH ||
             attachment.digest.size() != DIGEST_LENGTH || attachment.size !in 0..AttachmentCipher.MAX_PLAINTEXT_SIZE
         ) {
             throw AttachmentIntegrityException("malformed attachment reference")
         }
         val mediaId = attachment.mediaId.toByteArray()
+        val blobSize = AttachmentCipher.blobSize(attachment.size)
+        val received = progress?.let { report -> { bytes: Long -> report(if (blobSize > 0) minOf(1.0, bytes.toDouble() / blobSize) else 0.0) } }
         val staged = withContext(Dispatchers.IO) { File.createTempFile("us2us-", ".blob", config.tempDirectory) }
         try {
             withContext(Dispatchers.IO) { staged.outputStream().buffered() }.use {
-                publicRelay.downloadMedia(mediaId, it, maxBytes = AttachmentCipher.blobSize(attachment.size))
+                publicRelay.downloadMedia(mediaId, it, maxBytes = blobSize, progress = received)
             }
             withContext(Dispatchers.IO) {
                 AttachmentCipher.decrypt(staged, attachment.key.toByteArray(), attachment.digest.toByteArray(), attachment.size, output)
@@ -707,6 +857,10 @@ class Messenger(
      * exponential backoff. Returns only by cancellation, or throws [ConnectionRejectedException]
      * when another connection replaced this one or the token is invalid.
      *
+     * Before every connection attempt a pending token rotation is settled ([finishPendingTokenRotation],
+     * §5.5 step 3.4): while its outcome stays unknown nothing connects and it is asked again with
+     * the backoff; `401` for both tokens ends the loop like a refused token (HTTP `401`).
+     *
      * The envelope is acknowledged after [handler] returns. If the handler throws, the loop stops
      * and the envelope stays at the relay; libsignal has already consumed its message key, though,
      * so the handler must store messages reliably.
@@ -716,9 +870,9 @@ class Messenger(
         try {
             while (true) {
                 connectionState.value = ConnectionState.CONNECTING
-                val last = runSocket(handler) { backoff = config.reconnectMinDelay }
+                val last = if (tokenUsable()) runSocket(handler) { backoff = config.reconnectMinDelay } else null
                 connectionState.value = ConnectionState.DISCONNECTED
-                if (!last.isRetryable) {
+                if (last != null && !last.isRetryable) {
                     throw ConnectionRejectedException((last as? SocketEvent.Closed)?.code, (last as? SocketEvent.Failed)?.httpStatus)
                 }
                 delay(backoff)
@@ -727,6 +881,23 @@ class Messenger(
         } finally {
             connectionState.value = ConnectionState.DISCONNECTED
         }
+    }
+
+    /**
+     * Whether the account's token may connect now: a pending rotation is settled first. `false`
+     * while its outcome is unknown (or the relay refused a new token and a fresh one is pending).
+     *
+     * @throws ConnectionRejectedException when the relay refuses both tokens (§5.5 step 3.4).
+     */
+    private suspend fun tokenUsable(): Boolean = try {
+        if (finishPendingTokenRotation() == TokenRotationResult.BACKUP_NO_LONGER_VALID) {
+            throw ConnectionRejectedException(code = null, httpStatus = HTTP_UNAUTHORIZED)
+        }
+        true
+    } catch (_: IOException) {
+        false
+    } catch (_: TokenRefusedException) {
+        false
     }
 
     /**
@@ -751,10 +922,36 @@ class Messenger(
     // Account
 
     /**
+     * Settles a token rotation whose answer never arrived (§5.5 step 3.4): after a restore that
+     * lost its connection, or at the next start (the pending token is in [LocalAccount]). Asks the
+     * relay which of the two stored tokens the account has and keeps that one, in one save. Until
+     * this succeeds nothing else uses either token: authenticated calls fail with
+     * [TokenRotationPendingException] without being sent. The receive loop calls it before every
+     * connection attempt; maintenance, backups and account deletion call it themselves. Concurrent
+     * callers share one attempt; nothing is sent when nothing is pending.
+     *
+     * @return [TokenRotationResult.READY] also when nothing was pending (and none was refused in
+     *   this process).
+     * @throws IOException when the outcome is still unknown (no answer, `429`, `5xx`); both tokens
+     *   stay stored, ask again later.
+     * @throws TokenRefusedException when the relay refused the new token (`400`, §5.5 step 3.5):
+     *   nothing changed, so the backup's token, which the old phone still holds, is the account's.
+     *   A fresh token is pending in its place, and the next call rotates to it.
+     */
+    suspend fun finishPendingTokenRotation(): TokenRotationResult = when (settleTokenRotation(firstAttempt = false)) {
+        null -> if (tokenRotationRefused) TokenRotationResult.BACKUP_NO_LONGER_VALID else TokenRotationResult.READY
+        is TokenRotationOutcome.Committed -> TokenRotationResult.READY
+        TokenRotationOutcome.Unchanged -> throw TokenRefusedException()
+        TokenRotationOutcome.BackupNoLongerValid -> TokenRotationResult.BACKUP_NO_LONGER_VALID
+    }
+
+    /**
      * Finishes what registration or restore left for later ([LocalAccount.pendingSetup]), then
      * uploads new pre-keys if the relay is running low or the rotation interval passed (§5). The
-     * receive loop runs this after every backlog; call it on app start as well.
+     * receive loop runs this after every backlog; call it on app start as well. A pending token
+     * rotation is settled first.
      *
+     * @throws BackupNoLongerValidException when the relay refused both tokens of a rotation.
      * @return whether pre-keys were uploaded.
      */
     suspend fun performMaintenance(): Boolean {
@@ -774,8 +971,12 @@ class Messenger(
         return true
     }
 
-    /** Irreversibly deletes the account at the relay, with its avatar record (§4.3). */
+    /**
+     * Irreversibly deletes the account at the relay, with its avatar record (§4.3). A pending token
+     * rotation is settled first, so the request carries the token the relay holds.
+     */
     suspend fun deleteAccount() {
+        finishPendingTokenRotation()
         relay.deleteAccount()
         clearSearchPictures()
     }
@@ -785,10 +986,17 @@ class Messenger(
      * encrypted under the separate backup [password] (never the secret code). The UI asks for the
      * password twice and checks it with [BackupPasswordPolicy] first. Takes a few seconds by design.
      *
+     * A token rotation whose outcome is unknown is settled first, so the backup carries the token
+     * the relay holds; a backup made with the other one could never be restored.
+     *
      * @throws com.syconx.us2us.core.vault.InvalidBackupPasswordException if [password] breaks a rule of §5.5.
+     * @throws BackupNoLongerValidException when the relay refused both tokens of a rotation.
+     * @throws IOException when a pending rotation's outcome is still unknown, or
+     *   [TokenRefusedException] when the relay refused its new token (see [finishPendingTokenRotation]).
      */
     suspend fun exportBackup(password: String, iterations: Int = BackupFile.ITERATIONS): ByteArray {
         BackupPasswordPolicy.requireValid(password)
+        if (finishPendingTokenRotation() == TokenRotationResult.BACKUP_NO_LONGER_VALID) throw BackupNoLongerValidException()
         val backup = backupOf(currentAccount)
         return withContext(Dispatchers.Default) { BackupFile.create(password, backup.toByteArray(), iterations) }
     }
@@ -796,11 +1004,18 @@ class Messenger(
     /**
      * [exportBackup] on the calling thread, which it blocks for the key derivation: for an
      * [AccountStore] that keeps the account in its backup file and has to write it before
-     * [AccountStore.save] returns (the CLI bot).
+     * [AccountStore.save] returns (the CLI bot). It cannot settle a pending token rotation.
+     *
+     * @throws TokenRotationPendingException while a token rotation is unsettled: neither token is
+     *   known to be the account's.
+     * @throws BackupNoLongerValidException when the relay refused both tokens of a rotation.
      */
     fun exportBackupBlocking(password: String, iterations: Int = BackupFile.ITERATIONS): ByteArray {
         BackupPasswordPolicy.requireValid(password)
-        return BackupFile.create(password, backupOf(currentAccount).toByteArray(), iterations)
+        val account = currentAccount
+        if (account.pendingAuthToken != null) throw TokenRotationPendingException()
+        if (tokenRotationRefused) throw BackupNoLongerValidException()
+        return BackupFile.create(password, backupOf(account).toByteArray(), iterations)
     }
 
     /** The `AccountBackup` of [account] with the accepted and blocked contacts, their identities and keys. */
@@ -1031,7 +1246,11 @@ class Messenger(
     // Internals: receiving
 
     private suspend fun runSocket(handler: MessageHandler, onConnected: () -> Unit): SocketEvent = coroutineScope {
-        val socket = relay.openSocket()
+        val socket = try {
+            relay.openSocket()
+        } catch (e: TokenRotationPendingException) {
+            return@coroutineScope SocketEvent.Failed(e, null)
+        }
         var last: SocketEvent = SocketEvent.Failed(IOException("socket ended without a close event"), null)
         var backlogDone = false
         var keepAlive: Job? = null
@@ -1131,6 +1350,8 @@ class Messenger(
      *   restore leave them to the receive loop, so the user is not kept waiting for every contact.
      */
     private suspend fun completePendingSetup(announce: Boolean = true) {
+        // Nothing reaches the relay before a token rotation is settled (§5.5 step 3.3).
+        if (finishPendingTokenRotation() == TokenRotationResult.BACKUP_NO_LONGER_VALID) throw BackupNoLongerValidException()
         if (PendingSetup.PUBLISH_ACCESS_KEY in currentAccount.pendingSetup) {
             relay.setAccessKey(currentAccount.accessKey)
             updateAccount { it.copy(pendingSetup = it.pendingSetup - PendingSetup.PUBLISH_ACCESS_KEY) }
@@ -1194,7 +1415,8 @@ class Messenger(
         while (true) {
             val account = currentAccount
             if (PendingSetup.SYNC_AVATAR !in account.pendingSetup) return true
-            if (PendingSetup.REPLACE_PRE_KEYS in account.pendingSetup || !avatarSyncDue()) return false
+            // Not before a restore's keys are replaced (§5.5 step 5) and its token is settled.
+            if (PendingSetup.REPLACE_PRE_KEYS in account.pendingSetup || account.pendingAuthToken != null || !avatarSyncDue()) return false
             val version = account.avatarVersion + 1
             // Past 2^63 − 1 nothing can be written; only a relay that sent such a highest version gets here.
             if (version < 1) return false
@@ -1222,6 +1444,7 @@ class Messenger(
                     }
                     e.httpStatus == HTTP_NOT_FOUND || e.httpStatus == HTTP_METHOD_NOT_ALLOWED -> {
                         avatarUnavailable = true
+                        avatarRecordState.value = avatarRecordStatusOf(currentAccount)
                         return false
                     }
                     e.httpStatus == HTTP_TOO_MANY_REQUESTS -> {
@@ -1243,12 +1466,24 @@ class Messenger(
 
     /** The avatar key of [username] for [account], from the in-memory seed if it was derived before. */
     private suspend fun avatarKey(username: Username, account: AccountId): AvatarKey {
-        val seed = synchronized(avatarSeeds) { avatarSeeds[username.value] }
-            ?: withContext(Dispatchers.Default) { AvatarKey.seed(username) }.also { synchronized(avatarSeeds) { avatarSeeds[username.value] = it } }
+        val seed = avatarSeed(username)
         return withContext(Dispatchers.Default) { AvatarKey.derive(seed, account) }
     }
 
-    /** Steps 4 and 5 of §8.10 "Search". */
+    /** `seed` of [username] (§8.10): derived once (the slow PBKDF2 step) and kept in memory. */
+    private suspend fun avatarSeed(username: Username): ByteArray =
+        synchronized(avatarSeeds) { avatarSeeds[username.value] }
+            ?: withContext(Dispatchers.Default) { AvatarKey.seed(username) }.also { synchronized(avatarSeeds) { avatarSeeds[username.value] = it } }
+
+    /**
+     * Drops what search found for [username] under any account but [keeping] (§8.10 "Caching": the
+     * directory now maps the name elsewhere, or to nobody). Holds the [searchPictures] lock.
+     */
+    private fun forgetSearches(username: String, keeping: AccountId?) {
+        searchPictures.keys.removeAll { it.second == username && it.first != keeping }
+    }
+
+    /** Steps 4 and 5 of §8.10 "Search" for [searchPicture]: asked at every call. */
     private suspend fun fetchSearchPicture(peer: AccountId, username: Username): ProfilePicture? {
         val cacheKey = peer to username.value
         val cached = synchronized(searchPictures) { searchPictures[cacheKey] }
@@ -1257,8 +1492,12 @@ class Messenger(
         } catch (_: IOException) {
             return null // No answer, 429 or 5xx: the initial letter; the next search tries again.
         }
+        val now = config.clock.millis()
         val found = when (answer) {
-            AvatarFetch.NotModified -> return cached?.picture
+            AvatarFetch.NotModified -> {
+                cached?.let { synchronized(searchPictures) { searchPictures[cacheKey] = SearchPicture(it.version, it.picture, now) } }
+                return cached?.picture
+            }
             AvatarFetch.None -> null
             is AvatarFetch.Found -> when (val opened = openSearchRecord(answer.record, username, peer)) {
                 // Older than a record opened before: a replay (step 5). The cached copy stays.
@@ -1266,13 +1505,52 @@ class Messenger(
                 SearchRecord.Unreadable -> null
                 is SearchRecord.Opened -> {
                     // Authenticated, so its version counts even if the picture inside fails §8.9.
-                    synchronized(searchPictures) { searchVersions[cacheKey] = maxOf(searchVersions[cacheKey] ?: 0L, opened.version) }
-                    opened.picture?.let { SearchPicture(opened.version, it) }
+                    noteOpened(cacheKey, opened.version)
+                    opened.picture?.let { SearchPicture(opened.version, it, now) }
                 }
             }
         }
         synchronized(searchPictures) { if (found != null) searchPictures[cacheKey] = found else searchPictures.remove(cacheKey) }
         return found?.picture
+    }
+
+    /** [searchAvatar]'s request: steps 4 and 5 of §8.10 "Search", every failure the initial letter. */
+    private suspend fun fetchSearchedAvatar(key: Pair<AccountId, String>, username: Username, cached: SearchPicture?): ProfilePicture? {
+        val answer = try {
+            relay.fetchAvatar(key.first, ifNoneMatch = cached?.version)
+        } catch (_: IOException) {
+            return null // No answer, 429 or 5xx: the initial letter; the next search asks again.
+        }
+        val now = config.clock.millis()
+        return when (answer) {
+            AvatarFetch.NotModified -> cached?.let {
+                synchronized(searchPictures) { searchPictures[key] = SearchPicture(it.version, it.picture, now) }
+                it.picture
+            }
+            AvatarFetch.None -> {
+                synchronized(searchPictures) { searchPictures.remove(key) }
+                null
+            }
+            is AvatarFetch.Found -> when (val opened = openSearchRecord(answer.record, username, key.first)) {
+                // Older than a record opened before: a replay (step 5). The kept copy stays.
+                SearchRecord.Replayed -> synchronized(searchPictures) { searchPictures[key]?.picture }
+                SearchRecord.Unreadable -> {
+                    synchronized(searchPictures) { searchPictures.remove(key) }
+                    null
+                }
+                is SearchRecord.Opened -> {
+                    // Authenticated, so its version counts even if the picture inside fails §8.9.
+                    noteOpened(key, opened.version)
+                    synchronized(searchPictures) { searchPictures[key] = SearchPicture(opened.version, opened.picture, now) }
+                    opened.picture
+                }
+            }
+        }
+    }
+
+    /** The highest version opened for [key] rises to [version] (§8.10 "Search" step 5). */
+    private fun noteOpened(key: Pair<AccountId, String>, version: Long) {
+        synchronized(searchPictures) { searchVersions[key] = maxOf(searchVersions[key] ?: 0L, version) }
     }
 
     private sealed class SearchRecord {
@@ -1413,9 +1691,98 @@ class Messenger(
 
     @Synchronized
     private fun updateAccount(update: (LocalAccount) -> LocalAccount): LocalAccount {
-        currentAccount = update(currentAccount)
+        val previous = currentAccount
+        currentAccount = update(previous)
+        accountChanged(previous)
         accountStore.save(currentAccount)
         return currentAccount
+    }
+
+    /** [updateAccount] for a change that must be stored before it is used: a new pending token (§5.5 step 3.1). */
+    @Synchronized
+    private fun saveBeforeUse(update: (LocalAccount) -> LocalAccount): LocalAccount {
+        val previous = currentAccount
+        val updated = update(previous)
+        accountStore.save(updated)
+        currentAccount = updated
+        accountChanged(previous)
+        return updated
+    }
+
+    /** Keeps what follows from the account in step with it: the client's token and the published states. */
+    private fun accountChanged(previous: LocalAccount) {
+        val account = currentAccount
+        if (account.authToken != previous.authToken || account.pendingAuthToken != previous.pendingAuthToken) {
+            authenticatedRelay = authenticatedRelayFor(account)
+        }
+        tokenRotationPendingState.value = account.pendingAuthToken != null
+        avatarRecordState.value = avatarRecordStatusOf(account)
+    }
+
+    /** What the relay client may authenticate with: nothing while a token rotation's outcome is unknown. */
+    private fun authenticatedRelayFor(account: LocalAccount): RelayClient? =
+        if (account.pendingAuthToken == null) publicRelay.withAuthToken(account.authToken) else null
+
+    private fun avatarRecordStatusOf(account: LocalAccount): AvatarRecordStatus = when {
+        PendingSetup.SYNC_AVATAR !in account.pendingSetup -> AvatarRecordStatus.IN_SYNC
+        avatarUnavailable -> AvatarRecordStatus.UNAVAILABLE
+        else -> AvatarRecordStatus.PENDING
+    }
+
+    // Internals: token rotation (§4.3, §5.5 step 3)
+
+    /**
+     * Runs the rotation to [LocalAccount.pendingAuthToken] (step 3.2 for the first attempt of a
+     * restore, otherwise step 3.4) and saves its outcome; `null` when nothing is pending. One attempt
+     * at a time: a caller that waited while another ran gets that attempt's outcome.
+     */
+    private suspend fun settleTokenRotation(firstAttempt: Boolean): TokenRotationOutcome? {
+        if (currentAccount.pendingAuthToken == null) return null
+        val seen = tokenRotationAttempts
+        return tokenRotationLock.withLock {
+            if (tokenRotationAttempts != seen) return@withLock checkNotNull(lastTokenRotation).getOrThrow()
+            val result = try {
+                Result.success(rotatePendingToken(firstAttempt))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            lastTokenRotation = result
+            tokenRotationAttempts++
+            result.getOrThrow()
+        }
+    }
+
+    /** One attempt; holds [tokenRotationLock]. */
+    private suspend fun rotatePendingToken(firstAttempt: Boolean): TokenRotationOutcome? {
+        val account = currentAccount
+        val pending = account.pendingAuthToken ?: return null
+        val outcome = if (firstAttempt) {
+            TokenRotation.rotate(account.authToken, pending, publicRelay)
+        } else {
+            TokenRotation.resolve(account.authToken, pending, publicRelay)
+        }
+        when (outcome) {
+            // Step 3.3: in one save the relay's token becomes the account's and the other one is forgotten.
+            is TokenRotationOutcome.Committed -> updateAccount { it.copy(authToken = outcome.token, pendingAuthToken = null) }
+            // 400 while settling (step 3.5): nothing changed, so the old token (the old phone's too)
+            // is still the account's. The outcome is known, so the pending token may be replaced: a
+            // fresh one, stored before it is sent and settled like an unanswered rotation next time.
+            TokenRotationOutcome.Unchanged -> if (firstAttempt) {
+                // A restore's first attempt: the old token stays and works; the restore fails.
+                updateAccount { it.copy(pendingAuthToken = null) }
+            } else {
+                saveBeforeUse { it.copy(pendingAuthToken = TokenRotation.newToken()) }
+            }
+            // Nothing works (401 for both): the old token stays, and every later call is refused like
+            // any revoked token.
+            TokenRotationOutcome.BackupNoLongerValid -> {
+                updateAccount { it.copy(pendingAuthToken = null) }
+                tokenRotationRefused = true
+            }
+        }
+        return outcome
     }
 
     /** Our own key and profile go out by themselves; they must not trigger another round of sharing. */
@@ -1441,9 +1808,13 @@ class Messenger(
         private const val MAX_AVATAR_SEEDS = 16
         private const val MAX_SEARCH_PICTURES = 64
         private const val MAX_SEARCH_VERSIONS = 1024
+        private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_NOT_FOUND = 404
         private const val HTTP_METHOD_NOT_ALLOWED = 405
         private const val HTTP_TOO_MANY_REQUESTS = 429
+
+        /** A search answered within this time is not asked again (the fetch limit is 60 per hour, §4.11). */
+        private const val SEARCH_FRESHNESS_MS = 60_000L
 
         /** Wait after a `429` without `Retry-After` before the next avatar write, and the longest wait honoured. */
         private const val DEFAULT_AVATAR_RETRY_SECONDS = 60L
@@ -1536,8 +1907,14 @@ class Messenger(
          * 2. Writes the contacts and their identity keys into [contacts] and [protocolStorage], which
          *    the app keeps in the new vault: trusted keys stay trusted, so nobody sees a
          *    safety-number change, and a change the user had not accepted stays blocked.
-         * 3. Rotates the auth token (the old phone loses access) and saves the account to
-         *    [accountStore] before anything else can fail; the backup's token no longer works.
+         * 3. Rotates the auth token, so the old phone loses access, to a new token chosen here: the
+         *    account goes to [accountStore] with the backup's token and the new one as
+         *    [LocalAccount.pendingAuthToken] before the relay hears of it, and once more, with only
+         *    the token the relay holds, when the answer says which one that is. If no answer arrives
+         *    (also not to the follow-up questions of step 3.4), the restore still returns, with both
+         *    tokens kept and none used ([tokenRotationPending]): [finishPendingTokenRotation]
+         *    settles it later, before anything else is sent; the receive loop asks before every
+         *    connection attempt.
          * 4. Uploads a fresh key set with `replaceAll`. A failure stays in
          *    [LocalAccount.pendingSetup] and is retried until it succeeds ([performMaintenance],
          *    and with backoff while [runReceiveLoop] is connected).
@@ -1548,6 +1925,11 @@ class Messenger(
          *
          * @throws com.syconx.us2us.core.vault.WrongBackupPasswordException if [password] is wrong.
          * @throws InvalidBackupException if the backup is malformed or of an unknown version.
+         * @throws BackupNoLongerValidException when the relay refuses both tokens (`401`): another
+         *   phone restored the same backup first, or the account was deleted. The account was saved
+         *   with the backup's token, which works for nothing; erase it.
+         * @throws TokenRefusedException when the relay refused the new token (`400`): nothing changed
+         *   on the relay, and the backup still works.
          */
         suspend fun restore(
             backupFile: ByteArray,
@@ -1587,10 +1969,11 @@ class Messenger(
                 contacts.put(restored.contact)
             }
 
-            val authToken = relay.withAuthToken(backupToken).rotateAuthToken()
+            // §5.5 step 3.1: the new token is stored next to the backup's before anything is sent, so
+            // whichever answer gets lost, one of them works.
             val account = LocalAccount(
                 accountId = accountId,
-                authToken = authToken,
+                authToken = backupToken,
                 username = username,
                 identityKeyPair = identity,
                 registrationId = backup.registrationId,
@@ -1600,10 +1983,23 @@ class Messenger(
                 // Absent in backups of older builds: on, the default.
                 showPictureInSearch = !backup.avatarSearchOff,
                 pendingSetup = setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE),
+                pendingAuthToken = TokenRotation.newToken(),
             )
-            // The backup's token is revoked now: never lose the new one, whatever fails next.
             accountStore.save(account)
-            return Messenger(account, store, contacts, relay, config, accountStore).apply { completePendingSetupQuietly() }
+            val messenger = Messenger(account, store, contacts, relay, config, accountStore)
+            val outcome = try {
+                messenger.settleTokenRotation(firstAttempt = true)
+            } catch (_: IOException) {
+                // The outcome is unknown (step 3.4): both tokens stay stored and unused until
+                // finishPendingTokenRotation finds it out.
+                return messenger
+            }
+            when (outcome) {
+                is TokenRotationOutcome.Committed, null -> Unit
+                TokenRotationOutcome.Unchanged -> throw TokenRefusedException()
+                TokenRotationOutcome.BackupNoLongerValid -> throw BackupNoLongerValidException()
+            }
+            return messenger.apply { completePendingSetupQuietly() }
         }
 
         private class RestoredContact(val contact: Contact, val identityKey: IdentityKey?, val trust: IdentityTrust, val verified: Boolean)

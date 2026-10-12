@@ -28,6 +28,8 @@ import com.syconx.us2us.core.testing.TestClient
 import com.syconx.us2us.core.username.Username
 import com.syconx.us2us.core.vault.BackupFile
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -459,5 +461,150 @@ class AvatarMessengerTest {
             assertArrayEquals(largest.data, (bob.messenger.contact(alice.accountId)?.picture as ProfilePicture.Photo).data)
             listOf(alice, bob).forEach { it.job.cancelAndJoin() }
         }
+    }
+
+    @Test
+    fun `a search shows a stranger's picture without keeping a contact, and asks the relay at most once a minute`() = runBlocking {
+        val clock = MutableClock()
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setProfilePicture(photo)
+        val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        val name = Username("alice")
+
+        assertEquals(alice.accountId, carol.findAccount(name)?.accountId)
+        assertNull(carol.contact(alice.accountId), "a search keeps no contact")
+        assertNull(carol.findAccount(Username("nobody")))
+        carol.prepareAvatarSearch(name)
+        val fetches = relay.avatarFetches
+        val found = carol.searchAvatar(name, alice.accountId)
+        assertEquals(photo, found)
+        assertTrue(found!!.isPhoto)
+        assertEquals(fetches + 1, relay.avatarFetches)
+        assertNull(carol.contact(alice.accountId))
+
+        // Within a minute: the copy in memory, no request.
+        assertEquals(photo, carol.searchAvatar(name, alice.accountId))
+        assertEquals(fetches + 1, relay.avatarFetches)
+        // Later: revalidated with If-None-Match; 304 keeps the copy.
+        clock.advance(120.seconds)
+        assertEquals(photo, carol.searchAvatar(name, alice.accountId))
+        assertEquals(fetches + 2, relay.avatarFetches)
+        assertEquals(1, relay.avatarNotModified)
+        // The same search twice at once: one request.
+        clock.advance(120.seconds)
+        val both = coroutineScope { List(2) { async { carol.searchAvatar(name, alice.accountId) } }.awaitAll() }
+        assertEquals(listOf(photo, photo), both)
+        assertEquals(fetches + 3, relay.avatarFetches)
+        // Our own account shows our own choice, without a request.
+        assertEquals(photo, alice.searchAvatar(name, alice.accountId))
+        assertEquals(fetches + 3, relay.avatarFetches)
+        // Under another username's key the record does not open: the initial letter.
+        assertNull(carol.searchAvatar(Username("alicea"), alice.accountId))
+        // A new picture shows once the copy is a minute old.
+        alice.setProfilePicture(otherPhoto)
+        assertEquals(photo, carol.searchAvatar(name, alice.accountId))
+        clock.advance(61.seconds)
+        assertEquals(otherPhoto, carol.searchAvatar(name, alice.accountId))
+    }
+
+    @Test
+    fun `search copies go when the directory maps the name elsewhere, and records of another account or tampered ones open as nothing`() = runBlocking {
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val mallory = Messenger.register(Username("mallory"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val name = Username("alice")
+        alice.setProfilePicture(photo)
+        val record = relay.avatarRecord(alice.accountId)!!
+
+        // Mallory serves a record sealed for Alice under her own account: it does not open as hers
+        // (the account id is in the key and the AAD).
+        val sealed = AvatarRecord.seal(otherPhoto.toProto(), 1, AvatarKey.derive(name, alice.accountId))
+        relay.replaceAvatarRecord(mallory.accountId, sealed)
+        assertNull(carol.searchAvatar(name, mallory.accountId))
+        // A flipped byte in a stored record: the initial letter too, and nothing is kept.
+        relay.replaceAvatarRecord(alice.accountId, record.copyOf().also { it[100] = (it[100].toInt() xor 1).toByte() })
+        assertNull(carol.searchAvatar(name, alice.accountId))
+        relay.replaceAvatarRecord(alice.accountId, record)
+        assertEquals(photo, carol.searchAvatar(name, alice.accountId))
+
+        // The account is deleted and the directory says so: the copy goes with the answer.
+        alice.deleteAccount()
+        assertNull(carol.findAccount(name))
+        val fetches = relay.avatarFetches
+        assertNull(carol.searchAvatar(name, alice.accountId))
+        assertEquals(fetches + 1, relay.avatarFetches, "asked again, not served from memory")
+    }
+
+    @Test
+    fun `a replayed older record is ignored in search, also after a 404`() = runBlocking {
+        val clock = MutableClock()
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        val name = Username("alice")
+        alice.setProfilePicture(photo)
+        val first = relay.avatarRecord(alice.accountId)!!
+        alice.setProfilePicture(otherPhoto)
+        val second = relay.avatarRecord(alice.accountId)!!
+        assertEquals(otherPhoto, carol.searchAvatar(name, alice.accountId))
+
+        // The relay serves the older record: the kept copy stays.
+        relay.replaceAvatarRecord(alice.accountId, first)
+        clock.advance(120.seconds)
+        assertEquals(otherPhoto, carol.searchAvatar(name, alice.accountId))
+        // A 404 drops the copy but not the version: the older record shows nothing.
+        relay.replaceAvatarRecord(alice.accountId, null)
+        clock.advance(120.seconds)
+        assertNull(carol.searchAvatar(name, alice.accountId))
+        relay.replaceAvatarRecord(alice.accountId, first)
+        clock.advance(120.seconds)
+        assertNull(carol.searchAvatar(name, alice.accountId))
+        // The same version again is shown.
+        relay.replaceAvatarRecord(alice.accountId, second)
+        clock.advance(120.seconds)
+        assertEquals(otherPhoto, carol.searchAvatar(name, alice.accountId))
+        // Forgetting the memory (the data key left it) forgets the versions too.
+        carol.clearSearchPictures()
+        relay.replaceAvatarRecord(alice.accountId, first)
+        assertEquals(photo, carol.searchAvatar(name, alice.accountId))
+    }
+
+    @Test
+    fun `the record's status says whether it is in line, still owed, or impossible on this relay`() = runBlocking {
+        val clock = MutableClock()
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        assertEquals(AvatarRecordStatus.IN_SYNC, alice.avatarRecordStatus.value)
+
+        relay.failNext("PUT", "/v1/accounts/me/avatar")
+        alice.setProfilePicture(photo)
+        assertEquals(AvatarRecordStatus.PENDING, alice.avatarRecordStatus.value)
+        assertEquals(AvatarRecordStatus.IN_SYNC, alice.trySyncAvatarRecord())
+        assertEquals(AvatarRecordStatus.IN_SYNC, alice.avatarRecordStatus.value)
+
+        // 429: owed until Retry-After, without a request meanwhile.
+        relay.rateLimitNext("PUT", "/v1/accounts/me/avatar", 3600)
+        alice.setProfilePicture(otherPhoto)
+        val writes = relay.avatarWrites
+        assertEquals(AvatarRecordStatus.PENDING, alice.trySyncAvatarRecord())
+        assertEquals(writes, relay.avatarWrites)
+        clock.advance(3601.seconds)
+        assertEquals(AvatarRecordStatus.IN_SYNC, alice.trySyncAvatarRecord())
+
+        // A relay without avatar records: unavailable, and left alone until the next start.
+        relay.avatarsSupported = false
+        val storage = InMemoryProtocolStorage()
+        val contacts = InMemoryContactStore()
+        val saved = mutableListOf<LocalAccount>()
+        val bob = Messenger.register(Username("bob"), RelayClient(relayUrl), storage, contacts, TestClient.testConfig, accountStore = { saved += it })
+        bob.setProfilePicture(photo)
+        assertEquals(AvatarRecordStatus.UNAVAILABLE, bob.avatarRecordStatus.value)
+        val attempts = relay.avatarWrites
+        assertEquals(AvatarRecordStatus.UNAVAILABLE, bob.trySyncAvatarRecord())
+        assertEquals(attempts, relay.avatarWrites)
+        val account = saved.last()
+        val restarted = Messenger(account, ProtocolStore(account.identityKeyPair, account.registrationId, storage), contacts, RelayClient(relayUrl), TestClient.testConfig)
+        assertEquals(AvatarRecordStatus.PENDING, restarted.avatarRecordStatus.value)
+        assertEquals(AvatarRecordStatus.UNAVAILABLE, restarted.trySyncAvatarRecord())
+        assertEquals(attempts + 1, relay.avatarWrites)
+        relay.avatarsSupported = true
     }
 }

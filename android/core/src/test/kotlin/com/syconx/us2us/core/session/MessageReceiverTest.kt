@@ -3,6 +3,7 @@ package com.syconx.us2us.core.session
 import com.google.protobuf.kotlin.toByteString
 import com.syconx.us2us.core.AccountId
 import com.syconx.us2us.core.proto.sealedContent
+import com.syconx.us2us.core.testing.LockableProtocolStorage
 import com.syconx.us2us.core.testing.Party
 import com.syconx.us2us.core.testing.textContent
 import com.syconx.us2us.core.username.Username
@@ -234,5 +235,42 @@ class MessageReceiverTest {
         val unpadded = SessionCipher(alice.store, alice.store, alice.store, alice.store, alice.store, alice.accountId.protocolAddress(), bob.accountId.protocolAddress())
             .encrypt(textContent("no padding").toByteArray())
         assertEquals(DropReason.INVALID_CONTENT, (receiver.receive(envelopeFromAlice(unpadded)) as ReceiveResult.Dropped).reason)
+    }
+
+    /** The vault closes while a message is decrypted (the app locks): kept for the next connection, never an error that ends the app (iOS `retryLater`). */
+    @Test
+    fun `a store that fails meanwhile keeps the envelope for later`() = runBlocking {
+        val storage = LockableProtocolStorage()
+        val carol = Party(storage = storage)
+        val receiver = MessageReceiver(carol.accountId, carol.store, carol.sessions, SenderVerifier(carol.store, directory), Mutex())
+        alice.sessions.startSession(carol.accountId, carol.bundle())
+        val envelope = SealedEnvelope.seal(
+            sealedContent {
+                senderAccountId = alice.accountId.toBytes().toByteString()
+                senderDeviceId = 1
+                val message = alice.encryptTo(carol, "kept")
+                type = message.type
+                ciphertext = message.serialize().toByteString()
+            },
+            carol.identityKey,
+        )
+        storage.locked = true
+        // An IOException: the receive loop keeps the envelope instead of acknowledging it.
+        val failure: IOException = assertThrows<StoreUnavailableException> { runBlocking { receiver.receive(envelope) } }
+        assertTrue(failure.cause is LockableProtocolStorage.LockedException)
+
+        storage.locked = false
+        assertEquals("kept", (receiver.receive(envelope) as ReceiveResult.Decrypted).content.data.text.body)
+    }
+
+    @Test
+    fun `a store that fails while sending is a retry, not an error`() {
+        val storage = LockableProtocolStorage()
+        val dave = Party(storage = storage)
+        dave.sessions.startSession(bob.accountId, bob.bundle())
+        storage.locked = true
+        assertThrows<StoreUnavailableException> { dave.encryptTo(bob, "later") }
+        storage.locked = false
+        assertEquals("later", bob.decryptFrom(dave, dave.encryptTo(bob, "later")))
     }
 }

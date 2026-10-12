@@ -101,10 +101,37 @@ class RelayClient private constructor(
     suspend fun changeUsername(usernameHash: ByteArray) =
         executeNoContent(put(url("v1", "accounts", "me", "username"), json(UsernameChangeRequest(usernameHash))))
 
-    /** Rotates the auth token; the current one stops working immediately. */
-    suspend fun rotateAuthToken(): AuthToken {
-        val response: TokenResponse = execute(post(url("v1", "accounts", "me", "token"), EMPTY_BODY))
-        return AuthToken.parse(response.authToken)
+    /**
+     * One `POST /v1/accounts/me/token` with `{"newAuthToken"}` (§4.3), authenticated with
+     * [authenticatingWith] instead of this client's token: the caller has stored [newToken] before and decides from the
+     * answer which token the account has (§5.5 step 3). Never the deprecated empty body, whose lost
+     * answer loses the account.
+     *
+     * @return the account's token now: [newToken] on `204`. A relay that predates client-chosen
+     *   tokens ignores the body and answers `200` with a token it chose; that one is returned then,
+     *   since it is the only one that works.
+     * @throws RelayException `401` when [authenticatingWith] is not (or no longer) the account's token, `400`
+     *   when the relay refused [newToken] and changed nothing.
+     */
+    suspend fun rotateAuthToken(newToken: AuthToken, authenticatingWith: AuthToken): AuthToken {
+        val request = Request.Builder()
+            .url(url("v1", "accounts", "me", "token"))
+            .header(AUTH_HEADER, authenticatingWith.headerValue)
+            .post(json(TokenRotationRequest(newToken.toBytes())))
+            .build()
+        return http.newCall(request).await().use { response ->
+            response.throwIfError()
+            if (response.code == HTTP_NO_CONTENT) return@use newToken
+            val text = withContext(Dispatchers.IO) { response.body.readUtf8(MAX_JSON_RESPONSE_BYTES) }
+                ?: throw IOException("relay response exceeds $MAX_JSON_RESPONSE_BYTES bytes")
+            try {
+                AuthToken.parse(RelayJson.decodeFromString<TokenResponse>(text).authToken)
+            } catch (e: SerializationException) {
+                throw IOException("malformed relay response", e)
+            } catch (e: IllegalArgumentException) {
+                throw IOException("malformed relay response", e)
+            }
+        }
     }
 
     /** Publishes `SHA-256(accessKey)`, or disables access-key delivery with `null`. */
@@ -230,9 +257,18 @@ class RelayClient private constructor(
      *
      * @param maxBytes the most this download may write; a longer response is cut off with an
      *   [IOException] instead of filling the disk. Recipients know the exact blob size (§7).
+     * @param progress hears how many bytes of the blob are here so far ([offset] included): after
+     *   every 64 KiB and once at the end, never backwards. Called on a background thread; keep it
+     *   cheap.
      * @return the number of bytes written to [sink].
      */
-    suspend fun downloadMedia(mediaId: ByteArray, sink: OutputStream, offset: Long = 0, maxBytes: Long = Long.MAX_VALUE): Long {
+    suspend fun downloadMedia(
+        mediaId: ByteArray,
+        sink: OutputStream,
+        offset: Long = 0,
+        maxBytes: Long = Long.MAX_VALUE,
+        progress: ((Long) -> Unit)? = null,
+    ): Long {
         require(offset >= 0) { "offset must not be negative" }
         require(maxBytes >= 0) { "maxBytes must not be negative" }
         val builder = Request.Builder().url(url("v1", "media", Base64Url.encode(mediaId))).get()
@@ -247,6 +283,7 @@ class RelayClient private constructor(
             withContext(Dispatchers.IO) {
                 val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
                 var written = 0L
+                var nextReport = DOWNLOAD_PROGRESS_STEP
                 response.body.byteStream().use { input ->
                     while (true) {
                         ensureActive()
@@ -255,8 +292,13 @@ class RelayClient private constructor(
                         if (written + n > maxBytes) throw IOException("media is larger than expected")
                         sink.write(buffer, 0, n)
                         written += n
+                        if (progress != null && written >= nextReport) {
+                            progress(offset + written)
+                            nextReport = (written / DOWNLOAD_PROGRESS_STEP + 1) * DOWNLOAD_PROGRESS_STEP
+                        }
                     }
                 }
+                progress?.invoke(offset + written)
                 written
             }
         }
@@ -389,10 +431,14 @@ class RelayClient private constructor(
 
         /** WebSocket-level pings: OkHttp fails a socket whose pong is missing, so dead connections end quickly. */
         private const val SOCKET_PING_SECONDS = 25L
+        private const val HTTP_NO_CONTENT = 204
         private const val HTTP_PARTIAL_CONTENT = 206
         private const val HTTP_NOT_MODIFIED = 304
         private const val HTTP_NOT_FOUND = 404
         private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024
+
+        /** A download reports its progress after every this many bytes, as the iOS client does. */
+        private const val DOWNLOAD_PROGRESS_STEP = 64L * 1024
 
         /** `X-Avatar-Version`: the version of an avatar delete, and the highest version in a `409` (§4.12). */
         const val AVATAR_VERSION_HEADER = "X-Avatar-Version"
@@ -402,7 +448,6 @@ class RelayClient private constructor(
 
         private val JSON = "application/json".toMediaType()
         private val OCTET_STREAM = "application/octet-stream".toMediaType()
-        private val EMPTY_BODY = ByteArray(0).toRequestBody(null)
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)

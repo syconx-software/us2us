@@ -64,7 +64,8 @@ class MessageReceiver(
 ) {
     /**
      * @throws java.io.IOException if sender verification needed the relay and it could not be
-     *   reached; the envelope should then be kept (not acknowledged) and retried.
+     *   reached, or the store failed meanwhile ([StoreUnavailableException], the vault closed); the
+     *   envelope should then be kept (not acknowledged) and retried.
      */
     suspend fun receive(envelope: ByteArray): ReceiveResult {
         // The bytes come from anyone who knows our account id: any failure to open them is a drop
@@ -92,11 +93,15 @@ class MessageReceiver(
         }
         if (!verifier.verify(sender, preKeyIdentity, username)) return ReceiveResult.Dropped(DropReason.UNVERIFIED_SENDER)
 
-        // Everything below runs on attacker-controlled bytes. Any failure other than cancellation
-        // drops the envelope; rethrowing would make it a poison message that is redelivered forever.
+        // Everything below runs on attacker-controlled bytes. Any failure other than cancellation or
+        // the store's own drops the envelope; rethrowing would make it a poison message that is
+        // redelivered forever.
         val content = try {
             cryptoLock.withLock { sessions.decrypt(sender, sealed.type, sealed.ciphertext.toByteArray()) }
         } catch (e: CancellationException) {
+            throw e
+        } catch (e: StoreUnavailableException) {
+            // Not the message's fault: it waits for the next connection, as on iOS.
             throw e
         } catch (_: DuplicateMessageException) {
             return ReceiveResult.Dropped(DropReason.DUPLICATE)

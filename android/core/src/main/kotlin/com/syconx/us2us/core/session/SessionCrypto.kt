@@ -10,7 +10,15 @@ import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
 import org.signal.libsignal.protocol.state.PreKeyBundle
+import java.io.IOException
 import java.time.Clock
+
+/**
+ * The local store failed while libsignal used it (the vault closed meanwhile): nothing is wrong
+ * with the message, so it is kept and tried again later, as iOS's `retryLater`. libsignal reports
+ * an exception its store callbacks throw as an [AssertionError] with that exception as the cause.
+ */
+class StoreUnavailableException(cause: Throwable) : IOException("the local store is unavailable", cause)
 
 /**
  * libsignal 1:1 sessions of the local account (PROTOCOL.md §5): PQXDH session setup from a pre-key
@@ -35,7 +43,7 @@ class SessionCrypto(
      * @throws org.signal.libsignal.protocol.InvalidKeyException on a bad signature or key.
      * @throws org.signal.libsignal.protocol.UntrustedIdentityException if the identity key changed.
      */
-    fun startSession(peer: AccountId, bundle: PreKeyBundle) {
+    fun startSession(peer: AccountId, bundle: PreKeyBundle) = usingStore {
         SessionBuilder(store, store, store, store, peer.protocolAddress(), localAddress).process(bundle, clock.instant())
     }
 
@@ -45,25 +53,38 @@ class SessionCrypto(
      *
      * @throws org.signal.libsignal.protocol.NoSessionException if there is no usable session.
      * @throws org.signal.libsignal.protocol.UntrustedIdentityException if the identity is not trusted for sending.
+     * @throws StoreUnavailableException if the store failed meanwhile.
      */
-    fun encrypt(peer: AccountId, content: Content): CiphertextMessage =
+    fun encrypt(peer: AccountId, content: Content): CiphertextMessage = usingStore {
         cipher(peer).encrypt(ContentPadding.pad(content.toByteArray()), clock.instant())
+    }
 
     /**
      * Decrypts a ciphertext of the given libsignal [type], strips the padding and parses `Content`.
      *
      * @throws InvalidMessageException and the other libsignal decryption exceptions,
      *   [InvalidPaddingException], or `InvalidProtocolBufferException`.
+     * @throws StoreUnavailableException if the store failed meanwhile: the message itself may be fine.
      */
     fun decrypt(peer: AccountId, type: Int, ciphertext: ByteArray): Content {
-        val padded = when (type) {
-            CiphertextMessage.PREKEY_TYPE -> cipher(peer).decrypt(PreKeySignalMessage(ciphertext))
-            CiphertextMessage.WHISPER_TYPE -> cipher(peer).decrypt(SignalMessage(ciphertext))
-            else -> throw InvalidMessageException("unsupported ciphertext type $type")
+        val padded = usingStore {
+            when (type) {
+                CiphertextMessage.PREKEY_TYPE -> cipher(peer).decrypt(PreKeySignalMessage(ciphertext))
+                CiphertextMessage.WHISPER_TYPE -> cipher(peer).decrypt(SignalMessage(ciphertext))
+                else -> throw InvalidMessageException("unsupported ciphertext type $type")
+            }
         }
         return Content.parseFrom(ContentPadding.unpad(padded))
     }
 
     private fun cipher(peer: AccountId) =
         SessionCipher(store, store, store, store, store, localAddress, peer.protocolAddress())
+
+    /** A store failure inside libsignal as [StoreUnavailableException], never an error that ends the process. */
+    private inline fun <T> usingStore(block: () -> T): T = try {
+        block()
+    } catch (e: AssertionError) {
+        val cause = e.cause
+        throw if (cause is Exception) StoreUnavailableException(cause) else e
+    }
 }

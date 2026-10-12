@@ -164,6 +164,46 @@ class BotDataTest {
     }
 
     @Test
+    fun `a restore whose answer is lost keeps the backup's token on disk until the rotation is settled`(@TempDir tmp: File) = runBlocking {
+        FakeRelay().start().use { relay ->
+            val dir = File(tmp, "echo")
+            val registered = BotData.open(dir, iterations = ITERATIONS).use { startWithData(it, Username("echo_bot"), RelayClient(relay.url), TestClient.testConfig) }
+            val backupToken = registered.account.authToken
+
+            // The rotation is carried out but its answer is lost, and the question with the new token gets none.
+            relay.loseNextAnswer("POST", "/v1/accounts/me/token")
+            relay.failNext("POST", "/v1/accounts/me/token")
+            BotData.open(dir, iterations = ITERATIONS).use { data ->
+                val restored = startWithData(data, null, RelayClient(relay.url), TestClient.testConfig)
+                val chosen = checkNotNull(restored.account.pendingAuthToken)
+                assertEquals(0, data.writes, "nothing new for the file while the outcome is unknown")
+                assertArrayEquals(backupToken.toBytes(), savedBackup(dir).authToken.toByteArray())
+
+                // Settled (the receive loop asks before it connects): the relay's token is written at once.
+                restored.finishPendingTokenRotation()
+                assertEquals(chosen, restored.account.authToken)
+                assertEquals(1, data.writes)
+                assertArrayEquals(chosen.toBytes(), savedBackup(dir).authToken.toByteArray())
+            }
+        }
+    }
+
+    @Test
+    fun `a backup restored elsewhere stops the bot for good`(@TempDir tmp: File) = runBlocking {
+        FakeRelay().start().use { relay ->
+            val dir = File(tmp, "echo")
+            val bot = BotData.open(dir, iterations = ITERATIONS).use { startWithData(it, Username("echo_bot"), RelayClient(relay.url), TestClient.testConfig) }
+            relay.rotateTokenElsewhere(bot.accountId)
+
+            val refused = BotData.open(dir, iterations = ITERATIONS).use { data ->
+                assertThrows<StartFailure> { runBlocking { startWithData(data, null, RelayClient(relay.url), TestClient.testConfig) } }
+            }
+            assertEquals(StartFailure.FOR_GOOD, refused.exitCode)
+            assertEquals("the relay refused the token in $dir: the account was restored elsewhere or deleted", refused.message)
+        }
+    }
+
+    @Test
     fun `an account change is saved before the messenger carries on`(@TempDir tmp: File) = runBlocking {
         FakeRelay().start().use { relay ->
             val dir = File(tmp, "echo")

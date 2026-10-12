@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy: the words the runtime says itself (the biometric prompt, its local lines and
+     the connection line), ported from the iOS runtime's RuntimeStrings (Us2usRuntime, Support). The
+     runtime holds no copy; it reads these by key (runtime_<key>). -->
+<resources>
+    <!-- The system biometric prompt's title on the lock. -->
+    <string name="runtime_biometric_reason">Unlock us2us</string>
+    <!-- The system biometric prompt's button: back to the code keypad. -->
+    <string name="runtime_biometric_use_code">Use code</string>
+    <string name="runtime_screenshot_taken_by_me">You took a screenshot. They were notified.</string>
+    <string name="runtime_screen_recording_by_me">Screen recording detected. They were notified.</string>
+    <string name="runtime_safety_number_changed_line">The safety number changed. Verify it before sending.</string>
+    <string name="runtime_safety_number_accepted_line">You accepted the new safety number without verifying it.</string>
+    <string name="runtime_safety_number_verified_line">You verified the safety number.</string>
+    <string name="runtime_request_accepted_line">Message request accepted.</string>
+    <string name="runtime_deleted_for_everyone">This message was deleted for everyone</string>
+    <string name="runtime_line_open">Line open · messages arriving</string>
+    <string name="runtime_line_connecting">Opening the line…</string>
+    <string name="runtime_line_syncing">Receiving waiting messages…</string>
+    <string name="runtime_line_offline">Line closed</string>
+    <string name="runtime_line_waiting_for_network">No internet · waiting</string>
+    <!-- A revoked token: the account was deleted, or restored on another phone. -->
+    <string name="runtime_line_revoked">This phone\'s line was closed: the account was deleted or is used on another phone</string>
+    <string name="runtime_line_locked">Locked</string>
+</resources>

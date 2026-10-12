@@ -74,16 +74,20 @@ What `./gradlew test` covers:
   for saved photos, videos and files through `sendSavedReceipt` — only to the account the item came
   from; the app checks that it still holds the item undeleted — and `SavedMedia`), typing, presence, blocking
   with key rotation and unblocking, HTTP fetch, backup and restore (also with a failing network mid-way),
-  username change, pre-key refill, profile pictures (in `ProfileUpdate`s and through the avatar
-  record for search: "Show in search", a username change, a restore answered `409 stale_version`,
-  `429`, a relay without avatar endpoints, the largest photo). `FakeRelay` fails the test if the client ever sends its auth
+  the restore's token rotation (the recovery matrix of §5.5 step 3 for every lost answer, a pending
+  token settled at the next start, by the receive loop or before a backup or deletion, both tokens
+  refused, a relay that chooses the token itself), username change, pre-key refill, download
+  progress, profile pictures (in `ProfileUpdate`s and through the avatar record for search: "Show in
+  search", a username change, a restore answered `409 stale_version`, `429`, a relay without avatar
+  endpoints, the record's status, the largest photo, a stranger's picture found by username). `FakeRelay` fails the test if the client ever sends its auth
   token on a request that hides the sender (sealed sends, ephemeral batches, message PoW
   challenges, media download/delete) or sends such a request over a connection that also carried
   authenticated requests, and it can inject failures to test recovery;
 * the echo bot against `FakeRelay`: the same conversation `LiveEchoBotTest` has with a live
   responder, and the exact answer formats; with `--data`, the owner-only backup of the first start,
   a restart that keeps the account, its contacts and the answers, the rotated token saved before a
-  restore returns (also when the key upload after it fails), and a backup of another account refused;
+  restore returns (also when the key upload after it fails, and once a lost answer is settled), a
+  backup of another account refused, and one restored elsewhere stopping the bot for good;
 * test vectors: generates all categories into `spec/test-vectors/kotlin/` (deterministic; sealed
   envelopes are randomized by HPKE, so an existing, still-valid `sealed.json` is kept) and verifies
   every file in `spec/test-vectors/swift/`. A missing Swift file is reported as *skipped*.
@@ -157,10 +161,12 @@ cli/build/install/us2us-bot/bin/us2us-bot --username us2us_echo --data ~/us2us-e
   starts** restore it (`--username` may then be left out); a backup of another account than
   `--username` is refused (exit status 2) before the relay is asked, so nothing changes. `--state`
   is optional with `--data`.
-* **The token**: a restore rotates the auth token and revokes the backup's. The bot is the
-  `AccountStore` of its messenger, so the new token (like any change to what the backup holds of the
-  account, e.g. a rotated access key) is written before the messenger goes on; setup steps and the
-  avatar version are not in the backup and cost no write.
+* **The token**: a restore rotates the auth token to one it chose (§5.5 step 3) and revokes the
+  backup's. The bot is the `AccountStore` of its messenger, so the new token (like any change to
+  what the backup holds of the account, e.g. a rotated access key) is written before the messenger
+  goes on; setup steps and the avatar version are not in the backup and cost no write. If the
+  rotation's answer is lost, the file keeps the backup's token until the receive loop has found out
+  which token the relay holds, and then gets that one.
 * **Contacts**: an accepted request, a contact's new access key or profile, a block, are written
   two seconds later, several changes in one write (each takes about a second of PBKDF2), and on
   shutdown (SIGINT/SIGTERM). A shutdown while the relay is creating the account or rotating its
@@ -201,8 +207,13 @@ Design points worth knowing:
   batches, message PoW challenges and media download/delete carry no auth token and go through a
   separate OkHttp connection pool with its own `SSLContext`, so neither a kept-alive connection
   nor a resumed TLS session ties them to the authenticated account.
-* **Nothing the relay handed out is lost to a bad network.** `register` and `restore` save the
-  account through `AccountStore` the moment the relay created it (or rotated its token); the steps
+* **Nothing the relay handed out is lost to a bad network.** `register` saves the account through
+  `AccountStore` the moment the relay created it; `restore` saves the token it chose as
+  `LocalAccount.pendingAuthToken` before the relay hears of it (§5.5 step 3), and again with only the
+  token the relay holds once an answer says which. Without an answer both tokens are kept and none is
+  used (`tokenRotationPending`, `TokenRotationPendingException`) until `finishPendingTokenRotation`
+  settles it; the receive loop asks before every connection attempt, a backup and an account
+  deletion first. The steps
   after that (publishing the access key, replacing all pre-keys after a restore, then a complete
   `ProfileUpdate` to every contact) are kept in `LocalAccount.pendingSetup` and finished by
   `performMaintenance`, which the receive loop runs after every backlog and then retries with
@@ -265,7 +276,12 @@ Design points worth knowing:
   change, a restore and every change of the picture or the setting mark
   `PendingSetup.SYNC_AVATAR`; a relay without the endpoints (`404`/`405`) is asked again after the
   next start, a `429` after `Retry-After` (stores and deletes wait separately, so turning the
-  setting off is never held up by a refused store). `searchPicture(peer)` gives the picture for a
+  setting off is never held up by a refused store). `avatarRecordStatus` says whether the record is
+  in line, still owed or impossible on this relay; `trySyncAvatarRecord()` writes it and returns
+  that, never throwing. A search that keeps no contact is `findAccount(username)`, then
+  `searchAvatar(username, account)`: the record opened under that username's key, kept in memory,
+  not asked again within a minute (searches for the same name at once share one request), every
+  failure the initial letter. `searchPicture(peer)` gives the picture for a
   search result or our own request: an accepted contact's own copy, else the record, fetched
   without an HTTP cache, revalidated with `If-None-Match` and kept in memory only; a record older
   than one opened before is a replay and is ignored. For an incoming request it is always `null`:
@@ -280,7 +296,8 @@ Design points worth knowing:
   factory's `char[]`-to-bytes conversion differs between providers (and Turkish backup passwords
   are not ASCII) and the algorithm is missing on old Android versions.
 * **Heavy work stays on the phone** (§1.1): PoW runs on all cores, PBKDF2 and key generation on
-  `Dispatchers.Default`, attachments are streamed through temp files.
+  `Dispatchers.Default`, attachments are streamed through temp files (`downloadAttachment` reports
+  the fraction of the blob received after every 64 KiB).
 
 ## In the Android app
 

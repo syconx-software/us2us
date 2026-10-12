@@ -49,13 +49,22 @@ interface SenderDirectory {
  * lookups are made at most once per username per [minRefreshInterval], so a backlog of
  * envelopes with the same stale claim costs one lookup, not one each.
  */
-class RelaySenderDirectory(
-    private val relay: RelayClient,
-    private val clock: Clock = Clock.systemUTC(),
-    private val usernameTtl: Duration = DEFAULT_USERNAME_TTL,
-    private val minRefreshInterval: Duration = DEFAULT_MIN_REFRESH_INTERVAL,
-    cacheSize: Int = 256,
+class RelaySenderDirectory internal constructor(
+    /** The authenticated client to ask, read at every request (the account's token can change). */
+    private val relay: () -> RelayClient,
+    private val clock: Clock,
+    private val usernameTtl: Duration,
+    private val minRefreshInterval: Duration,
+    cacheSize: Int,
 ) : SenderDirectory {
+    constructor(
+        relay: RelayClient,
+        clock: Clock = Clock.systemUTC(),
+        usernameTtl: Duration = DEFAULT_USERNAME_TTL,
+        minRefreshInterval: Duration = DEFAULT_MIN_REFRESH_INTERVAL,
+        cacheSize: Int = DEFAULT_CACHE_SIZE,
+    ) : this({ relay }, clock, usernameTtl, minRefreshInterval, cacheSize)
+
     init {
         require(usernameTtl.isPositive()) { "usernameTtl must be positive" }
         require(!minRefreshInterval.isNegative() && minRefreshInterval <= usernameTtl) { "invalid minRefreshInterval" }
@@ -72,7 +81,7 @@ class RelaySenderDirectory(
 
     override suspend fun identityKey(accountId: AccountId): IdentityKey? {
         identities[accountId]?.let { return it }
-        val identity = notFoundAsNull { relay.identity(accountId) } ?: return null
+        val identity = notFoundAsNull { relay().identity(accountId) } ?: return null
         if (identity.accountId != accountId) throw IOException("relay answered for a different account")
         val key = try {
             IdentityKey(identity.identityKey)
@@ -99,7 +108,7 @@ class RelaySenderDirectory(
             if (reusable) return cached.accountId
         }
         val hash = withContext(Dispatchers.Default) { username.hash() }
-        val owner = relay.lookupUsername(hash)?.accountId
+        val owner = relay().lookupUsername(hash)?.accountId
         owners[username.value] = Owner(owner, clock.millis(), refreshed = refresh)
         return owner
     }
@@ -123,6 +132,8 @@ class RelaySenderDirectory(
         val DEFAULT_USERNAME_TTL: Duration = 1.hours
 
         val DEFAULT_MIN_REFRESH_INTERVAL: Duration = 60.seconds
+
+        const val DEFAULT_CACHE_SIZE = 256
     }
 }
 

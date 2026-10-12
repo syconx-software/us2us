@@ -14,7 +14,8 @@ import com.syconx.us2us.core.relay.PreKeyBundleEntity
 import com.syconx.us2us.core.relay.PreKeyEntity
 import com.syconx.us2us.core.relay.SignedPreKeyEntity
 import com.syconx.us2us.core.session.SessionCrypto
-import com.syconx.us2us.core.store.InMemoryProtocolStore
+import com.syconx.us2us.core.store.InMemoryProtocolStorage
+import com.syconx.us2us.core.store.ProtocolStorage
 import com.syconx.us2us.core.store.ProtocolStore
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
@@ -61,8 +62,9 @@ class Party(
     val accountId: AccountId = AccountId(UUID.randomUUID()),
     identity: IdentityKeyPair = Keys.generateIdentityKeyPair(),
     policy: PreKeyPolicy = PreKeyPolicy(batchSize = 5, refillThreshold = 2),
+    storage: ProtocolStorage = InMemoryProtocolStorage(),
 ) {
-    val store: ProtocolStore = InMemoryProtocolStore(identity, Keys.generateRegistrationId(), clock)
+    val store: ProtocolStore = ProtocolStore(identity, Keys.generateRegistrationId(), storage, clock)
     val sessions = SessionCrypto(store, accountId, clock)
     val keys = PreKeyManager(store, policy, clock)
     private val uploaded = keys.generateFullSet()
@@ -95,4 +97,21 @@ class Party(
 
     fun decryptFrom(peer: Party, message: CiphertextMessage): String =
         sessions.decrypt(peer.accountId, message.type, message.serialize()).data.text.body
+}
+
+/** Storage that refuses everything while [locked], as the app's store does once its vault is closed. */
+class LockableProtocolStorage(private val inner: ProtocolStorage = InMemoryProtocolStorage()) : ProtocolStorage by inner {
+    var locked = false
+
+    class LockedException : Exception("storage is locked")
+
+    override fun loadSession(name: String, deviceId: Int): ByteArray? {
+        if (locked) throw LockedException()
+        return inner.loadSession(name, deviceId)
+    }
+
+    override fun storeSession(name: String, deviceId: Int, record: ByteArray) {
+        if (locked) throw LockedException()
+        inner.storeSession(name, deviceId, record)
+    }
 }

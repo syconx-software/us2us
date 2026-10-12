@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- The window behind the first frame: the dark background of tokens.json (color.base.bg).
+         Compose draws everything else; U2Theme applies the light or dark system bars. -->
+    <style name="Theme.Us2us" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/u2_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">shortEdges</item>
+    </style>
+
+    <color name="u2_window_background">#161826</color>
+</resources>

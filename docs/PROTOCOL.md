@@ -8,6 +8,12 @@ them is a bug — fix it in the same change.
 Key words MUST, SHOULD, MAY are used as in RFC 2119.
 
 > **Change log**
+> * 2026-10-12: **the Android client rotates tokens as §5.5 says** (§5.5
+>   steps 3–3.5; client only, no wire change): `android/core` and the
+>   Android app now choose the new token, keep it as pending before the
+>   request, settle a pending rotation before every connection, and treat a
+>   `400` while settling as the 2026-10-11 entries below describe; their
+>   "the Android client still needs" notes for §5.5 are done.
 > * 2026-10-11: **saving and pictures, said precisely** (§8.1, §8.2, §8.4,
 >   §8.10, §9; no wire change): SAVED covers saving *or handing on* a
 >   received photo, video or file outside the app (photo library, Files, the
