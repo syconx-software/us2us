@@ -13,9 +13,9 @@ the relay.
  4.2 nothing found → “Davet et” ├─▶  Invite sheet ─▶ share sheet / pasteboard
  “Kodum” → “Davet bağlantını paylaş” ┘ (text + link)    (the user picks the recipient)
 
- friend taps https://us2us.app/u/selin.n
-   ├─ app installed  → universal link → (unlock) → 4.2 Yeni sohbet, “selin.n” searched
-   └─ not installed  → us2us.app/u/selin.n: who invites, what us2us is, how to add them
+ friend taps https://us2us.app/u/selin_n
+   ├─ app installed  → universal link → (unlock) → 4.2 Yeni sohbet, “selin_n” searched
+   └─ not installed  → us2us.app/u/selin_n: who invites, what us2us is, how to add them
 ```
 
 ## The message
@@ -25,8 +25,8 @@ in the in-app language (7.1 › Dil):
 
 | | |
 |---|---|
-| tr | Merhaba! Seninle us2us’ta konuşmak istiyorum: telefon numarası istemeyen, mesajları yalnızca ikimizin telefonunda tutan bir uygulama. Kullanıcı adım: @selin.n<br>https://us2us.app/u/selin.n |
-| en | Hi! I’d like to talk with you on us2us, an app that never asks for a phone number and keeps our messages only on our two phones. My username: @selin.n<br>https://us2us.app/u/selin.n |
+| tr | Merhaba! Seninle us2us’ta konuşmak istiyorum: telefon numarası istemeyen, mesajları uçtan uca şifreleyen ve sohbet geçmişini yalnızca ikimizin telefonunda tutan bir uygulama. Kullanıcı adım: @selin_n<br>https://us2us.app/u/selin_n |
+| en | Hi! I’d like to talk with you on us2us, an app that never asks for a phone number, encrypts messages end to end and keeps our chat history only on our two phones. My username: @selin_n<br>https://us2us.app/u/selin_n |
 | e-mail subject | us2us’ta konuşalım mı? · Shall we talk on us2us? |
 
 The sheet shows the text as the outgoing bubble the friend will get; “Düzenle /
@@ -66,8 +66,8 @@ reports “sent”, or a copy, the row shows a check and a short status for 3 s
 * **Universal links only** (Associated Domains `applinks:us2us.app`, path
   `/u/*`); no custom URL scheme, so no other app can hand the app a link that
   did not pass Apple's domain check. The app accepts only the canonical form
-  (`https`, exactly `us2us.app`, no user/port, `/u/<name>` already normalized,
-  no percent-encoding); anything else is ignored.
+  (`https`, exactly `us2us.app`, no user/port, `/u/<name>` already valid by
+  PROTOCOL.md §3.1, no percent-encoding); anything else is ignored.
 * **Nothing happens on its own.** A link is kept in memory only
   (`InviteLinkInbox`: the latest one, at most 10 minutes), waits for the
   unlock (the app locks on every launch and return), then opens 4.2 with the
@@ -79,24 +79,45 @@ reports “sent”, or a copy, the row shows a check and a short status for 3 s
   (Meta's servers see it, as they would in WhatsApp); messengers that build
   link previews fetch `us2us.app/u/<name>` (our site logs nothing — nginx
   access logs are off — and the page holds no data beyond the name).
+* **The website learns the username.** Opening or previewing an invite link
+  tells us2us.app the username in clear — the same process, operator and
+  host as the relay, which otherwise sees only username hashes (PROTOCOL.md
+  §3.2, §9). With the name it can compute the hash, find the account and
+  derive the key of its picture in search, so it can open that picture
+  while the owner leaves "Show in search" on (§8.10). The page never logs,
+  stores or looks the name up, but this is a policy, not a protection. A
+  link that carries the name in the URL fragment (`/u/#name`, never sent to
+  the server) would avoid it at the cost of a generic link-preview title; it
+  needs an app and AASA change and is not done.
 
 ## Username rules
 
-The link uses the app's rules (`Domain/UsernameRules`, design 2.1:
-`[a-z0-9._]`, 3–20) plus at least one letter or digit, normalized by ASCII
-case mapping only (never a Turkish İ/ı mapping; anything outside the alphabet
-gives no link rather than another name). The website accepts the union of
-those rules and PROTOCOL.md §3.1 — `^(?=.*[a-z0-9])[a-z0-9._]{3,24}$`, exact,
-nothing decoded or case-folded — so every link the app can build works while
-the owner settles the dot question (ios/App/README.md › Open points 1). When
-the protocol and design agree, narrow `INVITE_USERNAME`
-(`relay/app/content/invite.ts`) and `InviteLink.normalizedUsername` together.
+Links follow the one username rule of the whole app, PROTOCOL.md §3.1, on
+both sides: `^[a-z][a-z0-9_]{2,23}$` — 3–24 characters, a letter `a-z`
+first, then only `a-z`, `0-9` and `_` (no dot). It is the rule the app
+registers and looks names up by (`Domain/UsernameRules`; the shared case
+table `spec/username-rules.json`).
+
+* **Building a link from the own name** (`InviteLink`, through
+  `UsernameRules.normalize`): trim Unicode `White_Space` at both ends, drop
+  one leading `@`, then the §3.1 normalization (`White_Space` trim, NFKC,
+  locale-independent lower case — Us2usKit's `NormalizedUsername`), so the
+  name in the link is byte for byte the one the username hash is made from.
+  If the result breaks §3.1 there is no link rather than another name:
+  nothing is dropped, cut or converted (no Turkish İ/ı mapping).
+* **Incoming links must already be canonical.** The app
+  (`InviteLink.username(from:)`) and the website (`INVITE_USERNAME`,
+  `relay/app/content/invite.ts`) take the path segment as it is — nothing
+  decoded, case-folded or trimmed, one optional trailing slash — and accept
+  it only if it matches §3.1 unchanged. `/u/Deniz`, `/u/selin.n`, `/u/1ab`
+  or `/u/%64eniz` are ignored by the app and get the website's normal 404,
+  so a name has exactly one URL.
 
 ## Website (`relay/`)
 
 | Path | What |
 |---|---|
-| `GET /u/<name>` | `app/content/invite.ts` via `server/middleware/invite.ts`: “us2us’ta @name seninle konuşmak istiyor” / “@name wants to talk to you on us2us”, what us2us is in two lines, the “Yakında / Coming soon” store buttons, how to add them (open us2us → Yeni sohbet → @name), and the privacy note. Turkish or English by `Accept-Language` (`vary: accept-language`); the TR/EN switch links to `?lang=tr|en`. The site's CSP and headers, `noindex, nofollow` (meta and `x-robots-tag`), `no-cache`, no cookie, no client JavaScript needed (only theme.js for the saved theme), Open Graph title/description for link previews. About 9 KB (3.4 KB gzip), rendered in ~3 µs. |
+| `GET /u/<name>` | `app/content/invite.ts` via `server/middleware/invite.ts`: “us2us’ta @name seninle konuşmak istiyor” / “@name wants to talk to you on us2us”, what us2us is in two lines, the “Yakında / Coming soon” store buttons with the closed-beta line under them (as on the landing page), how to add them (open us2us → Yeni sohbet → @name), and the privacy note. Turkish or English by `Accept-Language` (`vary: accept-language`); the TR/EN switch links to `?lang=tr|en`. The site's CSP and headers, `noindex, nofollow` (meta and `x-robots-tag`), `no-cache`, no cookie, no client JavaScript needed (only theme.js for the saved theme), Open Graph title/description for link previews. About 9 KB (3.4 KB gzip), rendered in ~3 µs. |
 | `/u/<anything else>`, other methods | the site's normal static 404 |
 | `GET /.well-known/apple-app-site-association` | `server/lib/app-links.ts` via `server/middleware/app-site-association.ts`: `application/json`, no redirect, `applinks` for `C8QW8MBYQX.com.syconx.us2us`, component `/u/*` |
 
@@ -139,7 +160,17 @@ bağlantısı vardır. Rehbere hiç dokunulmaz; alıcıyı kullanıcı sistemin 
 ekranında seçer, uygulama kimin davet edildiğini öğrenmez. “Bağlantıyı kopyala”
 bağlantıyı yalnızca bu cihazın panosuna, 2 dakikalığına koyar. Web sayfası
 kullanıcı adının var olup olmadığına bakmaz (hiçbir sorgu yok), bu yüzden hesap
-listesi çıkarmak için kullanılamaz; geçersiz adlar normal 404'ü alır.
+listesi çıkarmak için kullanılamaz; geçersiz adlar normal 404'ü alır. Ancak
+bağlantının açılması ya da önizlenmesi kullanıcı adını us2us.app'e (aktarıcıyla
+aynı süreç ve sunucu) açıkça bildirir; bu adla “Aramada göster” açık olan
+hesabın profil resmi açılabilir. Sayfa adı kaydetmez ve sorgulamaz, ama bu bir
+koruma değil, bir kuraldır.
+Bağlantıdaki ad, uygulamanın her yerde kullandığı tek kurala (PROTOCOL.md §3.1:
+3–24 karakter, harfle başlar, yalnızca a-z, 0-9 ve alt çizgi) zaten uymalıdır;
+uymayan bağlantılar uygulamada yok sayılır, sitede normal 404'ü alır. Uygulama
+kendi adından bağlantı kurarken baştaki ve sondaki boşlukları ve baştaki tek bir
+“@”i atar, adı §3.1'e göre normalize eder; kurala uymayan ad için bağlantı
+kurmaz, adı başka bir ada çevirmez.
 Uygulama yüklüyse bağlantı (yalnızca evrensel bağlantı, özel şema yok) kilit
 açıldıktan sonra 4.2 Yeni sohbet'i adı aranmış olarak açar; “Mesaj yaz”a
 basılana kadar hiçbir şey gönderilmez.

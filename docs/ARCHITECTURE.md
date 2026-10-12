@@ -33,10 +33,10 @@
 
 ## Responsibilities
 
-| Component | Knows | Never knows |
+| Component | Knows | Cannot read |
 |---|---|---|
 | Phone | everything about its own conversations | — |
-| Relay | account ids, username **hashes**, public keys, recipient of each envelope, IPs at connection time | message content, sender of sealed messages, usernames in clear, contacts, profiles, locations |
+| Relay | account ids, username **hashes**, public keys, recipient, padded size and time of each envelope, IPs at connection time, who uploads media, who looked up whom (once per new contact), which accounts publish a picture for search, its padded size, and who fetched it | message content, the sender inside a sealed envelope, usernames in clear, contact lists, profiles, locations; a picture shown in search only without the username, which it can try to guess (what it can still infer: PROTOCOL.md §9) |
 | Apple / Google | nothing (no push is used) | everything about us2us traffic |
 
 ## Components
@@ -69,9 +69,11 @@ app swaps in `libsignal-android`.
 ## Secret code (gizli kod)
 
 All data on the phone is encrypted under a key that only the user's
-six-digit secret code plus a device-bound secret can unlock. Because the
-device secret never leaves the phone, the code can only be guessed on the
-phone, through the app's growing wrong-attempt delays; there is no reset.
+six-digit secret code plus a device-bound secret can unlock; on iPhones with
+a Secure Enclave every attempt also needs a key that never leaves it (vault
+format v2). So a copied vault cannot be attacked elsewhere, and the code can
+only be guessed on the phone, through the app's growing wrong-attempt
+delays (for what that does not cover, see PROTOCOL.md §9); there is no reset.
 The username plays no role in encryption, so it can be changed freely. Each
 conversation additionally has its own key, so ghost mode can destroy a
 conversation instantly by deleting one small key file, even while the app is
@@ -79,8 +81,9 @@ locked (PROTOCOL.md §5.2–5.4).
 
 The account backup file is the only way back after a lost phone or a
 forgotten code. It can be attacked offline, so it is encrypted with a
-separate, long backup password (at least 10 characters), never with the
-secret code (PROTOCOL.md §5.5).
+separate backup password (at least 10 characters and a strength check; the
+app offers a generated one of about 99 bits), never with the secret code
+(PROTOCOL.md §5.5).
 
 ## Languages
 
@@ -117,7 +120,9 @@ moment. The blind relay holds ciphertext until the recipient opens the app
 * **Sealed sender**: HPKE (RFC 9180) from libsignal itself, addressed to the
   recipient's identity key (§6 of PROTOCOL.md), instead of libsignal's
   certificate-based sealed sender, so the relay needs no signing keys and no
-  libsignal dependency.
+  libsignal dependency. Like Signal's own sealed sender it is classical
+  (DHKEM(X25519)): the post-quantum protection covers message content, not
+  the sender inside the envelope (PROTOCOL.md §9).
 * **Token auth** (`X-Auth-Token` header): the relay stores only `SHA-256(token)`. Simpler and
   less fragile than signature auth; the token only grants access to a mailbox
   of ciphertext.
