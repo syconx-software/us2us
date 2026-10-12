@@ -11,7 +11,7 @@ final class DesignFixturesServiceTests: XCTestCase {
 
     func testServesTheDesignsChatList() {
         let service = makeService()
-        XCTAssertEqual(service.chats.map(\.peer.username), ["deniz", "mert.k", "ayla_", "kaan", "ece.y", "bora", "oya.t"])
+        XCTAssertEqual(service.chats.map(\.peer.username), ["deniz", "mert_k", "ayla_", "kaan", "ece_y", "bora", "oya_t"])
         XCTAssertEqual(service.chats.map(\.peer.palette), [.a, .b, .c, .d, .a, .b, .c])
         XCTAssertTrue(service.chats[0].peer.isVerified)
         XCTAssertTrue(service.chats[1].peer.isOnline)
@@ -19,7 +19,7 @@ final class DesignFixturesServiceTests: XCTestCase {
         XCTAssertEqual(service.chats[0].ghost.remaining(at: DesignFixtures.referenceDate), 23 * 3600 + 41 * 60 + 7)
         XCTAssertEqual(service.chats[4].lastMessage?.status, .failed)
         XCTAssertEqual(service.messages(in: "deniz").count, 7)
-        XCTAssertEqual(service.account?.username, "selin.n")
+        XCTAssertEqual(service.account?.username, "selin_n")
     }
 
     func testUnlockFollowsTheProtocolDelays() async {
@@ -58,14 +58,27 @@ final class DesignFixturesServiceTests: XCTestCase {
     func testOnboardingCreatesTheAccount() async throws {
         let service = makeService(hasAccount: false)
         XCTAssertNil(service.account)
-        let result3 = await service.usernameAvailability("selin.n")
+        let result3 = await service.usernameAvailability("selin_n")
         XCTAssertEqual(result3, .available)
         let result4 = await service.usernameAvailability("deniz")
         XCTAssertEqual(result4, .taken)
         let result5 = await service.usernameAvailability("ay")
         XCTAssertEqual(result5, .invalid(.length))
-        try await service.createAccount(username: "selin.n", secretCode: "975318", faceIDEnabled: false)
-        XCTAssertEqual(service.account?.username, "selin.n")
+        let result7 = await service.usernameAvailability("selin.n")
+        XCTAssertEqual(result7, .invalid(.characters))
+        // Meets the rules, then turns out taken at setup (the relay's 409).
+        let result8 = await service.usernameAvailability(DesignFixtures.takenAtSetupUsername)
+        XCTAssertEqual(result8, .meetsRules)
+        do {
+            try await service.createAccount(
+                username: DesignFixtures.takenAtSetupUsername, secretCode: "975318", faceIDEnabled: false)
+            XCTFail("the name is taken")
+        } catch {
+            XCTAssertEqual(error as? AccountCreationFailure, .usernameTaken)
+        }
+        XCTAssertNil(service.account)
+        try await service.createAccount(username: "selin_n", secretCode: "975318", faceIDEnabled: false)
+        XCTAssertEqual(service.account?.username, "selin_n")
         let result6 = await service.unlock(code: "975318")
         XCTAssertEqual(result6, .unlocked)
     }
@@ -91,9 +104,9 @@ final class DesignFixturesServiceTests: XCTestCase {
         XCTAssertEqual(service.requests.count, 3)
         let request = service.requests[0]
         let chat = await service.accept(request)
-        XCTAssertEqual(chat, "kuzey.dev")
+        XCTAssertEqual(chat, "kuzey_dev")
         XCTAssertEqual(service.requests.count, 2)
-        XCTAssertEqual(service.chats.first?.id, "kuzey.dev")
+        XCTAssertEqual(service.chats.first?.id, "kuzey_dev")
         await service.markVerified("deniz", method: .faceToFace)
         let info = await service.safetyNumber(for: "deniz")
         XCTAssertEqual(info?.groups, DesignFixtures.safetyNumberGroups)
@@ -114,10 +127,10 @@ final class NavigationTests: XCTestCase {
         let router = U2Router<AppRoute>()
         XCTAssertTrue(router.isAtRoot)
         router.push(.requests)
-        router.push(.requestPreview("kuzey.dev"))
-        XCTAssertEqual(router.path, [.requests, .requestPreview("kuzey.dev")])
-        router.replaceTop(with: .conversation("kuzey.dev"))
-        XCTAssertEqual(router.path, [.requests, .conversation("kuzey.dev")])
+        router.push(.requestPreview("kuzey_dev"))
+        XCTAssertEqual(router.path, [.requests, .requestPreview("kuzey_dev")])
+        router.replaceTop(with: .conversation("kuzey_dev"))
+        XCTAssertEqual(router.path, [.requests, .conversation("kuzey_dev")])
         router.pop()
         XCTAssertEqual(router.top, .requests)
         router.popToRoot()

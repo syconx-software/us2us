@@ -1,6 +1,60 @@
 {
   "sourceLanguage": "tr",
   "strings": {
+    "a11y.backup.copy.hint": {
+      "comment": "7.2: VoiceOver hint of “Kopyala” on the generated password (local only, expires after 60 s).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca bu cihazın panosuna kopyalar; 1 dakika sonra silinir."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copies to this device's clipboard only; it's cleared after 1 minute."
+          }
+        }
+      }
+    },
+    "a11y.backup.generated": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oluşturulan parola"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generated password"
+          }
+        }
+      },
+      "comment": "7.2: VoiceOver label of the generated backup password shown under the field; the value spells it out."
+    },
+    "a11y.backup.generated.hidden": {
+      "comment": "7.2: VoiceOver value of the generated password while it is hidden (until “Göster”).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hidden"
+          }
+        }
+      }
+    },
     "a11y.backup.strength": {
       "extractionState": "manual",
       "localizations": {
@@ -92,13 +146,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca bu cihazda, şifreli olarak durur. Sıfırlanamaz."
+            "value": "Hiçbir yere gönderilmez, hiçbir yerde saklanmaz ve sıfırlanamaz."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "It lives only on this device, encrypted. It can't be reset."
+            "value": "It's never sent or stored anywhere, and it can't be reset."
           }
         }
       }
@@ -222,6 +276,42 @@
         }
       }
     },
+    "about.privacyPolicy": {
+      "comment": "7.1 › Hakkında: opens the privacy policy on us2us.app in the browser (App Review 5.1.1(i)).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik politikası"
+          }
+        }
+      }
+    },
+    "about.support": {
+      "comment": "7.1 › Hakkında: opens the support page (FAQ, e-mail) on us2us.app in the browser.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destek"
+          }
+        }
+      }
+    },
     "about.title": {
       "extractionState": "manual",
       "localizations": {
@@ -256,6 +346,654 @@
         }
       }
     },
+    "about.website": {
+      "comment": "7.1 › Hakkında, section label over the links to the website (us2us.app).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web sitesi"
+          }
+        }
+      }
+    },
+    "access.closed.toast": {
+      "comment": "7.1 toast: the server confirmed the rotation; the notice is gone.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefonun erişimi kapandı."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your old phone no longer has access."
+          }
+        }
+      }
+    },
+    "access.notice.body": {
+      "comment": "7.1 top notice body: honest about what an unanswered rotation means; it disappears once the outcome is known.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri yükleme sırasında, eski telefonunun erişimini kapatma isteğine sunucudan yanıt gelmedi. Bu doğrulanana kadar eski telefon hesabına bağlanıp sana yazılanları alabilir; bu telefon ise bağlanmaz. Uygulama her bağlanmaya çalıştığında yeniden sorar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "During the restore, the server didn't answer the request that closes your old phone's access. Until that's confirmed, the old phone may still connect to your account and receive messages sent to you, and this phone doesn't connect. The app asks again every time it tries to connect."
+          }
+        }
+      }
+    },
+    "access.notice.check": {
+      "comment": "7.1 notice: asks the server now whether the rotation went through.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi kontrol et"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check now"
+          }
+        }
+      }
+    },
+    "access.notice.checking": {
+      "comment": "7.1 notice: the button while the server is asked.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrol ediliyor…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        }
+      }
+    },
+    "access.notice.title": {
+      "comment": "7.1 top notice (proposed): after a restore, the server never answered the token rotation that closes the old phone’s access (PROTOCOL §5.5 step 3.4).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefonun erişimi kapanmamış olabilir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your old phone may still have access"
+          }
+        }
+      }
+    },
+    "access.notice.unanswered": {
+      "comment": "7.1 notice, under its text after “Şimdi kontrol et” got no answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucudan yine yanıt gelmedi. Bağlantını kontrol edip tekrar dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still no answer from the server. Check your connection and try again."
+          }
+        }
+      }
+    },
+    "access.refused.toast": {
+      "comment": "7.1 toast: the server refused both tokens (another phone restored the same backup first, or the account was deleted).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefon artık hesabına bağlanamıyor: yedek başka bir telefonda geri yüklenmiş ya da hesap silinmiş."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone can no longer connect to your account: the backup was restored on another phone, or the account was deleted."
+          }
+        }
+      }
+    },
+    "avatar.camera.denied": {
+      "comment": "7.1 › Profil görseli › Kamera when camera access was denied (toast).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access is off. You can turn it on in Settings › us2us."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera izni kapalı. Ayarlar › us2us'tan açabilirsin."
+          }
+        }
+      }
+    },
+    "avatar.camera.denied.body": {
+      "comment": "Body of the camera-access sheet (7.1 › Profil görseli › Kamera).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To take a profile photo, allow camera access in Settings. us2us uses the camera only when you open it."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil fotoğrafı çekmek için Ayarlar'dan kamera iznini açabilirsin. us2us kamerayı yalnızca sen açtığında kullanır."
+          }
+        }
+      }
+    },
+    "avatar.camera.denied.title": {
+      "comment": "Title of the sheet shown when camera access was denied (7.1 › Profil görseli › Kamera).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access is off"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera izni kapalı"
+          }
+        }
+      }
+    },
+    "avatar.camera.restricted": {
+      "comment": "7.1 › Profil görseli › Kamera when the camera is restricted on the device (Screen Time, a profile).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The camera is restricted on this device."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera bu cihazda kısıtlanmış."
+          }
+        }
+      }
+    },
+    "avatar.camera.settings": {
+      "comment": "Camera-access sheet: opens the app's page in Settings.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarları aç"
+          }
+        }
+      }
+    },
+    "avatar.camera.unavailable": {
+      "comment": "7.1 › Profil görseli › Kamera on a device without a camera (simulator).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The camera isn't available on this device."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu cihazda kamera kullanılamıyor."
+          }
+        }
+      }
+    },
+    "avatar.crop.area": {
+      "comment": "VoiceOver label of the framing viewport (the photo inside the circle).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The part your profile shows"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profilinde görünecek kısım"
+          }
+        }
+      }
+    },
+    "avatar.crop.area.hint": {
+      "comment": "VoiceOver hint of the framing viewport (adjustable).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up or down to zoom in or out. Use the actions to move the frame."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakınlaştırmak ya da uzaklaştırmak için yukarı ya da aşağı kaydır. Çerçeveyi taşımak için eylemleri kullan."
+          }
+        }
+      }
+    },
+    "avatar.crop.hint": {
+      "comment": "Framing screen: hint under the viewport.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to move, pinch to zoom."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sürükleyerek kaydır, iki parmakla büyüt."
+          }
+        }
+      }
+    },
+    "avatar.crop.move.down": {
+      "comment": "VoiceOver action on the framing screen's square (Fotoğrafı yerleştir): moves the framed part of the photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the frame down"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çerçeveyi aşağı kaydır"
+          }
+        }
+      }
+    },
+    "avatar.crop.move.left": {
+      "comment": "VoiceOver action on the framing screen's square (Fotoğrafı yerleştir): moves the framed part of the photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the frame left"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çerçeveyi sola kaydır"
+          }
+        }
+      }
+    },
+    "avatar.crop.move.right": {
+      "comment": "VoiceOver action on the framing screen's square (Fotoğrafı yerleştir): moves the framed part of the photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the frame right"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çerçeveyi sağa kaydır"
+          }
+        }
+      }
+    },
+    "avatar.crop.move.up": {
+      "comment": "VoiceOver action on the framing screen's square (Fotoğrafı yerleştir): moves the framed part of the photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the frame up"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çerçeveyi yukarı kaydır"
+          }
+        }
+      }
+    },
+    "avatar.crop.title": {
+      "comment": "Framing screen title (sheet bar), after picking or taking a profile photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame your photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğrafı yerleştir"
+          }
+        }
+      }
+    },
+    "avatar.crop.use": {
+      "comment": "Framing screen: primary button that saves the framed profile photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullan"
+          }
+        }
+      }
+    },
+    "avatar.crop.zoom %lld": {
+      "comment": "VoiceOver value of the framing viewport: the zoom in percent (Turkish puts % first).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom %lld%%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakınlaştırma %%%lld"
+          }
+        }
+      }
+    },
+    "avatar.current.initials": {
+      "comment": "VoiceOver value of the 7.1 profile card's avatar when it shows the initial letter.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your initial"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baş harfin"
+          }
+        }
+      }
+    },
+    "avatar.current.photo": {
+      "comment": "VoiceOver value of the 7.1 profile card's avatar when it shows a photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf"
+          }
+        }
+      }
+    },
+    "avatar.edit": {
+      "comment": "VoiceOver label of the avatar on the 7.1 profile card (opens the picker).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change profile picture"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil görselini değiştir"
+          }
+        }
+      }
+    },
+    "avatar.error.photo": {
+      "comment": "The picked photo could not be read or made small enough (nothing changed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo couldn't be used. Try another one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu fotoğraf kullanılamadı. Başka bir fotoğraf dene."
+          }
+        }
+      }
+    },
+    "avatar.error.save": {
+      "comment": "Saving the new profile picture failed (nothing changed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your profile picture couldn't be saved. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil görseli kaydedilemedi. Tekrar dene."
+          }
+        }
+      }
+    },
+    "avatar.picker.camera": {
+      "comment": "Avatar picker row (ph:camera): opens the camera to take the profile photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kamera"
+          }
+        }
+      }
+    },
+    "avatar.picker.hint": {
+      "comment": "VoiceOver hint on every preset avatar in the picker.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Makes it your profile picture."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil görselin yapar."
+          }
+        }
+      }
+    },
+    "avatar.picker.initials": {
+      "comment": "First row of the avatar picker, next to the user's own initial avatar (C12): keeps the letter avatar.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep my initial"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baş harfim kalsın"
+          }
+        }
+      }
+    },
+    "avatar.picker.presets": {
+      "comment": "Section label over the grid of preset cup avatars (monoSectionLabel, upper-cased by the style).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready-made avatars"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır avatarlar"
+          }
+        }
+      }
+    },
+    "avatar.picker.title": {
+      "comment": "Avatar picker sheet title (navTitle).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile picture"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil görseli"
+          }
+        }
+      }
+    },
+    "avatar.picker.upload": {
+      "comment": "Avatar picker row (ph:image): opens the photo library. Shows a check while the current avatar is a photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upload a photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf yükle"
+          }
+        }
+      }
+    },
+    "avatar.search.note": {
+      "comment": "Avatar picker and framing screen while “Show in search” is on (PROTOCOL §8.10: the picker says who can see it).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Show in search” is on: anyone who types your exact username can see this picture, and the server can open it by guessing your username. Your contacts always see it."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Aramada göster” açık: kullanıcı adını tam olarak yazan herkes bu resmi görebilir; sunucu da kullanıcı adını tahmin ederek açabilir. Kişilerin her durumda görür."
+          }
+        }
+      }
+    },
     "backup.contents": {
       "extractionState": "manual",
       "localizations": {
@@ -273,70 +1011,122 @@
         }
       }
     },
+    "backup.contents.account": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account"
+          }
+        }
+      },
+      "comment": "7.2 › Yedeğe girecekler: a row of what every backup holds (no switch)."
+    },
+    "backup.contents.account.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı adın, görünen adın ve profil görselin"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your username, display name and profile picture"
+          }
+        }
+      }
+    },
+    "backup.contents.contacts": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişilerin"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your contacts"
+          }
+        }
+      }
+    },
+    "backup.contents.contacts.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil görselleri, doğruladıkların ve engellediklerinle birlikte"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With their profile pictures, who you verified and who you blocked"
+          }
+        }
+      }
+    },
     "backup.contents.footnote": {
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tek görüntülemelik medya ve süreli mesajlar hiçbir zaman yedeğe girmez."
+            "value": "Mesajlar, fotoğraflar ve videolar yedeğe girmez: yedekten geri yüklediğinde sohbet geçmişin gelmez."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "View-once media and disappearing messages never go into a backup."
+            "value": "Messages, photos and videos are not in the backup: restoring it does not bring back your chat history."
           }
         }
       }
     },
-    "backup.contents.media": {
+    "backup.contents.identity": {
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fotoğraf ve videolar"
+            "value": "Kimlik anahtarın"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photos and videos"
+            "value": "Your identity key"
           }
         }
       }
     },
-    "backup.contents.messages": {
+    "backup.contents.identity.detail": {
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mesajlar"
+            "value": "Güvenlik numaraların aynı kalır"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Messages"
-          }
-        }
-      }
-    },
-    "backup.contents.settings": {
-      "extractionState": "manual",
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayarlar ve kişiler"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings and contacts"
+            "value": "Your safety numbers stay the same"
           }
         }
       }
@@ -354,58 +1144,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Backup exported."
-          }
-        }
-      }
-    },
-    "backup.estimate %@ %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tahmini %1$@ · %2$@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "About %1$@ · %2$@"
-          }
-        }
-      },
-      "comment": "7.2 file card: “Tahmini 184 MB · 3.920 mesaj”."
-    },
-    "backup.estimate.nothing": {
-      "extractionState": "manual",
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiçbir şey seçilmedi"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nothing selected"
-          }
-        }
-      }
-    },
-    "backup.estimate.settingsOnly": {
-      "extractionState": "manual",
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yalnızca ayarlar ve kişiler"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings and contacts only"
           }
         }
       }
@@ -462,6 +1200,24 @@
       },
       "comment": "7.2 Export button while the backup is encrypted on the device (progress in percent)."
     },
+    "backup.file.caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap, kimlik anahtarı ve kişiler"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account, identity key and contacts"
+          }
+        }
+      },
+      "comment": "7.2 file card, under the file name: what the backup holds."
+    },
     "backup.fileName %@": {
       "extractionState": "manual",
       "localizations": {
@@ -514,19 +1270,108 @@
         }
       }
     },
+    "backup.password.copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalandı · yalnızca bu cihazda, 1 dk sonra silinir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied · this device only, cleared in 1 minute"
+          }
+        }
+      },
+      "comment": "7.2: the line under “Kopyala” after the generated password was copied, until the copy expires (60 s, this device only, no Universal Clipboard); also announced to VoiceOver."
+    },
+    "backup.password.copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyala"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      },
+      "comment": "7.2: copies the generated password (this device only, cleared after 60 s)."
+    },
+    "backup.password.generate": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güçlü parola oluştur"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate strong password"
+          }
+        }
+      },
+      "comment": "7.2: fills the password field with a random password and shows it."
+    },
+    "backup.password.generated.hint": {
+      "comment": "7.2: under the generated password card: a gentle reminder to keep it in a password manager. The copy itself is described by backup.password.copied and a11y.backup.copy.hint.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola yöneticine kaydetmeyi unutma (tireler parolanın parçası) ya da kâğıda yaz. Yedek dosyasıyla aynı yerde saklama, ekran görüntüsünü alma."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remember to save it in your password manager (the dashes are part of it), or write it down. Don't keep it next to the backup file, and don't take a screenshot of it."
+          }
+        }
+      }
+    },
     "backup.password.warning": {
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu parola olmadan yedek açılamaz; biz dahil kimse kurtaramaz. Gizli kodundan farklı olmalı."
+            "value": "Bu parola olmadan yedek açılamaz; biz dahil kimse kurtaramaz. Gizli kodundan farklı olmalı. Dosyayı ele geçiren biri parolayı sınırsız deneyebilir; bu yüzden uzun ve rastgele bir parola seç."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Without this password the backup can't be opened; no one, including us, can recover it. It must be different from your secret code."
+            "value": "Without this password the backup can't be opened; no one, including us, can recover it. It must be different from your secret code. Anyone who gets the file can try passwords without limit, so choose a long, random one."
+          }
+        }
+      }
+    },
+    "backup.problem.exportFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedek oluşturulamadı, hiçbir dosya kaydedilmedi. Tekrar dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backup couldn't be created, and nothing was saved. Try again."
           }
         }
       }
@@ -548,19 +1393,70 @@
         }
       }
     },
-    "backup.problem.secretCode": {
+    "backup.problem.repeated": {
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yedek parolası gizli kodundan farklı olmalı."
+            "value": "Parola, tek bir karakterin tekrarından oluşamaz."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The backup password must be different from your secret code."
+            "value": "The password can't be a single character repeated."
+          }
+        }
+      }
+    },
+    "backup.problem.sequence": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola, abcdefghij ya da qwertyuiop gibi basit bir dizi olamaz."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password can't be a simple sequence such as abcdefghij or qwertyuiop."
+          }
+        }
+      }
+    },
+    "backup.problem.tooCommon": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu parola çok yaygın ve kolay tahmin edilir. Başka bir parola seç."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This password is too common and easy to guess. Choose another one."
+          }
+        }
+      }
+    },
+    "backup.problem.tooShort": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedek parolası en az 10 karakter olmalı."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backup password must be at least 10 characters long."
           }
         }
       }
@@ -571,13 +1467,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu parola kolay tahmin edilir. Daha uzun bir parola seç ya da harf, rakam ve işaretleri karıştır."
+            "value": "Bu parola kolay tahmin edilir. “Güçlü parola oluştur” ile rastgele bir parola al ya da 4–5 rastgele kelimeden oluşan uzun bir parola kullan. İsim, doğum yılı ve takım adı kullanma."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This password is easy to guess. Choose a longer one or mix letters, digits and symbols."
+            "value": "This password is easy to guess. Use “Generate strong password”, or a long passphrase of 4–5 random words. Avoid names, birth years and team names."
           }
         }
       }
@@ -663,6 +1559,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "Backup"
+          }
+        }
+      }
+    },
+    "blocked.empty": {
+      "comment": "7.1 › Engellenenler with nobody blocked (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You haven't blocked anyone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engellediğin kimse yok."
+          }
+        }
+      }
+    },
+    "blocked.footnote": {
+      "comment": "7.1 › Engellenenler: under the list, what a block means (PROTOCOL §6.4; proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Their messages don't reach you and you can't write to them; they don't know they're blocked. The block stays even when the chat is erased. Unblocking puts things back as they were, but what they sent meanwhile won't arrive."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazdıkları sana ulaşmaz, sen de onlara yazamazsın; engellendiklerini bilmezler. Sohbet silinse de engel sürer. Engeli kaldırınca her şey eskisi gibi olur, ama bu arada yazdıkları gelmez."
+          }
+        }
+      }
+    },
+    "blocked.unknownUsername": {
+      "comment": "7.1 › Engellenenler: under a person whose username this phone no longer keeps (a Ghost wipe with wipe_contact, PROTOCOL §8.2, kept only the block).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Username unknown"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı adı bilinmiyor"
           }
         }
       }
@@ -837,6 +1787,42 @@
         }
       }
     },
+    "code.unavailable": {
+      "comment": "7.1 › Gizli kodu değiştir: the current code could not be checked right now (not a wrong code, not counted).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod şu an denetlenemedi. Kodun doğru olabilir; birkaç saniye sonra yeniden dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your code couldn't be checked right now. It may be right; try again in a few seconds."
+          }
+        }
+      }
+    },
+    "code.unusable": {
+      "comment": "7.1 › Gizli kodu değiştir: the vault can no longer be opened on this phone once the app locks (device secret or hardware key gone). The app is still open, so a new backup keeps the account.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefon, uygulama kilitlendikten sonra verilerinin kilidini açamayacak. Uygulama açıkken Ayarlar › Yedek'ten yeni bir yedek al."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone won't be able to unlock your data once the app locks. While it's open, take a new backup in Settings › Backup."
+          }
+        }
+      }
+    },
     "code.weak": {
       "extractionState": "manual",
       "localizations": {
@@ -980,6 +1966,42 @@
         }
       }
     },
+    "faceID.enable.title": {
+      "comment": "7.1 › “Face ID ile aç” turned on while it was off (proposed, the 3.2 layout): the secret code once, a counted attempt.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID için kodunu gir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your code for Face ID"
+          }
+        }
+      }
+    },
+    "faceID.enabled.toast": {
+      "comment": "7.1 toast after the code turned Face ID on.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID açıldı."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID is on."
+          }
+        }
+      }
+    },
     "restore.cancel": {
       "extractionState": "manual",
       "localizations": {
@@ -1099,6 +2121,42 @@
         }
       }
     },
+    "restore.error.damaged": {
+      "comment": "7.3 file card caption: the backup opened with its password, but its contents are damaged or malformed, so no restore accepts it.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola doğru ama yedeğin içeriği bozuk; geri yüklenemez. Varsa başka bir kopyasını seç."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password is right, but the backup's contents are damaged and can't be restored. Choose another copy if you have one."
+          }
+        }
+      }
+    },
+    "restore.error.noLongerValid": {
+      "comment": "7.3 file card caption: the server refuses the backup's token (its account was deleted, or it was restored on another phone).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yedek artık kullanılamıyor: hesabı silinmiş ya da yedek başka bir telefonda geri yüklenmiş."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This backup can no longer be used: its account was deleted, or it has been restored on another phone."
+          }
+        }
+      }
+    },
     "restore.error.notABackup": {
       "extractionState": "manual",
       "localizations": {
@@ -1202,6 +2260,42 @@
         }
       }
     },
+    "restore.note.account": {
+      "comment": "7.3 note once an account backup was opened on a phone without an account: what really comes back (PROTOCOL §5.5).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın ve kişilerin geri gelir; mesaj geçmişi yedekte yok. Geri yüklenen dosya bundan sonra çalışmaz; ardından yeni bir yedek al. Son adım: bu cihaz için yeni bir gizli kod belirle."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and contacts come back; message history isn't in the backup. This file stops working once it's restored, so take a new backup afterwards. One last step: set a new secret code for this device."
+          }
+        }
+      }
+    },
+    "restore.note.account.replacing": {
+      "comment": "7.3 note once an account backup was opened inside the lock (3.3): what comes back, and that this phone's messages are erased when setup finishes.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın ve kişilerin geri gelir; mesaj geçmişi yedekte yok. Kurulumu tamamladığında bu telefondaki mesajlar silinir ve bu dosya artık çalışmaz; ardından yeni bir yedek al. Son adım: yeni bir gizli kod belirle."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and contacts come back; message history isn't in the backup. When you finish setup, the messages on this phone are erased and this file stops working, so take a new backup afterwards. One last step: set a new secret code."
+          }
+        }
+      }
+    },
     "restore.note.done": {
       "extractionState": "manual",
       "localizations": {
@@ -1300,6 +2394,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Password correct · backup opened"
+          }
+        }
+      }
+    },
+    "restore.password.unverified": {
+      "comment": "7.3 caption under the password: it was right, but the server could not be asked whether the backup still works. Nothing changed.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedeğin hâlâ geçerli olup olmadığı sunucudan öğrenilemedi. Bağlantını kontrol edip tekrar dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't check with the server whether the backup still works. Check your connection and try again."
           }
         }
       }
@@ -1593,6 +2705,78 @@
         }
       }
     },
+    "settings.avatarSearch": {
+      "comment": "7.1 › Gizlilik: switch — the profile picture is shown to anyone who looks up the exact username (PROTOCOL §8.10).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in search"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aramada göster"
+          }
+        }
+      }
+    },
+    "settings.avatarSearch.footnote": {
+      "comment": "7.1 › Gizlilik footnote: what “Aramada göster” means (wording fixed by PROTOCOL §8.10).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, anyone who types your exact username can see your profile picture. When off, only your contacts see it. Turning it off doesn't remove copies others already fetched, and the server can open the picture by guessing your username."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açıkken kullanıcı adını tam olarak yazan herkes profil resmini görebilir. Kapalıyken yalnızca kişilerin görür. Kapatman, daha önce görenlerdeki kopyaları silmez; sunucu da kullanıcı adını tahmin ederek resmi açabilir."
+          }
+        }
+      }
+    },
+    "settings.avatarSearch.pending": {
+      "comment": "7.1 › Gizlilik footnote, second line: a picture or “Aramada göster” change is still owed to the relay.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your last change hasn't reached the server yet; it's tried again once you're connected."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son değişiklik sunucuya henüz ulaşmadı; bağlantı kurulunca yeniden denenir."
+          }
+        }
+      }
+    },
+    "settings.avatarSearch.unavailable": {
+      "comment": "7.1 › Gizlilik footnote, second line: the relay has no avatar records yet (404/405).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server doesn't show pictures in search yet; your contacts still see yours."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu şimdilik aramada resim göstermiyor; kişilerin resmini yine görür."
+          }
+        }
+      }
+    },
     "settings.backup": {
       "extractionState": "manual",
       "localizations": {
@@ -1641,6 +2825,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Never"
+          }
+        }
+      }
+    },
+    "settings.blocked": {
+      "comment": "7.1 › Gizlilik: the row (with how many are blocked) and the title of its page, the list of everyone blocked (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engellenenler"
           }
         }
       }
@@ -1832,19 +3034,182 @@
         }
       }
     },
-    "settings.erase.footnote": {
+    "settings.erase.confirm.action": {
+      "comment": "7.1 erase confirmation, the danger button: deletes the account on the relay, then this phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account and everything"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabı ve her şeyi sil"
+          }
+        }
+      }
+    },
+    "settings.erase.confirm.body": {
+      "comment": "7.1 “Her şeyi sil” second confirmation paragraph: the account is deleted on the relay too (the relay frees the username at once, PROTOCOL §4.3).",
       "extractionState": "manual",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sohbetlerin, anahtarların ve ayarların bu cihazdan kalıcı olarak silinir. Geri getirmenin tek yolu şifreli yedeğin."
+            "value": "Hesabın ve kullanıcı adın sunucudan; sohbetlerin, anahtarların ve ayarların bu telefondan kalıcı olarak silinecek. Artık kimse sana ulaşamayacak ve kullanıcı adın hemen serbest kalacak. Bu işlem geri alınamaz."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your chats, keys and settings are permanently erased from this device. Your encrypted backup is the only way to get them back."
+            "value": "Your account and username will be permanently deleted from the server, and your chats, keys and settings from this phone. No one will be able to reach you, and your username will be free for others right away. This can't be undone."
+          }
+        }
+      }
+    },
+    "settings.erase.confirm.title": {
+      "comment": "7.1 “Her şeyi sil” second confirmation title (Doto display): the account is deleted on the relay too. 3.3's local-only confirmation keeps “Her şey silinsin mi?” (erase.confirm.title).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete your account?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın silinsin mi?"
+          }
+        }
+      }
+    },
+    "settings.erase.confirm.working": {
+      "comment": "7.1 erase confirmation: the danger button (or “Tekrar dene”) while the relay deletes the account.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap siliniyor…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleting account…"
+          }
+        }
+      }
+    },
+    "settings.erase.failed.body": {
+      "comment": "7.1 erase sheet when the relay did not confirm the deletion (offline, timeout, server error). Only this phone is known to be untouched: the relay may have deleted the account just before the connection dropped (“Tekrar dene” then succeeds).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server didn't confirm the deletion. Nothing on this phone was erased; check your connection and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucudan silme onayı gelmedi. Bu telefonda hiçbir şey silinmedi; bağlantını kontrol edip tekrar dene."
+          }
+        }
+      }
+    },
+    "settings.erase.failed.title": {
+      "comment": "7.1 erase sheet title when the relay did not delete the account (Doto display).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap silinemedi."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The account wasn't deleted."
+          }
+        }
+      }
+    },
+    "settings.erase.footnote": {
+      "comment": "7.1 under “Her şeyi sil”. A restore needs the account on the relay, so a deleted account cannot come back from a backup; exported backup files stay where the user saved them.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and username are permanently deleted from the server, and your chats, keys and settings from this phone. A deleted account can't be restored from a backup either. Backup files you exported stay in Files and can no longer be used; you can delete them yourself."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın ve kullanıcı adın sunucudan; sohbetlerin, anahtarların ve ayarların bu telefondan kalıcı olarak silinir. Silinen hesap yedekten de geri gelmez. Dışa aktardığın yedek dosyaları Dosyalar’da kalır ve artık kullanılamaz; onları kendin silebilirsin."
+          }
+        }
+      }
+    },
+    "settings.erase.retry": {
+      "comment": "7.1 erase sheet after a failure: deletes the account on the relay again.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekrar dene"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "settings.erase.thisPhone.body": {
+      "comment": "7.1 erase sheet after a failure, option card description. Contacts can still write to the abandoned account; their messages never arrive. 180 = the relay's INACTIVE_ACCOUNT_DAYS (PROTOCOL §4.10).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and username stay on the server, and messages sent to you won't reach you. The account is removed automatically after 180 days without a connection."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın ve kullanıcı adın sunucuda kalır; sana yazılanlar sana ulaşmaz. Hesap, 180 gün hiç bağlanılmazsa kendiliğinden silinir."
+          }
+        }
+      }
+    },
+    "settings.erase.thisPhone.title": {
+      "comment": "7.1 erase sheet after a failure, danger option card: erases this phone, leaves the account on the relay.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca bu telefondan sil"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase from this phone only"
           }
         }
       }

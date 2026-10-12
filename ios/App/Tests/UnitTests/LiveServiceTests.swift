@@ -138,7 +138,7 @@ struct LiveMappingTests {
             record(2, .outgoing, .attachment(image()), status: .delivered),
             record(3, .incoming, .attachment(image()), viewOnce: true),
             record(4, .incoming, .location(name: "Moda İskelesi", address: "Kadıköy", latitude: 40.98, longitude: 29.02)),
-            record(5, .outgoing, .sticker(emoji: "tamam!"), status: .sent),
+            record(5, .outgoing, .sticker(packID: "us2us.text", stickerID: 0, emoji: "tamam!", lang: ""), status: .sent),
             record(6, .incoming, .deleted),
             record(7, .incoming, .viewOnceOpened),
             record(8, .system, .notice(.screenshotByContact)),
@@ -166,8 +166,45 @@ struct LiveMappingTests {
             return
         }
         #expect(duration == 12)
-        #expect(waveform.count == 31)
+        #expect(waveform.count == 30, "the design's 30 bars")
         #expect(messages[9].content == .file(name: "kira.pdf", byteCount: 2_100_000, typeLabel: "PDF", pageCount: nil))
+    }
+
+    /// PROTOCOL §8.8: a sticker keeps its pack, id, emoji and the language it
+    /// was sent in; the bubble resolves it — a catalog sticker in that
+    /// language (the reader's only without one), the text sticker of earlier
+    /// builds as its card, an unknown one as its emoji, nothing as the
+    /// placeholder. The chat list says “Sticker” for all of them.
+    @Test func stickersKeepTheirIdsAndLanguageAndResolveToFourOutcomes() {
+        let records: [LiveMessageRecord] = [
+            record(1, .incoming, .sticker(packID: "us2us.words", stickerID: 103, emoji: "🫂", lang: "en")),
+            record(2, .incoming, .sticker(packID: "us2us.words", stickerID: 109, emoji: "👌", lang: "")),
+            record(3, .incoming, .sticker(packID: "us2us.text", stickerID: 0, emoji: " tamam! ", lang: "")),
+            record(4, .incoming, .sticker(packID: "us2us.future", stickerID: 9001, emoji: "🫶", lang: "tr")),
+            record(5, .outgoing, .sticker(packID: "us2us.future", stickerID: 9002, emoji: "  ", lang: ""), status: .read),
+            record(6, .outgoing, .sticker(packID: "us2us.cups", stickerID: 1, emoji: "👋", lang: ""), status: .sent),
+        ]
+        let messages = LiveMapping.messages(records, ownUsername: "selin", peerUsername: "deniz", now: now, media: [:])
+        #expect(messages.count == 6)
+        #expect(messages[0].content == .sticker(packID: "us2us.words", stickerID: 103, emoji: "🫂", lang: "en"))
+        #expect(messages[2].content == .textSticker("tamam!"), "earlier builds keep their Doto card")
+        #expect(messages[4].status == .read)
+
+        let words = BrandStickerCatalog.sticker(id: 103)!
+        let ok = BrandStickerCatalog.sticker(id: 109)!
+        let hello = BrandStickerCatalog.sticker(id: 1)!
+        let resolved = messages.map { $0.content.stickerResolution(ui: .turkish) }
+        #expect(resolved[0] == .sticker(BrandStickerSelection(words, language: .english)), "the sender's language")
+        #expect(resolved[1] == .sticker(BrandStickerSelection(ok, language: .turkish)), "no lang: the reader's")
+        #expect(resolved[2] == .legacyText("tamam!"))
+        #expect(resolved[3] == .emoji("🫶"))
+        #expect(resolved[4] == .unavailable)
+        #expect(resolved[5] == .sticker(BrandStickerSelection(hello, language: .turkish)))
+        #expect(messages[1].content.stickerResolution(ui: .english) == .sticker(BrandStickerSelection(ok, language: .english)))
+
+        for record in records {
+            #expect(LiveMapping.previewKind(of: record, now: now) == .sticker)
+        }
     }
 
     @Test func loadedFullImagesReplaceTheThumbnail() {
@@ -231,7 +268,7 @@ struct LiveMappingTests {
         #expect(LiveMapping.connection(.syncing) == .open)
         #expect(LiveMapping.connection(.retrying) == .connecting)
         #expect(LiveMapping.connection(.waitingForNetwork) == .closed)
-        #expect(LiveMapping.connection(.revoked) == .closed)
+        #expect(LiveMapping.connection(.revoked) == .revoked, "a signed-out phone is never “retrying”")
     }
 }
 
@@ -282,12 +319,17 @@ struct LiveWiringTests {
     /// No network endpoint but the relay anywhere in the app's sources. The
     /// invite feature's links are text the user shares (us2us.app/u/… is the
     /// universal link that opens 4.2; wa.me is handed to WhatsApp by the
-    /// system) — the app itself never requests them.
+    /// system), and Hakkında's privacy policy and support pages open in the
+    /// browser (`WebsitePage`) — the app itself never requests them.
     @Test func noOtherNetworkEndpointsInTheSources() throws {
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources")
-        let allowed = ["https://relay.us2us.app", "https://us2us.app/u/", "https://wa.me/"]
+        let websitePages = [
+            "https://us2us.app/tr/gizlilik", "https://us2us.app/en/privacy",
+            "https://us2us.app/tr/destek", "https://us2us.app/en/support",
+        ]
+        let allowed = ["https://relay.us2us.app", "https://us2us.app/u/", "https://wa.me/"] + websitePages
         let pattern = try NSRegularExpression(pattern: #"https?://[A-Za-z0-9.\-]+[/A-Za-z0-9._\-]*"#)
         var offenders: [String] = []
         let enumerator = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)

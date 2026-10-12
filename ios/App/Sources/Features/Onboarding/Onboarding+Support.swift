@@ -27,10 +27,12 @@ struct DashedBorder<S: InsettableShape>: View {
 // MARK: - Bullets, legends, feature rows
 
 /// 2.1 rules: a 4 × 4 `accent400` dot, gap 10, `bullet` (Inter 400 13.5/18.9).
-/// The text tints `danger` while the rule is broken (0.36 s cross-fade).
+/// The text tints `danger` while the rule is broken (0.36 s cross-fade);
+/// VoiceOver hears “karşılanmıyor” / “not met” after it.
 struct OnboardingRuleRow: View {
     let text: Text
     var isBroken = false
+    @Environment(\.locale) private var locale
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -42,6 +44,10 @@ struct OnboardingRuleRow: View {
                 .u2Font(.bullet)
                 .foregroundStyle(isBroken ? Color.u2.danger : Color.u2.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityValue(
+                    isBroken
+                        ? StringTable.onboarding.text("a11y.onboarding.username.rule.broken", locale: locale)
+                        : Text(verbatim: ""))
         }
         .u2Animation(U2Motion.state, value: isBroken)
     }

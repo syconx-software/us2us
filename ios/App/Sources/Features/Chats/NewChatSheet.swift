@@ -175,6 +175,7 @@ private struct NewChatSearchPage: View {
         case found
         case existing
         case notFound
+        case invalid(UsernameRules.Violation)
         case own
     }
 
@@ -182,8 +183,21 @@ private struct NewChatSearchPage: View {
         switch model.phase {
         case .found(_, let existing): existing ? .existing : .found
         case .notFound: .notFound
+        case .invalid(let violation): .invalid(violation)
         case .ownName: .own
         case .idle, .pending, .searching: nil
+        }
+    }
+
+    /// “Kullanıcı bulunamadı”, or for a name nobody can have, the rule it breaks.
+    private var notFoundSubtitle: LocalizedStringKey {
+        guard case .invalid(let violation) = model.phase else { return "newChat.notFound" }
+        switch violation {
+        case .turkishCharacters: return "newChat.invalid.turkish"
+        case .characters: return "newChat.invalid.characters"
+        case .firstLetter: return "newChat.invalid.firstLetter"
+        // A name too short is not searched (the hint only): this one is too long.
+        case .length: return "newChat.invalid.tooLong"
         }
     }
 
@@ -192,7 +206,9 @@ private struct NewChatSearchPage: View {
         case .found(let peer, let existing):
             AnyView(
                 ResultCard(
-                    avatar: Avatar(username: peer.username, palette: peer.palette, size: .listRow),
+                    avatar: Avatar(
+                        username: peer.username, palette: peer.palette, size: .listRow, picture: model.resultAvatar.picture),
+                    isLoadingAvatar: model.resultAvatar == .loading,
                     name: Text(verbatim: peer.username), nameColor: Color.u2.text,
                     subtitle: Text(existing ? "newChat.existing" : "newChat.found", table: .chats),
                     status: .found
@@ -209,17 +225,18 @@ private struct NewChatSearchPage: View {
                     .disabled(model.isStarting)
                     .accessibilityIdentifier("newChat.write")
                 })
-        case .notFound:
+        case .notFound, .invalid:
             AnyView(
                 ResultCard(
                     avatar: Avatar(username: "?", palette: .c, size: .listRow),
                     name: Text(verbatim: model.resultName), nameColor: Color.u2.textSecondary,
-                    subtitle: Text("newChat.notFound", table: .chats), status: .notFound
+                    subtitle: Text(notFoundSubtitle, table: .chats), status: .notFound
                 ) { InviteNotFoundButton(action: onInvite) })
         case .ownName:
             AnyView(
                 ResultCard(
-                    avatar: Avatar(username: model.resultName, palette: .d, size: .listRow),
+                    avatar: Avatar(
+                        username: model.resultName, palette: .d, size: .listRow, picture: model.resultAvatar.picture),
                     name: Text(verbatim: model.resultName), nameColor: Color.u2.text,
                     subtitle: Text("newChat.own", table: .chats), status: .none
                 ) { EmptyView() })
@@ -282,7 +299,9 @@ private struct NewChatSearchPage: View {
 
 /// The 4.2 result card: `bg` r20, pad 16, gap 14 — avatar 52 · name
 /// (`monoUsernameL`) + subtitle (`caption`, gap 3) · status glyph 22; the C1
-/// in-card button below when there is something to do.
+/// in-card button below when there is something to do. While the result's
+/// picture is on its way (proposed) a ring travels round the avatar; the
+/// picture cross-fades in over the initial.
 private struct ResultCard<Action: View>: View {
     enum Status {
         case none
@@ -291,6 +310,7 @@ private struct ResultCard<Action: View>: View {
     }
 
     let avatar: Avatar
+    var isLoadingAvatar = false
     let name: Text
     let nameColor: Color
     let subtitle: Text
@@ -301,6 +321,13 @@ private struct ResultCard<Action: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 13) {
                 avatar
+                    .overlay {
+                        if isLoadingAvatar {
+                            AvatarLoadingRing(diameter: Avatar.Size.listRow.diameter)
+                                .transition(.u2Fade)
+                        }
+                    }
+                    .u2Animation(U2Motion.state, value: isLoadingAvatar)
                 VStack(alignment: .leading, spacing: 3) {
                     name
                         .u2Font(.monoUsernameL)

@@ -2,10 +2,13 @@ import SwiftUI
 
 /// 7.1 › Hakkında (not drawn; composed from the design's parts): the line
 /// mark and wordmark, the version, what the app does and does not do (the
-/// design's own promises: 1.2, 2.3, 3.3, 4.4), and the licences shipped in
-/// the bundle.
+/// design's own promises: 1.2, 2.3, 3.3, 4.4), the privacy policy and
+/// support pages on us2us.app (App Review 5.1.1(i): the policy is linked in
+/// the app), and the licences shipped in the bundle.
 struct AboutView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
     @State private var licence: Licence?
 
     /// “0.1.0” (and the build in the header line).
@@ -34,6 +37,13 @@ struct AboutView: View {
                             principle(.prohibit, "about.principle.noNotifications", "about.principle.noNotifications.detail")
                             GroupedSeparator()
                             principle(.eyeSlash, "about.principle.noTracking", "about.principle.noTracking.detail")
+                        }
+                        GroupedSection(Text("about.website", table: .settings)) {
+                            website(.privacy, title: Text("about.privacyPolicy", table: .settings))
+                                .accessibilityIdentifier("about.privacy")
+                            GroupedSeparator(inset: 14)
+                            website(.support, title: Text("about.support", table: .settings))
+                                .accessibilityIdentifier("about.support")
                         }
                         GroupedSection(Text("about.licences", table: .settings)) {
                             ForEach(Array(Licence.all.enumerated()), id: \.element.id) { index, item in
@@ -70,12 +80,41 @@ struct AboutView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// A page of the website, in the app's language, opened in the browser
+    /// (the site has no analytics, cookies or access logs).
+    private func website(_ page: WebsitePage, title: Text) -> some View {
+        GroupedNavigationRow(tile: nil, title: title, detail: Text(verbatim: WebsitePage.host)) {
+            guard let url = page.url(for: locale) else { return }
+            openURL(url)
+        }
+    }
+
     private func principle(_ glyph: PhosphorGlyph, _ title: LocalizedStringKey, _ detail: LocalizedStringKey) -> some View {
         GroupedRow(tile: IconTile(content: .glyph(glyph)), title: Text(title, table: .settings), subtitle: Text(detail, table: .settings)) {
             EmptyView()
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The website's pages the app links to, in Turkish or English
+/// (relay/app/content/site.ts › `paths`).
+enum WebsitePage: CaseIterable, Sendable {
+    case privacy
+    case support
+
+    static let host = "us2us.app"
+
+    /// `https://us2us.app/tr/gizlilik` in Turkish, `/en/privacy` otherwise.
+    func url(for locale: Locale) -> URL? {
+        let turkish = locale.language.languageCode?.identifier == "tr"
+        let path: String
+        switch self {
+        case .privacy: path = turkish ? "/tr/gizlilik" : "/en/privacy"
+        case .support: path = turkish ? "/tr/destek" : "/en/support"
+        }
+        return URL(string: "https://" + Self.host + path)
     }
 }
 

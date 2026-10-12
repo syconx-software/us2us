@@ -12,13 +12,16 @@
     /// | `1.1` | 1.1 | Karşılama (the reference) |
     /// | `1.2` | 1.2 | Bildirim yok (the reference) |
     /// | `1.3` | 1.3 | Sessizlik siler (the reference) |
-    /// | `2.1` | 2.1 | “selin.n” available, focused (the reference) |
+    /// | `2.1` | 2.1 | “selin_n” available, focused (the reference) |
     /// | `2.1-blurred` | 2.1 | the same, unfocused (no keyboard over the card) |
+    /// | `2.1-rules` | 2.1 | “selin_n” meets the rules (the live service: “Kurallara uygun”) |
     /// | `2.1-empty` | 2.1 | nothing typed, Devam at 45 % |
-    /// | `2.1-checking` | 2.1 | “selin.n”, checking (spinner) |
+    /// | `2.1-checking` | 2.1 | “selin_n”, checking (spinner) |
     /// | `2.1-taken` | 2.1 | “selin” taken |
     /// | `2.1-short` | 2.1 | “se” — the length rule in `danger` |
-    /// | `2.1-invalid` | 2.1 | a Turkish letter was dropped — “Geçersiz karakter” |
+    /// | `2.1-invalid` | 2.1 | “selin.n” — a dot: “Geçersiz karakter” |
+    /// | `2.1-turkish` | 2.1 | “kağan” — the Turkish rule in `danger` |
+    /// | `2.1-firstLetter` | 2.1 | “1selin” — must start with a letter |
     /// | `2.2` | 2.2 | set step, four digits (the reference) |
     /// | `2.2-empty` | 2.2 | set step, no digits |
     /// | `2.2-confirm` | 2.2 | confirm step, two digits |
@@ -27,9 +30,15 @@
     /// | `2.3` | 2.3 | acknowledged (the reference) |
     /// | `2.3-unchecked` | 2.3 | not acknowledged, CTA at 45 % |
     /// | `2.3-error` | 2.3 | account creation failed |
+    /// | `2.3-taken` | 2.3 | the name was taken at setup: “Başka bir ad seç” |
     /// | `7.3` | 7.3 | the restore hand-off from 1.1 |
     /// | `restore-2.2` | 2.2 | new code after a restore (“1 / 2”) |
     /// | `restore-2.3` | 2.3 | finish after a restore (“2 / 2”) |
+    /// | `restore-2.3-gone` | 2.3 | the restored backup's account is gone (deleted, or restored on another phone) |
+    /// | `restore-2.3-damaged` | 2.3 | the restored backup can't be read or is damaged |
+    /// | `restore-2.3-lock` | 2.3 | restoring inside the lock (3.3): this phone's messages are erased when it finishes |
+    /// | `restore-2.3-toLock` | 2.3 | restoring inside the lock was refused before anything was erased: “Kilit ekranına dön” |
+    /// | `2.3-kept` | 2.3 | the account was saved, then setup failed: “Kilit ekranına dön” |
     /// | `demo` | 1.1 → 4.1 | plays the whole flow by itself (for screen recordings of the motion) |
     /// | `demo-restore` | 1.1 → 7.3 → 2.2 → 2.3 → 4.1 | plays the restore path by itself |
     /// | `demo-back` | 2.3 → 2.2 → 2.1 → 1.3 → 1.1 | plays every way back (pop resets the code, confirm → set, swipe back through the pages) |
@@ -43,10 +52,13 @@
 
         static let states = [
             "1.1", "1.2", "1.3",
-            "2.1", "2.1-blurred", "2.1-empty", "2.1-checking", "2.1-taken", "2.1-short", "2.1-invalid",
+            "2.1", "2.1-blurred", "2.1-rules", "2.1-empty", "2.1-checking", "2.1-taken", "2.1-short", "2.1-invalid",
+            "2.1-turkish", "2.1-firstLetter",
             "2.2", "2.2-empty", "2.2-confirm", "2.2-weak", "2.2-mismatch",
-            "2.3", "2.3-unchecked", "2.3-error",
-            "7.3", "restore-2.2", "restore-2.3", "demo", "demo-restore", "demo-back",
+            "2.3", "2.3-unchecked", "2.3-error", "2.3-kept", "2.3-taken",
+            "7.3", "restore-2.2", "restore-2.3", "restore-2.3-gone", "restore-2.3-damaged", "restore-2.3-lock",
+            "restore-2.3-toLock",
+            "demo", "demo-restore", "demo-back",
         ]
 
         static func fromLaunchArguments() -> OnboardingHarness? {
@@ -65,21 +77,24 @@
             case "1.1": flow.pager.setForHarness(page: 0)
             case "1.2": flow.pager.setForHarness(page: 1)
             case "1.3": flow.pager.setForHarness(page: 2)
-            case "2.1", "2.1-blurred", "2.1-empty", "2.1-checking", "2.1-taken", "2.1-short", "2.1-invalid":
+            case "2.1", "2.1-blurred", "2.1-rules", "2.1-empty", "2.1-checking", "2.1-taken", "2.1-short", "2.1-invalid",
+                "2.1-turkish", "2.1-firstLetter":
                 flow.pager.setForHarness(page: 2)
                 flow.setForHarness(mode: .create, path: [.username])
                 switch state {
+                case "2.1-rules": flow.username.setForHarness(name: "selin_n", status: .meetsRules)
                 case "2.1-empty": flow.username.setForHarness(name: "", status: .empty)
-                case "2.1-checking": flow.username.setForHarness(name: "selin.n", status: .checking)
+                case "2.1-checking": flow.username.setForHarness(name: "selin_n", status: .checking)
                 case "2.1-taken": flow.username.setForHarness(name: "selin", status: .taken)
                 case "2.1-short": flow.username.setForHarness(name: "se", status: .tooShort)
-                case "2.1-invalid":
-                    flow.username.setForHarness(name: "selin.n", status: .available, rejected: .turkishCharacters)
-                default: flow.username.setForHarness(name: "selin.n", status: .available)
+                case "2.1-invalid": flow.username.setForHarness(name: "selin.n", status: .invalid(.characters))
+                case "2.1-turkish": flow.username.setForHarness(name: "kağan", status: .invalid(.turkishCharacters))
+                case "2.1-firstLetter": flow.username.setForHarness(name: "1selin", status: .invalid(.firstLetter))
+                default: flow.username.setForHarness(name: "selin_n", status: .available)
                 }
             case "2.2", "2.2-empty", "2.2-confirm", "2.2-weak", "2.2-mismatch":
                 flow.pager.setForHarness(page: 2)
-                flow.username.setForHarness(name: "selin.n", status: .available)
+                flow.username.setForHarness(name: "selin_n", status: .available)
                 flow.setForHarness(mode: .create, path: [.username, .secretCode])
                 switch state {
                 case "2.2-empty": flow.code.setForHarness(step: .set, entered: 0)
@@ -88,15 +103,22 @@
                 case "2.2-mismatch": flow.code.setForHarness(step: .confirm, entered: 6, problem: .mismatch)
                 default: flow.code.setForHarness(step: .set, entered: 4)
                 }
-            case "2.3", "2.3-unchecked", "2.3-error":
+            case "2.3", "2.3-unchecked", "2.3-error", "2.3-kept", "2.3-taken":
                 flow.pager.setForHarness(page: 2)
-                flow.username.setForHarness(name: "selin.n", status: .available)
+                flow.username.setForHarness(name: "selin_n", status: .available)
                 flow.setForHarness(mode: .create, path: [.username, .secretCode, .noWayBack], confirmedCode: demoCode)
                 flow.code.setForHarness(step: .confirm, entered: 6)
-                flow.finish.setForHarness(acknowledged: state != "2.3-unchecked", failed: state == "2.3-error")
+                var failure: NoWayBackStepModel.Failure?
+                if state == "2.3-error" { failure = .network }
+                if state == "2.3-kept" { failure = .accountKept }
+                if state == "2.3-taken" {
+                    failure = .usernameTaken
+                    flow.username.markTaken("selin_n")
+                }
+                flow.finish.setForHarness(acknowledged: state != "2.3-unchecked", failure: failure)
             case "demo-back":
                 flow.pager.setForHarness(page: 2)
-                flow.username.setForHarness(name: "selin.n", status: .available)
+                flow.username.setForHarness(name: "selin_n", status: .available)
                 flow.setForHarness(mode: .create, path: [.username, .secretCode, .noWayBack], confirmedCode: demoCode)
                 flow.code.setForHarness(step: .confirm, entered: 6)
                 flow.code.isFrozenForHarness = false
@@ -106,10 +128,17 @@
             case "restore-2.2":
                 flow.setForHarness(mode: .restore, path: [.restore, .secretCode])
                 flow.code.setForHarness(step: .set, entered: 0)
-            case "restore-2.3":
+            case "restore-2.3", "restore-2.3-gone", "restore-2.3-damaged", "restore-2.3-lock", "restore-2.3-toLock":
                 flow.setForHarness(mode: .restore, path: [.restore, .secretCode, .noWayBack], confirmedCode: demoCode)
                 flow.code.setForHarness(step: .confirm, entered: 6)
-                flow.finish.setForHarness(acknowledged: false)
+                // Restoring inside the lock (3.3 › 7.3): the warning that this phone's messages go.
+                flow.finish.replacesThisPhone = state == "restore-2.3-lock" || state == "restore-2.3-toLock"
+                switch state {
+                case "restore-2.3-gone": flow.finish.setForHarness(acknowledged: true, failure: .backupGone)
+                case "restore-2.3-damaged": flow.finish.setForHarness(acknowledged: true, failure: .backupDamaged)
+                case "restore-2.3-toLock": flow.finish.setForHarness(acknowledged: true, failure: .previousVaultKept)
+                default: flow.finish.setForHarness(acknowledged: false)
+                }
             default:
                 break
             }
@@ -184,7 +213,7 @@
                     await wait(0.16)
                 }
                 await wait(1.6)  // “Alınmış”
-                for character in ".n" {
+                for character in "_n" {
                     flow.username.text += String(character)
                     await wait(0.16)
                 }

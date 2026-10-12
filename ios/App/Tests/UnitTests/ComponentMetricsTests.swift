@@ -44,7 +44,7 @@ final class ComponentMetricsTests: XCTestCase {
     func testAvatarSizes() {
         XCTAssertEqual(layoutSize(Avatar(username: "deniz", palette: .a)), CGSize(width: 52, height: 52))
         XCTAssertEqual(layoutSize(Avatar(username: "deniz", palette: .a, size: .header)), CGSize(width: 38, height: 38))
-        XCTAssertEqual(layoutSize(Avatar(username: "kuzey.dev", palette: .c, size: .profile)), CGSize(width: 64, height: 64))
+        XCTAssertEqual(layoutSize(Avatar(username: "kuzey_dev", palette: .c, size: .profile)), CGSize(width: 64, height: 64))
         XCTAssertEqual(layoutSize(CountBadge(count: 2)), CGSize(width: 22, height: 22))
     }
 
@@ -156,7 +156,7 @@ final class ComponentMetricsTests: XCTestCase {
 
     func testFieldsAndControls() {
         struct Fields: View {
-            @State var name = "selin.n"
+            @State var name = "selin_n"
             @State var password = "correct horse"
             @FocusState var focus: PasswordFieldFocus?
             var body: some View {
@@ -183,7 +183,7 @@ final class ComponentMetricsTests: XCTestCase {
     func testLineAndSafetyNumber() {
         XCTAssertEqual(layoutSize(LineMark()), CGSize(width: 52, height: 14))
         XCTAssertEqual(layoutSize(LineMark(metrics: .connection, isFlowing: true)), CGSize(width: 60, height: 9))
-        let line = ConnectionLine(ownUsername: "selin.n", ownLabel: Text(verbatim: "sen"), peer: DesignFixtures.deniz)
+        let line = ConnectionLine(ownUsername: "selin_n", ownLabel: Text(verbatim: "sen"), peer: DesignFixtures.deniz)
         XCTAssertMeasure(layoutSize(line, width: 402).height, 73.05)
         XCTAssertEqual(layoutSize(QRCodeCard(payload: SafetyQRCodec.encode(Data("08223".utf8)), label: Text(verbatim: "QR"))), CGSize(width: 220, height: 220))
     }

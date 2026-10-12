@@ -32,6 +32,8 @@ struct U2Card<Content: View>: View {
 struct OptionCard: View {
     let glyph: PhosphorGlyph
     var tone: IconTile.Tone = .accent
+    /// `ph:map-pin` is bundled only filled (icons.md).
+    var glyphWeight: PhosphorWeight = .regular
     let title: Text
     let description: Text
     let action: () -> Void
@@ -41,7 +43,7 @@ struct OptionCard: View {
             HStack(spacing: 14) {
                 IconTile(
                     content: .glyph(glyph), size: U2Size.iconTileSheetOption, cornerRadius: U2Radius.iconTileXL,
-                    glyphSize: 21, tone: tone)
+                    glyphSize: 21, tone: tone, glyphWeight: glyphWeight)
                 VStack(alignment: .leading, spacing: 3) {
                     title
                         .u2Font(.rowTitleEmphasis)

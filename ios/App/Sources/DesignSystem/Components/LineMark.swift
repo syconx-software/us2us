@@ -161,10 +161,12 @@ struct ConnectionLine: View {
 
     @State private var sealShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The own profile picture (proposed), set at the root.
+    @Environment(\.u2OwnAvatar) private var ownAvatar
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
-            end(Avatar(username: ownUsername, palette: .d, size: .verify), label: ownLabel)
+            end(Avatar(username: ownUsername, palette: .d, size: .verify, picture: ownAvatar), label: ownLabel)
             LineBar(height: 2, isFlowing: isFlowing)
                 .overlay(alignment: .top) {
                     if showsSeal {
@@ -177,7 +179,9 @@ struct ConnectionLine: View {
                 }
                 .padding(.horizontal, -2)
                 .padding(.bottom, 22)
-            end(Avatar(username: peer.username, palette: peer.palette, size: .verify), label: Text(verbatim: peer.username))
+            end(
+                Avatar(username: peer.username, palette: peer.palette, size: .verify, picture: peer.avatar),
+                label: Text(verbatim: peer.username))
         }
         .padding(.horizontal, 30)
         .onAppear {
@@ -226,10 +230,10 @@ struct VerifiedSeal: View {
         LineMark(metrics: .connection, isFlowing: true)
         LineMark(metrics: .cover)
         ConnectionLine(
-            ownUsername: "selin.n", ownLabel: Text(verbatim: "sen"),
+            ownUsername: "selin_n", ownLabel: Text(verbatim: "sen"),
             peer: Peer(username: "deniz", palette: .a, isVerified: true, isAcceptedContact: true, presence: .justNow))
         ConnectionLine(
-            ownUsername: "selin.n", ownLabel: Text(verbatim: "sen"),
+            ownUsername: "selin_n", ownLabel: Text(verbatim: "sen"),
             peer: Peer(username: "deniz", palette: .a, isVerified: true, isAcceptedContact: true, presence: .justNow),
             showsSeal: true, animatesSeal: true)
     }

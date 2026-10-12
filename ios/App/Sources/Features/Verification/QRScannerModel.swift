@@ -33,6 +33,13 @@ final class QRScannerModel {
         case mismatch
         /// A us2us contact code nobody could be found for (proposed).
         case unrecognized
+        /// A contact code whose key is not the one the server serves for that
+        /// name, or not the one this phone holds: nobody is added (proposed;
+        /// the 6.2 mismatch card with its own message).
+        case contactKeyMismatch
+        /// The name in a contact code could not be looked up (no
+        /// connection): not “nobody found” (proposed).
+        case lookupFailed
         /// The user's own contact code (proposed).
         case ownCode
     }
@@ -142,18 +149,25 @@ final class QRScannerModel {
         case .ignore:
             return
         case .warn(let kind):
-            lastRejected = (code, Date())
-            U2Haptics.error()
-            withU2Animation(U2Motion.state) { warning = kind }
-            var title = Self.texts(for: kind).title
-            title.locale = locale
-            AccessibilityNotification.Announcement(String(localized: title)).post()
+            reject(code, with: kind)
         case .accept:
             lastRejected = nil
             torchOn = false
             withU2Animation(U2Motion.state) { warning = nil }
             await onAccept()
         }
+    }
+
+    /// Shows the warning card for `code` and keeps it from being evaluated
+    /// again while it stays in front of the camera. The owner calls it too,
+    /// for a code it accepted but then could not use (`onAccept`).
+    func reject(_ code: String, with kind: Warning) {
+        lastRejected = (code, Date())
+        U2Haptics.error()
+        withU2Animation(U2Motion.state) { warning = kind }
+        var title = Self.texts(for: kind).title
+        title.locale = locale
+        AccessibilityNotification.Announcement(String(localized: title)).post()
     }
 
     /// Set by the view from `\.locale`, so announcements use the in-app language.
@@ -170,6 +184,12 @@ extension QRScannerModel {
         case .unrecognized:
             (StringTable.verification.resource("scan.unrecognized.title"),
              StringTable.verification.resource("scan.unrecognized.message"))
+        case .contactKeyMismatch:
+            (StringTable.verification.resource("scan.mismatch.title"),
+             StringTable.verification.resource("scan.contact.mismatch.message"))
+        case .lookupFailed:
+            (StringTable.verification.resource("scan.lookupFailed.title"),
+             StringTable.verification.resource("scan.lookupFailed.message"))
         case .ownCode:
             (StringTable.verification.resource("scan.ownCode.title"),
              StringTable.verification.resource("scan.ownCode.message"))

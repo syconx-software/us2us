@@ -101,12 +101,12 @@ extension U2TextStyle {
         name: "caption", family: .inter, weight: 400,
         size: 13.0, lineHeight: 20.15, tracking: 0.0,
         uppercase: false, monospacedDigits: true, italic: false, scalesWithDynamicType: true)
-    /// Martian Mono 400 11.5/17.825 — e.g. “7 / 20” (2.1)
+    /// Martian Mono 400 11.5/17.825 — e.g. “7 / 24” (2.1)
     static let monoCounter = U2TextStyle(
         name: "monoCounter", family: .martianMono, weight: 400,
         size: 11.5, lineHeight: 17.825, tracking: 0.0,
         uppercase: false, monospacedDigits: false, italic: false, scalesWithDynamicType: true)
-    /// Inter 400 13.5/18.9 — e.g. “3–20 karakter” (2.1, 5.1)
+    /// Inter 400 13.5/18.9 — e.g. “3–24 karakter” (2.1, 5.1)
     static let bullet = U2TextStyle(
         name: "bullet", family: .inter, weight: 400,
         size: 13.5, lineHeight: 18.9, tracking: 0.0,
@@ -266,7 +266,7 @@ extension U2TextStyle {
         name: "avatarInitialXL", family: .martianMono, weight: 500,
         size: 23.0, lineHeight: 23.0, tracking: 0.0,
         uppercase: false, monospacedDigits: false, italic: false, scalesWithDynamicType: false)
-    /// Martian Mono 500 17.0/26.35 — e.g. “kuzey.dev” (4.4)
+    /// Martian Mono 500 17.0/26.35 — e.g. “kuzey_dev” (4.4)
     static let monoUsernameXL = U2TextStyle(
         name: "monoUsernameXL", family: .martianMono, weight: 500,
         size: 17.0, lineHeight: 26.35, tracking: 0.0,

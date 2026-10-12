@@ -2,19 +2,37 @@
   "sourceLanguage": "tr",
   "strings": {
     "a11y.onboarding.username.counter %lld": {
-      "comment": "VoiceOver for the “7 / 20” counter under the 2.1 field.",
+      "comment": "VoiceOver for the “7 / 24” counter under the 2.1 field.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld of 20 characters"
+            "value": "%lld of 24 characters"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld / 20 karakter"
+            "value": "%lld / 24 karakter"
+          }
+        }
+      }
+    },
+    "a11y.onboarding.username.rule.broken": {
+      "comment": "VoiceOver value of a 2.1 rule the typed name breaks (read after the rule).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "not met"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "karşılanmıyor"
           }
         }
       }
@@ -314,13 +332,31 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your code is stored only on this device. We don't know it and can't reset it. If you forget it, the only way is to delete the app and start over; all your chats are permanently erased."
+            "value": "Your code isn't stored anywhere. We don't know it and can't reset it. If you forget it, the chats on this phone are lost for good; only your backup can bring your account back."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kodun yalnızca bu cihazda saklanır. Biz bilmeyiz, sıfırlayamayız. Unutursan tek yol uygulamayı silip baştan kurmak; tüm sohbetlerin kalıcı olarak silinir."
+            "value": "Kodun hiçbir yerde saklanmaz. Biz bilmeyiz, sıfırlayamayız. Unutursan bu telefondaki sohbetlerin kalıcı olarak kaybolur; hesabını yalnızca yedeğin geri getirir."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.chooseAnotherName": {
+      "comment": "2.3 primary button after the name was found taken (replaces “Kurulumu tamamla”): back to 2.1, the secret code is kept.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose another name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka bir ad seç"
           }
         }
       }
@@ -339,6 +375,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hesap oluşturulamadı. Bağlantını kontrol edip tekrar dene."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error.accountKept": {
+      "comment": "2.3 after a failure once the new account (created or restored) was already saved on this phone: it is kept, locked under the new code; the CTA becomes onboarding.noWayBack.toLock.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın bu telefona kaydedildi ama kurulumun son adımı tamamlanamadı. Yeni kodunla aç; eksik kalan adımlar açılışta tamamlanır."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account was saved on this phone, but the last step of setup couldn't finish. Open it with your new code; what's missing finishes when it opens."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error.backupDamaged": {
+      "comment": "2.3 above the checkbox after a restore, when the backup can't be read or its contents are damaged or malformed. Trying again cannot help.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backup couldn't be read, or its contents are damaged, so it can't be restored. Try another copy if you have one, or create a new account."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedek okunamadı ya da içeriği bozuk; bu yedekten geri yükleme yapılamaz. Varsa başka bir kopyasını dene ya da yeni bir hesap oluştur."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error.backupGone": {
+      "comment": "2.3 above the checkbox after a restore, when the relay refuses the backup's token (401/404): its account was deleted, or the backup was restored on another phone. Trying again cannot help.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This backup can no longer be used: its account was deleted, or it has been restored on another phone. You can create a new account."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yedek artık kullanılamıyor: hesabı silinmiş ya da yedek başka bir telefonda geri yüklenmiş. Yeni bir hesap oluşturabilirsin."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error.previousVaultKept": {
+      "comment": "2.3 after restoring inside the lock (3.3 › 7.3) was refused before anything was erased (the backup is no longer valid or damaged). The CTA becomes onboarding.noWayBack.toLock; 3.3 offers another backup or erasing.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri yükleme yapılamadı: bu yedek artık kullanılamıyor ya da okunamıyor. Bu telefondaki verilerine dokunulmadı. Kilit ekranından başka bir yedek seçebilir ya da her şeyi silip baştan başlayabilirsin."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The restore couldn't be done: this backup can no longer be used or can't be read. The data on this phone wasn't touched. From the lock screen you can pick another backup, or erase everything and start over."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.error.usernameTaken": {
+      "comment": "2.3 above the checkbox when the relay refused the name because someone registered it first. Nothing was kept; the CTA becomes onboarding.noWayBack.chooseAnotherName.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This username is already taken."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kullanıcı adı alınmış."
           }
         }
       }
@@ -451,6 +577,24 @@
         }
       }
     },
+    "onboarding.noWayBack.replacesThisPhone": {
+      "comment": "2.3 warning line under the facts card when a backup is restored inside the lock (3.3 › 7.3): finishing erases this phone's vault, and a backup holds no message history (PROTOCOL §5.5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you finish setup, the messages and media on this phone are permanently erased. The backup holds only your account and contacts."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulumu tamamladığında bu telefondaki mesajlar ve medya kalıcı olarak silinir. Yedekte yalnızca hesabın ve kişilerin var."
+          }
+        }
+      }
+    },
     "onboarding.noWayBack.title": {
       "comment": "2.3 title (Doto, two lines).",
       "extractionState": "manual",
@@ -465,6 +609,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unutursan geri dönüşü yok."
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.toLock": {
+      "comment": "2.3 primary button after a failure that left a vault on this phone (replaces “Kurulumu tamamla”).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kilit ekranına dön"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to the lock screen"
           }
         }
       }
@@ -650,19 +812,19 @@
       }
     },
     "onboarding.username.placeholder": {
-      "comment": "2.1 field placeholder after the “@” (must itself be a valid username: ASCII lower-case, digits, dot, underscore).",
+      "comment": "2.1 field placeholder after the “@” (must itself be a valid username: a lower-case ASCII letter first, then lower-case ASCII letters, digits and underscore).",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "your.name"
+            "value": "your_name"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "kullanici.adi"
+            "value": "kullanici_adi"
           }
         }
       }
@@ -674,13 +836,31 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lower-case letters, digits, dot and underscore"
+            "value": "Lower-case letters, digits and underscore"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Küçük harf, rakam, nokta ve alt çizgi"
+            "value": "Küçük harf, rakam ve alt çizgi"
+          }
+        }
+      }
+    },
+    "onboarding.username.rule.firstLetter": {
+      "comment": "2.1 rule.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starts with a letter"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harfle başlar"
           }
         }
       }
@@ -692,13 +872,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "3–20 characters"
+            "value": "3–24 characters"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "3–20 karakter"
+            "value": "3–24 karakter"
           }
         }
       }
@@ -722,7 +902,7 @@
       }
     },
     "onboarding.username.status.available": {
-      "comment": "2.1 under the field when the name is free (green).",
+      "comment": "2.1 under the field when the name is known to be free (green).",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -757,8 +937,26 @@
         }
       }
     },
+    "onboarding.username.status.firstLetter": {
+      "comment": "2.1 under the field when the name does not start with a letter (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Must start with a letter"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harfle başlamalı"
+          }
+        }
+      }
+    },
     "onboarding.username.status.invalid": {
-      "comment": "2.1 under the field when a typed character was not accepted (red).",
+      "comment": "2.1 under the field when the name has a character other than lower-case letters, digits and underscore (red).",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -775,8 +973,26 @@
         }
       }
     },
+    "onboarding.username.status.meetsRules": {
+      "comment": "2.1 under the field when the name meets every rule (green); whether it is free is only checked when setup finishes (2.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meets the rules"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurallara uygun"
+          }
+        }
+      }
+    },
     "onboarding.username.status.taken": {
-      "comment": "2.1 under the field when the name is taken (red).",
+      "comment": "2.1 under the field when the name is taken (red): known while typing, or found at setup (2.3).",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -789,6 +1005,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alınmış"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.tooLong": {
+      "comment": "2.1 under the field when the name is longer than 24 characters (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At most 24 characters"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En fazla 24 karakter"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.tooShort": {
+      "comment": "2.1 under the field when the name is shorter than 3 characters, once typing pauses (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At least 3 characters"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En az 3 karakter"
+          }
+        }
+      }
+    },
+    "onboarding.username.status.turkish": {
+      "comment": "2.1 under the field when the name has a Turkish letter (red).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish characters can't be used"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Türkçe karakter kullanılamaz"
           }
         }
       }

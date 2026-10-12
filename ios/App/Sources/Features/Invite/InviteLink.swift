@@ -15,28 +15,14 @@ enum InviteLink {
     static let host = "us2us.app"
     static let pathPrefix = "/u/"
 
-    /// The username as a link carries it: surrounding white space and one
-    /// leading “@” dropped, lower-cased without a locale (“I” → “i”, never
-    /// “ı”), and valid by `UsernameRules` — nothing is stripped or
-    /// converted, so “şeyma” or “de niz” give nil instead of another name.
-    /// It must also hold a letter or a digit (the website's rule).
+    /// The username as a link carries it: `UsernameRules.normalize` (white
+    /// space and one leading “@” dropped, NFKC, lower case without a locale —
+    /// “I” → “i”, never “ı”) and valid by `UsernameRules`. Nothing is
+    /// stripped or converted, so “şeyma” or “de niz” give nil instead of
+    /// another name.
     static func normalizedUsername(_ input: String) -> String? {
-        var trimmed = Substring(input.trimmingCharacters(in: .whitespacesAndNewlines))
-        if trimmed.hasPrefix("@") { trimmed.removeFirst() }
-        // Scalar by scalar, ASCII only: Foundation's case mapping is not used,
-        // so nothing (a NUL, a combining mark, a Turkish İ) can vanish or turn
-        // into an allowed letter on the way.
-        var scalars = String.UnicodeScalarView()
-        for scalar in trimmed.unicodeScalars {
-            switch scalar {
-            case "A"..."Z": scalars.append(Unicode.Scalar(UInt8(scalar.value) + 32))
-            case "a"..."z", "0"..."9", ".", "_": scalars.append(scalar)
-            default: return nil
-            }
-        }
-        let name = String(scalars)
-        guard UsernameRules.isValid(name), name.unicodeScalars.contains(where: isLetterOrDigit) else { return nil }
-        return name
+        let name = UsernameRules.normalize(input)
+        return UsernameRules.isValid(name) ? name : nil
     }
 
     /// `https://us2us.app/u/<username>`, or nil when `username` is not a valid one.
@@ -49,7 +35,7 @@ enum InviteLink {
         return components.url
     }
 
-    /// The link without the scheme, as the sheet shows it: “us2us.app/u/selin.n”.
+    /// The link without the scheme, as the sheet shows it: “us2us.app/u/selin_n”.
     static func displayString(for username: String) -> String? {
         normalizedUsername(username).map { host + pathPrefix + $0 }
     }
@@ -57,8 +43,9 @@ enum InviteLink {
     /// The username of an invite link, or nil for anything else. Only the
     /// canonical form is accepted — `https`, exactly `us2us.app`, no user,
     /// password or port, the path `/u/<name>` (one optional trailing slash)
-    /// with the name already normalized and not percent-encoded. A query
-    /// (the website's `?lang=`) or fragment is ignored.
+    /// with the name already normalized (`normalize(name) == name`), valid
+    /// and not percent-encoded. A query (the website's `?lang=`) or
+    /// fragment is ignored.
     static func username(from url: URL) -> String? {
         guard
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -70,11 +57,7 @@ enum InviteLink {
         guard path.hasPrefix(pathPrefix) else { return nil }
         var name = String(path.dropFirst(pathPrefix.count))
         if name.hasSuffix("/") { name.removeLast() }
-        guard !name.isEmpty, normalizedUsername(name) == name else { return nil }
+        guard UsernameRules.normalize(name) == name, UsernameRules.isValid(name) else { return nil }
         return name
-    }
-
-    private static func isLetterOrDigit(_ scalar: Unicode.Scalar) -> Bool {
-        ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar)
     }
 }

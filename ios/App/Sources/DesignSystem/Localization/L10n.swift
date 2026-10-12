@@ -85,7 +85,7 @@ enum TurkishSuffix {
     }
 
     /// The genitive (`-in/-ın/-un/-ün`, `-nin…` after a vowel): “deniz’in”,
-    /// “ayla_’nın”, “mert.k’in”, “kaan2’nin”.
+    /// “ayla_’nın”, “mert_k’in”, “kaan2’nin”.
     static func genitive(_ name: String) -> String {
         let (vowel, endsWithVowel) = sound(of: name)
         let harmony: Character =

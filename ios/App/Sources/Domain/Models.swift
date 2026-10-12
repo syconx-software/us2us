@@ -51,8 +51,27 @@ struct Peer: Identifiable, Hashable, Sendable {
     /// Presence and the online dot exist only for accepted contacts (4.1 note).
     var isAcceptedContact: Bool
     var presence: Presence
+    /// The peer's safety number changed and the change waits for the user
+    /// (compare, or continue without verifying): sending is held (5.1 banner).
+    var safetyNumberChanged = false
+    /// Fingerprint of the peer's current identity key — `nil` while none is
+    /// known (no safety number to compare yet). Changes with the key, so 6.1
+    /// reloads when it does.
+    var identityFingerprint: String? = nil
+    /// The profile picture to draw (PROTOCOL §8.9): an accepted contact's
+    /// last `ProfileUpdate`, the search copy for the user's own message
+    /// request, otherwise (incoming requests, blocked) the initial.
+    var avatar: AvatarPicture = .initials
+    /// The user blocked this person (PROTOCOL §6.4): what they send is
+    /// dropped on this phone, nothing can be sent to them, and the chat
+    /// stays, read only, until “Engeli kaldır”. They are not told.
+    var isBlocked = false
 
     var isOnline: Bool { isAcceptedContact && presence == .online }
+
+    /// 5.1 first-contact prompt: a safety number exists but was never
+    /// verified, and no change waits for a decision (the banner covers that).
+    var offersVerification: Bool { !isVerified && !safetyNumberChanged && identityFingerprint != nil }
 }
 
 struct OwnAccount: Hashable, Sendable {
@@ -71,6 +90,10 @@ enum ConnectionState: Hashable, Sendable {
     case connecting
     /// “Hat kapalı · yeniden deneniyor” (proposed) — line static.
     case closed
+    /// “Hat kapandı · oturum sona erdi” — the server refused this
+    /// phone's token (the backup was restored on another phone, or the
+    /// account was deleted); nothing is retried, so the line never says so.
+    case revoked
 }
 
 // MARK: - Messages
@@ -155,6 +178,59 @@ enum MediaSource: Hashable, Sendable {
     case memory(Data)
 }
 
+/// Where the file of a photo, video or file message is (5.2 › States): what
+/// its bubble shows and what a tap does.
+enum MediaAvailability: Hashable, Sendable {
+    /// On this device (received and decrypted, or sent from it): opens at once.
+    case ready
+    /// Still on the relay: a tap downloads it.
+    case remote
+    /// On its way; the fraction (0…1) when it is known.
+    case downloading(Double?)
+    /// From a message request: downloaded once the request is accepted (§6.4).
+    case held
+    /// Expired on the relay (14 days) or failed its integrity check.
+    case unavailable
+    /// A photo or video picked in “+”, still being prepared on this phone
+    /// (re-encoded at ≤ 2048 px / ≤ 720p without metadata, one item at a
+    /// time) before it is sent: “Hazırlanıyor”.
+    case preparing
+    /// Preparing that photo or video failed: nothing left the phone;
+    /// “Tekrar gönder” prepares it again.
+    case preparationFailed
+
+    var isReady: Bool { self == .ready }
+
+    /// The photo or video exists only on this phone so far (preparing, or failed to).
+    var isPending: Bool { self == .preparing || self == .preparationFailed }
+
+    var isDownloading: Bool {
+        if case .downloading = self { return true }
+        return false
+    }
+}
+
+/// The pixel size an attachment was sent with (0 when the sender did not say).
+struct MediaDimensions: Hashable, Sendable {
+    let width: Int
+    let height: Int
+
+    var aspectRatio: CGFloat? {
+        guard width > 0, height > 0 else { return nil }
+        return CGFloat(width) / CGFloat(height)
+    }
+}
+
+/// The decrypted bytes of a photo, video or file message, held in memory
+/// only (players, viewers and previews take them from here).
+struct MediaPayload: Sendable {
+    let data: Data
+    /// MIME type as sent (`image/jpeg`, `video/mp4`, `application/pdf` …).
+    let contentType: String
+    /// The name as sent (files), sender-controlled: sanitise before use.
+    let fileName: String?
+}
+
 /// The placeholder images the design paints with CSS gradients.
 enum DesignArtwork: String, Hashable, Sendable {
     /// 5.1 photo “Şu yeni yer, Moda'da” — a night pier with lights.
@@ -196,6 +272,8 @@ enum SystemEvent: Hashable, Sendable {
     case disappearingChanged(DisappearingTimer)
     case screenshotTaken(by: String)
     case safetyNumberChanged
+    /// A changed safety number was accepted without verifying it (no seal).
+    case safetyNumberAccepted
     case safetyNumberVerified
 }
 
@@ -208,8 +286,15 @@ enum MessageContent: Hashable, Sendable {
     case file(name: String, byteCount: Int64, typeLabel: String, pageCount: Int?)
     case location(name: String, locality: String, latitude: Double, longitude: Double)
     case liveLocation(expiresAt: Date, isActive: Bool)
-    /// A Doto text sticker (“tamam!”).
+    /// A Doto text sticker (“tamam!”): the plain text stickers of builds
+    /// before the built-in catalog (`pack_id` “us2us.text”), kept for history.
     case textSticker(String)
+    /// A built-in sticker (PROTOCOL §8.8) exactly as it travelled: its pack
+    /// and id, its `emoji` and the language its words were shown in on the
+    /// sender's side (“tr”, “en”; empty for a wordless sticker or an older
+    /// sender). The bubble resolves it against `BrandStickerCatalog` — an
+    /// unknown sticker falls back to its emoji.
+    case sticker(packID: String, stickerID: UInt32, emoji: String, lang: String)
     case viewOnce(isVideo: Bool, state: ViewOnceState)
     /// “Bu mesaj herkesten silindi”.
     case deleted
@@ -231,9 +316,29 @@ struct Message: Identifiable, Hashable, Sendable {
     var deliveredAt: Date?
     var readAt: Date?
     var failedAt: Date?
+    /// Photo, video and file messages: where the file is (5.2 › States).
+    var mediaAvailability: MediaAvailability = .ready
+    /// Photo and video messages: the size they were sent with, if known.
+    var mediaSize: MediaDimensions? = nil
+    /// Voice messages: incoming — played on this phone; outgoing — the other
+    /// side played it (their VIEWED receipt, shown while read receipts are on).
+    var isVoicePlayed = false
+    /// Photo, video and file messages I sent: the other side saved it to
+    /// their phone (their SAVED receipt, PROTOCOL §8.4) — the “Kaydetti”
+    /// chip. Always told, independent of read receipts.
+    var savedByPeer = false
+    /// When their SAVED arrived (5.4 › “Kaydedildi”), if known.
+    var savedByPeerAt: Date? = nil
+    /// Photo, video and file messages: I saved it or handed it on from one of
+    /// the app's viewers (the viewer's “Kaydet” shows the check).
+    var savedByMe = false
 
     var isOutgoing: Bool { direction == .outgoing }
     var isDisappearing: Bool { disappearing != .off }
+    /// A picked photo or video still being prepared, or whose preparation
+    /// failed: it is not a message yet (no reactions, replies or info — it
+    /// can only be sent again or removed).
+    var isPendingMedia: Bool { mediaAvailability.isPending }
 
     /// System lines are not bubbles: no actions, no tail, no status.
     var isSystem: Bool {
@@ -257,7 +362,7 @@ struct Message: Identifiable, Hashable, Sendable {
         case .file: "file"
         case .location: "location"
         case .liveLocation(_, let isActive): isActive ? "live" : "liveEnded"
-        case .textSticker: "sticker"
+        case .textSticker, .sticker: "sticker"
         case .viewOnce(_, let state): "viewOnce.\(state)"
         case .deleted: "deleted"
         case .system: "system"
@@ -272,6 +377,14 @@ struct Message: Identifiable, Hashable, Sendable {
         default: nil
         }
     }
+}
+
+/// The contact screen's media tabs (6.1 › Fotoğraflar / Belgeler).
+enum ChatMediaKind: Hashable, Sendable, CaseIterable {
+    /// Photos and videos.
+    case visual
+    /// Files.
+    case documents
 }
 
 // MARK: - Chat list
@@ -326,6 +439,52 @@ struct MessageRequest: Identifiable, Hashable, Sendable {
     let flags: Flags
     /// The request thread, decrypted locally (4.4).
     let messages: [Message]
+    /// What 4.3 and 4.4 draw: always the initial. A stranger's picture is
+    /// neither fetched nor decoded before the user asks for it on the opened
+    /// request (“Profil resmini göster”) or accepts (PROTOCOL §8.9).
+    var avatar: AvatarPicture = .initials
+    /// 4.4 may offer “Profil resmini göster”: the sender's username is verified,
+    /// so its search copy can be looked up under it — once, on a tap.
+    var offersAvatar = false
+}
+
+// MARK: - Reports (App Review 1.2)
+
+/// Who a report (“Bildir”) is about, and nothing else: the username as this
+/// phone knows it. No message, key or account id ever goes into a report.
+struct ReportSubject: Hashable, Sendable {
+    /// The username; `nil` when this phone has none for the person (only a
+    /// display name or the account id, which a report never carries).
+    let username: String?
+    /// The directory confirmed the username (PROTOCOL §3.3); an unconfirmed
+    /// one is only what the sender claimed, and the report says so.
+    let isUsernameVerified: Bool
+}
+
+// MARK: - Blocked people (7.1 › Engellenenler)
+
+/// Someone the user blocked, as 7.1 › Engellenenler lists them — also when
+/// their chat is gone (Ghost erased it, or it was deleted): the block stays.
+struct BlockedPerson: Identifiable, Hashable, Sendable {
+    /// The person's chat id (the account in the live service), also when
+    /// there is no chat: what `unblock(_:)` takes.
+    let id: ChatID
+    /// What the list shows: the username, else the name 4.1 would show.
+    let name: String
+    /// `false` when this phone keeps no username for the person (a Ghost
+    /// wipe with `wipe_contact`, PROTOCOL §8.2, kept only the block).
+    var isUsernameKnown = true
+    var palette: AvatarPalette
+    /// Always the initial: no picture is shown for someone blocked (§8.9).
+    var avatar: AvatarPicture = .initials
+
+    /// The list's order: by username, people without one last.
+    static func listed(_ people: [BlockedPerson]) -> [BlockedPerson] {
+        people.sorted { lhs, rhs in
+            if lhs.isUsernameKnown != rhs.isUsernameKnown { return lhs.isUsernameKnown }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
 }
 
 // MARK: - Lookup (4.2)
@@ -341,7 +500,11 @@ enum UserLookup: Hashable, Sendable {
 enum UsernameAvailability: Hashable, Sendable {
     case empty
     case checking
+    /// Valid, and known to be free.
     case available
+    /// Valid; whether it is free is known only when setup registers it
+    /// (the directory answers only accounts, PROTOCOL §4.4).
+    case meetsRules
     case taken
     case invalid(UsernameRules.Violation)
 }
@@ -366,8 +529,11 @@ struct SafetyNumberInfo: Hashable, Sendable {
     /// and the change has not been verified since — 6.1 shows the danger
     /// banner and the seal is gone (flows.md › 4.6).
     var changedAt: Date? = nil
+    /// Verified, but when and how is not known (restored from a backup, or
+    /// verified by an earlier version): no date is shown, never a made-up one.
+    var isVerifiedWithoutRecord = false
 
-    var isVerified: Bool { verifiedAt != nil }
+    var isVerified: Bool { verifiedAt != nil || isVerifiedWithoutRecord }
     var hasUnverifiedChange: Bool { changedAt != nil && !isVerified }
 }
 
@@ -389,8 +555,31 @@ enum ContactCodeResolution: Equatable, Sendable {
     case ownCode
     /// A us2us contact code, but nobody with that name.
     case unknown
+    /// The name could not be looked up (no connection, the server busy):
+    /// not “nobody found”; scanning again later can work.
+    case lookupFailed
+    /// The code's key fingerprint is not the key the server serves for that
+    /// name, or this phone holds another key for them (“Numaralar
+    /// uyuşmuyor”) — what a server swapping keys looks like (PROTOCOL §5):
+    /// nothing is added or verified.
+    case keyMismatch
     /// Not a us2us contact code (a URL, a safety-number code …): ignored.
     case notAContactCode
+}
+
+/// What “QR kodla ekle” did with a scanned contact code.
+enum ContactCodeAddition: Equatable, Sendable {
+    /// Added (or found) and verified face to face: the code's key
+    /// fingerprint matched and that key is pinned → 6.3.
+    case verified(ChatID)
+    /// Added (or found) but not verified: the code carried no key
+    /// fingerprint (older app versions) → the chat opens unverified.
+    case added(ChatID)
+    /// The code's key is not the one the relay serves, or this phone holds
+    /// another key for the contact: nothing verified.
+    case mismatch
+    /// Nobody could be added (no network, not found).
+    case failed
 }
 
 // MARK: - Settings (07)
@@ -419,23 +608,30 @@ struct AppSettings: Hashable, Sendable {
     // before unlocking; they are not part of the vault-backed settings.
 }
 
-// MARK: - Attachments (5.1 “+”, sticker key)
+// MARK: - Attachments (5.1 “+”)
 
-/// What “+” (and the sticker key) can send.
+/// What “+” can send. Stickers go through `MessengerService.send(sticker:replyTo:in:)`.
 enum ConversationAttachment: Hashable, Sendable {
     case photo(MediaSource, caption: String?)
     case file(name: String, byteCount: Int64, typeLabel: String, pageCount: Int?)
     case location(name: String, locality: String, latitude: Double, longitude: Double)
     case liveLocation(duration: TimeInterval)
-    case textSticker(String)
     /// A file picked in the document picker (live service; a copy in the app's container).
     case document(URL)
+    /// A video picked in the photo picker (live service; a copy in the app's
+    /// container, re-exported at ≤ 720p without metadata before it is sent).
+    /// A pick of several photos and videos goes through
+    /// `MessengerService.send(pickedMedia:in:)` instead.
+    case video(URL)
 }
 
 // MARK: - Backup (7.2, 7.3)
 
-/// What goes into a backup (7.2 › Yedeğe girecekler). View-once media and
-/// disappearing messages are never part of a backup, whatever is chosen.
+/// What a backup should hold. The account backup (PROTOCOL.md §5.5) is
+/// always the account, its identity key and the contacts — never messages
+/// or media — so 7.2 offers no choice and asks for
+/// `BackupExportModel.contents` (settings and contacts only). The message
+/// switches are kept for a later format that carries history.
 struct BackupContents: Hashable, Sendable {
     var messages = true
     /// Photos and videos of the included chats — the user's choice; it only
@@ -470,13 +666,59 @@ enum BackupFileError: Error, Equatable, Sendable {
     case unreadable
     /// Not a us2us backup (wrong type or a damaged header).
     case notABackup
+    /// It opened with its password, but its contents are damaged or
+    /// malformed: no restore accepts it.
+    case damaged
+    /// The server refuses its token: its account was deleted, or it was
+    /// restored on another phone since.
+    case noLongerValid
 }
 
 /// The backup password check (7.3).
 enum BackupOpenResult: Equatable, Sendable {
+    /// The password opened it, every field is valid and the relay still
+    /// accepts its token: restoring can go ahead.
     case opened
     case wrongPassword
+    /// The file decrypts but is damaged or malformed: no restore accepts it.
     case damaged
+    /// The relay refuses the backup's token: its account was deleted, or it
+    /// was restored on another phone since.
+    case noLongerValid
+    /// The relay could not be asked (no connection, relay busy): nothing was
+    /// changed, try again.
+    case unverified
+}
+
+/// Finishing a restore (2.3) failed in a way trying again cannot fix.
+enum RestoreFailure: Error, Equatable, Sendable {
+    /// The relay refuses the backup's token: its account was deleted, or the
+    /// backup was restored on another phone since (the token was rotated
+    /// there).
+    case backupNoLongerValid
+    /// The file can't be read, or it decrypts but is damaged or malformed.
+    case backupDamaged
+}
+
+/// Creating the account (2.3) was refused before anything was kept.
+enum AccountCreationFailure: Error, Equatable, Sendable {
+    /// Someone registered the name first (the relay's 409 `username_taken`):
+    /// another name can be chosen and setup finished with the same code.
+    case usernameTaken
+}
+
+/// 2.3 could not finish, yet a vault is on this phone, locked: onboarding
+/// cannot go on (trying again would find that vault and fail), the lock
+/// opens it.
+enum SetupInterruption: Error, Equatable, Sendable {
+    /// The new account — created or restored here — was saved before the
+    /// failure: it is kept under the new code, and its first unlock
+    /// finishes what is missing (PROTOCOL §5.5).
+    case accountKept
+    /// Restoring inside the lock (3.3 › 7.3) was refused before anything
+    /// was erased (the backup is no longer valid, or damaged): the vault
+    /// this phone held is untouched.
+    case previousVaultKept
 }
 
 /// Changing the secret code (7.1 › Gizli kodu değiştir) failed.
@@ -506,4 +748,11 @@ struct RestoreProgress: Hashable, Sendable {
     var messagesTotal: Int
     var mediaBytes: Int64
     var estimatedRemaining: TimeInterval
+    /// The backup carries message history and media (the design's planned
+    /// format). An account backup never does (PROTOCOL §5.5): then 7.3 shows
+    /// only the keys step and says that messages don't come back.
+    var includesHistory = true
+
+    /// The steps 7.3 lists.
+    var stages: [Stage] { includesHistory ? Stage.allCases : [.keys] }
 }

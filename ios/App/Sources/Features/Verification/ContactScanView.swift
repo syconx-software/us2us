@@ -5,10 +5,12 @@ import SwiftUI
 ///
 /// Hosted by 4.1 and 4.2 (`ChatsView`, `NewChatSheet`): the host
 /// presents it in its full-screen cover (fade 0.36 s). Close (✕) calls
-/// `onClose` (back to 4.1 / 4.2). On a match the contact is added and
-/// verified face to face, and 6.3 replaces the scanner inside the cover
-/// (cross-fade 0.5 s); “Sohbete dön” / close then opens the chat
-/// (`onOpenChat`, default: push 5.1 on the main stack) and closes the cover.
+/// `onClose` (back to 4.1 / 4.2). On a match the contact is added and —
+/// when the code carries its identity key's fingerprint and the key checks
+/// out — verified face to face with that key pinned; 6.3 then replaces the
+/// scanner inside the cover (cross-fade 0.5 s), and “Sohbete dön” / close
+/// opens the chat (`onOpenChat`, default: push 5.1 on the main stack) and
+/// closes the cover. A code without a fingerprint opens the chat unverified.
 struct ContactQRScanView: View {
     let onClose: () -> Void
     /// How the host opens the new chat (4.2 also closes its sheet). `nil`:
@@ -104,6 +106,8 @@ final class ContactScanModel {
             case .notAContactCode: return .ignore
             case .ownCode: return .warn(.ownCode)
             case .unknown: return .warn(.unrecognized)
+            case .lookupFailed: return .warn(.lookupFailed)
+            case .keyMismatch: return .warn(.contactKeyMismatch)
             case .contact:
                 self.pendingCode = code
                 return .accept
@@ -112,8 +116,9 @@ final class ContactScanModel {
         scanner.onAccept = { [weak self] in await self?.didMatch() }
         scanner.onClose = { [weak self] in self?.close() }
         scanner.simulatedCodes = {
-            // The design's mock is deniz's phone (“deniz’in telefonundaki …”).
-            (ContactCode.encode(username: "deniz"), ContactCode.encode(username: "bilinmeyen"))
+            // The design's mock is deniz's phone (“deniz’in telefonundaki …”),
+            // with the fixtures' key fingerprint.
+            (Self.simulatedCode("deniz"), ContactCode.encode(username: "bilinmeyen"))
         }
     }
 
@@ -128,18 +133,54 @@ final class ContactScanModel {
         onClose()
     }
 
-    /// Match: add + verify, then 6.3 replaces the scanner (cross-fade 0.5 s).
+    /// A contact code as the fixtures' phone mock shows it (simulator, harness).
+    nonisolated static func simulatedCode(_ username: String) -> String {
+        ContactCode.encode(username: username, keyFingerprint: DesignFixturesService.fixtureKeyFingerprint(username))
+    }
+
+    /// Match: add the contact. 6.3 replaces the scanner (cross-fade 0.5 s)
+    /// only when it was verified — the code carried the key's fingerprint
+    /// and that key is now pinned; a code without one opens the chat
+    /// unverified, and a key that does not match verifies nothing.
     private func didMatch() async {
         guard let code = pendingCode else { return }
         pendingCode = nil
         scanner.isActive = false
-        guard let chat = await messenger.addContact(fromScannedCode: code) else {
+        switch await messenger.addContact(fromScannedCode: code) {
+        case .verified(let chat):
+            await showVerified(chat)
+        case .added(let chat):
+            openUnverified(chat)
+        case .mismatch:
             scanner.isActive = true
-            return
+            scanner.reject(code, with: .contactKeyMismatch)
+        case .failed:
+            scanner.isActive = true
         }
+    }
+
+    /// Added without a verification: no 6.3 — the chat opens (its
+    /// first-contact prompt offers to compare the safety number).
+    private func openUnverified(_ chat: ChatID) {
+        AccessibilityNotification.Announcement(
+            StringTable.verification.string("scan.contact.added", locale: locale)
+        ).post()
+        guard !isFinishing else { return }
+        isFinishing = true
+        onOpenChat(chat)
+        onClose()
+    }
+
+    /// 6.3 for the contact just added and verified.
+    private func showVerified(_ chat: ChatID) async {
         let verification = VerificationModel(chatID: chat, messenger: messenger)
         verification.localeForAnnouncements = locale
         await verification.load()
+        // 6.3 says “Hat doğrulandı.” only for a stored verification.
+        guard verification.isVerified else {
+            openUnverified(chat)
+            return
+        }
         verification.verifiedEntrance = true
         // 6.3 cross-fades in over the scanner (0.5 s); its entrance follows.
         verification.verifiedEntranceDelay = U2Motion.Duration.screen
@@ -161,7 +202,7 @@ final class ContactScanModel {
     #if DEBUG
         /// Harness: 6.3 for `username` without scanning.
         func simulateMatch(_ username: String) async {
-            pendingCode = ContactCode.encode(username: username)
+            pendingCode = Self.simulatedCode(username)
             await didMatch()
         }
     #endif

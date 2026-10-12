@@ -13,7 +13,7 @@ enum DesignFixtures {
     static var referenceDate: Date { date(day: 8, 18, 52) }
 
     /// The demo account.
-    static let ownUsername = "selin.n"
+    static let ownUsername = "selin_n"
 
     /// The demo secret code (any valid, non-trivial six digits would do).
     static let demoSecretCode = "246813"
@@ -57,12 +57,22 @@ enum DesignFixtures {
     // MARK: Peers
 
     static let deniz = Peer(username: "deniz", palette: .a, isVerified: true, isAcceptedContact: true, presence: .justNow)
-    static let mert = Peer(username: "mert.k", palette: .b, isVerified: false, isAcceptedContact: true, presence: .online)
+    static let mert = Peer(username: "mert_k", palette: .b, isVerified: false, isAcceptedContact: true, presence: .online)
     static let ayla = Peer(username: "ayla_", palette: .c, isVerified: false, isAcceptedContact: true, presence: .hidden)
-    static let kaan = Peer(username: "kaan", palette: .d, isVerified: false, isAcceptedContact: true, presence: .hidden)
-    static let ece = Peer(username: "ece.y", palette: .a, isVerified: false, isAcceptedContact: true, presence: .hidden)
-    static let bora = Peer(username: "bora", palette: .b, isVerified: false, isAcceptedContact: true, presence: .hidden)
-    static let oya = Peer(username: "oya.t", palette: .c, isVerified: false, isAcceptedContact: true, presence: .hidden)
+    // Proposed: the rows below the design's first three show profile
+    // pictures (DesignFixtures+Avatars.swift) — three presets and a photo.
+    static let kaan = Peer(
+        username: "kaan", palette: .d, isVerified: false, isAcceptedContact: true, presence: .hidden,
+        avatar: chatAvatar(for: "kaan"))
+    static let ece = Peer(
+        username: "ece_y", palette: .a, isVerified: false, isAcceptedContact: true, presence: .hidden,
+        avatar: chatAvatar(for: "ece_y"))
+    static let bora = Peer(
+        username: "bora", palette: .b, isVerified: false, isAcceptedContact: true, presence: .hidden,
+        avatar: chatAvatar(for: "bora"))
+    static let oya = Peer(
+        username: "oya_t", palette: .c, isVerified: false, isAcceptedContact: true, presence: .hidden,
+        avatar: chatAvatar(for: "oya_t"))
 
     // MARK: Chats (4.1 / 8.1 / 9.1)
 
@@ -77,7 +87,7 @@ enum DesignFixtures {
                 ghost: GhostState(isEnabled: true, period: .oneDay, deadline: now.addingTimeInterval(denizRemaining)),
                 disappearing: .off),
             ChatSummary(
-                id: "mert.k", peer: mert,
+                id: "mert_k", peer: mert,
                 lastMessage: MessagePreview(kind: .sticker, direction: .incoming, status: nil, sentAt: date(day: 8, 18, 44)),
                 unreadCount: 2, ghost: .off, disappearing: .off),
             ChatSummary(
@@ -95,7 +105,7 @@ enum DesignFixtures {
                 ghost: GhostState(isEnabled: true, period: .sevenDays, deadline: now.addingTimeInterval(remaining(hours: 4, days: 6))),
                 disappearing: .off),
             ChatSummary(
-                id: "ece.y", peer: ece,
+                id: "ece_y", peer: ece,
                 lastMessage: MessagePreview(kind: .text(english ? "See you there" : "Orada görüşürüz"), direction: .outgoing, status: .failed, sentAt: date(month: 9, day: 24, 11, 5)),
                 unreadCount: 0, ghost: .off, disappearing: .off),
             ChatSummary(
@@ -103,7 +113,7 @@ enum DesignFixtures {
                 lastMessage: MessagePreview(kind: .liveLocationEnded, direction: .incoming, status: nil, sentAt: date(month: 9, day: 22, 19, 40)),
                 unreadCount: 0, ghost: .off, disappearing: .off),
             ChatSummary(
-                id: "oya.t", peer: oya,
+                id: "oya_t", peer: oya,
                 lastMessage: MessagePreview(kind: .deleted, direction: .incoming, status: nil, sentAt: date(month: 9, day: 19, 9, 12)),
                 unreadCount: 0, ghost: .off, disappearing: .off),
         ]
@@ -114,7 +124,7 @@ enum DesignFixtures {
     static func messages(chat: ChatID, english: Bool) -> [Message] {
         switch chat {
         case "deniz": denizMessages(english: english)
-        case "mert.k": mertMessages(english: english)
+        case "mert_k": mertMessages(english: english)
         default: []
         }
     }
@@ -136,7 +146,8 @@ enum DesignFixtures {
                 deliveredAt: date(day: 8, 18, 6), readAt: date(day: 8, 18, 7)),
             Message(
                 id: "d4", direction: .incoming, sentAt: date(day: 8, 18, 7),
-                content: .voice(duration: 42, waveform: voiceWaveform, playedFraction: voicePlayedFraction)),
+                content: .voice(duration: 42, waveform: voiceWaveform, playedFraction: voicePlayedFraction),
+                isVoicePlayed: true),
             Message(
                 id: "d5", direction: .outgoing, sentAt: date(day: 8, 18, 9),
                 content: .text(t("Tamam, iskelede buluşalım", "OK, meet you at the pier")), status: .delivered,
@@ -147,9 +158,12 @@ enum DesignFixtures {
         ]
     }
 
-    /// 5.2 — the content catalogue in the chat with mert.k (Ghost off).
+    /// 5.2 — the content catalogue in the chat with mert_k (Ghost off). It
+    /// starts with a few built-in stickers that morning (proposed; above
+    /// what the 5.2 reference shows); the design's own text sticker,
+    /// “tamam!”, stays the last message.
     static func mertMessages(english: Bool) -> [Message] {
-        [
+        stickerMessages(english: english) + [
             Message(
                 id: "m1", direction: .outgoing, sentAt: date(day: 8, 12, 40),
                 content: .file(name: "kira-sozlesmesi.pdf", byteCount: 2_100_000, typeLabel: "PDF", pageCount: 4), status: .read),
@@ -168,6 +182,40 @@ enum DesignFixtures {
         ]
     }
 
+    /// Built-in stickers (PROTOCOL §8.8) at the start of the chat with
+    /// mert_k: the words in the language of the demo content.
+    static func stickerMessages(english: Bool) -> [Message] {
+        let lang = english ? "en" : "tr"
+        func sticker(_ id: UInt32, _ lang: String = "") -> MessageContent {
+            guard let sticker = BrandStickerCatalog.sticker(id: id) else { return .deleted }
+            return .sticker(packID: sticker.packID, stickerID: id, emoji: sticker.emoji, lang: sticker.isText ? lang : "")
+        }
+        return [
+            Message(id: "ms1", direction: .incoming, sentAt: date(day: 8, 12, 30), content: sticker(1)),
+            Message(
+                id: "ms2", direction: .outgoing, sentAt: date(day: 8, 12, 31), content: sticker(101, lang), status: .read,
+                deliveredAt: date(day: 8, 12, 31), readAt: date(day: 8, 12, 32)),
+            Message(id: "ms3", direction: .incoming, sentAt: date(day: 8, 12, 33), content: sticker(302, lang)),
+            Message(
+                id: "ms4", direction: .outgoing, sentAt: date(day: 8, 12, 34), content: sticker(6), status: .read,
+                deliveredAt: date(day: 8, 12, 34), readAt: date(day: 8, 12, 35)),
+        ]
+    }
+
+    /// The picker's recents in the fixtures: what selin_n sent above, newest first.
+    static func stickerRecents(english: Bool) -> [String] {
+        ["6.-", "101.\(english ? "en" : "tr")"]
+    }
+
+    /// “+” › Fotoğraf ve video in the fixtures: three of the design's
+    /// pictures, as if picked in this order (the real picker runs only with
+    /// the live service).
+    static let pickedPhotos: [PickedMediaItem] = [
+        PickedMediaItem(kind: .photo, source: .artwork(.nightPier)),
+        PickedMediaItem(kind: .photo, source: .artwork(.sunsetVideo)),
+        PickedMediaItem(kind: .photo, source: .artwork(.nightPier)),
+    ]
+
     // MARK: Requests (4.3 / 4.4)
 
     static func requests(now: Date, english: Bool) -> [MessageRequest] {
@@ -179,13 +227,14 @@ enum DesignFixtures {
         ]
         return [
             MessageRequest(
-                id: "kuzey.dev", sender: "kuzey.dev", receivedAt: now.addingTimeInterval(-2 * 3_600),
+                id: "kuzey_dev", sender: "kuzey_dev", receivedAt: now.addingTimeInterval(-2 * 3_600),
                 preview: .text(t("Merhaba! Dünkü meetup’taki sunumunu çok beğendim, slaytları paylaşabilir misin?", "Hi! I really liked your talk at yesterday's meetup — could you share the slides?")),
-                flags: [], messages: kuzeyMessages),
+                flags: [], messages: kuzeyMessages, offersAvatar: true),
             MessageRequest(
-                id: "n.aksoy", sender: "n.aksoy", receivedAt: now.addingTimeInterval(-26 * 3_600),
+                id: "n_aksoy", sender: "n_aksoy", receivedAt: now.addingTimeInterval(-26 * 3_600),
                 preview: .photo, flags: [.hasMedia],
-                messages: [Message(id: "n1", direction: .incoming, sentAt: date(day: 7, 15, 30), content: .photo(.designArtwork(.sunsetVideo), caption: nil))]),
+                messages: [Message(id: "n1", direction: .incoming, sentAt: date(day: 7, 15, 30), content: .photo(.designArtwork(.sunsetVideo), caption: nil))],
+                offersAvatar: true),
             MessageRequest(
                 id: "hediye_kazan", sender: "hediye_kazan", receivedAt: now.addingTimeInterval(-3 * 86_400),
                 preview: .text(t("Tebrikler! Ödülünü almak için hemen bağlantıya tıkla: bit.ly/…", "Congratulations! Click the link now to claim your prize: bit.ly/…")),
@@ -213,5 +262,9 @@ enum DesignFixtures {
 
     /// Usernames the fixtures treat as taken (2.1) — the people of the
     /// design, plus “lale”, someone with no chat yet (4.2 “Mesaj yaz” walks).
-    static let takenUsernames: Set<String> = ["selin", "deniz", "mert.k", "ayla_", "kaan", "ece.y", "bora", "oya.t", "kuzey.dev", "lale"]
+    static let takenUsernames: Set<String> = ["selin", "deniz", "mert_k", "ayla_", "kaan", "ece_y", "bora", "oya_t", "kuzey_dev", "lale"]
+
+    /// A name that meets the rules on 2.1 (“Kurallara uygun”, as the live
+    /// service says it) and is taken when 2.3 registers it.
+    static let takenAtSetupUsername = "ilgaz"
 }

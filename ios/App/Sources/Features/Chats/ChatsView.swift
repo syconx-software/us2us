@@ -14,6 +14,8 @@ import SwiftUI
 struct ChatsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The own profile picture on the top bar (proposed), set at the root.
+    @Environment(\.u2OwnAvatar) private var ownAvatar
 
     @State private var newChat: NewChatPresentation?
     @State private var showsQRMenu = false
@@ -88,10 +90,22 @@ struct ChatsView: View {
                 titleBlock(connection: messenger.connection)
                     .u2Top(100)
 
+                if messenger.restoreAccessPending {
+                    // After a restore whose token rotation is unanswered: the
+                    // old phone may still have access; 7.1 explains and checks.
+                    RestoreAccessCard { model.router.push(.settings) }
+                        .accessibilityIdentifier("chats.access")
+                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                        .transition(.u2Fade)
+                }
+
                 if !messenger.requests.isEmpty {
                     RequestsCard(count: messenger.requests.count) { model.router.push(.requests) }
                         .accessibilityIdentifier("chats.requests")
-                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                        // Under the access card: the 10 pt gap of stacked option cards.
+                        .padding(
+                            EdgeInsets(
+                                top: messenger.restoreAccessPending ? 6 : 18, leading: 16, bottom: 4, trailing: 16))
                         .transition(.u2Fade)
                 }
 
@@ -130,6 +144,7 @@ struct ChatsView: View {
             .padding(.bottom, 40)
             .u2Animation(U2Motion.screen, value: chats.map(\.id))
             .u2Animation(U2Motion.state, value: messenger.requests.isEmpty)
+            .u2Animation(U2Motion.state, value: messenger.restoreAccessPending)
             .onGeometryChange(for: Bool.self) { proxy in
                 proxy.frame(in: .scrollView).minY < -2
             } action: { scrolled in
@@ -190,7 +205,7 @@ struct ChatsView: View {
             Button {
                 model.router.push(.settings)
             } label: {
-                Avatar(username: model.messenger.ownUsername, palette: .d, size: .chatsSelf)
+                Avatar(username: model.messenger.ownUsername, palette: .d, size: .chatsSelf, picture: ownAvatar)
             }
             .buttonStyle(CardButtonStyle())
             .accessibilityLabel(Text("a11y.settings"))

@@ -26,19 +26,35 @@ final class OnboardingFlowModel {
     let finish: NoWayBackStepModel
     private(set) var mode: Mode = .create
 
-    /// The confirmed code, held only until the account is created.
+    /// The confirmed code, held only until the account is created — also
+    /// while another name is chosen after 2.3 found the first one taken.
     private var confirmedCode: String?
     private let messenger: any MessengerService
     private let onFinished: () -> Void
+    private let onReturnToLock: () -> Void
 
-    init(messenger: any MessengerService, onFinished: @escaping () -> Void) {
+    /// - Parameter onReturnToLock: 2.3 failed but left a vault on this
+    ///   phone, locked (``SetupInterruption``): the lock takes over.
+    init(
+        messenger: any MessengerService, onFinished: @escaping () -> Void,
+        onReturnToLock: @escaping () -> Void = {}
+    ) {
         self.messenger = messenger
         self.onFinished = onFinished
+        self.onReturnToLock = onReturnToLock
         username = UsernameStepModel(messenger: messenger)
         code = SecretCodeStepModel(messenger: messenger)
         finish = NoWayBackStepModel()
         code.onConfirmed = { [weak self] code in self?.codeConfirmed(code) }
-        finish.onSubmit = { [weak self] in await self?.createAccount() ?? false }
+        finish.onSubmit = { [weak self] in
+            guard let self else { return .network }
+            return await self.createAccount()
+        }
+        finish.onReturnToLock = { [weak self] in
+            self?.confirmedCode = nil
+            onReturnToLock()
+        }
+        finish.onChooseAnotherName = { [weak self] in self?.chooseAnotherName() }
     }
 
     /// “n / 3”, or “n / 2” after a restore (no username step).
@@ -52,6 +68,7 @@ final class OnboardingFlowModel {
     /// 1.3 “Hesabımı oluştur” → 2.1.
     func startSetup() {
         mode = .create
+        finish.replacesThisPhone = false
         router.push(.username)
     }
 
@@ -64,6 +81,8 @@ final class OnboardingFlowModel {
     /// 2.2 (“1 / 2”) for the new code on this device → 2.3 → 4.1.
     func continueAfterRestore() {
         mode = .restore
+        // The locked vault on this phone is replaced when 2.3 finishes.
+        finish.replacesThisPhone = true
         code.reset()
         router.setPath([.secretCode])
     }
@@ -71,16 +90,29 @@ final class OnboardingFlowModel {
     /// 7.3 finished on this device → 2.2 set a new code.
     func restoreFinished() {
         mode = .restore
+        finish.replacesThisPhone = false
         code.reset()
         router.push(.secretCode)
     }
 
-    /// 2.1 “Devam” (only when available).
+    /// 2.1 “Devam” (only when the name can be used): on to 2.2 — or, with
+    /// the code kept from a setup that found the name taken, back to 2.3.
     func usernameContinue() {
         guard username.canContinue else { return }
         U2Keyboard.dismiss()
+        if confirmedCode != nil {
+            finish.resume()
+            router.push(.noWayBack)
+            return
+        }
         code.reset()
         router.push(.secretCode)
+    }
+
+    /// 2.3 “Başka bir ad seç”: back to 2.1, the taken name still in the
+    /// field and marked; the code chosen on 2.2 is kept.
+    private func chooseAnotherName() {
+        router.pop(to: .username)
     }
 
     /// Back on 2.2: from the confirm step to the set step, else pop.
@@ -95,7 +127,8 @@ final class OnboardingFlowModel {
     /// Edge-swipe back is allowed everywhere except on 2.2's confirm step
     /// (flows.md › Back behaviour: back returns to the set step there).
     func allowsSwipeBack(_ route: OnboardingRoute) -> Bool {
-        !(route == .secretCode && code.step == .confirm)
+        if route == .noWayBack, finish.returnsToLock { return false }
+        return !(route == .secretCode && code.step == .confirm)
     }
 
     /// The path changed (button, swipe or harness): leaving 2.3 for 2.2
@@ -105,9 +138,23 @@ final class OnboardingFlowModel {
             confirmedCode = nil
             code.reset()
         }
+        if new.isEmpty, mode == .restore, finish.replacesThisPhone {
+            // Backed out of a restore that began on the lock (3.3 › 7.3):
+            // the vault on this phone is still there, locked, so 1.1 could
+            // only offer a new account that cannot be made. Back to the
+            // lock; the opened backup and its password go.
+            confirmedCode = nil
+            finish.replacesThisPhone = false
+            mode = .create
+            Task { await messenger.cancelRestore() }
+            onReturnToLock()
+            return
+        }
         if new.last == nil || new.last == .username {
             if mode == .restore, !new.contains(.restore) { mode = .create }
         }
+        // Back on the welcome pages: a code kept for another name goes.
+        if new.isEmpty { confirmedCode = nil }
     }
 
     private func codeConfirmed(_ code: String) {
@@ -117,9 +164,13 @@ final class OnboardingFlowModel {
     }
 
     /// 2.3 “Kurulumu tamamla”: create (or finish restoring) the account,
-    /// then replace the root with 4.1. `false` = failed, stay on 2.3.
-    private func createAccount() async -> Bool {
-        guard let secret = confirmedCode else { return false }
+    /// then replace the root with 4.1. A failure stays on 2.3 and says why.
+    private func createAccount() async -> NoWayBackStepModel.Failure? {
+        guard let secret = confirmedCode else { return .network }
+        // Found taken earlier in this setup (2.3 › back to 2.2 › the code
+        // again): the relay would only refuse it once more, after the keys
+        // and the proof of work.
+        if mode == .create, username.status == .taken { return .usernameTaken }
         do {
             switch mode {
             case .create:
@@ -128,12 +179,26 @@ final class OnboardingFlowModel {
             case .restore:
                 try await messenger.completeRestore(secretCode: secret, faceIDEnabled: finish.faceIDEnabled)
             }
+        } catch RestoreFailure.backupNoLongerValid {
+            return .backupGone
+        } catch RestoreFailure.backupDamaged {
+            return .backupDamaged
+        } catch SetupInterruption.accountKept {
+            confirmedCode = nil
+            return .accountKept
+        } catch SetupInterruption.previousVaultKept {
+            confirmedCode = nil
+            return .previousVaultKept
+        } catch AccountCreationFailure.usernameTaken {
+            // Nothing was kept: the code stays for the next name.
+            username.markTaken(username.name)
+            return .usernameTaken
         } catch {
-            return false
+            return .network
         }
         confirmedCode = nil
         onFinished()
-        return true
+        return nil
     }
 
     #if DEBUG
@@ -234,8 +299,8 @@ final class WelcomePagerModel {
 
 // MARK: - 2.1 Kullanıcı adı
 
-/// 2.1 state: the name as typed, local rules, the debounced availability
-/// check and what the screen shows for it.
+/// 2.1 state: the name as typed, the rules it breaks, the debounced
+/// availability check and what the screen shows for it.
 @Observable
 @MainActor
 final class UsernameStepModel {
@@ -246,27 +311,30 @@ final class UsernameStepModel {
         case typing
         /// Fewer than 3 characters after a pause.
         case tooShort
+        /// The name breaks a rule (the first one): nothing is asked.
+        case invalid(UsernameRules.Violation)
         case checking
+        /// Valid; whether it is free is known only at setup (live service).
+        case meetsRules
         case available
         case taken
-        /// The relay refused the name by its own rules.
-        case invalid(UsernameRules.Violation)
     }
 
-    /// What the field shows (raw keystrokes pass through here; the field
-    /// itself reduces them to `[a-z0-9._]`).
+    /// What the field shows, as typed (the field shows it in lower case).
     var text = "" {
         didSet { textChanged(from: oldValue) }
     }
 
     private(set) var status: Status = .empty
-    /// A rule the last keystroke broke (the character was dropped): shows
-    /// “Geçersiz karakter” and tints that rule until the next valid change.
-    private(set) var rejectedInput: UsernameRules.Violation?
-    /// The clean name (what is checked and registered).
+    /// The normalized name (what is checked and registered).
     private(set) var name = ""
+    /// Every rule `name` breaks (`UsernameRules.violations`).
+    private(set) var violations: [UsernameRules.Violation] = []
+    /// Typing paused since the last change: a short name is said only now.
+    private var hasPaused = false
+    /// Names 2.3 found taken in this setup (the relay's 409).
+    private var takenAtSetup: Set<String> = []
     private var checkTask: Task<Void, Never>?
-    private var rejectionTask: Task<Void, Never>?
     private let messenger: any MessengerService
     /// The pause after typing before the relay is asked.
     var debounce: Duration = .milliseconds(400)
@@ -275,73 +343,48 @@ final class UsernameStepModel {
         self.messenger = messenger
     }
 
-    var canContinue: Bool { status == .available && UsernameRules.isValid(name) }
+    var canContinue: Bool { (status == .available || status == .meetsRules) && UsernameRules.isValid(name) }
 
-    /// “7 / 20”.
-    var counter: String { "\(name.count) / \(UsernameRules.maxLength)" }
+    /// “7 / 24”.
+    var counter: String { "\(UsernameRules.length(name)) / \(UsernameRules.maxLength)" }
 
     var fieldStatus: UsernameFieldStatus {
-        // While “Geçersiz karakter” shows, the field shows no verdict (the
-        // icon cross-fades out): only the danger label and the tinted rule.
-        guard rejectedInput == nil else { return .none }
         switch status {
         case .checking: return .checking
-        case .available: return .positive
+        case .available, .meetsRules: return .positive
         case .taken: return .negative
+        // A broken rule shows no verdict in the field, only the danger
+        // label and the tinted rule.
         default: return .none
         }
     }
 
-    /// Which rule is shown in `danger`.
+    /// Whether `rule` is shown in `danger`: every rule the name breaks,
+    /// except “too short” while typing goes on.
     func isBroken(_ rule: UsernameRules.Violation) -> Bool {
-        if rejectedInput == rule { return true }
-        switch status {
-        case .tooShort: return rule == .length
-        case .invalid(let violation): return rule == violation
-        default: return false
-        }
+        guard violations.contains(rule) else { return false }
+        if rule == .length, UsernameRules.isTooShort(name) { return hasPaused }
+        return true
+    }
+
+    /// 2.3 found the name taken: back on 2.1 it stays in the field, marked
+    /// taken, and is not offered again in this setup.
+    func markTaken(_ taken: String) {
+        takenAtSetup.insert(taken)
+        guard taken == name else { return }
+        checkTask?.cancel()
+        withU2Animation(U2Motion.state) { status = .taken }
     }
 
     private func textChanged(from old: String) {
         guard text != old else { return }
-        let clean = UsernameRules.sanitize(text)
-        if text != clean {
-            if text.contains(where: { UsernameRules.turkishCharacters.contains($0) }) {
-                setRejected(.turkishCharacters)
-            } else if text.unicodeScalars.contains(where: { !Self.isAllowedRaw($0) }) {
-                setRejected(.characters)
-            }
-        } else if clean != name {
-            setRejected(nil)
-        }
-        guard clean != name else { return }
-        name = clean
+        let normalized = UsernameRules.normalize(text)
+        guard normalized != name else { return }
+        name = normalized
+        violations = UsernameRules.violations(normalized)
+        hasPaused = false
         scheduleCheck()
     }
-
-    /// Characters the field keeps (upper-case ASCII is folded, not rejected).
-    private static func isAllowedRaw(_ scalar: Unicode.Scalar) -> Bool {
-        ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar) || ("0"..."9").contains(scalar)
-            || scalar == "." || scalar == "_"
-    }
-
-    /// Shows the broken rule; it fades back by itself after a moment (or at
-    /// the next valid keystroke), since the name in the field is still fine.
-    private func setRejected(_ rule: UsernameRules.Violation?) {
-        rejectionTask?.cancel()
-        if rejectedInput != rule {
-            withU2Animation(U2Motion.state) { rejectedInput = rule }
-        }
-        guard rule != nil else { return }
-        rejectionTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.rejectionHold)
-            guard !Task.isCancelled, let self else { return }
-            withU2Animation(U2Motion.state) { self.rejectedInput = nil }
-        }
-    }
-
-    /// How long a dropped character keeps “Geçersiz karakter” on screen.
-    static let rejectionHold: Duration = .milliseconds(2200)
 
     private func scheduleCheck() {
         checkTask?.cancel()
@@ -350,12 +393,25 @@ final class UsernameStepModel {
             withU2Animation(U2Motion.micro) { status = .empty }
             return
         }
-        if status != .typing { withU2Animation(U2Motion.micro) { status = .typing } }
+        // A broken rule shows at once, except “too short”: the first letters
+        // of a name are not a mistake.
+        let shortOnly = violations == [.length] && UsernameRules.isTooShort(candidate)
+        if let first = violations.first, !shortOnly {
+            if status != .invalid(first) { withU2Animation(U2Motion.state) { status = .invalid(first) } }
+        } else if status != .typing {
+            withU2Animation(U2Motion.micro) { status = .typing }
+        }
+        let valid = violations.isEmpty
         checkTask = Task { [weak self, messenger, debounce] in
             try? await Task.sleep(for: debounce)
             guard !Task.isCancelled, let self else { return }
-            if candidate.count < UsernameRules.minLength {
-                withU2Animation(U2Motion.state) { self.status = .tooShort }
+            withU2Animation(U2Motion.state) { self.hasPaused = true }
+            guard valid else {
+                if shortOnly { withU2Animation(U2Motion.state) { self.status = .tooShort } }
+                return
+            }
+            if self.takenAtSetup.contains(candidate) {
+                withU2Animation(U2Motion.state) { self.status = .taken }
                 return
             }
             withU2Animation(U2Motion.micro) { self.status = .checking }
@@ -364,9 +420,10 @@ final class UsernameStepModel {
             withU2Animation(U2Motion.state) {
                 switch result {
                 case .available: self.status = .available
+                case .meetsRules: self.status = .meetsRules
                 case .taken: self.status = .taken
-                case .invalid(let violation):
-                    self.status = violation == .length ? .tooShort : .invalid(violation)
+                case .invalid(.length) where UsernameRules.isTooShort(candidate): self.status = .tooShort
+                case .invalid(let violation): self.status = .invalid(violation)
                 case .empty: self.status = .empty
                 case .checking: self.status = .checking
                 }
@@ -376,13 +433,13 @@ final class UsernameStepModel {
 
     #if DEBUG
         /// Harness: shows `name` in `status` without asking the relay.
-        func setForHarness(name: String, status: Status, rejected: UsernameRules.Violation? = nil) {
-            checkTask?.cancel()
-            self.name = name
+        func setForHarness(name: String, status: Status) {
             text = name
+            checkTask?.cancel()
+            self.name = UsernameRules.normalize(name)
+            violations = UsernameRules.violations(self.name)
+            hasPaused = true
             self.status = status
-            rejectionTask?.cancel()
-            rejectedInput = rejected
         }
     #endif
 }
@@ -554,50 +611,104 @@ final class SecretCodeStepModel {
 @Observable
 @MainActor
 final class NoWayBackStepModel {
+    /// Why “Kurulumu tamamla” failed (the sentence above the checkbox).
+    enum Failure: Equatable, Sendable {
+        /// Creating or restoring did not reach the relay: check the
+        /// connection and try again.
+        case network
+        /// After a restore: the relay refuses the backup (its account was
+        /// deleted, or it was restored on another phone). Trying again
+        /// cannot help; a new account can be created.
+        case backupGone
+        /// After a restore: the backup can't be read, or it is damaged.
+        /// Trying again cannot help; another copy might.
+        case backupDamaged
+        /// The new account was saved, then a later step failed: it is kept,
+        /// locked under the new code. Only the lock goes on from here.
+        case accountKept
+        /// Restoring inside the lock was refused before anything was erased:
+        /// the vault this phone held is untouched. Only the lock goes on.
+        case previousVaultKept
+        /// The relay refused the name: someone registered it first. Nothing
+        /// was kept; the CTA goes back to 2.1 for another name.
+        case usernameTaken
+    }
+
     var acknowledged = false
     var faceIDEnabled = true
+    /// Restoring inside the lock (3.3 › 7.3): finishing erases the vault on
+    /// this phone, with its messages, which the backup does not hold.
+    var replacesThisPhone = false
     private(set) var biometry: Biometry = .none
     private(set) var isWorking = false
-    private(set) var failed = false
+    private(set) var failure: Failure?
 
-    var onSubmit: () async -> Bool = { false }
+    var failed: Bool { failure != nil }
 
-    var canFinish: Bool { acknowledged && !isWorking }
+    /// Creates the account: `nil` when it is done, otherwise why it failed.
+    var onSubmit: () async -> Failure? = { .network }
+    /// The CTA after a failure that left a vault on this phone.
+    var onReturnToLock: () -> Void = {}
+    /// The CTA after the name was found taken.
+    var onChooseAnotherName: () -> Void = {}
+
+    /// A vault is on this phone, locked: trying again would fail, so the CTA
+    /// goes back to the lock and the way back is closed.
+    var returnsToLock: Bool { failure == .accountKept || failure == .previousVaultKept }
+
+    /// The name was taken: the CTA goes back to 2.1 to choose another.
+    var choosesAnotherName: Bool { failure == .usernameTaken }
+
+    var canFinish: Bool { returnsToLock || choosesAnotherName || (acknowledged && !isWorking) }
 
     /// Called each time 2.3 is entered: unticked, Face ID on when available.
     func prepare() {
         biometry = Biometry.hardware
         acknowledged = false
         faceIDEnabled = biometry != .none
-        failed = false
+        failure = nil
+        isWorking = false
+    }
+
+    /// Back on 2.3 with another name: the failure goes; the acknowledgement
+    /// and the Face ID choice stay as they were.
+    func resume() {
+        failure = nil
         isWorking = false
     }
 
     func submit() {
         guard canFinish else { return }
+        if returnsToLock {
+            onReturnToLock()
+            return
+        }
+        if choosesAnotherName {
+            onChooseAnotherName()
+            return
+        }
         withU2Animation(U2Motion.state) {
             isWorking = true
-            failed = false
+            failure = nil
         }
         Task { [weak self] in
             guard let self else { return }
-            let ok = await self.onSubmit()
-            if !ok {
+            if let failure = await self.onSubmit() {
                 U2Haptics.error()
                 withU2Animation(U2Motion.state) {
                     self.isWorking = false
-                    self.failed = true
+                    self.failure = failure
                 }
             }
         }
     }
 
     #if DEBUG
-        func setForHarness(acknowledged: Bool, failed: Bool = false, biometry: Biometry = .faceID) {
+        func setForHarness(acknowledged: Bool, failure: Failure? = nil, biometry: Biometry = .faceID) {
             self.biometry = biometry
             self.acknowledged = acknowledged
             faceIDEnabled = biometry != .none
-            self.failed = failed
+            self.failure = failure
             isWorking = false
         }
     #endif
