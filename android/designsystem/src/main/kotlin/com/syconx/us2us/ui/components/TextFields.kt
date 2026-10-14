@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -114,11 +115,18 @@ fun Modifier.u2FieldChrome(
     fill: Color = U2Theme.colors.surface,
     ringColor: Color = U2Theme.colors.accent,
 ): Modifier {
+    return this
+        .height(height)
+        .u2FieldSurface(isFocused, focus, fill, ringColor)
+}
+
+/** [u2FieldChrome] without a fixed height, for a field that grows with its text. */
+@Composable
+private fun Modifier.u2FieldSurface(isFocused: Boolean, focus: U2FieldFocus, fill: Color, ringColor: Color): Modifier {
     val shown by animateFloatAsState(if (isFocused) 1f else 0f, u2Spec(U2Motion.state), label = "fieldFocus")
     val shape = RoundedCornerShape(U2Radius.field)
     val ring = ringColor.copy(alpha = ringColor.alpha * shown)
     return this
-        .height(height)
         .then(
             if (focus == U2FieldFocus.Glow && shown > 0f) {
                 Modifier.u2BoxShadow(shape, U2BoxShadow(ring, blur = 26.dp, spread = (-10).dp))
@@ -128,6 +136,63 @@ fun Modifier.u2FieldChrome(
         )
         .background(fill, shape)
         .u2InnerStroke(ring, 1.5.dp, shape)
+}
+
+// MARK: - Text field
+
+/**
+ * A C23 field for free text (a name, a code, a message): [U2TextStyles.bubble] in `text` on
+ * [fill], the `accent` caret (visible on both themes), the focus ring of [u2FieldChrome] and the
+ * [placeholder] in `textPlaceholder`. One line at the search field's height, or with [maxLines]
+ * above 1 a field that grows from that height. Edits that would pass [maxBytes] UTF-8 bytes are
+ * refused, nothing is cut.
+ */
+@Composable
+fun U2TextField(
+    text: String,
+    onTextChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    contentDescription: String = placeholder,
+    maxLines: Int = 1,
+    maxBytes: Int = Int.MAX_VALUE,
+    enabled: Boolean = true,
+    fill: Color = U2Theme.colors.surface,
+    keyboardOptions: KeyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+) {
+    val colors = U2Theme.colors
+    val style = U2TextStyles.bubble
+    var focused by remember { mutableStateOf(false) }
+    val singleLine = maxLines <= 1
+    BasicTextField(
+        value = text,
+        onValueChange = { if (it.toByteArray(Charsets.UTF_8).size <= maxBytes) onTextChange(it) },
+        enabled = enabled,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        textStyle = style.textStyle().copy(color = colors.text),
+        cursorBrush = SolidColor(colors.accent),
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (singleLine) {
+                    Modifier.u2FieldChrome(focused, U2Size.fieldSearch, focus = U2FieldFocus.Ring, fill = fill)
+                } else {
+                    Modifier.heightIn(min = U2Size.fieldSearch).u2FieldSurface(focused, U2FieldFocus.Ring, fill, colors.accent)
+                },
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .semantics { this.contentDescription = contentDescription },
+        decorationBox = { field ->
+            Box(Modifier.padding(horizontal = 16.dp, vertical = if (singleLine) 0.dp else 16.dp), contentAlignment = Alignment.CenterStart) {
+                if (text.isEmpty()) U2Text(placeholder, style, Modifier.clearAndSetSemantics {}, color = colors.textPlaceholder, maxLines = 1)
+                field()
+            }
+        },
+    )
 }
 
 // MARK: - Username field (2.1)

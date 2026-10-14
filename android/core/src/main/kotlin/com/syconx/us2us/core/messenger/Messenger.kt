@@ -317,6 +317,58 @@ class Messenger(
         return status
     }
 
+    /** Community transport uses account authentication, never a personal access key. */
+    val communityRelay: RelayClient get() = relay
+
+    fun signCommunityState(state: com.syconx.us2us.core.community.CommunityState): com.syconx.us2us.core.community.SignedCommunityState {
+        require(state.ownerAccountId == accountId)
+        return state.sign(currentAccount.identityKeyPair)
+    }
+
+    /** Encrypt through the same serialized ratchet as direct messages without creating a contact. */
+    suspend fun encryptCommunityMessage(member: com.syconx.us2us.core.community.CommunityMember, message: com.syconx.us2us.core.proto.CommunityMessage): ByteArray {
+        require(member.accountId != accountId && message.messageId.size() == 16 && message.communityId.size() == 16)
+        val expected = member.keyBytes()
+        ensureSession(member.accountId, expected)
+        return cryptoLock.withLock {
+            require(store.identity(member.accountId)?.identityKey?.serialize()?.contentEquals(expected) == true) { "community member identity mismatch" }
+            val encrypted = sessions.encrypt(member.accountId, content { community = message })
+            SealedEnvelope.seal(sealedContent {
+                senderAccountId = accountId.toBytes().toByteString()
+                senderDeviceId = AccountId.DEVICE_ID
+                type = encrypted.type
+                ciphertext = encrypted.serialize().toByteString()
+            }, IdentityKey(expected))
+        }
+    }
+
+    /** Verify the signed roster BEFORE advancing the ratchet. Runtime must atomically persist the result. */
+    suspend fun decryptCommunityEnvelope(envelope: ByteArray, state: com.syconx.us2us.core.community.CommunityState): Pair<AccountId, com.syconx.us2us.core.proto.CommunityMessage>? {
+        require(state.member(accountId)?.identityKey == com.syconx.us2us.core.encoding.Base64Url.encode(currentAccount.identityKeyPair.publicKey.serialize()))
+        val sealed = try { SealedEnvelope.open(envelope, currentAccount.identityKeyPair) } catch (_: Exception) { return null }
+        val sender = AccountId.fromBytes(sealed.senderAccountId.toByteArray())
+        if (sender == accountId || sealed.senderUsername.isNotEmpty()) return null
+        val member = state.member(sender) ?: return null
+        val expected = member.keyBytes()
+        if (sealed.type == org.signal.libsignal.protocol.message.CiphertextMessage.PREKEY_TYPE) {
+            val identity = try { org.signal.libsignal.protocol.message.PreKeySignalMessage(sealed.ciphertext.toByteArray()).identityKey.serialize() } catch (_: Exception) { return null }
+            if (!identity.contentEquals(expected)) return null
+        }
+        return cryptoLock.withLock {
+            val known = store.identity(sender)
+            if (known != null && (!known.identityKey.serialize().contentEquals(expected) || known.trust == IdentityTrust.CHANGED)) return@withLock null
+            val opened = try { sessions.decrypt(sender, sealed.type, sealed.ciphertext.toByteArray()) }
+            catch (e: com.syconx.us2us.core.session.StoreUnavailableException) { throw e }
+            catch (_: Exception) { return@withLock null }
+            if (!opened.hasCommunity()) return@withLock null
+            val message = opened.community
+            if (!message.communityId.toByteArray().contentEquals(state.id.toBytes()) || message.revision != state.revision ||
+                message.messageId.size() != 16 || message.sentAt <= 0 || message.text.isBlank() ||
+                message.text.toByteArray(Charsets.UTF_8).size > com.syconx.us2us.core.community.CommunityState.MAX_TEXT_BYTES) return@withLock null
+            sender to message
+        }
+    }
+
     // Sending
 
     /**
@@ -1110,7 +1162,10 @@ class Messenger(
      * mangled is reported as an [IOException]: like any relay failure it must not take down the
      * receive loop, and a later attempt fetches a fresh one.
      */
-    private suspend fun ensureSession(peer: AccountId) {
+    private suspend fun ensureSession(peer: AccountId, expectedIdentity: ByteArray? = null) {
+        if (expectedIdentity != null) {
+            store.identity(peer)?.let { require(it.identityKey.serialize().contentEquals(expectedIdentity) && it.trust != IdentityTrust.CHANGED) { "community member identity mismatch" } }
+        }
         if (cryptoLock.withLock { sessions.hasUsableSession(peer) }) return
         sessionSetupLock.withLock {
             if (cryptoLock.withLock { sessions.hasUsableSession(peer) }) return
@@ -1119,6 +1174,7 @@ class Messenger(
             } catch (e: InvalidBundleException) {
                 throw IOException("relay returned an invalid pre-key bundle", e)
             }
+            if (expectedIdentity != null) require(bundle.identityKey.serialize().contentEquals(expectedIdentity)) { "community prekey identity mismatch" }
             cryptoLock.withLock {
                 try {
                     sessions.startSession(peer, bundle)
@@ -1594,6 +1650,10 @@ class Messenger(
             receiver.receive(stored.envelope)
         } catch (_: IOException) {
             return false
+        }
+        if (result is ReceiveResult.Decrypted && result.content.hasCommunity()) {
+            handledEnvelopes += stored.id
+            return true // Community content is never a personal request/contact/profile.
         }
         if (result is ReceiveResult.Decrypted) {
             val message = recordIncoming(stored, result)

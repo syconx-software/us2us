@@ -21,6 +21,10 @@ public struct RelayErrorCode: RawRepresentable, Hashable, Sendable, CustomString
     public static let staleVersion = RelayErrorCode(rawValue: "stale_version")
     public static let payloadTooLarge = RelayErrorCode(rawValue: "payload_too_large")
     public static let rateLimited = RelayErrorCode(rawValue: "rate_limited")
+    /// Communities: a request, redemption or roster would exceed 100 members (409).
+    public static let communityFull = RelayErrorCode(rawValue: "community_full")
+    /// Communities: one recipient's community mail is full (429).
+    public static let communityInboxFull = RelayErrorCode(rawValue: "community_inbox_full")
     public static let `internal` = RelayErrorCode(rawValue: "internal")
 }
 
@@ -29,6 +33,9 @@ public enum RelayError: Error, Equatable, Sendable {
     case server(status: Int, code: RelayErrorCode?, message: String?)
     /// `429`, with the `Retry-After` delay when the relay sent one.
     case rateLimited(retryAfter: TimeInterval?)
+    /// `429 community_inbox_full`: only this recipient's community mail is
+    /// full; others can still be reached. With the `Retry-After` delay.
+    case communityInboxFull(retryAfter: TimeInterval?)
     /// The request never got a response.
     case network(URLError.Code)
     /// A 2xx response whose body did not match the spec.
@@ -47,6 +54,7 @@ public enum RelayError: Error, Equatable, Sendable {
         switch self {
         case .server(_, let code, _): return code
         case .rateLimited: return .rateLimited
+        case .communityInboxFull: return .communityInboxFull
         default: return nil
         }
     }
@@ -61,9 +69,9 @@ extension RelayError: LocalizedError {
     public var errorDescription: String? {
         let localizer = Localizer.current
         switch self {
-        case .rateLimited(let retryAfter?):
+        case .rateLimited(let retryAfter?), .communityInboxFull(let retryAfter?):
             return localizer.string(.relayRateLimited, localizer.duration(seconds: Int(retryAfter.rounded(.up))))
-        case .rateLimited(nil):
+        case .rateLimited(nil), .communityInboxFull(nil):
             return localizer.string(.relayRateLimitedGeneric)
         case .network:
             return localizer.string(.relayNetwork)

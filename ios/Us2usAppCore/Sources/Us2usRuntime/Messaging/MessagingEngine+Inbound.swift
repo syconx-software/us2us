@@ -38,6 +38,19 @@ extension MessagingEngine {
         apply(outcome, now: now)
     }
 
+    /// A contact's new identity key was committed outside this engine (a
+    /// community message, whose roster and the directory both carry the new
+    /// key): the same notice and hold as a change found on receive.
+    public func noteIdentityChange(of peer: AccountId) {
+        guard running else { return }
+        let now = clock.now()
+        addNotice(.safetyNumberChanged, peer: peer, at: now)
+        held.insert(peer)
+        emit(.safetyNumberChanged(peer))
+        emit(.conversations)
+        schedulerWake.signal()
+    }
+
     /// A visible message from an unknown account opens a request; a
     /// stranger's receipts, typing, presence or control messages are ignored.
     static func hasAttachment(_ data: BRPDataMessage) -> Bool {
@@ -67,6 +80,9 @@ extension MessagingEngine {
         let sender = message.sender
         let content = message.content
         var outcome = InboundOutcome(peer: sender)
+        // Communities have a separate authenticated mailbox. Never create a
+        // personal contact, request or receipt from cross-transport content.
+        if case .community = content.body { return outcome }
         // Re-delivered after a restart (the relay re-sends until acknowledged).
         // Typing and presence are never stored by the relay and harmless to
         // see twice: they leave no entry (no trace of when the app was used).
@@ -123,7 +139,7 @@ extension MessagingEngine {
             outcome.presence = presenceMessage
         case .control(let control):
             try receiveControl(control, previous: previous, state: state, from: sender, tx: tx, now: now, outcome: &outcome)
-        case .none:
+        case .community, .none:
             break
         }
         return outcome

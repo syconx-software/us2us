@@ -12,14 +12,17 @@
 #      3a iOS -> bot     Swift LiveEchoBotTests
 #      3b Kotlin -> bot  Kotlin LiveEchoBotTest
 #      3c Kotlin -> iOS  Kotlin LiveEchoBotTest against Swift LiveEchoResponderTests
+#      3d communities    Kotlin LiveCommunityInteropTest (two app runtimes) with Swift
+#                        LiveCommunityInteropTests (the iOS runtime): public and private
+#                        communities, approval, removal, leaving, one-to-one alongside
 #   4  SIGTERM in the middle of traffic (relay/scripts/restart-check.mjs): the
 #      relay is stopped and started again, no accepted envelope may be lost;
 #      4b the bot, connected throughout, still answers after the restart
 #   5  clean up: stop everything, check the relay's exit and logs, drop the database
 #
 # Usage: scripts/interop.sh [--no-ios] [--no-build]
-#   --no-ios    skip every step that needs Xcode (2 Swift, 3a, 3c)
-#   --no-build  use the existing builds (relay/.output, the bot, the iOS test bundle)
+#   --no-ios    skip every step that needs Xcode (2 Swift, 3a, 3c, 3d)
+#   --no-build  use the existing builds (relay/.output, the bot, the iOS test bundles)
 #
 # Requirements: Node.js 24 and pnpm (relay), a JDK >= 21 (android), Xcode with
 # an iOS Simulator (ios), a MySQL 8.4/9.x server.
@@ -40,8 +43,11 @@ readonly RELAY_DIR=$ROOT/relay
 readonly ANDROID_DIR=$ROOT/android
 readonly KIT_DIR=$ROOT/ios/Us2usKit
 readonly DERIVED_DATA=$KIT_DIR/.build/interop
+readonly CORE_DIR=$ROOT/ios/Us2usAppCore
+readonly CORE_DERIVED_DATA=$CORE_DIR/.build/interop
 readonly BOT=$ANDROID_DIR/cli/build/install/us2us-bot/bin/us2us-bot
 readonly CLI_RESULTS=$ANDROID_DIR/cli/build/test-results/test
+readonly RUNTIME_RESULTS=$ANDROID_DIR/runtime/build/test-results/testDebugUnitTest
 
 IOS=1
 BUILD=1
@@ -160,6 +166,15 @@ xcode_test() {
     >"$logfile" 2>&1
 }
 
+# xcode_core_test SUITE LOG [NAME=VALUE...]: the same for the app core's runtime tests.
+xcode_core_test() {
+  local suite=$1 logfile=$2
+  shift 2
+  (cd "$CORE_DIR" && exec env "$@" xcodebuild test-without-building -scheme Us2usAppCore-Package -destination "$DESTINATION" \
+    -derivedDataPath "$CORE_DERIVED_DATA" -only-testing:"Us2usRuntimeTests/$suite" -collect-test-diagnostics never) \
+    >"$logfile" 2>&1
+}
+
 # xcode_ok LOG: the run passed and nothing in it was skipped (a skip means a variable did not arrive).
 xcode_ok() { grep -q 'Test run with .* passed' "$1" && ! grep -q ' skipped' "$1"; }
 
@@ -194,13 +209,17 @@ step1_relay() {
     log "building the relay, the bot and the iOS tests"
     (cd "$RELAY_DIR" && pnpm build) >"$WORK/1-build-relay.log" 2>&1 ||
       { record "1 relay up" FAIL "relay build, see 1-build-relay.log"; return 1; }
-    (cd "$ANDROID_DIR" && ./gradlew --console=plain :cli:installDist :core:testClasses :cli:testClasses) \
+    (cd "$ANDROID_DIR" && ./gradlew --console=plain :cli:installDist :core:testClasses :cli:testClasses \
+      :runtime:compileDebugUnitTestKotlin) \
       >"$WORK/1-build-android.log" 2>&1 ||
       { record "1 relay up" FAIL "android build, see 1-build-android.log"; return 1; }
     if [ "$IOS" = 1 ]; then
       (cd "$KIT_DIR" && xcodebuild build-for-testing -scheme Us2usKit -destination "$DESTINATION" \
         -derivedDataPath "$DERIVED_DATA") >"$WORK/1-build-ios.log" 2>&1 ||
         { record "1 relay up" FAIL "iOS build, see 1-build-ios.log"; return 1; }
+      (cd "$CORE_DIR" && xcodebuild build-for-testing -scheme Us2usAppCore-Package -destination "$DESTINATION" \
+        -derivedDataPath "$CORE_DERIVED_DATA") >"$WORK/1-build-ios-core.log" 2>&1 ||
+        { record "1 relay up" FAIL "iOS app core build, see 1-build-ios-core.log"; return 1; }
     fi
   fi
   [ -f "$RELAY_DIR/.output/server/index.mjs" ] || { record "1 relay up" FAIL "relay not built"; return 1; }
@@ -228,6 +247,8 @@ step1_relay() {
     RATE_LIMIT_MEDIA_FETCH=off RATE_LIMIT_WS_CONNECT=off RATE_LIMIT_AUTH_FAIL=off
     RATE_LIMIT_DIRECTORY=off RATE_LIMIT_KEY_FETCH=off RATE_LIMIT_MEDIA_UPLOADS=off
     RATE_LIMIT_MEDIA_BYTES=off RATE_LIMIT_USERNAME_CHANGES=off RATE_LIMIT_WS_FRAMES=off RATE_LIMIT_ACCOUNT=off
+    RATE_LIMIT_COMMUNITY_IP=off RATE_LIMIT_COMMUNITY_CREATE=off RATE_LIMIT_COMMUNITY_JOIN=off
+    RATE_LIMIT_COMMUNITY_SEND=off RATE_LIMIT_COMMUNITY_API=off
   )
   start_relay "$WORK/relay-1.log" || { record "1 relay up" FAIL "see relay-1.log"; return 1; }
   record "1 relay up" PASS "$RELAY_URL, database $DB_NAME"
@@ -307,6 +328,36 @@ step3_cross_language() {
     record "3c Kotlin -> iOS responder" PASS "LiveEchoBotTest + LiveEchoResponderTests"
   else
     record "3c Kotlin -> iOS responder" FAIL "see 3c-kotlin-to-ios.log, 3c-ios-responder.log"
+  fi
+}
+
+# 3d: both platforms play one community script (docs/COMMUNITIES.md) and meet in a
+# directory of step files; a side that fails writes <side>-failed.json, so the other stops.
+step3d_communities() {
+  if [ "$IOS" = 0 ]; then
+    record "3d communities Kotlin <-> iOS" SKIP "--no-ios"
+    return 0
+  fi
+  local meeting=$WORK/communities kotlin_ok=0 ios_status
+  rm -rf "$meeting"
+  mkdir -p "$meeting"
+  xcode_core_test LiveCommunityInteropTests "$WORK/3d-ios-communities.log" "TEST_RUNNER_RELAY_URL=$RELAY_URL" \
+    "TEST_RUNNER_COMMUNITY_DIR=$meeting" &
+  RESPONDER_PID=$!
+  gradle_test :runtime:testDebugUnitTest '*LiveCommunityInteropTest' \
+    "$RUNTIME_RESULTS/TEST-com.syconx.us2us.runtime.facade.LiveCommunityInteropTest.xml" \
+    "$WORK/3d-kotlin-communities.log" "RELAY_URL=$RELAY_URL" "COMMUNITY_DIR=$meeting" && kotlin_ok=1
+  if [ "$kotlin_ok" = 0 ] && [ ! -f "$meeting/kotlin-failed.json" ]; then
+    echo '{"error":"the Kotlin test did not run"}' >"$meeting/kotlin-failed.json"
+  fi
+  wait_for 300 "$RESPONDER_PID" false
+  stop "$RESPONDER_PID"
+  ios_status=$?
+  RESPONDER_PID=""
+  if [ "$kotlin_ok" = 1 ] && [ "$ios_status" -eq 0 ] && xcode_ok "$WORK/3d-ios-communities.log"; then
+    record "3d communities Kotlin <-> iOS" PASS "LiveCommunityInteropTest + LiveCommunityInteropTests"
+  else
+    record "3d communities Kotlin <-> iOS" FAIL "see 3d-kotlin-communities.log, 3d-ios-communities.log, communities/"
   fi
 }
 
@@ -395,6 +446,7 @@ log "work directory: $WORK"
 if step1_relay; then
   step2_live_tests
   step3_cross_language
+  step3d_communities
   step4_restart
 fi
 step5_cleanup

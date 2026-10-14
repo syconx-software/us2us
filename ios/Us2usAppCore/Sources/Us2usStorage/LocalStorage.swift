@@ -234,6 +234,7 @@ public struct StorageTransaction {
     public var attachments: AttachmentRepository { AttachmentRepository(tx: self) }
     public var outbox: OutboxRepository { OutboxRepository(tx: self) }
     public var envelopes: EnvelopeLog { EnvelopeLog(tx: self) }
+    public var communities: CommunityRepository { CommunityRepository(tx: self) }
 
     func requireWritable() throws {
         guard isWritable else { throw StorageError.invalidState("write inside a read") }

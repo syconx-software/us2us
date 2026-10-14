@@ -118,6 +118,15 @@ public nonisolated struct BRPContent: Sendable {
     set {body = .presence(newValue)}
   }
 
+  /// separate community mailbox only; docs/COMMUNITIES.md
+  public var community: BRPCommunityMessage {
+    get {
+      if case .community(let v)? = body {return v}
+      return BRPCommunityMessage()
+    }
+    set {body = .community(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Body: Equatable, Sendable {
@@ -126,8 +135,32 @@ public nonisolated struct BRPContent: Sendable {
     case typing(BRPTypingMessage)
     case control(BRPControlMessage)
     case presence(BRPPresenceMessage)
+    /// separate community mailbox only; docs/COMMUNITIES.md
+    case community(BRPCommunityMessage)
 
   }
+
+  public init() {}
+}
+
+/// Additive extension. Never delivered through the legacy 1:1 mailbox.
+public nonisolated struct BRPCommunityMessage: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var communityID: Data = Data()
+
+  public var revision: UInt64 = 0
+
+  public var messageID: Data = Data()
+
+  public var sentAt: UInt64 = 0
+
+  /// 1..8192 UTF-8 bytes
+  public var text: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 }
@@ -1184,7 +1217,7 @@ nonisolated extension BRPSealedContent: SwiftProtobuf.Message, SwiftProtobuf._Me
 
 nonisolated extension BRPContent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Content"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}data\0\u{1}receipt\0\u{1}typing\0\u{1}control\0\u{1}presence\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}data\0\u{1}receipt\0\u{1}typing\0\u{1}control\0\u{1}presence\0\u{1}community\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1257,6 +1290,19 @@ nonisolated extension BRPContent: SwiftProtobuf.Message, SwiftProtobuf._MessageI
           self.body = .presence(v)
         }
       }()
+      case 6: try {
+        var v: BRPCommunityMessage?
+        var hadOneofValue = false
+        if let current = self.body {
+          hadOneofValue = true
+          if case .community(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.body = .community(v)
+        }
+      }()
       default: break
       }
     }
@@ -1288,6 +1334,10 @@ nonisolated extension BRPContent: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       guard case .presence(let v)? = self.body else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     }()
+    case .community?: try {
+      guard case .community(let v)? = self.body else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    }()
     case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -1295,6 +1345,56 @@ nonisolated extension BRPContent: SwiftProtobuf.Message, SwiftProtobuf._MessageI
 
   public static func ==(lhs: BRPContent, rhs: BRPContent) -> Bool {
     if lhs.body != rhs.body {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension BRPCommunityMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".CommunityMessage"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}community_id\0\u{1}revision\0\u{3}message_id\0\u{3}sent_at\0\u{1}text\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBytesField(value: &self.communityID) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.revision) }()
+      case 3: try { try decoder.decodeSingularBytesField(value: &self.messageID) }()
+      case 4: try { try decoder.decodeSingularUInt64Field(value: &self.sentAt) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.text) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.communityID.isEmpty {
+      try visitor.visitSingularBytesField(value: self.communityID, fieldNumber: 1)
+    }
+    if self.revision != 0 {
+      try visitor.visitSingularUInt64Field(value: self.revision, fieldNumber: 2)
+    }
+    if !self.messageID.isEmpty {
+      try visitor.visitSingularBytesField(value: self.messageID, fieldNumber: 3)
+    }
+    if self.sentAt != 0 {
+      try visitor.visitSingularUInt64Field(value: self.sentAt, fieldNumber: 4)
+    }
+    if !self.text.isEmpty {
+      try visitor.visitSingularStringField(value: self.text, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: BRPCommunityMessage, rhs: BRPCommunityMessage) -> Bool {
+    if lhs.communityID != rhs.communityID {return false}
+    if lhs.revision != rhs.revision {return false}
+    if lhs.messageID != rhs.messageID {return false}
+    if lhs.sentAt != rhs.sentAt {return false}
+    if lhs.text != rhs.text {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

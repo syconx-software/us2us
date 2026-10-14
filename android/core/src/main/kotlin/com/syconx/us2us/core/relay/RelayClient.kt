@@ -68,6 +68,39 @@ class RelayClient private constructor(
 
     fun withAuthToken(token: AuthToken): RelayClient = RelayClient(base, http, anonymousHttp, token)
 
+    // Additive community API. Authenticated and isolated from personal access-key delivery.
+    suspend fun createCommunity(state: com.syconx.us2us.core.community.SignedCommunityState): com.syconx.us2us.core.community.SignedCommunityState =
+        execute(post(url("v1", "communities"), json(state)))
+    suspend fun communityDirectory(query: String = "", after: AccountId? = null): CommunityDirectory =
+        execute(get(url("v1", "communities") { addQueryParameter("query", query); after?.let { addQueryParameter("after", it.toString()) } }))
+    suspend fun myCommunities(): CommunityMemberships = execute(get(url("v1", "communities", "mine")))
+    suspend fun community(id: AccountId): com.syconx.us2us.core.community.SignedCommunityState = execute(get(url("v1", "communities", id.toString())))
+    suspend fun updateCommunity(id: AccountId, state: com.syconx.us2us.core.community.SignedCommunityState): com.syconx.us2us.core.community.SignedCommunityState =
+        execute(put(url("v1", "communities", id.toString(), "state"), json(state)))
+    suspend fun requestCommunity(id: AccountId) = executeNoContent(post(url("v1", "communities", id.toString(), "requests"), "{}".toRequestBody(JSON)))
+    suspend fun communityRequests(id: AccountId): CommunityRequests = execute(get(url("v1", "communities", id.toString(), "requests")))
+    suspend fun rejectCommunityRequest(id: AccountId, account: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "requests", account.toString())).delete().build())
+    suspend fun createCommunityInvite(id: AccountId, expiresInSeconds: Int = 86400): CommunityInviteToken =
+        execute(post(url("v1", "communities", id.toString(), "invites"), json(CommunityInviteRequest(expiresInSeconds))))
+    suspend fun revokeCommunityInvites(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "invites")).delete().build())
+    suspend fun redeemCommunityInvite(id: AccountId, token: String): CommunitySummary =
+        execute(post(url("v1", "communities", "invites", "redeem"), json(CommunityRedeemRequest(id, token))))
+    suspend fun deleteCommunity(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString())).delete().build())
+    /** A member other than the owner leaves: `204`; the owner gets `409`, a non-member `404`. */
+    suspend fun leaveCommunity(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "members", "me")).delete().build())
+    /** Withdraws this account's own pending request; idempotent (`204` also when none is pending). */
+    suspend fun withdrawCommunityRequest(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "requests", "me")).delete().build())
+    suspend fun sendCommunityEnvelope(id: AccountId, recipient: AccountId, messageId: AccountId, revision: Long, envelope: ByteArray): SendReceipt {
+        require(revision in 1..com.syconx.us2us.core.community.CommunityState.MAX_REVISION && envelope.size in 1..MAX_COMMUNITY_ENVELOPE_BYTES)
+        return execute(request(url("v1", "communities", id.toString(), "messages", recipient.toString(), messageId.toString()))
+            .header("X-Community-Revision", revision.toString()).put(envelope.toRequestBody(OCTET_STREAM)).build())
+    }
+    suspend fun communityInbox(): CommunityInbox = execute(get(url("v1", "communities", "inbox")), maxResponseBytes = 1500000)
+    suspend fun acknowledgeCommunityEnvelopes(ids: List<String>) {
+        require(ids.size <= 100)
+        if (ids.isNotEmpty()) executeNoContent(post(url("v1", "communities", "inbox", "ack"), json(CommunityAckRequest(ids))))
+    }
+
     // §4.1
 
     suspend fun health(): RelayHealth = execute(get(url("v1", "health"), auth = false), anonymous = true)
@@ -424,6 +457,9 @@ class RelayClient private constructor(
         private const val MAX_EPHEMERAL_BATCH = 200
         private const val MAX_EPHEMERAL_BODY_BYTES = 1024 * 1024 - 64
         private const val EPHEMERAL_ITEM_OVERHEAD = 128
+
+        /** The largest sealed envelope one community recipient accepts. */
+        const val MAX_COMMUNITY_ENVELOPE_BYTES = 64 * 1024
 
         /** A stored envelope in a fetch response: 64 KiB in base64url plus its id and timestamp. */
         private const val MAX_ENVELOPE_JSON_BYTES = 64L * 1024 * 4 / 3 + 256

@@ -40,6 +40,11 @@ const TEST_ENV: Record<string, string> = {
   RATE_LIMIT_WS_FRAMES: 'off',
   RATE_LIMIT_ACCOUNT: 'off',
   RATE_LIMIT_AUTH_FAIL: 'off',
+  RATE_LIMIT_COMMUNITY_IP: 'off',
+  RATE_LIMIT_COMMUNITY_CREATE: 'off',
+  RATE_LIMIT_COMMUNITY_JOIN: 'off',
+  RATE_LIMIT_COMMUNITY_SEND: 'off',
+  RATE_LIMIT_COMMUNITY_API: 'off',
 }
 
 export interface RelayProcess {

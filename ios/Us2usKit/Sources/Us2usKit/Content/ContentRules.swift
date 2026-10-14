@@ -143,6 +143,11 @@ extension BRPContent {
                 throw .malformedField("receipt.message_ids")
             }
         case .control(let control): try control.validateStructure()
+        case .community(let community):
+            guard community.communityID.count == 16, community.messageID.count == 16,
+                community.revision > 0, community.revision <= 9_007_199_254_740_991,
+                !community.text.isEmpty, community.text.utf8.count <= ContentLimits.maxTextBytes
+            else { throw .malformedField("community") }
         case .typing, .presence, .none: break
         }
     }

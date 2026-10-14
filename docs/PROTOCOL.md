@@ -299,6 +299,11 @@ the app's brand name, so renaming the app never changes the wire format.
 
 Non-goals for v1: groups, multiple devices per account, calls.
 
+The additive [communities extension](COMMUNITIES.md) defines opt-in group
+text messaging using separate APIs/mailboxes. Its explicit membership and
+authenticated transport expose more metadata to the relay; the one-to-one
+guarantees and wire format in this document remain unchanged.
+
 **No push notifications, by design.** us2us does not use Apple Push
 Notification service or Firebase Cloud Messaging at all. Messages are
 received only while the app is open. The relay therefore talks to no third
@@ -399,11 +404,13 @@ Every non-2xx response except `416` (§4.9) has the body:
 | 404 | `not_found` | account / media / bundle not found |
 | 405 | `bad_request` | wrong method for a `/v1` path; `Allow` lists the right ones |
 | 409 | `username_taken` | username hash already registered |
-| 409 | `stale_version` | avatar write whose version is not above the account's highest (§4.12); with `X-Avatar-Version` |
+| 409 | `stale_version` | avatar write whose version is not above the account's highest (§4.12); with `X-Avatar-Version`. Also community state and delivery conflicts ([COMMUNITIES.md](COMMUNITIES.md)) |
+| 409 | `community_full` | community admission or roster over 100 members ([COMMUNITIES.md](COMMUNITIES.md)) |
 | 413 | `payload_too_large` | body exceeds limit |
 | 416 | — | unsatisfiable `Range` (§4.9), empty body |
 | 426 | `bad_request` | `GET /v1/ws` without a WebSocket upgrade |
 | 429 | `rate_limited` | with `Retry-After` header (seconds) |
+| 429 | `community_inbox_full` | a recipient's community inbox, or one sender's share of it, is full ([COMMUNITIES.md](COMMUNITIES.md)); with `Retry-After` |
 | 500 | `internal` | — |
 | 503 | `internal` | the relay cannot store anything right now (§4.6, §4.9); with `Retry-After` |
 

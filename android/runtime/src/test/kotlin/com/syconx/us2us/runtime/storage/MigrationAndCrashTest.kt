@@ -42,6 +42,7 @@ class MigrationAndCrashTest {
                 "local_identity", "local_account", "identities", "pre_keys", "signed_pre_keys", "kyber_pre_keys",
                 "kyber_last_resort_uses", "sessions", "key_id_counters", "contacts", "conversations", "messages",
                 "reactions", "pending_deletes", "attachments", "processed_envelopes", "outbox", "removed_messages",
+                "community_states", "community_messages", "community_outbox",
             )) {
                 assertTrue(table, table in tables)
             }
@@ -78,6 +79,47 @@ class MigrationAndCrashTest {
     }
 
     @Test
+    fun theLatestSchemaIsVersion7WithKeySlottedCommunities() {
+        assertEquals(7, Schema.latestVersion)
+        val database = rawDatabase(File(temporary.newFolder(), "main.sqlite"))
+        database.read { connection ->
+            val columns = connection.query("PRAGMA table_info(community_states)").map { it.text("name") }
+            assertTrue("a community has its own key slot", "slot_id" in columns)
+            val bodyType = connection.query("PRAGMA table_info(community_messages)").first { it.text("name") == "body" }.text("type")
+            assertEquals("bodies are sealed items, never text", "BLOB", bodyType)
+        }
+        database.close()
+    }
+
+    @Test
+    fun aVersion6DatabaseIsUpgradedTo7KeepingItsDataAndAddingCommunities() {
+        val file = File(temporary.newFolder(), "main.sqlite")
+        val old = EncryptedDatabase.open(file, ByteArray(32), Schema.migrations.take(6), PlainSqlDriver)
+        old.read { assertEquals(6L, it.pragma("PRAGMA user_version")) }
+        old.write { connection ->
+            connection.run("INSERT INTO processed_envelopes (relay_id, processed_at) VALUES (?, ?)", "env-6", 1_760_000_000_000L)
+            connection.run(
+                "INSERT INTO identities (account, identity_key, approved, verified) VALUES (?, ?, 1, 0)",
+                ByteArray(16) { 3 },
+                ByteArray(33) { 4 },
+            )
+        }
+        old.close()
+        val upgraded = rawDatabase(file)
+        upgraded.write { connection ->
+            assertEquals(7L, connection.pragma("PRAGMA user_version"))
+            assertEquals(1L, connection.scalar("SELECT count(*) FROM processed_envelopes WHERE relay_id = 'env-6'"))
+            assertEquals(1L, connection.scalar("SELECT count(*) FROM identities"))
+            assertEquals(0L, connection.scalar("SELECT count(*) FROM community_states"))
+            connection.run("INSERT INTO community_states (id, owner_key, name, slot_id) VALUES ('c', 'k', 'n', ?)", ByteArray(16) { 5 })
+            connection.run("INSERT INTO community_messages (community_id, sender, message_id, sent_at, body, status) VALUES ('c', 's', 'm', 1, ?, 'received')", byteArrayOf(1))
+            connection.run("DELETE FROM community_states WHERE id = 'c'")
+            assertEquals("a forgotten community takes its history with it", 0L, connection.scalar("SELECT count(*) FROM community_messages"))
+        }
+        upgraded.close()
+    }
+
+    @Test
     fun aDatabaseFromANewerAppVersionIsRefusedNotDamaged() {
         val file = File(temporary.newFolder(), "main.sqlite")
         rawDatabase(file).apply {
@@ -99,16 +141,17 @@ class MigrationAndCrashTest {
     fun aFailingMigrationRollsBackCompletelyAndCanBeRetried() {
         val file = File(temporary.newFolder(), "main.sqlite")
         rawDatabase(file).close()
-        val broken = Migration(7, listOf("CREATE TABLE extra (id INTEGER PRIMARY KEY)", "INSERT INTO missing VALUES (1)"))
+        val nextVersion = Schema.latestVersion + 1
+        val broken = Migration(nextVersion, listOf("CREATE TABLE extra (id INTEGER PRIMARY KEY)", "INSERT INTO missing VALUES (1)"))
         try {
             EncryptedDatabase.open(file, ByteArray(32), Schema.migrations + broken, PlainSqlDriver)
             fail("expected a failed migration")
         } catch (e: StorageException) {
-            assertEquals(7, (e.error as StorageError.MigrationFailed).version)
+            assertEquals(nextVersion, (e.error as StorageError.MigrationFailed).version)
         }
-        val fixed = Migration(7, listOf("CREATE TABLE extra (id INTEGER PRIMARY KEY)"))
+        val fixed = Migration(nextVersion, listOf("CREATE TABLE extra (id INTEGER PRIMARY KEY)"))
         val database = EncryptedDatabase.open(file, ByteArray(32), Schema.migrations + fixed, PlainSqlDriver)
-        database.read { assertEquals(7L, it.pragma("PRAGMA user_version")) }
+        database.read { assertEquals(nextVersion.toLong(), it.pragma("PRAGMA user_version")) }
         database.close()
     }
 

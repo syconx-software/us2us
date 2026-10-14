@@ -28,6 +28,30 @@ API). This README covers running it. [Türkçe özet aşağıda.](#türkçe)
 - [Configuration reference](#configuration-reference)
 - [Türkçe](#türkçe)
 
+## Communities
+
+The additive [community contract](../docs/COMMUNITIES.md) uses separate
+`/v1/communities` routes and MySQL tables. Apply migration
+`0002_misty_omega_sentinel.sql` with `pnpm db:migrate` before starting this
+relay version. The migration only adds tables and leaves existing one-to-one
+schemas and endpoints intact. Deploy the relay before mobile clients; old
+clients continue using their original mailbox. New clients handle a relay
+without community routes without interrupting one-to-one messaging.
+
+Community delivery is authenticated and persisted before acceptance, so the
+relay knows membership and sender/recipient accounts. It stores public names
+and signed rosters; private names are not uploaded. Message content remains
+encrypted with pairwise libsignal sessions. Community rows are excluded from
+the directory-only backup command below; restoring that backup therefore
+does not recover communities. Do not silently add these tables to backups
+without revising the documented retention policy.
+
+The relay checks every owner-signed roster with the owner's libsignal
+identity key before storing it, enforces the per-recipient and per-sender
+community inbox quotas on live mail only, and lets members leave and
+withdraw requests themselves. Community rate limits are the
+`RATE_LIMIT_COMMUNITY_*` settings below.
+
 ## How it works
 
 Nuxt 4 (Nitro v2, `node-server` preset), TypeScript, MySQL through drizzle-orm.
@@ -563,6 +587,11 @@ stop the relay at startup with a list of every problem.
 | `RATE_LIMIT_WS_FRAMES` | 1200/min | per account |
 | `RATE_LIMIT_ACCOUNT` | 1200/min | per account, any authenticated request |
 | `RATE_LIMIT_AUTH_FAIL` | 30/min | per IP, failed `X-Auth-Token` checks; over it, every authenticated request gets 429 |
+| `RATE_LIMIT_COMMUNITY_IP` | 12000/min | per IP, every `/v1/communities` request |
+| `RATE_LIMIT_COMMUNITY_CREATE` | 5/hour | per account, community creations |
+| `RATE_LIMIT_COMMUNITY_JOIN` | 20/min | per account, join requests and invitation redemptions |
+| `RATE_LIMIT_COMMUNITY_SEND` | 6000/min | per account, community deliveries (one per recipient) |
+| `RATE_LIMIT_COMMUNITY_API` | 600/min | per account, every other community request |
 | `TRUST_PROXY` | 0 | Take the client IP from `X-Forwarded-For` (right-most entry) |
 | `LOG_IPS` | 0 | Log the client IP of requests refused by a per-IP rate limit (abuse investigations); otherwise IPs are never logged |
 | `LOG_LEVEL` | info | error, warn, info, debug |

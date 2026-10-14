@@ -119,6 +119,57 @@ public final class RelayClient: Sendable {
         credentialsBox.withLock { $0 = credentials }
     }
 
+    // MARK: Additive communities transport (docs/COMMUNITIES.md)
+
+    public func createCommunity(_ state: SignedCommunityState) async throws -> SignedCommunityState {
+        try await json(request("POST", "communities", auth: true, body: encode(state)))
+    }
+    public func communityDirectory(query: String = "", after: String? = nil) async throws -> CommunityDirectory {
+        var items = [URLQueryItem(name: "query", value: query)]
+        if let after { items.append(URLQueryItem(name: "after", value: after)) }
+        return try await json(request("GET", "communities", query: items, auth: true))
+    }
+    public func myCommunities() async throws -> CommunityMemberships { try await json(request("GET", "communities/mine", auth: true)) }
+    public func community(_ id: AccountId) async throws -> SignedCommunityState { try await json(request("GET", "communities/\(id.string)", auth: true)) }
+    public func updateCommunity(_ id: AccountId, state: SignedCommunityState) async throws -> SignedCommunityState {
+        try await json(request("PUT", "communities/\(id.string)/state", auth: true, body: encode(state)))
+    }
+    public func requestCommunityJoin(_ id: AccountId) async throws {
+        try await perform(request("POST", "communities/\(id.string)/requests", auth: true, body: Data("{}".utf8)))
+    }
+    public func communityRequests(_ id: AccountId) async throws -> CommunityRequests { try await json(request("GET", "communities/\(id.string)/requests", auth: true)) }
+    public func rejectCommunityRequest(_ id: AccountId, account: AccountId) async throws {
+        try await perform(request("DELETE", "communities/\(id.string)/requests/\(account.string)", auth: true))
+    }
+    public func createCommunityInvite(_ id: AccountId) async throws -> CommunityInviteToken {
+        try await json(request("POST", "communities/\(id.string)/invites", auth: true, body: Data("{\"expiresInSeconds\":86400}".utf8)))
+    }
+    public func revokeCommunityInvites(_ id: AccountId) async throws { try await perform(request("DELETE", "communities/\(id.string)/invites", auth: true)) }
+    public func redeemCommunityInvite(_ invite: CommunityInvitation) async throws -> CommunitySummary {
+        struct Redemption: Encodable { let communityId: AccountId; let token: Data }
+        return try await json(request("POST", "communities/invites/redeem", auth: true, body: encode(Redemption(communityId: invite.communityId, token: invite.token))))
+    }
+    public func deleteCommunity(_ id: AccountId) async throws { try await perform(request("DELETE", "communities/\(id.string)", auth: true)) }
+    /// A member other than the owner leaves (`409` for the owner, `404` when not a member).
+    public func leaveCommunity(_ id: AccountId) async throws {
+        try await perform(request("DELETE", "communities/\(id.string)/members/me", auth: true))
+    }
+    /// Withdraws the own pending join request; idempotent.
+    public func withdrawCommunityRequest(_ id: AccountId) async throws {
+        try await perform(request("DELETE", "communities/\(id.string)/requests/me", auth: true))
+    }
+    public func sendCommunityEnvelope(_ envelope: Data, community: AccountId, recipient: AccountId, messageId: AccountId, revision: UInt64) async throws -> SendMessageResponse {
+        var request = try request("PUT", "communities/\(community.string)/messages/\(recipient.string)/\(messageId.string)", auth: true, body: envelope, contentType: "application/octet-stream")
+        request.setValue(String(revision), forHTTPHeaderField: "X-Community-Revision")
+        return try await json(request)
+    }
+    public func communityInbox() async throws -> CommunityInbox { try await json(request("GET", "communities/inbox", auth: true)) }
+    public func acknowledgeCommunity(_ ids: [String]) async throws {
+        for offset in stride(from: 0, to: ids.count, by: 100) {
+            try await perform(request("POST", "communities/inbox/ack", auth: true, body: encode(AckRequest(ids: Array(ids[offset..<min(offset + 100, ids.count)])))))
+        }
+    }
+
     // MARK: §4.1 Health
 
     public func health() async throws -> HealthResponse {
@@ -556,11 +607,12 @@ public final class RelayClient: Sendable {
     }
 
     static func error(status: Int, response: HTTPURLResponse, body: Data) -> RelayError {
+        let detail = try? JSONDecoder().decode(RelayErrorBody.self, from: body).error
         if status == 429 {
             let retryAfter = response.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+            if detail?.code == RelayErrorCode.communityInboxFull.rawValue { return .communityInboxFull(retryAfter: retryAfter) }
             return .rateLimited(retryAfter: retryAfter)
         }
-        let detail = try? JSONDecoder().decode(RelayErrorBody.self, from: body).error
         return .server(status: status, code: detail.map { RelayErrorCode(rawValue: $0.code) }, message: detail?.message)
     }
 }

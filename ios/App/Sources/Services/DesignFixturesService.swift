@@ -16,6 +16,8 @@ import Us2usKit
 @Observable
 @MainActor
 final class DesignFixturesService: MessengerService {
+    /// The design draws no communities.
+    var communities: (any CommunitiesService)? { nil }
     private(set) var account: OwnAccount?
     private(set) var connection: ConnectionState = .open
     private(set) var chats: [ChatSummary]

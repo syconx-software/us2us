@@ -9,6 +9,7 @@ import { AccountCache } from '../server/services/account-cache'
 import type { AccountStore } from '../server/services/accounts'
 import type { Mailbox } from '../server/services/mailbox'
 import { Api, b64u, ecKey, register, sha256, solvedPow, registrationBody, type TestAccount } from './support/client'
+import { communityApi } from './support/community'
 import { TestDb, uuidBytes } from './support/db'
 import { startRelay, type RelayProcess } from './support/relay'
 
@@ -261,5 +262,62 @@ describe('AUTH-5: a token rotated during an upgrade lookup must not open a socke
     // Either refusal (401) or an immediate 4401 close keeps §4.3's promise.
     expect(outcome.sessionAfterRotation).toBe(false)
     expect(outcome.upgradeStatus === 401 || socket.closedWith === CLOSE_UNAUTHORIZED).toBe(true)
+  })
+})
+
+describe('community lock order (COMMUNITIES.md)', () => {
+  let relay: RelayProcess
+  let api: Api
+  let groups: ReturnType<typeof communityApi>
+
+  beforeAll(async () => {
+    relay = await startRelay()
+    api = new Api(relay.url)
+    groups = communityApi(api)
+  })
+
+  afterAll(async () => {
+    await relay.stop()
+  })
+
+  const allowed = (statuses: number[], expected: number[]) => statuses.filter(status => !expected.includes(status))
+
+  it('AUTH-6: deleting an owner or member account while community sends run fails no request and leaves no mail', async () => {
+    const unexpected: Array<{ trial: number, statuses: number[] }> = []
+    for (let trial = 0; trial < 12; trial++) {
+      const owner = await register(api), member = await register(api), other = await register(api)
+      const group = await groups.approve(owner, await groups.created(owner), [member, other])
+      const victim = trial % 2 ? owner : member
+      const pairs: Array<[TestAccount, TestAccount]> = [[owner, member], [member, owner], [other, member], [member, other], [owner, other], [other, owner]]
+      const sends = pairs.flatMap(([from, to]) => [groups.deliver(from, to, group), groups.deliver(from, to, group)])
+      await yields(trial % 4)
+      const deletion = api.delete('/v1/accounts/me', { token: victim.authToken })
+      const statuses = (await Promise.all(sends)).map(response => response.status)
+      expect((await deletion).status).toBe(204)
+      const odd = allowed(statuses, [202, 401, 404])
+      if (odd.length > 0) unexpected.push({ trial, statuses })
+      const id = uuidBytes(victim.accountId)
+      expect(await db.count('community_envelopes WHERE sender = ? OR recipient = ?', [id, id])).toBe(0)
+      expect(await db.count('community_members WHERE account_id = ?', [id])).toBe(0)
+      if (victim === owner) expect(await db.count('communities WHERE id = ?', [uuidBytes(group.id)])).toBe(0)
+    }
+    expect(unexpected).toEqual([])
+    expect(relay.errors()).toEqual([])
+  })
+
+  it('AUTH-7: a member leaving while sends to and from it run keeps no mail for it', async () => {
+    for (let trial = 0; trial < 8; trial++) {
+      const owner = await register(api), leaver = await register(api), other = await register(api)
+      const group = await groups.approve(owner, await groups.created(owner), [leaver, other])
+      const sends = [groups.deliver(owner, leaver, group), groups.deliver(leaver, other, group), groups.deliver(other, leaver, group), groups.deliver(leaver, owner, group)]
+      await yields(trial % 4)
+      const leaving = groups.leave(leaver, group.id)
+      const statuses = (await Promise.all(sends)).map(response => response.status)
+      expect((await leaving).status).toBe(204)
+      expect(allowed(statuses, [202, 404])).toEqual([])
+      const id = uuidBytes(leaver.accountId)
+      expect(await db.count('community_envelopes WHERE community_id = ? AND (sender = ? OR recipient = ?)', [uuidBytes(group.id), id, id])).toBe(0)
+    }
+    expect(relay.errors()).toEqual([])
   })
 })

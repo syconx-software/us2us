@@ -20,6 +20,8 @@ struct StringTable: Hashable, Sendable {
     /// The contact screen's tabs, grid and list (Features/Contact).
     static let contact = StringTable(name: "Contact")
     static let settings = StringTable(name: "Settings")
+    /// Topluluklar and a community's conversation (Features/Communities).
+    static let communities = StringTable(name: "Communities")
 
     func string(_ key: String.LocalizationValue, locale: Locale) -> String {
         L10n.string(key, locale: locale, table: name)

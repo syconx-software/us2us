@@ -13,11 +13,29 @@
         ┌───────────────────────────────────────────────────────┐
         │                Relay (relay/, Nuxt 4 / Nitro)         │
         │      directory · pre-keys · mailbox · media           │
-        │  MySQL: ciphertext + public keys only, TTL ≤ 14 days  │
+        │  MySQL: encrypted mail + directory + memberships  │
         └───────────────────────────────────────────────────────┘
               No push: no APNs, no FCM, no third parties.
               Phones connect only while the app is open.
 ```
+
+## Communities extension
+
+[COMMUNITIES.md](COMMUNITIES.md) defines the additive community protocol and
+its threat model. A separate authenticated mailbox and membership tables
+keep community traffic away from legacy one-to-one delivery. Each text is
+sealed with the existing pairwise libsignal session for each of at most 99
+other members. No personal access key grants community authority.
+
+The relay additionally stores public community names, owner-signed rosters,
+requests and invitation hashes, and learns the authenticated sender and
+recipient of community deliveries. This is an explicit exception to the
+one-to-one metadata privacy below. Private names remain on devices/invites.
+Community mail expires after 14 days; acknowledged delivery identifiers and
+ciphertext digests remain until that expiry for idempotence. Community state
+has no age-based TTL and lasts until deletion. Existing account backups do
+not contain community history or owner pins; unpinned groups require a fresh
+trusted discovery/invitation after restore.
 
 ## Identifiers
 
@@ -43,9 +61,8 @@
 
 ### `relay/` — blind relay (Node.js, Nuxt 4 / Nitro, MySQL)
 A single stateless-ish process (WebSocket connections are held in memory, so
-v1 runs as **one instance**; scale-out would add a pub/sub bus). Everything
-it stores is either public (public keys) or ciphertext, and everything has a
-TTL. Runs on any Linux box behind nginx with systemd. See `relay/README.md`.
+v1 runs as **one instance**; scale-out would add a pub/sub bus). One-to-one message bodies are ciphertext with a TTL. Account directory and
+community membership metadata remain until their documented deletion conditions. Runs on any Linux box behind nginx with systemd. See `relay/README.md`.
 
 ### `ios/Us2usKit` — Swift package
 Protocol logic for iOS: key management, sealed envelopes, padding, PoW,

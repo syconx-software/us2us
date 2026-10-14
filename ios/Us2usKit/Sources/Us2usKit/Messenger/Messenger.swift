@@ -71,6 +71,9 @@ public actor Messenger {
     /// is pending any more.
     var tokenRotationRefused = false
     private var recentRelayIds = RecentIds(capacity: 2048)
+    /// Serializes every inbound decryption with the storing of its message,
+    /// across the one-to-one and community mailboxes.
+    public nonisolated let inboundTurn = InboundTurn()
     /// Profile-picture state kept in memory only (seeds, search copies, the
     /// record write in progress; Messenger+Avatar.swift).
     var avatarSession = AvatarSession()
@@ -503,6 +506,73 @@ public actor Messenger {
 
     // MARK: Sending (§4.6, §5, §6)
 
+    public func communityIdentity() throws -> CommunityMember {
+        CommunityMember(accountId: account.accountId, identityKey: try store.identityKeyPair(context: NullContext()).identityKey.serialize())
+    }
+
+    public func signCommunityState(_ state: CommunityState) throws -> SignedCommunityState {
+        guard state.owner == (try communityIdentity()) else { throw CommunityError.identityMismatch }
+        let signature = try store.identityKeyPair(context: NullContext()).privateKey.generateSignature(message: state.bytes)
+        return SignedCommunityState(state: state.bytes, signature: signature)
+    }
+
+    /// Uses existing pairwise libsignal sessions without contact/profile/access-key side effects.
+    /// The ciphertext must be durably queued before it is sent to the community transport.
+    public func sealCommunity(_ content: BRPCommunityMessage, to recipient: CommunityMember) async throws -> Data {
+        var wrapper = BRPContent(); wrapper.body = .community(content)
+        try wrapper.validateForSending()
+        if try !cipher.hasUsableSession(with: recipient.accountId) {
+            let bundle = try await relay.preKeyBundle(for: recipient.accountId)
+            guard bundle.accountId == recipient.accountId, bundle.identityKey == recipient.identityKey else {
+                throw CommunityError.memberKeyMismatch(recipient.accountId)
+            }
+            try cipher.processBundle(bundle)
+        }
+        guard try store.identity(for: recipient.accountId.protocolAddress, context: NullContext())?.serialize() == recipient.identityKey else {
+            throw CommunityError.memberKeyMismatch(recipient.accountId)
+        }
+        let envelope = try cipher.seal(wrapper, for: recipient.accountId)
+        guard envelope.count <= SealedEnvelope.maxEnvelopeBytes else { throw MessengerError.contentTooLarge }
+        return envelope
+    }
+
+    /// Validates the sealed sender against the signed roster before consuming
+    /// any ratchet state, then decrypts like ``process(_:)``. Never throws:
+    /// a malformed envelope, a sender outside the roster or a key that does
+    /// not match it is dropped (acknowledge); only a failed lookup or a local
+    /// store failure asks for a retry. Run it inside ``inboundTurn`` and store
+    /// the message in the same turn.
+    public func processCommunity(_ envelope: CommunityEnvelope, state: CommunityState) async -> InboundResult {
+        let sealed: BRPSealedContent
+        do {
+            sealed = try SealedEnvelope.open(envelope.envelope, with: try store.identityKeyPair(context: NullContext()))
+        } catch let error as SealedEnvelopeError {
+            return .dropped(.envelope(error))
+        } catch {
+            return .retryLater("identity unavailable")
+        }
+        guard let sender = AccountId(bytes: sealed.senderAccountID), let member = state.member(sender),
+              sender != account.accountId, state.member(account.accountId) != nil,
+              state.id == envelope.communityId, state.revision == envelope.revision
+        else { return .dropped(.session(.invalidContent)) }
+        // The directory must agree with the roster; process() verifies the
+        // sealed sender against the same directory.
+        let registered: IdentityResponse?
+        do {
+            registered = try await relay.identity(of: sender)
+        } catch {
+            return .retryLater("community sender lookup")
+        }
+        guard registered?.identityKey == member.identityKey else { return .dropped(.session(.invalidContent)) }
+        let result = await process(envelope.relayEnvelope)
+        if case .message(let message) = result {
+            guard message.sender == sender,
+                  (try? store.identity(for: sender.protocolAddress, context: NullContext())?.serialize()) == member.identityKey
+            else { return .dropped(.session(.invalidContent)) }
+        }
+        return result
+    }
+
     /// Encrypts, seals and sends `content`.
     ///
     /// - Parameters:
@@ -515,6 +585,7 @@ public actor Messenger {
         _ content: BRPContent, to recipient: AccountId, authorization: DeliveryAuthorization,
         includeSenderUsername: Bool = false, ephemeral: Bool = false
     ) async throws -> SendMessageResponse {
+        if case .community = content.body { throw MessengerError.invalidContent(.malformedField("community transport")) }
         if ephemeral, case .proofOfWork = authorization { throw MessengerError.ephemeralRequiresAccessKey }
         do {
             try content.validateForSending()
@@ -794,17 +865,20 @@ public actor Messenger {
     private func handle(
         _ envelope: RelayEnvelope, deliver: @Sendable (IncomingMessage) async throws -> Void
     ) async throws -> Handling {
-        if recentRelayIds.contains(envelope.id) { return .discarded }
-        switch await process(envelope) {
-        case .message(let message):
-            try await deliver(message)
-            recentRelayIds.insert(envelope.id)
-            return .delivered
-        case .dropped:
-            recentRelayIds.insert(envelope.id)
-            return .discarded
-        case .retryLater:
-            return .keep
+        // Decrypt and deliver in one inbound turn (atomic receive, shared with communities).
+        try await inboundTurn.run {
+            if recentRelayIds.contains(envelope.id) { return .discarded }
+            switch await process(envelope) {
+            case .message(let message):
+                try await deliver(message)
+                recentRelayIds.insert(envelope.id)
+                return .delivered
+            case .dropped:
+                recentRelayIds.insert(envelope.id)
+                return .discarded
+            case .retryLater:
+                return .keep
+            }
         }
     }
 

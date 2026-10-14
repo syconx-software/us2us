@@ -8,6 +8,20 @@ import Us2usStorage
 
 @Suite("Inbound semantics")
 struct InboundTests {
+    @Test func communityContentCannotCreateADirectContact() async throws {
+        let fixture = try EngineFixture()
+        await fixture.start()
+        let stranger = AccountId(uuid: UUID())
+        var message = BRPCommunityMessage()
+        message.communityID = RandomId.make(); message.revision = 1
+        message.messageID = RandomId.make(); message.sentAt = 123; message.text = "group only"
+        var content = BRPContent(); content.body = .community(message)
+        try await fixture.receive(content, from: stranger)
+        #expect(try fixture.contact(stranger) == nil)
+        #expect(try fixture.outbox().isEmpty)
+        #expect(try await fixture.engine.chatSummaries().isEmpty)
+        await fixture.engine.stop()
+    }
     @Test func aStrangersFirstMessageOpensARequest() async throws {
         let fixture = try EngineFixture()
         await fixture.start()
@@ -57,7 +71,9 @@ struct InboundTests {
         await fixture.start()
         let ids = (0..<3).map { _ in RandomId.make() }
         for id in ids { try await fixture.receive(.textMessage("hi", id: id), from: peer) }
-        try await eventually("receipt sent") { fixture.backend.sent(to: peer).contains { $0.receipt != nil } }
+        // The outbox can send the first receipt while the remaining batch is
+        // still queued; wait for the complete observed result before asserting it.
+        try await eventually("all receipts sent") { fixture.backend.sent(to: peer).compactMap(\.receipt).flatMap(\.messageIds) == ids }
         let receipts = fixture.backend.sent(to: peer).compactMap(\.receipt)
         #expect(receipts.allSatisfy { $0.type == .delivery })
         #expect(receipts.flatMap(\.messageIds) == ids)

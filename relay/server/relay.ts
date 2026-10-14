@@ -17,6 +17,7 @@ import { Mailbox } from './services/mailbox'
 import { MediaStore } from './services/media'
 import { PreKeyStore } from './services/prekeys'
 import { RetentionSweeper } from './services/retention'
+import { CommunityStore } from './services/communities'
 
 const HOUSEKEEPING_INTERVAL_MS = 60_000
 const DISK_CHECK_INTERVAL_MS = 5_000
@@ -34,6 +35,7 @@ export class Relay {
   readonly preKeys: PreKeyStore
   readonly mailbox: Mailbox
   readonly media: MediaStore
+  readonly communities: CommunityStore
   readonly persister: EnvelopePersister
   readonly sessions: SessionManager
   readonly pow: PowAuthority
@@ -56,6 +58,7 @@ export class Relay {
     this.mailbox = new Mailbox(this.database, { maxEnvelopes: config.mailboxMaxEnvelopes, maxBytes: config.mailboxMaxBytes })
     this.media = new MediaStore(this.database, config.mediaDir)
     this.disk = new DiskSpace(config.mediaDir, config.diskMinFreeBytes)
+    this.communities = new CommunityStore(this.database, bytes => this.disk.reserve(bytes))
     this.pow = new PowAuthority(config.powSecret, config.powTtlMs, {
       register: config.powDifficultyRegister,
       message: config.powDifficultyMessage,
@@ -201,6 +204,7 @@ export class Relay {
     if (this.retentionRun) return
     const started = Date.now()
     this.retentionRun = this.retention.run(started)
+      .then(async result => ({ ...result, ...await this.communities.sweep(started) }))
       .then((result) => {
         const removed = Object.values(result).reduce((sum, n) => sum + n, 0)
         if (removed > 0) this.logger.info('retention sweep', { ...result, ms: Date.now() - started })

@@ -47,6 +47,8 @@ public final class AppRuntime {
     public internal(set) var chats: [ChatSummary] = []
     /// Incoming message requests ("Mesaj istekleri").
     public internal(set) var requests: [ChatSummary] = []
+    /// Additive, foreground-only community mailbox; absent while locked or on fixture backends.
+    public private(set) var communities: CommunityService?
     /// Everyone blocked, with or without a conversation ("Engellenenler"):
     /// a ghost wipe or a deleted conversation keeps the block, and these
     /// are not in ``chats`` then.
@@ -540,6 +542,15 @@ public final class AppRuntime {
         recordingNotified = []
         ownUsername = await session.backend.username().value
         ownAvatar = await session.backend.ownAvatar()
+        if let backend = session.backend as? MessengerBackend {
+            communities?.stop()
+            let engine = session.engine
+            let service = CommunityService(
+                backend: backend, storage: session.storage,
+                onIdentityChange: { peer in await engine.noteIdentityChange(of: peer) })
+            communities = service
+            service.start()
+        }
         await refreshTokenRotationState(session)
         pendingRefresh = PendingRefresh(all: true)
         await performRefresh()
@@ -559,6 +570,8 @@ public final class AppRuntime {
     }
 
     private func clearUnlockedState() {
+        communities?.stop()
+        communities = nil
         refreshTask?.cancel()
         refreshTask = nil
         tickTask?.cancel()

@@ -42,7 +42,17 @@ message Content {
     TypingMessage typing = 3;
     ControlMessage control = 4;
     PresenceMessage presence = 5;
+    CommunityMessage community = 6; // separate community mailbox only; docs/COMMUNITIES.md
   }
+}
+
+// Additive extension. Never delivered through the legacy 1:1 mailbox.
+message CommunityMessage {
+  bytes community_id = 1;
+  uint64 revision = 2;
+  bytes message_id = 3;
+  uint64 sent_at = 4;
+  string text = 5;                   // 1..8192 UTF-8 bytes
 }
 
 // A user-visible message (bubble) or an action on one.

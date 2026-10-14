@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flowOf
  * anything else thrown means the action did not happen.
  */
 interface MessengerService {
+    val communities: CommunitiesService? get() = null
     // MARK: Account & onboarding (01–02)
 
     /** `null` before onboarding finished on this device. */

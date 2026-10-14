@@ -61,6 +61,9 @@ tasks.test {
     inputs.property("relayUrl", providers.environmentVariable("RELAY_URL").orElse(""))
     // The Swift implementation's vectors are verified here: a change there must rerun the tests.
     inputs.files(specDir.dir("test-vectors/swift").asFileTree).withPropertyName("swiftVectors").withPathSensitivity(PathSensitivity.RELATIVE)
+    // Shared community vectors (state bytes, names, invalid states); a new file must rerun the tests too.
+    inputs.files(specDir.dir("test-vectors").asFileTree.matching { include("communities*.json") })
+        .withPropertyName("communityVectors").withPathSensitivity(PathSensitivity.RELATIVE)
     // The username case table shared with the iOS app.
     inputs.file(specDir.file("username-rules.json")).withPropertyName("usernameRules").withPathSensitivity(PathSensitivity.RELATIVE)
     // Test vectors are written by the tests themselves; never serve them from the build cache.

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { identityKey } from './identity'
 
 export const b64u = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url')
 export const fromB64u = (value: string) => Buffer.from(value, 'base64url')
@@ -97,7 +98,7 @@ export function kyberKeys(firstId: number, count: number) {
 export function registrationBody(overrides: Record<string, unknown> = {}) {
   return {
     usernameHash: b64u(randomBytes(32)),
-    identityKey: b64u(ecKey()),
+    identityKey: b64u(identityKey()),
     registrationId: 1234,
     signedPreKey: { keyId: 1, publicKey: b64u(ecKey()), signature: b64u(signature()) },
     kyberLastResortKey: { keyId: 1, publicKey: b64u(kemKey()), signature: b64u(signature()) },

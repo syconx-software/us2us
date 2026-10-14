@@ -12,9 +12,11 @@ import {
 } from 'drizzle-orm/mysql-core'
 
 /*
- * Everything the relay stores (PROTOCOL.md §4.10, ARCHITECTURE.md): public
- * keys, ciphertext, hashes of secrets, and timestamps. No usernames, no
- * contacts, no content, no device or push tokens. All times are UTC
+ * One-to-one storage (PROTOCOL.md §4.10): public keys, ciphertext,
+ * hashes of secrets, and timestamps. No usernames, personal contacts,
+ * plaintext message content, device or push tokens. The opt-in community
+ * extension additionally stores public names, signed membership, requests
+ * and authenticated delivery metadata (COMMUNITIES.md). All times are UTC
  * milliseconds in BIGINT columns, except the deliberately coarse last-seen
  * DATE.
  *
@@ -28,6 +30,10 @@ const binary = customType<BytesConfig>({ dataType: ({ length }) => `binary(${len
 const varbinary = customType<BytesConfig>({ dataType: ({ length }) => `varbinary(${length})` })
 const mediumblob = customType<{ data: Buffer, driverData: Buffer }>({ dataType: () => 'mediumblob' })
 const blob = customType<{ data: Buffer, driverData: Buffer }>({ dataType: () => 'blob' })
+/** Text pinned to utf8mb4 whatever the server's default character set: community names may hold any code point, emoji included. */
+const utf8mb4 = customType<{ data: string, driverData: string, config: { length: number }, configRequired: true }>({
+  dataType: ({ length }) => `varchar(${length}) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`,
+})
 
 export const accounts = mysqlTable('accounts', {
   id: binary('id', { length: 16 }).primaryKey(),
@@ -128,4 +134,60 @@ export const usedPowTokens = mysqlTable('used_pow_tokens', {
   expiresAt: bigint('expires_at', { mode: 'number', unsigned: true }).notNull(),
 }, table => [
   index('used_pow_tokens_expires_at').on(table.expiresAt),
+])
+
+/** Opt-in communities expose membership metadata; see docs/COMMUNITIES.md. */
+export const communities = mysqlTable('communities', {
+  id: binary('id', { length: 16 }).primaryKey(),
+  owner: binary('owner', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  visibility: tinyint('visibility', { unsigned: true }).notNull(),
+  name: utf8mb4('name', { length: 120 }).notNull(),
+  searchName: utf8mb4('search_name', { length: 120 }).notNull(),
+  revision: bigint('revision', { mode: 'number', unsigned: true }).notNull(),
+  state: blob('state').notNull(),
+  signature: binary('signature', { length: 64 }).notNull(),
+}, table => [index('communities_directory').on(table.visibility, table.searchName), index('communities_owner').on(table.owner)])
+
+export const communityMembers = mysqlTable('community_members', {
+  communityId: binary('community_id', { length: 16 }).notNull().references(() => communities.id, { onDelete: 'cascade' }),
+  accountId: binary('account_id', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+}, table => [primaryKey({ columns: [table.communityId, table.accountId] }), index('community_members_account').on(table.accountId)])
+
+export const communityRequests = mysqlTable('community_requests', {
+  communityId: binary('community_id', { length: 16 }).notNull().references(() => communities.id, { onDelete: 'cascade' }),
+  accountId: binary('account_id', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  createdAt: bigint('created_at', { mode: 'number', unsigned: true }).notNull(),
+}, table => [primaryKey({ columns: [table.communityId, table.accountId] })])
+
+export const communityInvites = mysqlTable('community_invites', {
+  tokenHash: binary('token_hash', { length: 32 }).primaryKey(),
+  communityId: binary('community_id', { length: 16 }).notNull().references(() => communities.id, { onDelete: 'cascade' }),
+  expiresAt: bigint('expires_at', { mode: 'number', unsigned: true }).notNull(),
+  redeemedBy: binary('redeemed_by', { length: 16 }),
+}, table => [index('community_invites_group').on(table.communityId), index('community_invites_expiry').on(table.expiresAt)])
+
+/**
+ * Community deliveries. `size` is the stored body's length, and 0 once the
+ * body is gone (acknowledged, or obsolete after a roster change); the row
+ * stays as a retry tombstone until it expires. Quotas count only live rows
+ * (size > 0, not expired) from the two covering indexes, without reading
+ * bodies: per recipient (`community_inbox`) and per community, sender and
+ * recipient (`community_sender`, which also serves the sender's foreign key).
+ */
+export const communityEnvelopes = mysqlTable('community_envelopes', {
+  id: binary('id', { length: 16 }).primaryKey(),
+  communityId: binary('community_id', { length: 16 }).notNull().references(() => communities.id, { onDelete: 'cascade' }),
+  sender: binary('sender', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  recipient: binary('recipient', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  messageId: binary('message_id', { length: 16 }).notNull(),
+  revision: bigint('revision', { mode: 'number', unsigned: true }).notNull(),
+  serverTimestamp: bigint('server_ts', { mode: 'number', unsigned: true }).notNull(),
+  digest: binary('digest', { length: 32 }).notNull(),
+  size: int('size', { unsigned: true }).notNull(),
+  body: mediumblob('body'),
+}, table => [
+  uniqueIndex('community_delivery').on(table.communityId, table.sender, table.recipient, table.messageId),
+  index('community_inbox').on(table.recipient, table.serverTimestamp, table.size),
+  index('community_sender').on(table.sender, table.communityId, table.recipient, table.serverTimestamp, table.size),
+  index('community_expiry').on(table.serverTimestamp),
 ])

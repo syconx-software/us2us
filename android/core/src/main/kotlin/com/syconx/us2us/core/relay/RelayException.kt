@@ -16,6 +16,12 @@ enum class RelayErrorCode(val wire: String) {
 
     PAYLOAD_TOO_LARGE("payload_too_large"),
     RATE_LIMITED("rate_limited"),
+
+    /** `409`: a join request, redemption or roster would pass 100 members (COMMUNITIES.md, Errors). */
+    COMMUNITY_FULL("community_full"),
+
+    /** `429` with `Retry-After`: the recipient's community mail (or this sender's share of it) is full. */
+    COMMUNITY_INBOX_FULL("community_inbox_full"),
     INTERNAL("internal"),
 
     /** A code this client does not know yet, or a non-JSON error from a proxy in front of the relay. */

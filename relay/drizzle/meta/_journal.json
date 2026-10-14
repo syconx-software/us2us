@@ -15,6 +15,13 @@
       "when": 1791724147744,
       "tag": "0001_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1791966136813,
+      "tag": "0002_misty_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

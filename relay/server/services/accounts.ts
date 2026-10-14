@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNotNull, isNull, lt, lte, ne } from 'drizzle-orm'
-import { isDuplicateKey, type Database, type Db } from '../db/client'
-import { accounts, avatars, envelopes, media, oneTimePreKeys, usernames } from '../db/schema'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, ne } from 'drizzle-orm'
+import { isDuplicateKey, retryOnDeadlock, type Database, type Db } from '../db/client'
+import { accounts, avatars, communities, envelopes, media, oneTimePreKeys, usernames } from '../db/schema'
 import { constantTimeEqual, sha256 } from '../lib/crypto'
 import type { RegistrationRequest } from '../lib/validation'
 import { insertOneTimePreKeys } from './prekeys'
@@ -211,9 +211,16 @@ export class AccountStore {
    * rows are gone. The account row is locked first, so that a username
    * change, key upload or media upload running at the same time either
    * finishes before (and is deleted here) or finds the account gone.
+   *
+   * The foreign keys cascade to the account's community rows, including the
+   * communities it owns. Community transactions lock a community row before
+   * account rows, so the owned communities are locked first here too; a
+   * remaining deadlock (on rows the cascade reaches) is retried.
    */
   async delete(accountId: Buffer): Promise<Buffer[]> {
-    return this.database.transaction(async (tx) => {
+    return retryOnDeadlock(() => this.database.transaction(async (tx) => {
+      await tx.select({ id: communities.id }).from(communities)
+        .where(eq(communities.owner, accountId)).orderBy(asc(communities.id)).for('update')
       if (!await lockAccount(tx, accountId)) return []
       const uploads = await tx.select({ id: media.id }).from(media).where(eq(media.uploader, accountId))
       await tx.delete(media).where(eq(media.uploader, accountId))
@@ -223,7 +230,7 @@ export class AccountStore {
       await tx.delete(usernames).where(eq(usernames.accountId, accountId))
       await tx.delete(accounts).where(eq(accounts.id, accountId))
       return uploads.map(row => row.id)
-    })
+    }))
   }
 }
 

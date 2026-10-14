@@ -43,6 +43,13 @@ export interface RateLimits {
   account: Rate
   /** Failed `X-Auth-Token` checks per client address (§4.11). */
   authFail: Rate
+  /** Community routes (COMMUNITIES.md): all of them per client address, */
+  communityIp: Rate
+  /** and per account: creations, join requests and invitation redemptions, deliveries, everything else. */
+  communityCreate: Rate
+  communityJoin: Rate
+  communitySend: Rate
+  communityApi: Rate
 }
 
 export interface RelayConfig {
@@ -195,6 +202,11 @@ export function loadConfig(source: Env = process.env): RelayConfig {
       wsFrames: env.rate('RATE_LIMIT_WS_FRAMES', { limit: 1200, windowMs: MINUTE }),
       account: env.rate('RATE_LIMIT_ACCOUNT', { limit: 1200, windowMs: MINUTE }),
       authFail: env.rate('RATE_LIMIT_AUTH_FAIL', { limit: 30, windowMs: MINUTE }),
+      communityIp: env.rate('RATE_LIMIT_COMMUNITY_IP', { limit: 12000, windowMs: MINUTE }),
+      communityCreate: env.rate('RATE_LIMIT_COMMUNITY_CREATE', { limit: 5, windowMs: HOUR }),
+      communityJoin: env.rate('RATE_LIMIT_COMMUNITY_JOIN', { limit: 20, windowMs: MINUTE }),
+      communitySend: env.rate('RATE_LIMIT_COMMUNITY_SEND', { limit: 6000, windowMs: MINUTE }),
+      communityApi: env.rate('RATE_LIMIT_COMMUNITY_API', { limit: 600, windowMs: MINUTE }),
     },
   }
 

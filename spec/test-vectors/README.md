@@ -42,6 +42,18 @@ All binary values are **lowercase hex**. Strings are UTF-8 JSON strings.
 | `fingerprint.json` | `localId`, `localKey`, `remoteId`, `remoteKey`, `displayable`, `scannable` | libsignal NumericFingerprintGenerator(5200), version 2 |
 | `avatar-record.json` | `username` (normalized), `accountId` (16 B), `version` (decimal string), `nonce` (12 B), `profileAvatar` (protobuf), `seed`, `avatarKey`, `record`, `valid` | PROTOCOL.md §8.10: PBKDF2 and HKDF give `seed` and `avatarKey`; for `"valid": true`, sealing `profileAvatar` with `version` and `nonce` gives `record`, and opening `record` with `username` and `accountId` gives `profileAvatar`; opening fails with another username or another account id. Include `ProfileAvatar{preset_id: 1}`; photos whose serialized `ProfileAvatar` is 8150, 8151, 16342, 16343, 32726, 32727 and 49110 bytes long (records of 8192, 16384, 16384, 32768, 32768, 49152 and 49152 bytes); a version ≥ 2^32; and one `"valid": false` (a flipped ciphertext byte) that must fail to open. Sealers must also refuse a `ProfileAvatar` of 49111 bytes (no vector) |
 
+## Shared community vectors
+
+Three files at the top level are shared by Swift, Kotlin and the relay
+(`relay/test/unit/community.test.ts`) instead of being generated per
+platform; see [COMMUNITIES.md](../../docs/COMMUNITIES.md):
+
+| File | Vector fields | Verifier checks |
+|---|---|---|
+| `communities.json` | one signed state: `stateHex`, `state`, `signature`, `ownerIdentityKey`, `contentHex`, ... | the state decodes and the libsignal signature verifies with the owner key |
+| `communities-invalid.json` | `reason`, `stateHex`, `valid` | the canonical state decoder accepts exactly the `"valid": true` states |
+| `communities-names.json` | `description`, `name`, `valid`, `canonical` (null if invalid) | the name rule turns `name` into `canonical`, or refuses it |
+
 Keys used by generators (`recipientIdentityKeyPair`, `localKey`, ...) are
 generated once and written into the vector, so verifiers never need the
 generator's randomness.

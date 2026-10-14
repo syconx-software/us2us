@@ -111,7 +111,8 @@ internal object WipeService {
             var orphanSlots = 0
             var orphanFiles = 0
             if (collectGarbage) {
-                val referencedSlots = tx.connection.query("SELECT slot_id FROM conversations")
+                // Communities keep their own slots (CommunityRepository); only unreferenced ones go.
+                val referencedSlots = tx.connection.query("SELECT slot_id FROM conversations UNION SELECT slot_id FROM community_states")
                     .mapNotNullTo(HashSet()) { row -> row.blob("slot_id")?.let(::slotIdOf) }
                 for (slotId in storage.keyring.slotIds() - referencedSlots) {
                     storage.keyring.destroy(slotId)

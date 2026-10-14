@@ -56,7 +56,7 @@ tutuyor mu?*
   geçer ve kimin ne zaman mesaj aldığını onlara söyler. us2us bildirim
   göndermez; mesajların uygulamayı açtığında gelir. Cevap vermek için herkes
   kendi zamanını seçer.
-- **Konuşmalar yalnızca iki telefonda.** Bulut yedeği yok, sunucuda geçmiş yok.
+- **Bire bir konuşmalar yalnızca iki telefonda.** Bulut yedeği yok, sunucuda geçmiş yok.
 - **Gizli kodla kilitli.** Telefondaki her şey, 6 haneli gizli kodundan ve
   telefondan hiç çıkmayan bir cihaz sırrından türetilen bir anahtarla
   şifrelenir. iPhone'da her deneme ayrıca Secure Enclave'den hiç çıkmayan bir
@@ -72,6 +72,17 @@ tutuyor mu?*
   şifrelenmiş tek bir dosyaya aktarırsın. Mesajlar yedeğe hiç girmez.
 - **Rehberine dokunmaz.** Davet ederken alıcıyı sistemin kendi ekranında sen
   seçersin; us2us kişi listeni okumaz, hiçbir yere yüklemez.
+
+### Topluluklar
+
+En fazla 100 üyeli, yönetici onaylı açık veya davetli topluluklar da vardır.
+İlk sürüm yalnızca metin destekler; her mesaj mevcut libsignal oturumuyla
+her alıcı için ayrı şifrelenir. Sunucu topluluk üyeliğini, açık topluluk
+adını ve mesajların gönderen/alıcı hesaplarını bilir. Gizli topluluk adı
+yalnızca cihazlarda ve davet kodunda bulunur. Bu özellik bire bir sohbetin
+metadata mahremiyetiyle aynı değildir; üyelik değişiminde bekleyen eski
+sürüm mesajları düşebilir. Topluluk geçmişi ve güvenilen yönetici anahtarları
+hesap yedeğine dahil değildir. Ayrıntılar: [tehdit modeli ve protokol](docs/COMMUNITIES.md).
 
 ### Söz veremeyeceklerimiz
 
@@ -185,7 +196,7 @@ conversation between those two people?*
   Google's servers and tell them who gets messages and when. us2us sends none;
   your messages arrive when you open the app. Everyone chooses their own time
   to answer.
-- **Conversations live only on the two phones.** No cloud backup, no history on
+- **One-to-one conversations live only on the two phones.** No cloud backup, no history on
   the server.
 - **Locked with a secret code.** Everything on the phone is encrypted with a key
   derived from your 6-digit secret code and a device secret that never leaves
@@ -202,6 +213,18 @@ conversation between those two people?*
   locked with a separate backup password. Messages are never included.
 - **Your contacts stay yours.** When you invite someone you pick the recipient
   in the system's own screen; us2us never reads or uploads your address book.
+
+### Communities
+
+Public or invitation-only communities support up to 100 members, with owner
+approval required for either kind. The first release supports text only;
+each recipient gets a separate message encrypted through existing libsignal
+sessions. The relay knows membership, public community names and the sender
+and recipient accounts of community messages. Private names stay on devices
+and in invitation codes. This has different metadata privacy from one-to-one
+chat; a membership change can drop pending messages from the old revision.
+Community history and trusted owner keys are excluded from account backups.
+See the [threat model and protocol](docs/COMMUNITIES.md).
 
 ### What we cannot promise
 

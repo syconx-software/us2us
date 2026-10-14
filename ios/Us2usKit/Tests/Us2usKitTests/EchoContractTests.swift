@@ -101,6 +101,7 @@ extension BRPContent {
         case .receipt: return "receipt"
         case .typing: return "typing"
         case .presence: return "presence"
+        case .community: return "community"
         case .none: return "none"
         }
     }
