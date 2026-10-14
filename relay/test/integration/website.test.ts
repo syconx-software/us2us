@@ -216,15 +216,20 @@ describe('website', () => {
     expect(en).toContain('Please write to security@us2us.app')
   })
 
-  it('dates the privacy policy 11 October 2026 and covers TestFlight and the security address', async () => {
+  it('dates the privacy policy 14 October 2026 and covers TestFlight and the security address', async () => {
     const tr = textOf(await html('/tr/gizlilik'))
     const en = textOf(await html('/en/privacy'))
-    expect(tr).toContain('Son güncelleme: 11 Ekim 2026')
-    expect(en).toContain('Last updated: 11 October 2026')
+    expect(tr).toContain('Son güncelleme: 14 Ekim 2026')
+    expect(en).toContain('Last updated: 14 October 2026')
     expect(tr).toContain('us2us’ı TestFlight ile deniyorsanız')
     expect(en).toContain('if you test us2us with TestFlight')
     expect(tr).toContain('Bir güvenlik açığı bulduysanız security@us2us.app adresine yazın.')
     expect(en).toContain('Found a security problem? Please write to security@us2us.app')
+    // Both languages say how community data goes away.
+    expect(tr).toContain('Yöneticinin hesabı silindiğinde (uygulamadan ya da 180 gün hiç bağlanılmadığında kendiliğinden) toplulukları da aynı şekilde silinir.')
+    expect(en).toContain('When the owner’s account is deleted, in the app or automatically after 180 days without a connection, their communities are deleted the same way.')
+    expect(tr).toContain('Üyeler bir topluluktan istedikleri zaman ayrılabilir')
+    expect(en).toContain('A member can leave a community at any time')
     expect(tr).not.toContain('konu satırına “security”')
     expect(en).not.toContain('“security” in the subject line')
     // Vault format v2 comes with 1.0.5 and the first code entry.

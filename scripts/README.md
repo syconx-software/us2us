@@ -14,11 +14,40 @@ scripts/interop.sh --no-build  # reuse the existing builds
 
 | Step | What runs |
 |---|---|
-| 1 | Builds the relay (`pnpm build`), the Kotlin bot and the iOS test bundle; creates and migrates a scratch database (`us2us_interop_<time>_<pid>`); starts the relay on a free port with low proof-of-work, rate limits off and a long `WS_ACK_TIMEOUT_MS` |
+| 1 | Builds the relay (`pnpm build`), the Kotlin bot and tests, and the iOS test bundles (`Us2usKit`, `Us2usAppCore`); creates and migrates a scratch database (`us2us_interop_<time>_<pid>`); starts the relay on a free port with low proof-of-work, rate limits off and a long `WS_ACK_TIMEOUT_MS` |
 | 2 | Kotlin `LiveRelayTest` and Swift `LiveRelayTests` against it |
 | 3 | The Kotlin `us2us-bot` as an echo bot, then **3a** iOS → bot (`LiveEchoBotTests`: message request with proof-of-work, ACCEPT and access key, Turkish text, attachment, location, receipts, profiles, presence, ghost settings, `ConversationWipe`, account deletion), **3b** Kotlin → bot and **3c** Kotlin → iOS (`LiveEchoBotTest` against the Swift `LiveEchoResponderTests`) |
+| 3d | Communities (`docs/COMMUNITIES.md`) between the Kotlin `LiveCommunityInteropTest` (two Android app runtimes on Robolectric, `android/runtime`) and the Swift `LiveCommunityInteropTests` (the iOS runtime, `Us2usAppCore`); see below |
 | 4 | `relay/scripts/restart-check.mjs` streams envelopes to an online recipient that never acknowledges and to an offline one; the relay gets SIGTERM in the middle of it and is started again on the same database: every envelope it answered `202` must come back (the fast-path flush). **4b**: the bot, connected throughout, still answers |
 | 5 | Stops everything, checks the relay's exit status and that its logs have no error lines, drops the database |
+
+Step 3d plays one script on both sides; they meet in `<work>/communities/`,
+where each writes one JSON file per step (`kotlin-<step>.json`,
+`ios-<step>.json`) and waits for the other's; a side that fails writes
+`<side>-failed.json` and the other stops waiting. Kotlin plays the owner K1
+and a third account K3, iOS plays S:
+
+1. K1 creates the public community "Aile 👨‍👩‍👧"; S finds it by search and
+   asks to join; K1 approves (signed revision 2); S checks the roster
+   against the owner key from the directory; S and K1 text each other.
+2. S creates a private community and two invitations; K3 and K1 redeem
+   them and S approves both; K3 also joins the public community. Texts go
+   both ways, and nobody became anybody's personal contact.
+3. K1 and S start a one-to-one conversation (request, acceptance, reply)
+   on the ratchet the communities already use.
+4. S removes K3: the copy queued for K3 is purged, K3 can no longer read
+   the state or send (`404`), S and K1 go on.
+5. K3 leaves the public community (`DELETE …/members/me`, `204`); S's next
+   message still reaches K1; K1 publishes revision 4 without K3; S and K1
+   go on, the one-to-one conversation too, and neither path shows the
+   other's texts.
+
+Community rate limits are off as well (`RATE_LIMIT_COMMUNITY_*`). To run
+3d alone against a relay of your own, start
+`xcodebuild test-without-building … -only-testing:Us2usRuntimeTests/LiveCommunityInteropTests`
+with `TEST_RUNNER_RELAY_URL` and `TEST_RUNNER_COMMUNITY_DIR`, and
+`RELAY_URL=… COMMUNITY_DIR=… ./gradlew :runtime:testDebugUnitTest --tests '*LiveCommunityInteropTest'`
+with the same (empty) directory.
 
 Every step prints PASS, FAIL or SKIP and the exit status is 1 if one failed.
 Logs, state files and `summary.txt` stay in the work directory it prints.
@@ -33,7 +62,9 @@ databases, default `mysql://root@127.0.0.1:3307`), `INTEROP_DESTINATION`
 > üzerinden Kotlin ve Swift kütüphanelerinin birlikte çalıştığını sınar:
 > canlı testler, Kotlin yankı botu ile iOS arasında iki yönlü konuşma (mesaj
 > isteği, Türkçe metin, ek, konum, okundu/iletildi bilgisi, "aktif" durumu,
-> hayalet mod, konuşma silme) ve trafik sürerken relay'in SIGTERM ile
+> hayalet mod, konuşma silme), iki platform arasında topluluklar (herkese
+> açık topluluğu arama ve katılma isteği, onay, davetle özel topluluk,
+> üye çıkarma, ayrılma, yanında birebir sohbet) ve trafik sürerken relay'in SIGTERM ile
 > durdurulup yeniden başlatılması (kabul edilen hiçbir zarf kaybolmamalı).
 > Geçici veritabanını kendisi oluşturur ve sonunda siler.
 

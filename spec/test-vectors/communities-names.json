@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "category": "communities-names",
+  "note": "The community name rule (COMMUNITIES.md, Names). \"name\" is the input; a valid name is trimmed to \"canonical\", the exact text a signed state or invitation carries. Invalid inputs have \"canonical\": null.",
+  "vectors": [
+    {
+      "description": "plain Turkish",
+      "name": "Kitap Kulübü",
+      "valid": true,
+      "canonical": "Kitap Kulübü"
+    },
+    {
+      "description": "emoji ZWJ sequence (U+200D)",
+      "name": "Aile 👨\u200d👩\u200d👧",
+      "valid": true,
+      "canonical": "Aile 👨\u200d👩\u200d👧"
+    },
+    {
+      "description": "variation selector U+FE0F",
+      "name": "Sevgi ❤\ufe0f Grubu",
+      "valid": true,
+      "canonical": "Sevgi ❤\ufe0f Grubu"
+    },
+    {
+      "description": "U+200B ZERO WIDTH SPACE is neither trimmed nor refused",
+      "name": "Kitap\u200bKulübü",
+      "valid": true,
+      "canonical": "Kitap\u200bKulübü"
+    },
+    {
+      "description": "U+FEFF is neither trimmed nor refused",
+      "name": "\ufeffKitap",
+      "valid": true,
+      "canonical": "\ufeffKitap"
+    },
+    {
+      "description": "surrounding spaces are trimmed",
+      "name": "  Kitap Kulübü  ",
+      "valid": true,
+      "canonical": "Kitap Kulübü"
+    },
+    {
+      "description": "surrounding U+00A0 and U+3000 are trimmed",
+      "name": "\u00a0Kitap\u3000",
+      "valid": true,
+      "canonical": "Kitap"
+    },
+    {
+      "description": "surrounding U+2028 and U+205F are trimmed",
+      "name": "\u2028Kitap\u205f",
+      "valid": true,
+      "canonical": "Kitap"
+    },
+    {
+      "description": "U+202E RIGHT-TO-LEFT OVERRIDE",
+      "name": "Kitap\u202eKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+202A LEFT-TO-RIGHT EMBEDDING",
+      "name": "Kitap\u202aKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+2066 LEFT-TO-RIGHT ISOLATE",
+      "name": "Kitap\u2066Kulübü\u2069",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+2069 POP DIRECTIONAL ISOLATE alone",
+      "name": "Kitap\u2069",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+200F RIGHT-TO-LEFT MARK",
+      "name": "Kitap\u200fKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+200E LEFT-TO-RIGHT MARK",
+      "name": "Kitap\u200eKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+061C ARABIC LETTER MARK",
+      "name": "Kitap\u061cKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "TAB inside",
+      "name": "Kitap\tKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "TAB at the edge is a control, not trimmed",
+      "name": "\tKitap",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "line feed at the end",
+      "name": "Kitap\n",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+001F is not trimmed",
+      "name": "\u001fKitap",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+0000",
+      "name": "Kitap\u0000",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+007F DELETE",
+      "name": "Kitap\u007f",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+0085 NEXT LINE",
+      "name": "Kitap\u0085Kulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+0085 at the edge is a control, not trimmed",
+      "name": "Kitap\u0085",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+009F",
+      "name": "Kitap\u009fKulübü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "empty",
+      "name": "",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "spaces only",
+      "name": "   ",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "U+00A0 and U+3000 only",
+      "name": "\u00a0\u3000",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "exactly 120 UTF-8 bytes",
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaü",
+      "valid": true,
+      "canonical": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaü"
+    },
+    {
+      "description": "121 UTF-8 bytes",
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaü",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "30 four-byte emoji: 120 bytes",
+      "name": "👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋",
+      "valid": true,
+      "canonical": "👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋"
+    },
+    {
+      "description": "30 four-byte emoji and one letter: 121 bytes",
+      "name": "👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋a",
+      "valid": false,
+      "canonical": null
+    },
+    {
+      "description": "120 bytes once trimmed",
+      "name": "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ",
+      "valid": true,
+      "canonical": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

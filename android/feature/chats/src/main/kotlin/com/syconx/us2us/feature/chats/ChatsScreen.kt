@@ -153,6 +153,7 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
     var showsQRMenu by remember { mutableStateOf(false) }
     var myCode by remember { mutableStateOf<MyCodePresentation?>(null) }
     var showsScanner by remember { mutableStateOf(false) }
+    var showsCommunities by remember { mutableStateOf(false) }
     var invite by remember { mutableStateOf<InvitePresentation?>(null) }
     var pendingChat by remember { mutableStateOf<ChatId?>(null) }
     // The own contact code, loaded up front so “Kodumu göster” rises complete.
@@ -258,6 +259,7 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
                 chats = chats,
                 listState = listState,
                 onNewChat = { newChat = NewChatPresentation() },
+                onCommunities = { showsCommunities = true },
                 modifier = Modifier.u2BackdropSource(backdrop),
             )
         }
@@ -276,6 +278,9 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
         )
     }
 
+    U2FadeCover(isPresented = showsCommunities, onEscape = { showsCommunities = false }) {
+        messenger.communities?.let { CommunitiesScreen(it) { showsCommunities = false } }
+    }
     U2Sheet(item = newChat, onDismissRequest = { newChat = null }, onDismissed = ::openPendingChat) { presentation ->
         key(presentation.id) {
             NewChatSheetContent(
@@ -351,6 +356,7 @@ private fun ChatList(
     chats: List<ChatSummary>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onNewChat: () -> Unit,
+    onCommunities: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val app = LocalAppModel.current
@@ -374,6 +380,11 @@ private fun ChatList(
     ) {
         item(key = "title", contentType = "title") {
             TitleBlock(connection, Modifier.u2Top(100.dp))
+        }
+        if (messenger.communities != null) item(key = "communities", contentType = "card") {
+            U2TextButton(onClick = onCommunities, modifier = Modifier.testTag("chats.communities")) {
+                U2Text(stringResource(R.string.community_title), U2TextStyles.callout)
+            }
         }
         item(key = "access", contentType = "card") {
             AnimatedVisibility(

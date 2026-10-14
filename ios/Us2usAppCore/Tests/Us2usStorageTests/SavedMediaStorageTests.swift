@@ -202,6 +202,10 @@ struct SavedMediaStorageTests {
             }
             // Back to what a v5 database looks like.
             try storage.database.write { connection in
+                try connection.execute("DROP TABLE community_outbox")
+                try connection.execute("DROP TABLE community_messages")
+                try connection.execute("DROP TABLE community_envelopes")
+                try connection.execute("DROP TABLE communities")
                 try connection.execute("DROP INDEX messages_attachments")
                 try connection.execute("ALTER TABLE messages DROP COLUMN saved_by_peer_at")
                 try connection.execute("ALTER TABLE messages DROP COLUMN saved_by_me_at")
@@ -212,7 +216,7 @@ struct SavedMediaStorageTests {
         let storage = try environment.open(now: t0)
         defer { storage.close() }
         let version = try storage.database.locked { try $0.scalar("PRAGMA user_version") }
-        #expect(version == .integer(6))
+        #expect(version == .integer(Int64(Schema.latestVersion)))
         let messages = try storage.read { try $0.messages.page(in: conversationId, now: t0) }
         #expect(messages.count == 2)
         #expect(messages.allSatisfy { $0.timestamps.savedByPeerAt == nil && $0.timestamps.savedByMeAt == nil })

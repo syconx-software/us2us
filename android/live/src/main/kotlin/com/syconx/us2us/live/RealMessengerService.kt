@@ -137,6 +137,7 @@ class RealMessengerService(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val sharingNotice: SharingNotice = ForegroundSharingNotice(platform),
 ) : MessengerService {
+    override val communities: com.syconx.us2us.domain.CommunitiesService = RealCommunitiesService(runtime)
     private val scope = CoroutineScope(SupervisorJob() + main)
     private val context get() = platform.context
     private val pickers = SystemPickers(platform.context)

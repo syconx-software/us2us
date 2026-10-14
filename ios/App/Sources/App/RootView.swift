@@ -97,6 +97,10 @@ struct MainStackView: View {
                 BackupExportView()
             case .settingsPage(let page):
                 SettingsPageView(page: page)
+            case .communities:
+                CommunitiesView()
+            case .community(let id):
+                CommunityConversationView(communityID: id)
             }
         }
     }

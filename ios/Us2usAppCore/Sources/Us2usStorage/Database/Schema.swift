@@ -9,7 +9,17 @@
 /// is additionally an item under the conversation key CK (§5.3), so
 /// crypto-shredding a conversation leaves only unreadable ciphertext.
 enum Schema {
-    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6]
+    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7]
+
+    /// Additive tables: the one-to-one schema and its records are untouched.
+    static let v7 = Migration(version: 7, statements: [
+        "CREATE TABLE communities (id BLOB PRIMARY KEY, owner_key BLOB NOT NULL, name TEXT NOT NULL, signed_state BLOB, slot_id BLOB NOT NULL, active INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID",
+        // `received_at` (local) orders a conversation; `sent_at` is the sender's clamped claim.
+        "CREATE TABLE community_messages (community_id BLOB NOT NULL REFERENCES communities(id) ON DELETE CASCADE, sender BLOB NOT NULL, message_id BLOB NOT NULL, body BLOB NOT NULL, sent_at INTEGER NOT NULL, received_at INTEGER NOT NULL, outgoing INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY(community_id,sender,message_id)) WITHOUT ROWID",
+        "CREATE INDEX community_messages_order ON community_messages(community_id, received_at)",
+        "CREATE TABLE community_outbox (community_id BLOB NOT NULL REFERENCES communities(id) ON DELETE CASCADE, message_id BLOB NOT NULL, recipient BLOB NOT NULL, revision INTEGER NOT NULL, envelope BLOB NOT NULL, PRIMARY KEY(community_id,message_id,recipient)) WITHOUT ROWID",
+        "CREATE TABLE community_envelopes (id TEXT PRIMARY KEY, received_at INTEGER NOT NULL) WITHOUT ROWID"
+    ])
 
     static var latestVersion: Int { migrations.map(\.version).max() ?? 0 }
 

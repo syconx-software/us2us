@@ -10,6 +10,8 @@ export type ErrorCode =
   | 'payload_too_large'
   | 'rate_limited'
   | 'internal'
+  | 'community_full'
+  | 'community_inbox_full'
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +48,9 @@ export const rateLimited = (retryAfterSeconds: number, message = 'too many reque
 /** The relay is short of disk space or cannot store fast enough; the client retries later. */
 export const unavailable = (retryAfterSeconds: number) =>
   new ApiError(503, 'internal', 'the relay cannot store anything right now', retryAfterSeconds)
+/** COMMUNITIES.md: the recipient's community inbox, or this sender's share of it, is full; the sender retries later. */
+export const communityInboxFull = (retryAfterSeconds: number, message: string) =>
+  new ApiError(429, 'community_inbox_full', message, retryAfterSeconds)
 export const internalError = () => new ApiError(500, 'internal', 'internal error')
 
 /**

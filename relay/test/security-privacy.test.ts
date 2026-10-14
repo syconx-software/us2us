@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { request } from 'node:http'
 import mysql from 'mysql2/promise'
@@ -17,6 +17,7 @@ import {
   solvedPow,
   type TestAccount,
 } from './support/client'
+import { communityApi, sortedMembers } from './support/community'
 import { TEST_DATABASE_URL } from './support/env'
 import { startRelay, type RelayProcess } from './support/relay'
 import { TestSocket, type Frame } from './support/ws'
@@ -199,6 +200,42 @@ describe('relay processes', () => {
       }
       // Today: counter = position in the batch (5) every time.
       expect(counters).not.toEqual([5, 5, 5])
+    })
+  })
+
+  describe('PRIV-10: community routes take no access key and answer outsiders as if a private community did not exist', () => {
+    it('gives an outsider the same 404 for a private community as for a random ID, and 401 for an access key alone', async () => {
+      const groups = communityApi(api)
+      const owner = await register(api), member = await register(api), outsider = await registerWithAccessKey(api)
+      const hidden = await groups.created(owner, { visibility: 0, name: '' })
+      const invitation = await groups.invite(owner, hidden.id)
+      expect(invitation.status).toBe(201)
+      expect((await groups.redeem(member, hidden.id, invitation.body.token)).status).toBe(202)
+      const joined = { ...hidden, revision: 2, members: sortedMembers([owner, member]) }
+      expect((await groups.update(owner, joined)).status).toBe(200)
+
+      const probes = (id: string) => [
+        groups.get(outsider, id),
+        groups.request(outsider, id),
+        groups.pending(outsider, id),
+        groups.invite(outsider, id),
+        groups.leave(outsider, id),
+        api.delete(`/v1/communities/${id}`, { token: outsider.authToken }),
+        groups.deliver(outsider, member, { id, revision: 2 }),
+        groups.redeem(outsider, id, b64u(randomBytes(32))),
+      ]
+      const existing = await Promise.all(probes(hidden.id))
+      const missing = await Promise.all(probes(randomUUID()))
+      expect(existing.map(response => [response.status, response.body])).toEqual(missing.map(response => [response.status, response.body]))
+      expect(existing.every(response => response.status === 404)).toBe(true)
+
+      const listed = await api.get('/v1/communities', { token: outsider.authToken })
+      expect(listed.body.communities.some((group: { id: string }) => group.id === hidden.id)).toBe(false)
+      for (const response of await Promise.all([
+        api.get(`/v1/communities/${hidden.id}`, { headers: { 'x-access-key': outsider.accessKey } }),
+        api.get('/v1/communities/inbox', { headers: { 'x-access-key': outsider.accessKey } }),
+        api.put(`/v1/communities/${hidden.id}/messages/${member.accountId}/${randomUUID()}`, { body: randomBytes(10), headers: { 'x-access-key': outsider.accessKey, 'x-community-revision': '2' } }),
+      ])) expect(response.status).toBe(401)
     })
   })
 

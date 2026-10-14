@@ -90,12 +90,19 @@ struct ChatsView: View {
                 titleBlock(connection: messenger.connection)
                     .u2Top(100)
 
+                if let communities = messenger.communities {
+                    // Communities (proposed): one card in the requests card's shape.
+                    CommunitiesCard(count: communities.rows.count) { model.router.push(.communities) }
+                        .accessibilityIdentifier("chats.communities")
+                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                }
+
                 if messenger.restoreAccessPending {
                     // After a restore whose token rotation is unanswered: the
                     // old phone may still have access; 7.1 explains and checks.
                     RestoreAccessCard { model.router.push(.settings) }
                         .accessibilityIdentifier("chats.access")
-                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                        .padding(EdgeInsets(top: messenger.communities != nil ? 6 : 18, leading: 16, bottom: 4, trailing: 16))
                         .transition(.u2Fade)
                 }
 
@@ -105,7 +112,8 @@ struct ChatsView: View {
                         // Under the access card: the 10 pt gap of stacked option cards.
                         .padding(
                             EdgeInsets(
-                                top: messenger.restoreAccessPending ? 6 : 18, leading: 16, bottom: 4, trailing: 16))
+                                top: messenger.restoreAccessPending || messenger.communities != nil ? 6 : 18, leading: 16,
+                                bottom: 4, trailing: 16))
                         .transition(.u2Fade)
                 }
 

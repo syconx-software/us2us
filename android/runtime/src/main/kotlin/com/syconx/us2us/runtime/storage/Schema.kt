@@ -280,7 +280,17 @@ internal object Schema {
         ),
     )
 
-    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6)
+    /**
+     * Additive community tables; existing direct-conversation rows and schema are untouched. Like a
+     * conversation, each community has its own key slot: message bodies are items under it.
+     */
+    val v7 = Migration(7, listOf(
+        "CREATE TABLE community_states(id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, name TEXT NOT NULL, slot_id BLOB NOT NULL UNIQUE, state TEXT, signature TEXT, active INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE community_messages(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, sender TEXT NOT NULL, message_id TEXT NOT NULL, sent_at INTEGER NOT NULL, body BLOB NOT NULL, status TEXT NOT NULL, PRIMARY KEY(community_id,sender,message_id))",
+        "CREATE INDEX community_messages_by_time ON community_messages(community_id,sent_at)",
+        "CREATE TABLE community_outbox(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, message_id TEXT NOT NULL, recipient TEXT NOT NULL, revision INTEGER NOT NULL, envelope BLOB NOT NULL, PRIMARY KEY(community_id,message_id,recipient))",
+    ))
+    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6, v7)
 
     val latestVersion: Int get() = migrations.maxOf { it.version }
 }

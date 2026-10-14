@@ -18,6 +18,10 @@ enum AppRoute: Hashable, Sendable {
     case backupExport
     /// 7.1 › Gizli kodu değiştir, Engellenenler, Hakkında, (DEBUG) 7.3.
     case settingsPage(SettingsPage)
+    /// Topluluklar (proposed): the account's communities, search, create, invitations.
+    case communities
+    /// One community's conversation.
+    case community(CommunityID)
 
     /// Edge-swipe back is allowed everywhere on the main stack (flows.md › Back behaviour).
     var allowsSwipeBack: Bool { true }

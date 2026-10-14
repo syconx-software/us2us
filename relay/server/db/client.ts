@@ -67,3 +67,25 @@ export function isDuplicateKey(error: unknown): boolean {
   }
   return false
 }
+
+/** MySQL ER_LOCK_DEADLOCK: InnoDB rolled the transaction back to break a lock cycle. */
+export function isDeadlock(error: unknown): boolean {
+  for (let e: unknown = error; e instanceof Error; e = e.cause) {
+    if ((e as { code?: unknown }).code === 'ER_LOCK_DEADLOCK') return true
+  }
+  return false
+}
+
+/**
+ * Runs `transaction` again when InnoDB chose it as a deadlock victim, at most
+ * `attempts` times in all. Only for work that is safe to repeat as a whole.
+ */
+export async function retryOnDeadlock<T>(transaction: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await transaction()
+    } catch (error) {
+      if (attempt >= attempts || !isDeadlock(error)) throw error
+    }
+  }
+}

@@ -20,7 +20,12 @@ export default async function setup(): Promise<void> {
     const [tables] = await connection.query<mysql.RowDataPacket[]>(
       'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()',
     )
-    for (const { name } of tables) await connection.query(`DROP TABLE \`${name as string}\``)
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0')
+    try {
+      for (const { name } of tables) await connection.query(`DROP TABLE \`${name as string}\``)
+    } finally {
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1')
+    }
     await migrate(drizzle({ client: connection }), { migrationsFolder: `${root}/drizzle` })
   } finally {
     await connection.end()

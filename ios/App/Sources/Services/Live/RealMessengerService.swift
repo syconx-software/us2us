@@ -20,6 +20,15 @@ import Us2usRuntime
 @Observable
 @MainActor
 final class RealMessengerService: MessengerService {
+    /// The runtime's community service, mapped for the screens (one bridge per unlock).
+    var communities: (any CommunitiesService)? {
+        guard let service = runtime.communities else { return nil }
+        if let bridge = communitiesBridge, bridge.service === service { return bridge }
+        let bridge = RealCommunitiesService(service: service)
+        communitiesBridge = bridge
+        return bridge
+    }
+    @ObservationIgnored private var communitiesBridge: RealCommunitiesService?
     @ObservationIgnored let runtime: AppRuntime
     @ObservationIgnored private let location = LocationProvider()
 

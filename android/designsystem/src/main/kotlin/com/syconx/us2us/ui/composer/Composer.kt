@@ -63,6 +63,7 @@ import com.syconx.us2us.ui.theme.U2Theme
 import com.syconx.us2us.ui.theme.composerFade
 import com.syconx.us2us.ui.theme.u2BoxShadow
 import com.syconx.us2us.ui.theme.u2InnerStroke
+import com.syconx.us2us.ui.tokens.U2Opacity
 import com.syconx.us2us.ui.tokens.U2Radius
 import com.syconx.us2us.ui.tokens.U2Size
 import com.syconx.us2us.ui.tokens.U2Spacing
@@ -211,6 +212,53 @@ fun Composer(
     }
 }
 
+/**
+ * C21 without media (communities, proposed; iOS `CommunityComposer`): the same field without
+ * “+”, timer and sticker, and [ComposerSendButton] on `composerFade`. [canSend] dims the button.
+ * [bottomPadding] as in [Composer].
+ */
+@Composable
+fun TextComposer(
+    text: String,
+    onTextChange: (String) -> Unit,
+    onSend: () -> Unit,
+    modifier: Modifier = Modifier,
+    canSend: Boolean = text.isNotBlank(),
+    bottomPadding: Dp? = null,
+) {
+    val bottom = bottomPadding ?: (WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 36.dp - U2Size.designHomeIndicator)
+    Row(
+        modifier
+            .background(U2Theme.colors.composerFade)
+            .padding(start = U2Spacing.chatComposerGutter, top = 14.dp, end = U2Spacing.chatComposerGutter, bottom = bottom),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        ComposerField(text, onTextChange, ComposerVoiceMode.Idle, onTimer = {}, onSticker = {}, modifier = Modifier.weight(1f), showsTools = false)
+        ComposerSendButton(onSend, enabled = canSend)
+    }
+}
+
+/**
+ * The composer's send button on its own: the mic's ring (44, 1 dp `accent`, the mic glow) with
+ * `ph:paper-plane-tilt` 21 in `accent300`; disabled it is drawn at 45 %.
+ */
+@Composable
+fun ComposerSendButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val alpha by animateFloatAsState(if (enabled) 1f else U2Opacity.disabled, u2Spec(U2Motion.micro), label = "sendEnabled")
+    val label = stringResource(R.string.common_a11y_composer_send)
+    Box(
+        modifier
+            .testTag("composer.send")
+            .u2PressEffect(source, scale = 0.98f)
+            .graphicsLayer { this.alpha = if (pressed) 0.85f * alpha else alpha }
+            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+    ) { ComposerMicLabel(sends = true, isRecording = false) }
+}
+
 /** The row with the recording strip behind it (its size) and the hint 10 dp above its end. */
 @Composable
 private fun RowWithVoiceOverlays(strip: @Composable () -> Unit, row: @Composable () -> Unit, hint: @Composable () -> Unit) {
@@ -266,6 +314,7 @@ private fun ComposerField(
     onTimer: () -> Unit,
     onSticker: () -> Unit,
     modifier: Modifier,
+    showsTools: Boolean = true,
 ) {
     val colors = U2Theme.colors
     val idle = mode == ComposerVoiceMode.Idle
@@ -287,7 +336,7 @@ private fun ComposerField(
             .heightIn(min = U2Size.composer)
             .background(colors.surface, shape)
             .u2InnerStroke(colors.strokeField, 0.5.dp, shape)
-            .padding(start = 16.dp, end = 12.dp),
+            .padding(start = 16.dp, end = if (showsTools) 12.dp else 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -313,14 +362,16 @@ private fun ComposerField(
                 }
             },
         )
-        Row(
-            Modifier.height(U2Size.composer),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 2/3 dp lower than centred, like the design's icon font.
-            FieldIconButton(PhosphorGlyph.Timer, stringResource(R.string.common_a11y_composer_timer), idle, onTimer)
-            FieldIconButton(PhosphorGlyph.Sticker, stringResource(R.string.common_a11y_composer_sticker), idle, onSticker)
+        if (showsTools) {
+            Row(
+                Modifier.height(U2Size.composer),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 2/3 dp lower than centred, like the design's icon font.
+                FieldIconButton(PhosphorGlyph.Timer, stringResource(R.string.common_a11y_composer_timer), idle, onTimer)
+                FieldIconButton(PhosphorGlyph.Sticker, stringResource(R.string.common_a11y_composer_sticker), idle, onSticker)
+            }
         }
     }
 }

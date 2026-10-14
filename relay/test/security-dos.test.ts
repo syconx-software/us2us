@@ -6,7 +6,8 @@ import { Logger } from '../server/lib/logger'
 import { EnvelopePersister, type PendingEnvelope } from '../server/realtime/persister'
 import { SessionManager, type SessionSocket } from '../server/realtime/sessions'
 import type { Mailbox, MailboxRow, StoredEnvelope } from '../server/services/mailbox'
-import { Api, b64u, eventually, registerWithAccessKey, send, sleep } from './support/client'
+import { Api, b64u, eventually, register, registerWithAccessKey, send, sleep } from './support/client'
+import { communityApi, sortedMembers } from './support/community'
 import { TestDb, uuidBytes } from './support/db'
 import { startRelay, type RelayProcess } from './support/relay'
 
@@ -324,6 +325,59 @@ describe('relay DoS (integration)', () => {
       const other = await registerWithAccessKey(api)
       expect((await send(api, other, randomBytes(ENVELOPE))).status).toBe(202)
     }, 90_000)
+  })
+
+  describe('DOS-8: community inbox quotas count only live mail and are fair per sender', () => {
+    const TTL = 14 * 24 * 3600 * 1000 // server/lib/community.ts
+    const seed = async (community: string, sender: string, recipient: string, count: number, row: { size: number, serverTimestamp: number }) => {
+      const values = Array.from({ length: count }, () => [randomBytes(16), uuidBytes(community), uuidBytes(sender), uuidBytes(recipient), randomBytes(16), 2,
+        row.serverTimestamp, randomBytes(32), row.size, row.size > 0 ? Buffer.from('x') : null])
+      for (let i = 0; i < values.length; i += 2000) {
+        await db.query('INSERT INTO community_envelopes (id, community_id, sender, recipient, message_id, revision, server_ts, digest, size, body) VALUES ?', [values.slice(i, i + 2000)])
+      }
+    }
+
+    it('ignores acknowledged tombstones and expired rows, caps one sender per recipient, and purges a removed sender', async () => {
+      const groups = communityApi(api)
+      const owner = await register(api), spammer = await register(api), friend = await register(api), victim = await register(api)
+      const group = await groups.approve(owner, await groups.created(owner), [spammer, friend, victim])
+      // 10000 retry tombstones and 10000 expired rows (not swept yet) used to fill the inbox for good.
+      await seed(group.id, spammer.accountId, victim.accountId, 10_000, { size: 0, serverTimestamp: Date.now() })
+      await seed(group.id, spammer.accountId, victim.accountId, 10_000, { size: 1, serverTimestamp: Date.now() - TTL - 60_000 })
+      expect((await groups.deliver(friend, victim, group)).status).toBe(202)
+
+      const statuses: number[] = []
+      for (let i = 0; i < 501; i++) statuses.push((await groups.deliver(spammer, victim, group)).status)
+      expect(statuses.slice(0, 500).every(status => status === 202)).toBe(true)
+      const refused = await groups.deliver(spammer, victim, group)
+      expect(refused.status).toBe(429)
+      expect(refused.body.error.code).toBe('community_inbox_full')
+      expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+      // Other senders still reach the victim; the victim's acknowledgement (of the
+      // friend's first message and the spammer's first) frees the spammer's share.
+      expect((await groups.deliver(friend, victim, group)).status).toBe(202)
+      const page = (await groups.inbox(victim)).body
+      expect((await groups.ack(victim, page.envelopes.slice(0, 2).map((item: { id: string }) => item.id))).status).toBe(204)
+      expect((await groups.deliver(spammer, victim, group)).status).toBe(202)
+
+      // Removing the spammer deletes what it sent, not only what it was sent.
+      const next = { ...group, revision: 3, members: sortedMembers([owner, friend, victim]) }
+      expect((await groups.update(owner, next)).status).toBe(200)
+      expect(await db.count('community_envelopes WHERE sender = ?', [uuidBytes(spammer.accountId)])).toBe(0)
+    }, 60_000)
+
+    it('caps a recipient\'s live community mail at 10000 envelopes and 50 MiB over all senders', async () => {
+      const groups = communityApi(api)
+      const owner = await register(api), member = await register(api), other = await register(api)
+      const group = await groups.approve(owner, await groups.created(owner), [member, other])
+      await seed(group.id, other.accountId, member.accountId, 10_000, { size: 1, serverTimestamp: Date.now() })
+      const full = await groups.deliver(owner, member, group)
+      expect([full.status, full.body.error?.code]).toEqual([429, 'community_inbox_full'])
+      await db.query('DELETE FROM community_envelopes WHERE recipient = ?', [uuidBytes(member.accountId)])
+      await seed(group.id, other.accountId, member.accountId, 1, { size: 50 * 1024 * 1024 - 50, serverTimestamp: Date.now() })
+      expect((await groups.deliver(owner, member, group, undefined, randomBytes(50))).status).toBe(202)
+      expect((await groups.deliver(owner, member, group, undefined, randomBytes(1))).status).toBe(429)
+    }, 60_000)
   })
 
   describe('DOS-7: unknown website paths are answered from memory, never rendered per request', () => {

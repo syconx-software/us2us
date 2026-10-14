@@ -76,7 +76,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -717,7 +719,12 @@ class AppRuntime(
         refreshLockScreen()
     }
 
+    private val communityOperations = HashSet<Job>()
+
     private fun clearUnlockedState() {
+        // Community HTTP polls and fanout stop immediately on lock, even during the direct-chat grace period.
+        communityOperations.toList().forEach { it.cancel() }
+        communityOperations.clear()
         refreshJob?.cancel()
         refreshJob = null
         tickJob?.cancel()
@@ -742,6 +749,34 @@ class AppRuntime(
     }
 
     // MARK: Onboarding
+
+    /** Community work is scoped to the current unlocked session; it never owns a
+     * second libsignal store and cannot publish a result after the app locks.
+     *
+     * A lock cancels the operation, not its caller: the caller sees [RuntimeError.Locked] and can
+     * carry on (a screen's poll resumes after the next unlock). */
+    suspend fun <T> withCommunities(action: suspend (com.syconx.us2us.runtime.community.CommunityEngine) -> T): T {
+        val caller = currentCoroutineContext()
+        return try {
+            withContext(main) {
+                val current = session
+                if (current == null || !isCurrent(current)) runtimeFailure(RuntimeError.Locked)
+                val communities = current.communities ?: runtimeFailure(RuntimeError.Locked)
+                val operation = checkNotNull(currentCoroutineContext()[Job])
+                communityOperations += operation
+                try {
+                    val result = withContext(io) { action(communities) }
+                    if (!isCurrent(current)) runtimeFailure(RuntimeError.Locked)
+                    result
+                } finally {
+                    communityOperations -= operation
+                }
+            }
+        } catch (e: CancellationException) {
+            caller.ensureActive()
+            runtimeFailure(RuntimeError.Locked, e)
+        }
+    }
 
     /**
      * Creates the vault (the code entered twice), the encrypted store and the relay account
@@ -1789,6 +1824,13 @@ internal class Session(
     val supervisor: ConnectionSupervisor,
     val supervisorScope: CoroutineScope,
 ) {
+    /** Built on first use, so opening a session never writes for communities. */
+    val communities by lazy {
+        (backend as? com.syconx.us2us.runtime.engine.MessengerBackend)?.let {
+            com.syconx.us2us.runtime.community.CommunityEngine(it.messenger, storage)
+        }
+    }
+
     /** In the background grace period (UI locked, still receiving). */
     var inGrace = false
 

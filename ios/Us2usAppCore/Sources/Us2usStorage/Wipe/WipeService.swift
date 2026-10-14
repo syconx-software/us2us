@@ -109,7 +109,7 @@ enum WipeService {
 
             if collectGarbage {
                 let referencedSlots = Set(
-                    try tx.connection.query("SELECT slot_id FROM conversations").compactMap { $0.blob("slot_id") })
+                    try tx.connection.query("SELECT slot_id FROM conversations UNION SELECT slot_id FROM communities").compactMap { $0.blob("slot_id") })
                 for slotId in storage.keyring.slotIds().subtracting(referencedSlots) {
                     try storage.keyring.destroy(slotId)
                     report.orphanSlotsRemoved += 1

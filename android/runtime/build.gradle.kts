@@ -38,6 +38,10 @@ android {
                 it.maxHeapSize = "2g"
                 // Robolectric reaches into FileDescriptor internals, which JDK 23 does not export.
                 it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED", "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
+                // The live community test (scripts/interop.sh) runs only when these are set; never reuse
+                // a result produced against another relay or another iOS run.
+                it.inputs.property("relayUrl", providers.environmentVariable("RELAY_URL").orElse(""))
+                it.inputs.property("communityDir", providers.environmentVariable("COMMUNITY_DIR").orElse(""))
             }
         }
     }

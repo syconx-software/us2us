@@ -1,0 +1,1746 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.create": {
+      "comment": "VoiceOver label of the header “+”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk oluştur"
+          }
+        }
+      }
+    },
+    "a11y.manage": {
+      "comment": "VoiceOver label of the conversation header “…”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Members and management"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üyeler ve yönetim"
+          }
+        }
+      }
+    },
+    "a11y.problem.dismiss": {
+      "comment": "VoiceOver hint of a problem note.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismisses the note"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notu kapatır"
+          }
+        }
+      }
+    },
+    "action.approve": {
+      "comment": "Approves a join request.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onayla"
+          }
+        }
+      }
+    },
+    "action.create": {
+      "comment": "Create button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oluştur"
+          }
+        }
+      }
+    },
+    "action.createInvite": {
+      "comment": "Creates a one-use invitation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create one-use invitation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek kullanımlık davet oluştur"
+          }
+        }
+      }
+    },
+    "action.delete": {
+      "comment": "Owner deletes the community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluğu sil"
+          }
+        }
+      }
+    },
+    "action.forget": {
+      "comment": "Removes an ended community from this phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaldır"
+          }
+        }
+      }
+    },
+    "action.leave": {
+      "comment": "Leaves a community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluktan ayrıl"
+          }
+        }
+      }
+    },
+    "action.reject": {
+      "comment": "Rejects a join request.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reject"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reddet"
+          }
+        }
+      }
+    },
+    "action.removeMember": {
+      "comment": "Owner removes a member.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkar"
+          }
+        }
+      }
+    },
+    "action.request": {
+      "comment": "Sends a join request.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request to join"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katılım isteği gönder"
+          }
+        }
+      }
+    },
+    "action.request.short": {
+      "comment": "Search result action.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstek gönder"
+          }
+        }
+      }
+    },
+    "action.revokeInvites": {
+      "comment": "Revokes all invitations.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoke all invitations"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm davetleri iptal et"
+          }
+        }
+      }
+    },
+    "action.shareInvite": {
+      "comment": "Shares the invitation code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share invitation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daveti paylaş"
+          }
+        }
+      }
+    },
+    "action.withdraw": {
+      "comment": "Confirm button: withdraw own request.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Withdraw request"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İsteği geri çek"
+          }
+        }
+      }
+    },
+    "action.withdraw.short": {
+      "comment": "Row action: withdraw own request.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Withdraw"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri çek"
+          }
+        }
+      }
+    },
+    "card.subtitle %lld": {
+      "comment": "4.1 card subtitle: number of communities on this phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld community"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld communities"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld topluluk"
+          }
+        }
+      }
+    },
+    "card.subtitle.empty": {
+      "comment": "4.1 card subtitle without communities.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group chats · encrypted to each member"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grup sohbetleri · her üyeye ayrı şifreli"
+          }
+        }
+      }
+    },
+    "card.title": {
+      "comment": "4.1 card title: opens the communities screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Communities"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluklar"
+          }
+        }
+      }
+    },
+    "communities.empty": {
+      "comment": "No communities on this phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have no communities yet."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz bir topluluğun yok."
+          }
+        }
+      }
+    },
+    "communities.footnote": {
+      "comment": "Footnote under the communities screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages are end-to-end encrypted to each member separately; new members cannot see earlier messages. Backups do not include communities: after a restore, request a public community again or use a new invitation. Message history does not come back."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar her üyeye ayrı ayrı uçtan uca şifrelenir; yeni üyeler önceki mesajları göremez. Yedekler toplulukları içermez: geri yüklemeden sonra açık topluluğa yeniden istek gönder ya da yeni bir davet kodu kullan. Mesaj geçmişi geri gelmez."
+          }
+        }
+      }
+    },
+    "communities.title": {
+      "comment": "Communities screen title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Communities"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluklar"
+          }
+        }
+      }
+    },
+    "communities.unsupported": {
+      "comment": "The relay has no community routes.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This relay does not support communities yet. One-to-one chats are not affected."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sunucu henüz toplulukları desteklemiyor. Bire bir sohbetler etkilenmez."
+          }
+        }
+      }
+    },
+    "community.unnamed": {
+      "comment": "Title of a private community without a name on this phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Private community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli topluluk"
+          }
+        }
+      }
+    },
+    "confirm.delete.message": {
+      "comment": "Delete confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Members can no longer send; undelivered messages are deleted. The history is erased from this phone too. Copies on members' phones cannot be recalled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üyeler artık mesaj gönderemez; teslim edilmemiş mesajlar silinir. Mesaj geçmişi bu telefondan da silinir. Üyelerin telefonlarındaki kopyalar geri alınamaz."
+          }
+        }
+      }
+    },
+    "confirm.delete.title": {
+      "comment": "Delete confirmation title (owner).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this community for everyone?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk herkes için silinsin mi?"
+          }
+        }
+      }
+    },
+    "confirm.forget.message": {
+      "comment": "Remove-from-phone confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The community and its messages are erased from this phone for good."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk ve mesajları bu telefondan kalıcı olarak silinir."
+          }
+        }
+      }
+    },
+    "confirm.forget.title": {
+      "comment": "Remove-from-phone confirmation title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from this phone?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefondan kaldırılsın mı?"
+          }
+        }
+      }
+    },
+    "confirm.leave.message": {
+      "comment": "Leave confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You will no longer send or receive its messages. The community and its messages are erased from this phone; coming back needs a new request."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artık mesaj alamaz ve gönderemezsin. Topluluk ve mesajları bu telefondan silinir; geri dönmek için yeniden istek gerekir."
+          }
+        }
+      }
+    },
+    "confirm.leave.title": {
+      "comment": "Leave confirmation title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave this community?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluktan ayrılınsın mı?"
+          }
+        }
+      }
+    },
+    "confirm.remove.message": {
+      "comment": "Remove-member confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They will no longer send or receive new messages. Messages they already received cannot be recalled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artık yeni mesaj alamaz ve gönderemez. Daha önce aldığı mesajlar geri alınamaz."
+          }
+        }
+      }
+    },
+    "confirm.remove.title %@": {
+      "comment": "Remove-member confirmation title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ çıkarılsın mı?"
+          }
+        }
+      }
+    },
+    "confirm.withdraw.message": {
+      "comment": "Withdraw confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The administrator no longer sees your request, and the community is removed from this phone. The invitation you used will not work again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici isteğini artık görmez; topluluk bu telefondan kaldırılır. Kullandığın davet kodu bir daha çalışmaz."
+          }
+        }
+      }
+    },
+    "confirm.withdraw.title": {
+      "comment": "Withdraw confirmation title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Withdraw your request?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstek geri çekilsin mi?"
+          }
+        }
+      }
+    },
+    "conversation.ended": {
+      "comment": "Instead of the composer when no longer a member.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You are no longer a member of this community."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu toplulukta artık üye değilsin."
+          }
+        }
+      }
+    },
+    "conversation.intro": {
+      "comment": "Pill at the top of a community conversation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypted to each member · new members see no history"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her üyeye ayrı şifrelenir · yeni üyeler eskileri görmez"
+          }
+        }
+      }
+    },
+    "create.name.label": {
+      "comment": "Section label: name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ad"
+          }
+        }
+      }
+    },
+    "create.name.placeholder": {
+      "comment": "Name field placeholder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Community name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk adı"
+          }
+        }
+      }
+    },
+    "create.public.off": {
+      "comment": "Toggle subtitle when private.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By invitation only"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca davetle"
+          }
+        }
+      }
+    },
+    "create.public.on": {
+      "comment": "Toggle subtitle when public.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can be found by name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adıyla aranabilir"
+          }
+        }
+      }
+    },
+    "create.public.title": {
+      "comment": "Toggle: public.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Public"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herkese açık"
+          }
+        }
+      }
+    },
+    "create.sheet.title": {
+      "comment": "Create sheet title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni topluluk"
+          }
+        }
+      }
+    },
+    "create.subtitle": {
+      "comment": "Row subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You are the administrator; up to 100 members"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici sen olursun; en fazla 100 üye"
+          }
+        }
+      }
+    },
+    "create.title": {
+      "comment": "Row: create a community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk oluştur"
+          }
+        }
+      }
+    },
+    "directory.full": {
+      "comment": "Search result with 100 members.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dolu"
+          }
+        }
+      }
+    },
+    "directory.known": {
+      "comment": "Search result already joined or requested.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In your list"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listende"
+          }
+        }
+      }
+    },
+    "directory.members %lld": {
+      "comment": "Search result subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 member"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 members"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/100 üye"
+          }
+        }
+      }
+    },
+    "disclosure.body": {
+      "comment": "What the relay learns, before create/join/redeem.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages are end-to-end encrypted to each member separately; the relay cannot read them. Unlike one-to-one chats, though, the relay sees who is in a community and who sends to whom. Public community names can be searched, and your search words reach the relay. Joining always needs the administrator's approval."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar her üyeye ayrı ayrı uçtan uca şifrelenir; sunucu içeriği okuyamaz. Ama bire bir sohbetlerden farklı olarak sunucu, topluluktaki üyeleri ve kimin kime mesaj gönderdiğini görür. Açık toplulukların adı aranabilir; aradığın sözcükler sunucuya ulaşır. Katılım her zaman yöneticinin onayıyla olur."
+          }
+        }
+      }
+    },
+    "disclosure.private": {
+      "comment": "What the relay learns, for a private community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A private community does not appear in search; its name stays in the invitation code and on phones. Messages are end-to-end encrypted to each member separately. Unlike one-to-one chats, though, the relay still sees who is in it and who sends to whom. Joining always needs the administrator's approval."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli topluluk aramada görünmez; adı yalnızca davet kodunda ve telefonlarda durur. Mesajlar her üyeye ayrı ayrı uçtan uca şifrelenir. Ama bire bir sohbetlerden farklı olarak sunucu, topluluktaki üyeleri ve kimin kime mesaj gönderdiğini yine görür. Katılım her zaman yöneticinin onayıyla olur."
+          }
+        }
+      }
+    },
+    "join.message": {
+      "comment": "Join confirmation body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The administrator sees your request and identity key; you join once they approve."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici isteğini ve kimlik anahtarını görür; onaylarsa topluluğa katılırsın."
+          }
+        }
+      }
+    },
+    "join.title %@": {
+      "comment": "Join confirmation title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request to join “%@”?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” topluluğuna istek gönderilsin mi?"
+          }
+        }
+      }
+    },
+    "manage.full": {
+      "comment": "Community has 100 members.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The community is full; no one else can be approved."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk dolu; yeni üye onaylanamaz."
+          }
+        }
+      }
+    },
+    "manage.invites": {
+      "comment": "Section label: invitations.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invitations"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davetler"
+          }
+        }
+      }
+    },
+    "manage.invites.hint": {
+      "comment": "Invitation explanation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An invitation works once within 24 hours. A private community's name travels in this code; joining still needs your approval."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet kodu 24 saat geçerlidir ve bir kez kullanılabilir. Gizli topluluğun adı bu kodla taşınır; katılım yine onayını gerektirir."
+          }
+        }
+      }
+    },
+    "manage.members %lld": {
+      "comment": "Section label: members with count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Members · %lld/100"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üyeler · %lld/100"
+          }
+        }
+      }
+    },
+    "manage.request.key": {
+      "comment": "Label above the requester's identity key.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identity key to add"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eklenecek kimlik anahtarı"
+          }
+        }
+      }
+    },
+    "manage.requests": {
+      "comment": "Section label: join requests.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join requests"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katılım istekleri"
+          }
+        }
+      }
+    },
+    "manage.requests.empty": {
+      "comment": "No pending requests.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pending requests."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bekleyen istek yok."
+          }
+        }
+      }
+    },
+    "member.notContact": {
+      "comment": "Member subtitle: not a personal contact.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not in your contacts"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişilerinde değil"
+          }
+        }
+      }
+    },
+    "member.owner": {
+      "comment": "Member subtitle: the owner.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Administrator"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici"
+          }
+        }
+      }
+    },
+    "member.unknown %@": {
+      "comment": "A member whose username this phone does not know, with a short id.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Member · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üye · %@"
+          }
+        }
+      }
+    },
+    "member.you": {
+      "comment": "This account in the member list.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sen"
+          }
+        }
+      }
+    },
+    "message.failed": {
+      "comment": "Outgoing message stopped.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delivery stopped; some members may have it"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderim durdu; bazı üyeler almış olabilir"
+          }
+        }
+      }
+    },
+    "message.partial": {
+      "comment": "Outgoing message reached only some members.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Did not reach some members"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bazı üyelere ulaşmadı"
+          }
+        }
+      }
+    },
+    "problem.failed": {
+      "comment": "Anything else.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The action could not be completed. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İşlem tamamlanamadı. Tekrar dene."
+          }
+        }
+      }
+    },
+    "problem.full": {
+      "comment": "409 community_full.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The community is full: it can have at most 100 members."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk dolu: en fazla 100 üye olabilir."
+          }
+        }
+      }
+    },
+    "problem.invalidInvite": {
+      "comment": "Bad invitation code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This invitation code is not valid."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu davet kodu geçerli değil."
+          }
+        }
+      }
+    },
+    "problem.invalidName": {
+      "comment": "Name rule.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The name must be 1–120 bytes and cannot contain invisible control or direction marks."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ad 1–120 bayt olmalı; görünmez kontrol veya yön işaretleri içeremez."
+          }
+        }
+      }
+    },
+    "problem.memberKey %@": {
+      "comment": "A member's key differs from the signed list.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The identity key of %@ does not match the administrator's signed list. No message was sent to this member."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için kimlik anahtarı, yöneticinin imzaladığı listeyle eşleşmiyor. Bu üyeye mesaj gönderilmedi."
+          }
+        }
+      }
+    },
+    "problem.notFound": {
+      "comment": "404.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This community no longer exists, or you are not a member."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu topluluk artık yok ya da üyesi değilsin."
+          }
+        }
+      }
+    },
+    "problem.offline": {
+      "comment": "Network or relay failure.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The relay could not be reached. Check your connection; pending messages are retried while the app is open."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucuya ulaşılamadı. Bağlantını kontrol et; bekleyen mesajlar uygulama açıkken yeniden denenir."
+          }
+        }
+      }
+    },
+    "problem.ownerCannotLeave": {
+      "comment": "Owner tried to leave.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The administrator cannot leave; you can delete the community instead."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici topluluktan ayrılamaz; bunun yerine topluluğu silebilirsin."
+          }
+        }
+      }
+    },
+    "problem.rateLimited": {
+      "comment": "429.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The relay is limiting requests right now, or a member's community inbox is full. Messages are retried later."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu şu an istekleri sınırlıyor ya da bir üyenin topluluk kutusu dolu. Mesajlar daha sonra yeniden denenir."
+          }
+        }
+      }
+    },
+    "problem.stale": {
+      "comment": "409 stale_version.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The member list changed. Refresh and try again; the pending message was stopped."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üye listesi değişti. Yenileyip tekrar dene; bekleyen mesaj durduruldu."
+          }
+        }
+      }
+    },
+    "problem.title": {
+      "comment": "Title of a problem note.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Community action not completed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk işlemi tamamlanamadı"
+          }
+        }
+      }
+    },
+    "problem.unsupported": {
+      "comment": "No community routes.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This relay does not support communities."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sunucu toplulukları desteklemiyor."
+          }
+        }
+      }
+    },
+    "problem.verification": {
+      "comment": "Signed member list or owner identity failed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The member list or the administrator's identity could not be verified. Nothing from this community was accepted."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üye listesi veya yöneticinin kimliği doğrulanamadı. Bu topluluk için hiçbir şey kabul edilmedi."
+          }
+        }
+      }
+    },
+    "redeem.code.label": {
+      "comment": "Section label: code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod"
+          }
+        }
+      }
+    },
+    "redeem.hint": {
+      "comment": "Under the code field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code works once and only sends a request; membership needs the administrator's approval."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod tek kullanımlıktır ve yalnızca katılım isteği gönderir; üyelik için yöneticinin onayı gerekir."
+          }
+        }
+      }
+    },
+    "redeem.sheet.title": {
+      "comment": "Redeem sheet title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invitation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet kodu"
+          }
+        }
+      }
+    },
+    "redeem.subtitle": {
+      "comment": "Row subtitle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requests to join a private community"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli bir topluluğa katılım isteği gönderir"
+          }
+        }
+      }
+    },
+    "redeem.title": {
+      "comment": "Row: use an invitation code.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use an invitation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davet kodu kullan"
+          }
+        }
+      }
+    },
+    "row.ended": {
+      "comment": "Row subtitle: membership ended.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membership ended"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üyelik sona erdi"
+          }
+        }
+      }
+    },
+    "row.member %lld": {
+      "comment": "Row subtitle for a membership.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 member"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 members"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/100 üye"
+          }
+        }
+      }
+    },
+    "row.owner %lld": {
+      "comment": "Row subtitle for an owned community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 member · You are the administrator"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld/100 members · You are the administrator"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/100 üye · Yönetici sensin"
+          }
+        }
+      }
+    },
+    "row.pending": {
+      "comment": "Row subtitle: request not answered (or declined).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for approval"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay bekleniyor"
+          }
+        }
+      }
+    },
+    "row.unfinished": {
+      "comment": "Row subtitle: creation not confirmed by the relay.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not be created"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oluşturulamadı"
+          }
+        }
+      }
+    },
+    "search.hint": {
+      "comment": "Under the search field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search with at least 2 characters. Searches reach the relay."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En az 2 karakterle ara. Aramalar sunucuya ulaşır."
+          }
+        }
+      }
+    },
+    "search.more": {
+      "comment": "Loads the next page of results.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha fazla göster"
+          }
+        }
+      }
+    },
+    "search.none %@": {
+      "comment": "No public community starts with the query.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No public community starts with “%@”."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” ile başlayan açık topluluk yok."
+          }
+        }
+      }
+    },
+    "search.placeholder": {
+      "comment": "Search field placeholder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Community name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Topluluk adı"
+          }
+        }
+      }
+    },
+    "section.discover": {
+      "comment": "Section label: public search.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find public communities"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık toplulukları ara"
+          }
+        }
+      }
+    },
+    "section.yours": {
+      "comment": "Section label: the account's communities.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your communities"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toplulukların"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

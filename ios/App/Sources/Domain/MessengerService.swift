@@ -18,6 +18,10 @@ import Us2usKit
 /// tracks reads through the existential).
 @MainActor
 protocol MessengerService: AnyObject, Observable {
+    /// Communities (Domain/Communities.swift): additive; `nil` while locked,
+    /// in the design fixtures and on backends without them.
+    var communities: (any CommunitiesService)? { get }
+
     // MARK: Account & onboarding (01–02)
 
     /// `nil` before onboarding finished on this device.
