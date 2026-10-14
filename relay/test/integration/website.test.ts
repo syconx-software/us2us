@@ -40,6 +40,9 @@ function filesUnder(directory: string): string[] {
   })
 }
 
+/** The public repository, linked (never loaded) from the support page's licences. */
+const SOURCE_CODE_URL = 'https://github.com/syconx-software/us2us'
+
 describe('website', () => {
   it('redirects / by Accept-Language', async () => {
     const cases: Array<[string | undefined, string]> = [
@@ -296,16 +299,16 @@ describe('website', () => {
   })
 
   it('names the licence in the footer and links it to the licences, served by the site itself', async () => {
-    for (const [path, note, target] of [['/tr', 'AGPL-3.0 · Kaynak kodu yakında', '/tr/destek#lisanslar'], ['/en/privacy', 'AGPL-3.0 · Source code coming soon', '/en/support#licences']] as const) {
+    for (const [path, note, target] of [['/tr', 'AGPL-3.0 · Açık kaynak', '/tr/destek#lisanslar'], ['/en/privacy', 'AGPL-3.0 · Open source', '/en/support#licences']] as const) {
       const footer = (await html(path)).split('<footer')[1]!
       expect(footer, path).toContain(`href="${target}"`)
       expect(textOf(footer), path).toContain(note)
-      expect(textOf(footer), path).not.toMatch(/Açık kaynak|Open source/)
     }
     for (const path of ['/tr/destek', '/en/support']) {
       const page = await html(path)
       expect(page, path).toMatch(/id="lisanslar"/)
       expect(page, path).toMatch(/id="licences"/)
+      expect(page, path).toContain(`href="${SOURCE_CODE_URL}"`)
       for (const licence of ['/fonts/OFL-Inter.txt', '/fonts/OFL-Doto.txt', '/fonts/OFL-MartianMono.txt', '/licenses/phosphor-icons.txt', '/licenses/three.txt']) {
         expect(page, `${path} ${licence}`).toContain(`href="${licence}"`)
       }
@@ -440,6 +443,8 @@ describe('website', () => {
         if (url.startsWith('mailto:') || url.startsWith('#')) continue
         // The "why" page links to its sources (links only, checked in its own test).
         if (WHY_PAGES.includes(path) && SOURCE_URLS.has(url)) continue
+        // The support page links to the public source code (a link only, nothing is loaded from it).
+        if (url === SOURCE_CODE_URL) continue
         if (/^https?:/.test(url)) expect(url, path).toMatch(/^https:\/\/us2us\.app\//)
         else expect(url, path).toMatch(/^\//)
       }
@@ -527,7 +532,7 @@ describe('website', () => {
       if (file.includes(`${join('js', 'vendor')}`)) continue
       // The "why" page's sources are links to other sites (only there, and only as links: see its test).
       const sources = WHY_PAGES.some(path => file === join(PUBLIC_DIR, path, 'index.html')) ? SOURCE_URLS : new Set<string>()
-      const external = [...content.matchAll(/https?:\/\/[^\s"'`)<>]+/g)].map(match => unescape(match[0])).filter(url => !allowed.test(url) && !sources.has(url))
+      const external = [...content.matchAll(/https?:\/\/[^\s"'`)<>]+/g)].map(match => unescape(match[0])).filter(url => !allowed.test(url) && !sources.has(url) && url !== SOURCE_CODE_URL)
       expect(external, relative(PUBLIC_DIR, file)).toEqual([])
     }
     // three.js is the unmodified file of the pinned dependency; its only URLs are an XML
