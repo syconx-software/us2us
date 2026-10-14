@@ -10,8 +10,8 @@
  * - What it says about us2us must agree with the privacy policy in ./site.ts
  *   and PROTOCOL.md §9, honest limits included: no absolute anonymity or
  *   post-quantum claims (test/unit/site-copy.test.ts reads this file too).
- *   The source code is not public yet ("coming soon"), so the text says we
- *   will publish it, never that it can be read today.
+ *   The source code is public (github.com/syconx-software/us2us); the text
+ *   names that address wherever it invites readers to check the code.
  * - Every claim about the world cites a source. Sources (WHY_SOURCES) are
  *   shared by both languages and numbered in list order, which is the order
  *   in which the text first cites them, in both languages. `[n]` in the
@@ -437,7 +437,7 @@ export const why: Record<Locale, WhyText> = {
           'us2us’ı bu inançla yaptık: iki kişi arasında, kimse araya girmesin diye kurulmuş özel bir hat. Her kararda kendimize aynı soruyu sorduk: Bu, konuşmayı o iki kişinin arasında tutuyor mu?',
           'Telefon numarası istemiyoruz; kayıt olmak ve birini bulmak için kullanıcı adı yetiyor. Mesajlar, Signal protokolünün resmî kütüphanesi libsignal ile sizin telefonunuzda kilitlenir ve yalnızca karşınızdakinin telefonunda açılır; içerikleri, bugün kaydedilip yarın bir kuantum bilgisayarla çözülme girişimlerine karşı da korunur. Mühürlü gönderici sayesinde sunucumuz bir zarfın kime gittiğini görür, ama kimden geldiğini zarfın üzerinden okuyamaz.',
           'Bildirim göndermiyoruz; bunu bilerek seçtik. Apple’ın ve Google’ın bildirim sunucularını hiç kullanmıyoruz; mesajlarınız siz uygulamayı açtığınızda gelir. Hiçbir yerde bildirim belirteci kaydedilmediği için, birinin isteyebileceği bir bildirim kaydı da yok. Bunun kolay bir seçim olmadığını biliyoruz. Bir araştırmada 30 gönüllü bütün bildirimlerini 24 saat boyunca kapattı. Dikkatlerinin daha az dağıldığını ve daha verimli olduklarını söylediler; ama bazıları beklendiği kadar çabuk cevap verememekten kaygılandı, kendini çevresinden biraz kopuk hissetti. İki yıl sonra katılımcıların yarısı bildirimlerini hâlâ farklı yönetiyordu.[35] Cevap vermek için herkesin kendi zamanını seçebileceğini kabul ettiğimizde bu kaygının hafifleyeceğine inanıyoruz. Önemli bir şey mi bekliyorsunuz? Karşınızdakine “us2us’a bak” demeniz yeter.',
-          'Konuşmalar yalnızca iki telefonda yaşar. Sunucumuz arşiv tutmaz, unutkan bir postacı gibidir: zarfı teslim eder etmez siler, teslim edemezse en geç 14 gün sonra. Uygulama gizli bir kodla açılır; iPhone’da her kod denemesi, telefonun Secure Enclave’inden hiç çıkmayan bir anahtar ister. Kodu yayımladığımızda bütün bunları herkes kendisi denetleyebilecek.',
+          'Konuşmalar yalnızca iki telefonda yaşar. Sunucumuz arşiv tutmaz, unutkan bir postacı gibidir: zarfı teslim eder etmez siler, teslim edemezse en geç 14 gün sonra. Uygulama gizli bir kodla açılır; iPhone’da her kod denemesi, telefonun Secure Enclave’inden hiç çıkmayan bir anahtar ister. Kodumuz açık: bütün bunları herkes github.com/syconx-software/us2us adresinde kendisi denetleyebilir.',
           'Söz veremeyeceklerimizi de söyleyelim. Mühürlü gönderici her şeyi gizlemez: sunucu IP adreslerini ve zamanlamayı görebilir. Bizim sunucumuz bunları kaydetmez, ama bu konuda bize güvenmeniz gerekir. Biriyle ilk kez yazıştığınızda onun anahtarı sunucumuzdan gelir; yan yana gelip güvenlik numaralarınızı karşılaştırana kadar araya kimsenin girmediğinden tam emin olamazsınız. Kuantum sonrası koruma mesajların içeriği içindir, zarftaki gönderen bilgisi için değil. Telefonunuzda casus yazılım varsa ya da karşınızdaki ekranın fotoğrafını çekerse, hiçbir uygulama sizi koruyamaz; us2us da. Bütün ayrıntılar [gizlilik politikamızda](/tr/gizlilik#guvenlik).',
         ],
       },
@@ -447,14 +447,14 @@ export const why: Record<Locale, WhyText> = {
         paragraphs: [
           'us2us ücretsiz. Reklam yok, izleyici yok, analiz aracı yok. Verilerinizi satmıyoruz; hizmetin çalışması için gerekenden fazlasını zaten toplamıyoruz. “Bir şey ücretsizse ürün sizsinizdir” derler; bu sözün bu kez yanlış çıkmasını istiyoruz. Mesajlarınıza, alışkanlıklarınıza ya da dikkatinize ihtiyaç duyan bir iş modelimiz yok, olmasını da istemiyoruz.',
           'Biz, SyconX ekibi, us2us’ı gönüllü olarak geliştiriyoruz. Önce kendimiz için yaptık: annemizle, kardeşimizle, uzaktaki eski bir dostla konuşurken araya kimsenin girmediğini bilmek için. Sonra bunun herkesin hakkı olduğunu düşündük. Mahremiyet, parası olanın satın alabildiği bir ayrıcalık olmamalı.',
-          'us2us’ın kodu AGPL-3.0 lisanslıdır; kaynak kodunu yakında herkese açık olarak yayımlayacağız. Bu lisansla us2us’ı değiştirip bir ağ üzerinden başkalarına sunan herkes, değişikliklerini de onlarla paylaşmak zorundadır; yani kimse bu emeği alıp kendi kapalı ürününe dönüştüremez. Açık kaynak bizim için hesap vermenin bir yolu: Bir uygulamanın mesajlarınızı okuyamadığını bize inanarak değil, koduna bakarak bilebilmelisiniz.',
+          'us2us’ın kodu AGPL-3.0 lisanslıdır; kaynak kodunun tamamı github.com/syconx-software/us2us adresinde herkese açık. Bu lisansla us2us’ı değiştirip bir ağ üzerinden başkalarına sunan herkes, değişikliklerini de onlarla paylaşmak zorundadır; yani kimse bu emeği alıp kendi kapalı ürününe dönüştüremez. Açık kaynak bizim için hesap vermenin bir yolu: Bir uygulamanın mesajlarınızı okuyamadığını bize inanarak değil, koduna bakarak bilebilmelisiniz.',
         ],
       },
       {
         id: WHY_SECTION.invitation,
         title: 'Yeniden beklemek',
         paragraphs: [
-          'us2us bugün iOS’ta, TestFlight üzerinden davetle açılan kapalı bir betada; App Store ve Android sürümleri yakında. Betaya davet edildiyseniz deneyin; takıldığınız ya da içinize sinmeyen her yeri bize yazın. Kodu yayımladığımızda okuyun, yanlış yaptığımız bir şey görürseniz söyleyin. Bu uygulama eleştiriyle büyüyecek.',
+          'us2us bugün iOS’ta, TestFlight üzerinden davetle açılan kapalı bir betada; App Store ve Android sürümleri yakında. Betaya davet edildiyseniz deneyin; takıldığınız ya da içinize sinmeyen her yeri bize yazın. Kodu github.com/syconx-software/us2us adresinde okuyun; yanlış yaptığımız bir şey görürseniz söyleyin. Bu uygulama eleştiriyle büyüyecek.',
           'Bir de şunu deneyin: bir mesaj gönderin ve bekleyin. Telefonunuz sessizken, karşınızdakinin cevap vereceği anı kendisinin seçtiğini bilin. Uygulamayı açtığında mesajınız orada olacak; yalnızca onun için, yalnızca onun ekranında.',
           'Çocukken bardağa fısıldadığımız sözler gibi: ip gerilir, ses yol alır ve öbür uçta yalnızca bir kişi duyar. us2us’ı o ipi yeniden germek için yaptık.',
         ],
@@ -562,7 +562,7 @@ export const why: Record<Locale, WhyText> = {
           'So we built us2us on that belief: a private line between two people, built to keep everyone else out. Every decision came down to one question: does this keep the conversation between the two of them?',
           'We ask for no phone number; a username is enough to sign up and to find someone. Messages are locked on your phone with libsignal, the official library of the Signal protocol, and open only on the other person’s; their content is also protected against being recorded today and attacked later with a quantum computer. With sealed sender, our server sees where an envelope is going, but cannot read on the envelope where it came from.',
           'We send no notifications, on purpose. We never use Apple’s or Google’s push servers; messages arrive when you open the app. With no push token registered anywhere, there is no push record for anyone to ask for. We know it is not an easy choice. In one study, 30 volunteers switched off all notifications for 24 hours. They felt less distracted and more productive, but some worried that they could not answer as quickly as others expected, and felt a little cut off. Two years later, half of the participants still handled notifications differently.[35] We believe that worry fades once we accept that everyone may answer in their own time. Expecting something important? Just tell them: “check us2us”.',
-          'Your conversations live on the two phones and nowhere else. Our server keeps no archive. It works like a forgetful postman: it deletes each envelope as soon as it is delivered, or after 14 days at most. The app opens with a secret code, and on an iPhone every attempt at the code needs a key that never leaves the Secure Enclave. Once we publish the code, anyone will be able to check all of this.',
+          'Your conversations live on the two phones and nowhere else. Our server keeps no archive. It works like a forgetful postman: it deletes each envelope as soon as it is delivered, or after 14 days at most. The app opens with a secret code, and on an iPhone every attempt at the code needs a key that never leaves the Secure Enclave. Our code is open: anyone can check all of this at github.com/syconx-software/us2us.',
           'And here is what we can’t promise. Sealed sender doesn’t hide everything: the server can see IP addresses and timing. Ours keeps no record of them, but on that you have to take our word. The first time you write to someone, their key comes from our server; until you meet and compare safety numbers, you can’t be fully sure that no one stepped in between. The post-quantum protection covers the content of messages, not the sender details on the envelope. And no app, us2us included, can protect you from spyware on your own phone, or from the other person photographing the screen. The details are in our [privacy policy](/en/privacy#security).',
         ],
       },
@@ -572,14 +572,14 @@ export const why: Record<Locale, WhyText> = {
         paragraphs: [
           'us2us is free. No ads, no trackers, no analytics. We don’t sell your data, and we collect no more of it than the service needs to work. They say that if something is free, you are the product; we would like to prove that wrong. We have no business model that needs your messages, your habits or your attention, and we don’t want one.',
           'At SyconX we build us2us as volunteers. We made it for ourselves first, to know that when we talk to our mothers, our brothers and sisters, an old friend far away, no one is in between. Then we realised it should be everyone’s right. Privacy shouldn’t be a privilege for those who can afford it.',
-          'The code is licensed under the AGPL-3.0, and we will publish the source code for everyone soon. Anyone who changes us2us and offers it to others over a network must then share their changes too, so no one can take this work and lock it inside a closed product of their own. For us, open source is a way of being accountable: you should know that an app can’t read your messages from its code, not from our word.',
+          'The code is licensed under the AGPL-3.0, and the full source code is public at github.com/syconx-software/us2us. Anyone who changes us2us and offers it to others over a network must then share their changes too, so no one can take this work and lock it inside a closed product of their own. For us, open source is a way of being accountable: you should know that an app can’t read your messages from its code, not from our word.',
         ],
       },
       {
         id: WHY_SECTION.invitation,
         title: 'Learning to wait again',
         paragraphs: [
-          'Today us2us is in closed beta on iOS, through TestFlight, by invitation; the App Store and Android versions are coming soon. If you have an invitation, try it, and tell us wherever you got stuck or something felt wrong. When we publish the code, read it, and if you find a mistake, say so. Criticism is how this app will grow.',
+          'Today us2us is in closed beta on iOS, through TestFlight, by invitation; the App Store and Android versions are coming soon. If you have an invitation, try it, and tell us wherever you got stuck or something felt wrong. Read the code at github.com/syconx-software/us2us, and if you find a mistake, say so. Criticism is how this app will grow.',
           'And try this, too: send a message, then wait. While your phone stays quiet, the other person is choosing their own moment to answer. When they open the app, your message will be there, for them alone.',
           'Like the words we whispered into a cup as children: the string pulls tight, the voice travels, and at the other end only one person hears. We built us2us to pull that string tight again.',
         ],

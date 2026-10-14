@@ -52,8 +52,9 @@ export const SECURITY_ANCHOR: Record<Locale, string> = { tr: 'guvenlik', en: 'se
 /** The support page's licences section, linked from the footer; it works like SECURITY_ANCHOR. */
 export const LICENCES_ANCHOR: Record<Locale, string> = { tr: 'lisanslar', en: 'licences' }
 
-/** Third-party licence texts served by the site itself (public/fonts, public/licenses). */
+/** us2us's own source, then the third-party licence texts served by the site itself (public/fonts, public/licenses). */
 const LICENCES: SiteText['support']['licences'] = [
+  { name: 'us2us', licence: 'AGPL-3.0 · github.com/syconx-software/us2us', href: 'https://github.com/syconx-software/us2us' },
   { name: 'Inter', licence: 'SIL Open Font License 1.1', href: '/fonts/OFL-Inter.txt' },
   { name: 'Doto', licence: 'SIL Open Font License 1.1', href: '/fonts/OFL-Doto.txt' },
   { name: 'Martian Mono', licence: 'SIL Open Font License 1.1', href: '/fonts/OFL-MartianMono.txt' },
@@ -215,7 +216,7 @@ export const site: Record<Locale, SiteText> = {
       security: 'Güvenlik',
       press: 'Basın',
       contact: 'İletişim',
-      licence: 'AGPL-3.0 · Kaynak kodu yakında',
+      licence: 'AGPL-3.0 · Açık kaynak',
       noTracking: 'Bu site çerez ve izleyici kullanmaz, başka bir siteden hiçbir şey yüklemez.',
     },
     home: {
@@ -500,7 +501,7 @@ export const site: Record<Locale, SiteText> = {
         },
       ],
       licencesTitle: 'Lisanslar',
-      licencesIntro: 'us2us’ın kodu (uygulamalar ve bu siteyi de sunan aktarıcı) AGPL-3.0 lisanslıdır. Kaynak kodu yakında yayımlanacak; adresini bu sayfada duyuracağız.',
+      licencesIntro: 'us2us’ın kodu (uygulamalar ve bu siteyi de sunan aktarıcı) AGPL-3.0 lisanslıdır. Kaynak kodunun tamamı GitHub’da herkese açık; katkılarınızı bekliyoruz.',
       licencesListIntro: 'Bu sitenin kullandığı yazı tipleri ve kütüphaneler:',
       licences: LICENCES,
     },
@@ -528,7 +529,7 @@ export const site: Record<Locale, SiteText> = {
       security: 'Security',
       press: 'Press',
       contact: 'Contact',
-      licence: 'AGPL-3.0 · Source code coming soon',
+      licence: 'AGPL-3.0 · Open source',
       noTracking: 'This site uses no cookies or trackers and loads nothing from other sites.',
     },
     home: {
@@ -813,7 +814,7 @@ export const site: Record<Locale, SiteText> = {
         },
       ],
       licencesTitle: 'Licences',
-      licencesIntro: 'us2us’s code (the apps and the relay that also serves this site) is licensed under AGPL-3.0. The source code will be published soon; we will announce its address on this page.',
+      licencesIntro: 'us2us’s code (the apps and the relay that also serves this site) is licensed under AGPL-3.0. The full source code is public on GitHub; contributions are welcome.',
       licencesListIntro: 'Fonts and libraries used by this site:',
       licences: LICENCES,
     },
