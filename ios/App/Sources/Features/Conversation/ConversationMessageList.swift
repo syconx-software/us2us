@@ -217,7 +217,7 @@ private struct ConversationColumn: View {
         let typing: Bool
     }
 
-    /// Sent: the critically damped spring (owner rule: no bounce) — the bubble
+    /// Sent: the critically damped spring (design rule: no bounce) — the bubble
     /// travels from the composer. Received: the design's 0.36 s ease-out.
     private func insertAnimation(_ newest: NewestRow) -> Animation {
         if reduceMotion { return U2Motion.reducedCrossFade }

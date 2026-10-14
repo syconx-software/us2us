@@ -324,7 +324,7 @@ protocol MessengerService: AnyObject, Observable {
     /// Re-keys the vault from `current` to `new` (both already validated).
     func changeSecretCode(current: String, new: String) async throws(ChangeSecretCodeError)
 
-    /// Owner rule: the backup password must differ from the secret code.
+    /// Product rule: the backup password must differ from the secret code.
     /// Never counted as an unlock attempt. 7.2 no longer asks: the §5.5
     /// minimum of 10 characters already keeps a six-digit code out.
     func backupPasswordIsSecretCode(_ password: String) async -> Bool

@@ -1,7 +1,7 @@
 /*
  * All website text, Turkish and English. Every entry exists in both
  * languages; the `SiteText` type makes a missing translation a type error.
- * The landing page follows the owner's design ("us2us Web"); the privacy
+ * The landing page follows the "us2us Web" design; the privacy
  * policy mirrors PROTOCOL.md §4.10 (retention) and §9 (known limits), and
  * the "no notifications" texts follow docs/copy/no-push.md; change them
  * together. The "why we built it" page has its own file, ./why.ts.

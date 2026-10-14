@@ -223,7 +223,7 @@ class AppRuntimeTest {
         assertEquals(LockState.UNLOCKED, fixture.runtime.lockState.value)
 
         fixture.phase(AppPhase.BACKGROUND)
-        // Owner decision: locked immediately, nothing left in observable state.
+        // Locked immediately, nothing left in observable state.
         assertEquals(LockState.LOCKED, fixture.runtime.lockState.value)
         assertTrue(fixture.runtime.chats.value.isEmpty())
         assertTrue(fixture.runtime.openMessages.value.isEmpty())

@@ -30,7 +30,7 @@ data class VoiceRecording(
     }
 }
 
-/** The rules of a voice message (owner: like WhatsApp / iMessage). */
+/** The rules of a voice message (like WhatsApp / iMessage). */
 object VoiceNoteRules {
     /** Shorter recordings are thrown away (the hold hint shows instead). */
     val minimumDuration: Duration = 1.seconds

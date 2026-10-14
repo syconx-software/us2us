@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 7.1 › Güvenlik › “Biyometrik ile aç” (owner decision): offered when the phone has an enrolled
+ * 7.1 › Güvenlik › “Biyometrik ile aç”: offered when the phone has an enrolled
  * strong biometric; without one only the code is used, and a switch that is still on stays until it
  * is turned off.
  */

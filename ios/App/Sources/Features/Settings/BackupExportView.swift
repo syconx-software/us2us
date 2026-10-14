@@ -4,7 +4,7 @@ import Us2usRuntime
 
 /// State of 7.2 · Yedeği dışa aktar.
 ///
-/// The backup password is separate from the secret code (owner decision) and
+/// The backup password is separate from the secret code (by design) and
 /// asked twice: the first entry is checked (the PROTOCOL.md §5.5 rules, then
 /// the local strength estimate at least “Orta”), then a confirmation field
 /// rises under it; only a matching confirmation exports. Every problem is

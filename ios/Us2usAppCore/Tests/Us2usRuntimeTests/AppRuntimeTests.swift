@@ -171,7 +171,7 @@ struct AppRuntimeTests {
         #expect(fixture.runtime.lockState == .unlocked)
 
         fixture.runtime.scenePhaseChanged(.background)
-        // Owner decision: locked immediately, nothing left in observable state.
+        // By design: locked immediately, nothing left in observable state.
         #expect(fixture.runtime.lockState == .locked)
         #expect(fixture.runtime.chats.isEmpty)
         #expect(fixture.runtime.openMessages.isEmpty)

@@ -168,7 +168,7 @@ class ConversationInteractionTest {
         assertTrue("blocked after the pop", rig.fixtures.requests.value.none { it.id == request })
     }
 
-    /** Android, owner decision 0b: without notifications “Canlı konum” opens the share sheet first; sharing is never forced. */
+    /** Android: without notifications “Canlı konum” opens the share sheet first; sharing is never forced. */
     @Test
     fun liveLocationWithoutNotificationsSaysSoInTheShareSheet() {
         rig = ConversationRig()

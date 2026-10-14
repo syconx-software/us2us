@@ -50,7 +50,7 @@ xcuserdata/
 # release archives and exported .ipa files (ios/App/scripts/archive.sh)
 ios/App/build/
 
-# ── local tool settings and caches ───────────────────────────────────────
+# ── local design sources ─────────────────────────────────────────────────
 *.dc.html
 ios/design/source/
 

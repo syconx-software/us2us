@@ -27,7 +27,7 @@ public protocol PasteboardWriting: AnyObject {
     }
 #endif
 
-/// Pasteboard hygiene (owner decision):
+/// Pasteboard hygiene (by design):
 ///
 /// * Every copy is **local only**, so Universal Clipboard never carries it to
 ///   the user's other devices.

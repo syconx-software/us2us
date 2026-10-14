@@ -10,9 +10,9 @@
 // messages (delete for everyone, view-once, delete for me) only secure_delete
 // plus a WAL checkpoint does, because they share the conversation key.
 //
-// These tests are expected to FAIL until every single-message deletion path
-// runs `PRAGMA wal_checkpoint(TRUNCATE)` (as `performDueWipes` already does
-// for expired disappearing messages).
+// These tests require every single-message deletion path to run
+// `PRAGMA wal_checkpoint(TRUNCATE)` (as `performDueWipes` does for expired
+// disappearing messages).
 
 import Foundation
 import Testing

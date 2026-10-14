@@ -115,7 +115,7 @@ final class AppFlowUITests: XCTestCase {
         app.buttons["picker.option.1"].tap()  // Koyu
     }
 
-    /// Every return from the background locks (owner decision).
+    /// Every return from the background locks (no grace period).
     func testReturningFromBackgroundLocks() {
         let app = launch(["-U2Start", "chats"])
         XCTAssertTrue(app.staticTexts["Sohbetler"].waitForExistence(timeout: 5))

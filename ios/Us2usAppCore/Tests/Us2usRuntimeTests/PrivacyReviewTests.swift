@@ -1,8 +1,8 @@
 // us2us — AGPL-3.0-only
 //
 // Privacy review (adversarial): each test states what PROTOCOL.md promises
-// and is expected to FAIL against the current runtime until the issue named
-// in its comment is fixed. No production code is changed by this file.
+// and failed against the runtime as it was before the fix for the issue named
+// in its comment. No production code is changed by this file.
 
 import AVFoundation
 import CoreVideo

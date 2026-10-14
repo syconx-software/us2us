@@ -60,7 +60,7 @@ import org.junit.runner.RunWith
  * com.syconx.us2us.live.LiveSharingDeviceTest` runs it (instrumentation arguments `relayUrl`,
  * `botUsername`, `location=1`); without them they are skipped.
  *
- * Owner decision 0b: a share goes on in the background only while its notification can be seen.
+ * A share goes on in the background only while its notification can be seen.
  * With `notifications=0` (`e2e-live.sh --no-notifications`, the permission refused) only the test of
  * that runs: the share stops when the app leaves and nothing is sent afterwards. `backgroundMinutes`
  * keeps the 15-minute share ticking in the background that long (default 1).
@@ -242,7 +242,7 @@ class LiveSharingDeviceTest {
         onMain { service.conversationDisappeared(chat) }
     }
 
-    /** Owner decision 0b: with notifications refused a share runs while the app is in front and stops when it leaves. */
+    /** With notifications refused a share runs while the app is in front and stops when it leaves. */
     @Test
     fun withNotificationsRefusedTheShareStopsWhenTheAppLeaves(): Unit = withTheBot(noticeRefused = true) { service, screen, _, chat ->
         assertFalse(notifications.areNotificationsEnabled())

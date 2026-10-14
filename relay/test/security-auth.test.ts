@@ -13,9 +13,9 @@ import { TestDb, uuidBytes } from './support/db'
 import { startRelay, type RelayProcess } from './support/relay'
 
 /*
- * Security review (lens: auth), findings AUTH-1 .. AUTH-5. Every test here
- * states the behaviour PROTOCOL.md requires and fails against the current
- * relay.
+ * Security review of authentication: regression tests for findings AUTH-1 ..
+ * AUTH-5. Every test here states the behaviour PROTOCOL.md requires and
+ * failed against the relay before its fix.
  */
 
 // The WebSocket hooks reach the relay through useRelay(); AUTH-5 swaps in a

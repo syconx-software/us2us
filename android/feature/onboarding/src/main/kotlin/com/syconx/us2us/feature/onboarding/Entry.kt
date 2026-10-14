@@ -46,7 +46,7 @@ fun OnboardingFlow(entry: OnboardingEntry, onFinished: () -> Unit, modifier: Mod
             messenger = messenger,
             scope = scope,
             haptics = haptics,
-            // 2.3 offers biometrics only when a strong one is enrolled (owner decision); the fixtures' knob wins.
+            // 2.3 offers biometrics only when a strong one is enrolled; the fixtures' knob wins.
             biometry = { (messenger as? FixtureControls)?.biometry ?: DeviceBiometrics.enrolled(context) },
             onFinished = { finished() },
             onReturnToLock = { app.returnToLock() },

@@ -22,10 +22,10 @@ import { startRelay, type RelayProcess } from './support/relay'
 import { TestSocket, type Frame } from './support/ws'
 
 /*
- * Security review (lens: privacy), the findings that were confirmed: PRIV-1,
- * -2, -3, -4, -5, -7, -8 and -9 (PRIV-6 was refuted). Every test here states
- * the behaviour PROTOCOL.md, the privacy page or the deploy notes require and
- * fails against the current relay.
+ * Security review of privacy: regression tests for the confirmed findings
+ * PRIV-1, -2, -3, -4, -5, -7, -8 and -9 (PRIV-6 was not confirmed). Every test
+ * here states the behaviour PROTOCOL.md, the privacy page or the deploy notes
+ * require and failed against the relay before its fix.
  */
 
 /** True if `pending` settles within `ms`. */

@@ -24,7 +24,7 @@ struct VoiceRecording: Hashable, Sendable {
     }
 }
 
-/// The rules of a voice message (owner: like WhatsApp / iMessage).
+/// The rules of a voice message (modelled on WhatsApp / iMessage).
 enum VoiceNoteRules {
     /// Shorter recordings are thrown away (the hold hint shows instead).
     static let minimumDuration: TimeInterval = 1

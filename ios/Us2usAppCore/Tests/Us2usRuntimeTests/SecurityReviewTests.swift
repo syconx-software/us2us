@@ -1,8 +1,8 @@
 // Adversarial security / stability review (2026-10-08).
 //
-// Every test in this file reproduces a concrete defect and FAILS against the
-// current production code. Nothing here changes production behaviour; the
-// doubles below only freeze or fail calls at the points the review names.
+// Every test in this file reproduces a concrete defect and failed against the
+// code as it was before its fix. Nothing here changes production behaviour;
+// the doubles below only freeze or fail calls at the points the review names.
 
 import Foundation
 import LibSignalClient
@@ -295,7 +295,7 @@ struct SecurityReviewLifecycleTests {
     /// in the background: no grace timer, no background task, the DEK stays
     /// in memory for as long as the process lives, and the next return to the
     /// foreground shows the unlocked app without the code (§5.4 step 4,
-    /// owner rule "lock at every return from the background").
+    /// product rule "lock at every return from the background").
     @Test func aCodeUnlockFinishingAfterTheUserLeftTheAppStaysLocked() async throws {
         let fixture = try ReviewRuntimeFixture()
         try await fixture.onboard()
@@ -571,7 +571,7 @@ struct SecurityReviewMessagingTests {
         await fixture.engine.stop()
     }
 
-    /// §6.4 / owner rule: nothing goes back to a requester before the user
+    /// §6.4 / product rule: nothing goes back to a requester before the user
     /// accepts ("declining sends nothing back", the requester cannot tell the
     /// request was seen). `send` refuses `.incomingRequest`, but `react` does
     /// not check the request state at all and `updateConversationSettings`

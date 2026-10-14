@@ -11,9 +11,10 @@ import { TestDb, uuidBytes } from './support/db'
 import { startRelay, type RelayProcess } from './support/relay'
 
 /*
- * Security review (lens: dos), findings DOS-1 .. DOS-7. Each test states the
- * behaviour a non-abusable relay would have (mostly as described by the
- * finding's own fix) and fails against the current relay, or demonstrates
+ * Security review of denial-of-service resistance: regression tests for
+ * findings DOS-1 .. DOS-7. Each test states the behaviour a non-abusable relay
+ * would have (mostly as described by the finding's own fix) and failed
+ * against the relay before that fix, or demonstrates
  * the resource blow-up directly.
  *
  * Constants mirrored from the source so the tests keep their meaning:

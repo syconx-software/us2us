@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android-only copy of the conversation: the live-location share sheet (owner decision 0b). On
+<!-- Android-only copy of the conversation: the live-location share sheet. On
      Android a share goes on in the background only while its notification can be seen; iOS always
      shows its own location indicator instead. -->
 <resources>

@@ -454,7 +454,7 @@ Opacity tokens: `disabled` 0.45, `lockBehindSheet` 0.3, `contextBackdropContent`
 
 ## 11 · Motion
 
-**Principle.** Owner requirement: every animation very soft — no bounce, no overshoot, long gentle ease-in-out; nothing snaps. Reduce Motion: stop all infinite/ambient motion and replace movement with short cross-fades.
+**Principle.** Design rule: every animation very soft — no bounce, no overshoot, long gentle ease-in-out; nothing snaps. Reduce Motion: stop all infinite/ambient motion and replace movement with short cross-fades.
 
 ### From the design (exact)
 

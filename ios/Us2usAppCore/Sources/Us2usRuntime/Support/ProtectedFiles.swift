@@ -72,7 +72,7 @@ public struct AppDirectories: Sendable, Equatable {
     }
 }
 
-/// File attribute helpers for §5.3 / the owner's "complete protection,
+/// File attribute helpers for §5.3 and the "complete protection,
 /// no backups" rule.
 public enum ProtectedFiles {
     /// Sets Data Protection "complete" on an existing file or directory.

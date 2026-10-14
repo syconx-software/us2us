@@ -1,6 +1,6 @@
 /*
  * us2us website. The Nocturne design system (tokens, .btn, .tag, .seg,
- * .card, .elev-*, .hr, .table) plus the layout of the owner's design
+ * .card, .elev-*, .hr, .table) plus the layout of the design
  * ("us2us Web"), with every inline style of the design moved here so the
  * CSP can stay `style-src 'self'`. Fonts are served from /fonts (SIL OFL,
  * licences next to the files); nothing is loaded from another origin.

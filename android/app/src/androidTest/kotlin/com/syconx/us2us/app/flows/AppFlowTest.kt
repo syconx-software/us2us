@@ -109,7 +109,7 @@ class AppFlowTest {
         app.waitUntil("“Koyu” selected") { app.isSelected("picker.option.1") }
     }
 
-    /** Every return from the background locks (owner decision). */
+    /** Every return from the background locks. */
     @Test
     fun returningFromBackgroundLocks() {
         app.launch("U2Start" to "chats")
