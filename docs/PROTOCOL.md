@@ -48,7 +48,7 @@ Key words MUST, SHOULD, MAY are used as in RFC 2119.
 >   `ios/Us2usKit`, `ios/Us2usAppCore` (local schema v6 keeps when an item
 >   was saved by either side) and `android/core` (the rules and the send;
 >   storing it is the Android app's).
-> * 2026-10-11: **profile pictures, also in search** (owner decision; §1,
+> * 2026-10-11: **profile pictures, also in search** (product decision; §1,
 >   §1.1, §2.1, §3.3, §4.3, §4.10, §4.11, new §4.12, §5.5, §8.7, new §8.9
 >   and §8.10, §9): a user keeps the initial letter, picks a built-in preset
 >   or uploads a photo (≤ 256 × 256 JPEG or HEIC, no metadata). Accepted
@@ -219,7 +219,7 @@ Key words MUST, SHOULD, MAY are used as in RFC 2119.
 >   unsent ones are never sent (§8.1); view-once carries no preview and is
 >   destroyed when opened, quote excerpts only of messages that stay (§8.5).
 > * 2026-10-08: **six-digit secret code and a separate backup password**
->   (owner decision, iOS design 02/03/07). §5.2: the secret code is exactly
+>   (product decision, iOS design 02/03/07). §5.2: the secret code is exactly
 >   six ASCII digits; repeated digits, runs (also wrapping, `890123`) and
 >   `spec/common-secret-codes.txt` (now a six-digit list) are refused; the
 >   KDF is unchanged (PBKDF2 600000 over the digits, then HKDF with the
@@ -236,7 +236,7 @@ Key words MUST, SHOULD, MAY are used as in RFC 2119.
 > * 2026-10-07: **push notifications removed from the product.**
 >   Implementations MUST NOT contain push endpoints, device-token storage,
 >   APNs/FCM clients or push-related query parameters (`push=0`). This
->   supersedes any earlier instruction or draft that mentioned push. Mailbox
+>   supersedes any earlier draft that mentioned push. Mailbox
 >   and media retention raised to 14 days. Delivery receipts are always sent.
 > * 2026-10-07: **"active now" presence added** (§8.6, `PresenceMessage`,
 >   `ProfileUpdate.presence_sharing`, `POST /v1/messages/ephemeral`).
@@ -1963,7 +1963,7 @@ copy is current, and every fetch tells the relay who looked at whom.
 
 ### 8.10 Avatar records for search
 
-Owner decision: when someone looks up the exact username (§4.4), the result
+By design, when someone looks up the exact username (§4.4), the result
 shows the user's picture, also before any conversation. The picture is kept
 on the relay encrypted under a key that only someone who knows the username
 can derive. That keeps it from the relay and from a copy of its database,

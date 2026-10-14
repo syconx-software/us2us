@@ -384,7 +384,7 @@ class ConversationViewModel(
     }
 
     /**
-     * “+” › Canlı konum, for an hour (as iOS). Android (owner decision 0b): a share goes on in the
+     * “+” › Canlı konum, for an hour (as iOS). On Android a share goes on in the
      * background only while its notification can be seen; when it cannot, the share sheet says
      * first that sharing stops when the user leaves the app, and offers to allow notifications.
      */

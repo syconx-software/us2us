@@ -8,7 +8,7 @@ import Us2usStorage
 /// every action is `async`, running crypto, storage and network work off the
 /// main actor (vault unlock and backup export take about a second).
 ///
-/// Lifecycle (PROTOCOL.md §5.4 with the owner's decisions):
+/// Lifecycle (PROTOCOL.md §5.4):
 ///
 /// 1. Launch → ``LockState/locked`` (or ``LockState/needsSetup``). Overdue
 ///    ghost wipes run without the DEK.
@@ -219,7 +219,7 @@ public final class AppRuntime {
         }
     }
 
-    /// The owner's rule: lock on every return from the background. The UI
+    /// Product rule: lock on every return from the background. The UI
     /// state is cleared now; the session receives for the grace period.
     private func lockForBackground() {
         clearUnlockedState()

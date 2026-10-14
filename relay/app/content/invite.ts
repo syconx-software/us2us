@@ -61,7 +61,7 @@ interface InviteText {
   title: (name: string) => string
   description: (name: string) => string
   kicker: string
-  /** The h1, as the owner worded it. */
+  /** The h1, worded exactly as designed. */
   heading: (name: string) => string
   /** What us2us is, in two lines. */
   intro: string

@@ -253,7 +253,7 @@ class LiveLocationSharingTest {
         assertFalse(notice.isShown)
     }
 
-    /** Owner decision 0b: in front a share runs whether or not its notice can be seen; in the background only while it can. */
+    /** In front a share runs whether or not its notice can be seen; in the background only while it can. */
     @Test
     fun withoutItsNoticeAShareRunsInFrontOnly() = runTest {
         notice.visible = false

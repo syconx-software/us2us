@@ -50,18 +50,7 @@ xcuserdata/
 # release archives and exported .ipa files (ios/App/scripts/archive.sh)
 ios/App/build/
 
-# ── local tool settings and caches ───────────────────────────────────────
-graphify-out/
-CLAUDE.md
-AGENTS.md
-.claude/
-.codex/
-.cursor/
-.cursorrules
-.aider*
-.windsurf*
-copilot-instructions.md
-.github/copilot-instructions.md
+# ── local design sources ─────────────────────────────────────────────────
 *.dc.html
 ios/design/source/
 

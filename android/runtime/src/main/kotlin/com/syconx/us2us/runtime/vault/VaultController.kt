@@ -13,7 +13,7 @@ import java.time.Clock
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * The vault lifecycle of PROTOCOL.md §5.2 with the owner's rules: a six-digit code entered twice at
+ * The vault lifecycle of PROTOCOL.md §5.2 with the app's own rules: a six-digit code entered twice at
  * creation, attempts recorded as failures *before* the code is checked ([LocalVault]), increasing
  * delays after two wrong codes, an optional wipe after 10, biometric quick unlock through a
  * Keystore key bound to the current biometric enrollment, re-wrapping on a code change, and

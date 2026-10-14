@@ -17,7 +17,7 @@ public enum UnlockError: Error, Equatable, Sendable {
     case busy
 }
 
-/// The vault lifecycle of PROTOCOL.md §5.2 with the owner's rules: a six-digit
+/// The vault lifecycle of PROTOCOL.md §5.2 with these product rules: a six-digit
 /// code entered twice at creation, attempts recorded as failures *before* the
 /// code is checked (Us2usKit `LocalVault`), increasing delays after two wrong
 /// codes, an optional wipe after 10, biometric quick unlock through a Secure

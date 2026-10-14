@@ -94,7 +94,7 @@ import kotlin.time.Duration.Companion.seconds
  * every action is a `suspend` function that runs crypto, storage and network work off the main
  * thread (vault unlock and backup export take about a second).
  *
- * Lifecycle (PROTOCOL.md §5.4 with the owner's decisions):
+ * Lifecycle (PROTOCOL.md §5.4, with the app's own locking rules):
  *
  * 1. Launch → [LockState.LOCKED] (or [LockState.NEEDS_SETUP]). Overdue ghost wipes run without the DEK.
  * 2. Unlock (code or biometrics) → the DEK lives in memory only now; the store opens, overdue wipes
@@ -363,7 +363,7 @@ class AppRuntime(
         }
     }
 
-    /** The owner's rule: lock on every return from the background. The UI state is cleared now; the session receives for the grace period. */
+    /** Locks on every return from the background, by design. The UI state is cleared now; the session receives for the grace period. */
     private fun lockForBackground() {
         clearUnlockedState()
         lockStateFlow.value = LockState.LOCKED

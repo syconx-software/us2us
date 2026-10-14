@@ -163,7 +163,7 @@ internal fun SettingsRootView(modifier: Modifier = Modifier) {
     LaunchedEffect(messenger) { messenger.refreshOwnAvatar() }
 
     val faceIdReason = stringResource(R.string.android_biometric_confirm_reason)
-    // The switch is offered when the phone has an enrolled strong biometric (owner decision; the
+    // The switch is offered when the phone has an enrolled strong biometric (the
     // fixtures' knob wins), and stays while it is on so it can be turned off.
     val context = LocalContext.current
     val deviceBiometry = remember(context, messenger) { (messenger as? FixtureControls)?.biometry ?: DeviceBiometrics.enrolled(context) }

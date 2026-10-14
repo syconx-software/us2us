@@ -93,7 +93,7 @@ final class AppModel {
         self.messenger = service
 
         // The live service decides the start: onboarding without an account,
-        // otherwise the lock — at every launch (owner decision).
+        // otherwise the lock — at every launch, by design.
         var start = configuration.start
         if service is RealMessengerService {
             start = service.hasAccount ? .locked : .welcome
@@ -180,7 +180,7 @@ final class AppModel {
     func sceneWillEnterForeground() {
         guard lockIsDue else { return }
         lockIsDue = false
-        // Every return from the background locks (owner decision, no grace
+        // Every return from the background locks (by design, no grace
         // period). The cover is already up; it cross-fades into the lock
         // (0.36 s) over an opaque base instead of snapping to it.
         securityWindow?.show()

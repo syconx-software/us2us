@@ -244,7 +244,7 @@ every shared component to the design's measured sizes.
 * **Screens** start with **`U2Screen`**: edge-to-edge `bg`, and the device's
   safe area published so `u2Top(56)` / `u2Bottom(44)` place things at design
   coordinates (the design assumes a 62 pt status bar, 34 pt home indicator).
-* **Motion** (`U2Motion`) — owner requirement: *very soft*. Everything uses the
+* **Motion** (`U2Motion`) — design rule: *very soft*. Everything uses the
   design's curve `cubic-bezier(.45,0,.55,1)`, its ease-out, or critically damped
   springs (damping 1.0, no bounce). Pushes cross-fade with a 16 pt drift (0.5 s),
   sheets rise on the soft spring over a fading backdrop, presses scale to 0.97,
@@ -773,7 +773,7 @@ Notes):
    requests. The fixtures keep the three requests, so the card says 3.
 3. **Otomatik kilit**: the row opens a picker with the single option “Hemen” and
    an explanation (the app always locks immediately).
-4. The wrong-code copy (“2 yanlış daha …” after the first) and the owner's
+4. The wrong-code copy (“2 yanlış daha …” after the first) and the product rule
    “delays after two wrong codes” agree with PROTOCOL §5.2 (2 free, 1 min after
    the 3rd). The design proposed 1 → 5 → 15 → 60 min; the kit has 1 → 5 → 15 →
    30 → 60.

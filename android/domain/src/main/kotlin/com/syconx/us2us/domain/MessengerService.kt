@@ -445,7 +445,7 @@ interface MessengerService {
     suspend fun changeSecretCode(current: String, new: String)
 
     /**
-     * Owner rule: the backup password must differ from the secret code. Never counted as an unlock
+     * The backup password must differ from the secret code. Never counted as an unlock
      * attempt. 7.2 no longer asks: the §5.5 minimum of 10 characters already keeps a six-digit code
      * out.
      */

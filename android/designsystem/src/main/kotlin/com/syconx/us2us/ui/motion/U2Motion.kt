@@ -37,7 +37,7 @@ data class U2Timing(val seconds: Float, val easing: Easing, val delaySeconds: Fl
 /**
  * Motion tokens (tokens.json › motion).
  *
- * Owner requirement: every animation is *very soft* — no bounce, no overshoot, long gentle
+ * Every animation is *very soft* — no bounce, no overshoot, long gentle
  * ease-in-out, nothing snaps. All curves here are the design's own
  * `cubic-bezier(0.45, 0, 0.55, 1)`, its ease-out, or a critically damped spring (damping
  * ratio 1, never below).

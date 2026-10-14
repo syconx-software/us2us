@@ -25,7 +25,7 @@ Files that belong to this spec:
 * **Paint notation**: `fill`, `rN` (corner radius; `a/b/c/d` = TL/TR/BR/BL), `border` (CSS border, drawn inside the frame), `shadow` (CSS box-shadow; `inset 0 0 0 Npx C` = an inner stroke of N pt), `opacity`, `filter`/`backdropFilter`.
 * **Layout notation**: `row`/`col` stack, `ai:` cross-axis alignment, `jc:` main-axis distribution, `gap`, `pad T R B L`, `mar T R B L`, `flex 1` (fills remaining space), `abs` (absolutely positioned overlay), `place:center` (centred content), `minH`, `maxW`, `self:` (own alignment in the parent stack).
 * Element ids (`r.4.1` …) are the DOM path under the screen root `r`; the same ids are used in `layout/*.json`.
-* **Usernames** follow PROTOCOL.md §3.1 on every screen (owner decision, 2026-10-11): 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` — no dot (see 2.1). Example usernames in this document are therefore written with `_` (selin_n, mert_k, ece_y, oya_t, kuzey_dev, n_aksoy); the reference PNGs and `layout/*.json` still show the design's dotted examples, which are not valid names.
+* **Usernames** follow PROTOCOL.md §3.1 on every screen (product decision, 2026-10-11): 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` — no dot (see 2.1). Example usernames in this document are therefore written with `_` (selin_n, mert_k, ece_y, oya_t, kuzey_dev, n_aksoy); the reference PNGs and `layout/*.json` still show the design's dotted examples, which are not valid names.
 * Every Inter / Martian Mono text without its own line-height inherits **1.55 × size** (Nocturne body). Single-line labels: give them a frame of exactly that line height so vertical positions match. See `tokens.md › Typography` for the CSS→SwiftUI line-height conversion.
 * EN copy: “(09)” = shown in the design's English section 09; otherwise the EN text is a proposal in the same tone. Turkish is the primary language; every string goes into the String Catalog (tr + en). Upper-casing must always pass the locale (`Text(...).textCase(.uppercase)` uses the environment locale; raw `String` conversions must use `uppercased(with: Locale(identifier: "tr_TR"))` — see 9.3).
 
@@ -417,7 +417,7 @@ Colour legend 1.3:
 > **Section note (TR):** Üç adım: kullanıcı adı, gizli kod, geri dönüşsüzlük onayı. Kodun kurtarılamayacağı kurulumda iki kez ve açık dille söylenir.
 > **EN:** Three steps: username, secret code, irreversibility confirmation. The fact that the code cannot be recovered is said twice during setup, in plain language.
 
-Owner decisions that apply: username = PROTOCOL.md §3.1, the same rule on every screen and platform (shared case table `spec/username-rules.json`); secret code = 6 digits, asked twice (set + confirm); trivial codes rejected; Face ID optional; “Kurulumu tamamla” only after the checkbox; a name found taken at “Kurulumu tamamla” sends the user back to 2.1 (see 2.3).
+Product decisions that apply: username = PROTOCOL.md §3.1, the same rule on every screen and platform (shared case table `spec/username-rules.json`); secret code = 6 digits, asked twice (set + confirm); trivial codes rejected; Face ID optional; “Kurulumu tamamla” only after the checkbox; a name found taken at “Kurulumu tamamla” sends the user back to 2.1 (see 2.3).
 
 ## 2.1 · Kullanıcı adı — Username
 
@@ -426,7 +426,7 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 > **Note (TR):** Uygunluk yazarken denetlenir. Öneri: kullanıcı adları ASCII küçük harfle sınırlansın; böylece İ/ı dönüşümü tam eşleşmeyi hiçbir dilde bozmaz.
 > **EN:** Availability is checked while typing. Recommendation: limit usernames to ASCII lower-case so the İ/ı conversion never breaks exact matching in any language.
 
-**Rule (owner decision, 2026-10-11).** Exactly PROTOCOL.md §3.1: a name is valid iff its normalized form matches `^[a-z][a-z0-9_]{2,23}$` — 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` (no dot). Normalized = Unicode `White_Space` trimmed at both ends, one leading “@” dropped, then the §3.1 normalization (`White_Space` trim, NFKC, locale-independent lower case), byte for byte what the username hash is made from. The typed text is never turned into another name: nothing is dropped, cut to a length or converted (“Kağan”, “Ali Veli”, “İsmail” stay as typed and are reported). The rules a name breaks, in this order: Turkish characters (ı ş ğ ü ö ç, or the “i” + U+0307 that İ becomes), other characters outside `a-z 0-9 _`, a first character that is not a letter, length. The same table of cases (`spec/username-rules.json`) tests the iOS app and the Kotlin core.
+**Rule (product decision, 2026-10-11).** Exactly PROTOCOL.md §3.1: a name is valid iff its normalized form matches `^[a-z][a-z0-9_]{2,23}$` — 3–24 characters, a letter `a-z` first, then only `a-z`, `0-9` and `_` (no dot). Normalized = Unicode `White_Space` trimmed at both ends, one leading “@” dropped, then the §3.1 normalization (`White_Space` trim, NFKC, locale-independent lower case), byte for byte what the username hash is made from. The typed text is never turned into another name: nothing is dropped, cut to a length or converted (“Kağan”, “Ali Veli”, “İsmail” stay as typed and are reported). The rules a name breaks, in this order: Turkish characters (ı ş ğ ü ö ç, or the “i” + U+0307 that İ becomes), other characters outside `a-z 0-9 _`, a first character that is not a letter, length. The same table of cases (`spec/username-rules.json`) tests the iOS app and the Kotlin core.
 
 **Purpose.** Pick the (immutable) username; explain exact-match discovery.
 
@@ -434,7 +434,7 @@ Reference `reference/2.1-kullanici-adi.png` · light `reference/light/2.1-kullan
 - C6 header (“1 / 3”).
 - Title block pad 18 24 0, gap 12: “Kullanıcı adını seç” `displayTitleM` Doto 900 36/36.72 (2 lines, 24,118 354×73); paragraph `body` `text·68%` (2 lines).
 - Field block pad 22 20 0, gap 8: C23 field 20,273 362×60 (`surface`, ring + glow): “@” `text·68%` + value Mono 400 19 `text`, caret, flexible space, status icon 22 (`ph:check-circle` fill `online` when available). Below, row pad 0 4: “Kullanılabilir” `caption` Inter 400 13 `online` left; counter “7 / 24” `monoCounter` Mono 400 11.5 `text·68%` right.
-- Rules list pad 14 24 0, gap 8: 4×4 `accent400` bullet + gap 10 + `bullet` Inter 400 13.5/18.9 `text·68%`. Four rows — length, first letter, characters, Turkish characters; the reference draws three (before the owner's decision): “Harfle başlar” sits between r.3.0 and r.3.1 with the same metrics, so everything below moves down 26.89 pt (18.89 + gap 8).
+- Rules list pad 14 24 0, gap 8: 4×4 `accent400` bullet + gap 10 + `bullet` Inter 400 13.5/18.9 `text·68%`. Four rows — length, first letter, characters, Turkish characters; the reference draws three (it predates this rule): “Harfle başlar” sits between r.3.0 and r.3.1 with the same metrics, so everything below moves down 26.89 pt (18.89 + gap 8).
 - Example card 20,470 362×145, `surface` r16, pad 16, gap 12: kicker “TAM EŞLEŞME” `monoKicker` `accent300`; 2-column grid (1fr | auto, row gap 10): `monoMatch` Mono 400 14 `text` handle | status `monoMatchStatus` Mono 400 12.5 with a 16 pt icon, gap 6 (`ph:x-circle` regular `danger` “bulunamaz”; `ph:check-circle` regular `online` “bulunur”); footnote `captionTight` Inter 400 13/18.85 `text·68%`.
 - Spacer; C1 “Devam” 20,776 362×54 (pad 0 20 44).
 
@@ -558,7 +558,7 @@ Reference `reference/2.2-gizli-kod.png` · light `reference/light/2.2-gizli-kod.
 | *(mismatch, proposed)* Kodlar eşleşmedi. Baştan dene. | The codes didn't match. Start again. |
 | *(weak, proposed)* Bu kod çok kolay tahmin edilir. Başka bir kod seç. | This code is too easy to guess. Choose another. |
 
-**States.** set (0–6 dots) → on 6th digit: validate weak codes (all equal, ascending/descending runs, e.g. 000000, 123456, 654321, 112233-style repeats — owner rule) → weak: dots turn `danger`, message under the dots in `calloutL` style `danger` (as 3.2), clear after 0.8 s → confirm step (same screen, title swaps to the confirm copy) → match → 2.3; mismatch → error message, back to the set step.
+**States.** set (0–6 dots) → on 6th digit: validate weak codes (all equal, ascending/descending runs, e.g. 000000, 123456, 654321, 112233-style repeats — product rule) → weak: dots turn `danger`, message under the dots in `calloutL` style `danger` (as 3.2), clear after 0.8 s → confirm step (same screen, title swaps to the confirm copy) → match → 2.3; mismatch → error message, back to the set step.
 
 **Transitions.** Back → 2.1 (or from confirm back to set). Auto-advance after the 6th digit (hold 0.25 s so the last dot is seen).
 
@@ -728,7 +728,7 @@ Colour legend 2.3:
 > **Section note (TR):** us2us her açılışta ve arka plandan her dönüşte kilitlenir. Face ID tanımazsa kod klavyesi açılır; kod hiçbir koşulda sıfırlanamaz. Uygulama değiştiricide içerik görünmez.
 > **EN:** us2us locks on every launch and on every return from the background. If Face ID doesn't recognise you, the code keypad opens; the code can never be reset under any circumstances. No content is visible in the app switcher.
 
-Owner decisions: lock on every launch and every return from background (no grace period); after wrong attempts, increasing delays; “Her şeyi sil” requires a second confirmation; no reset path.
+Product decisions: lock on every launch and every return from background (no grace period); after wrong attempts, increasing delays; “Her şeyi sil” requires a second confirmation; no reset path.
 
 ## 3.1 · Face ID
 
@@ -830,7 +830,7 @@ Reference `reference/3.2-kod-yanlis.png` · light `reference/light/3.2-kod-yanli
 | Kodu unuttum | I forgot my code |
 | *(a11y)* Face ID ile aç · Sil | Unlock with Face ID · Delete |
 
-**States.** idle (empty dots, no message) → typing (filled dots) → 6th digit verifies automatically → success: dissolve to the app → wrong: all dots `danger` + message, keypad stays active, dots clear after 0.8 s (message stays until the next digit). **Throttle (owner decision):** 1st and 2nd wrong attempts free (message counts down “2 / 1 yanlış daha”), then 1 min wait, then increasing (proposed 1 → 5 → 15 → 60 min, persisted in the vault, survives relaunch); while waiting: dots dimmed, keypad disabled at 45 %, message shows the live `mm:ss`. *The design's sentence implies the wait starts at the 3rd wrong attempt; the design note says “after two” — the app implements the copy as drawn and keep the threshold a constant.* Face ID key → 3.1 scan. “Kodu unuttum” → 3.3 sheet.
+**States.** idle (empty dots, no message) → typing (filled dots) → 6th digit verifies automatically → success: dissolve to the app → wrong: all dots `danger` + message, keypad stays active, dots clear after 0.8 s (message stays until the next digit). **Throttle (product decision):** 1st and 2nd wrong attempts free (message counts down “2 / 1 yanlış daha”), then 1 min wait, then increasing (proposed 1 → 5 → 15 → 60 min, persisted in the vault, survives relaunch); while waiting: dots dimmed, keypad disabled at 45 %, message shows the live `mm:ss`. *The design's sentence implies the wait starts at the 3rd wrong attempt; the design note says “after two” — the app implements the copy as drawn and keep the threshold a constant.* Face ID key → 3.1 scan. “Kodu unuttum” → 3.3 sheet.
 
 **Animation.** Error: dots tint to `danger` (0.24 s) + soft shake ±6 pt (0.45 s, 3 damped cycles), message fades in 0.36 s. Reduce Motion: no shake.
 
@@ -2769,7 +2769,7 @@ Reference `reference/7.1-ayarlar.png` · light `reference/light/7.1-ayarlar.png`
 
 Section labels are uppercased with the Turkish locale (“GİZLİLİK”, “GÜVENLİK”, “VERİ VE GÖRÜNÜM”).
 
-**States & decisions.** “Otomatik kilit” — owner decision: the app always locks immediately on every return from background; show “Hemen” and either make the row informational (no chevron) or open a screen with that single, explained option. Open point for the app. “Okundu bilgisi” off → read receipts neither sent nor shown (proposed, symmetric like presence). Face ID toggle mirrors 2.3. “Gizli kodu değiştir” → current code (3.2 layout) → new code ×2 (2.2 layout). “Dil” → in-app language switch (tr/en).
+**States & decisions.** “Otomatik kilit” — by design the app always locks immediately on every return from background; show “Hemen” and either make the row informational (no chevron) or open a screen with that single, explained option. Open point for the app. “Okundu bilgisi” off → read receipts neither sent nor shown (proposed, symmetric like presence). Face ID toggle mirrors 2.3. “Gizli kodu değiştir” → current code (3.2 layout) → new code ×2 (2.2 layout). “Dil” → in-app language switch (tr/en).
 
 **Transitions.** Back → 4.1. Rows with › push their detail screens (pickers with the same C13 cards + a check mark `ph:check` `accent300` on the selected row — proposed). “Yedek” → 7.2.
 
@@ -2942,7 +2942,7 @@ Reference `reference/7.2-yedegi-disa-aktar.png` · light `reference/light/7.2-ye
 > **Note (TR):** Yedek, ayrı bir yedek parolasıyla şifrelenmiş tek bir dosyadır; nereye kaydedileceğine kullanıcı karar verir (Dosyalar, AirDrop). Tek görüntülemelik medya ve süreli mesajlar yedeğe girmez.
 > **EN:** The backup is a single file encrypted with a separate backup password; the user decides where to save it (Files, AirDrop). View-once media and disappearing messages never go into the backup.
 
-**Purpose.** Create an encrypted backup file with a separate backup password (owner decision).
+**Purpose.** Create an encrypted backup file with a separate backup password (by design).
 
 **Layout.**
 - C7 header: back, “Yedek”, empty right.
@@ -2972,7 +2972,7 @@ Reference `reference/7.2-yedegi-disa-aktar.png` · light `reference/light/7.2-ye
 | Dışa aktar | Export |
 | *(proposed)* Parolayı tekrar gir · Parolalar eşleşmedi | Re-enter password · Passwords don't match |
 
-**States.** password empty → button disabled; strength meter lights proportionally (weak: lit dots `danger`, fair: `accent400`, strong: `online` — proposed mapping); confirm-password step (proposed: second field appears under the first after the first is valid); exporting (button shows progress, proposed) → share sheet / document picker (Files, AirDrop) → done (Settings “Son: …” updates). Reject a password equal to the secret code (owner decision).
+**States.** password empty → button disabled; strength meter lights proportionally (weak: lit dots `danger`, fair: `accent400`, strong: `online` — proposed mapping); confirm-password step (proposed: second field appears under the first after the first is valid); exporting (button shows progress, proposed) → share sheet / document picker (Files, AirDrop) → done (Settings “Son: …” updates). Reject a password equal to the secret code (product rule).
 
 **Transitions.** Back → 7.1. Export → system share/export sheet.
 

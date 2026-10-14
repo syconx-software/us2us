@@ -23,7 +23,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * Owner decision 0b: whether the live-location notice can be seen, and the share sheet's
+ * Whether the live-location notice can be seen, and the share sheet's
  * “Bildirimlere izin ver”: the system's question while Android still asks it, the settings
  * otherwise. Never required to share.
  */

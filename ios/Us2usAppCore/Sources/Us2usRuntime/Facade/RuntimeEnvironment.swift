@@ -52,7 +52,7 @@ public enum LockState: Sendable, Equatable {
     /// No vault on this phone: onboarding (create an account or restore a backup).
     case needsSetup
     /// The lock screen: the code or Face ID is required. Shown at every launch
-    /// and after every return from the background (owner decision).
+    /// and after every return from the background (no grace period).
     case locked
     /// An unlock, registration or restore is running.
     case working

@@ -34,8 +34,8 @@ object LiveShareSheetTags {
 }
 
 /**
- * “+” › Canlı konum on Android while notifications are refused or turned off (owner decision 0b,
- * floating, as the microphone notice): a share goes on in the background only while its
+ * “+” › Canlı konum on Android while notifications are refused or turned off (a
+ * floating sheet, as the microphone notice): a share goes on in the background only while its
  * notification can be seen, so this says in one line that sharing stops when the user leaves the
  * app, and offers the system's question. Never forced: “Yine de paylaş” shares while the app is in front.
  */

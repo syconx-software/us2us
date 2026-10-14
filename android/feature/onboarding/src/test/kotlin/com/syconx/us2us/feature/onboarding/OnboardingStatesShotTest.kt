@@ -17,7 +17,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Every onboarding harness state the design does not draw, dark and light, named by route
- * (`onboarding_2.1-taken`) as the iOS captures are, for Q1's comparison with the simulator.
+ * (`onboarding_2.1-taken`) as the iOS captures are, for comparison with the simulator.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

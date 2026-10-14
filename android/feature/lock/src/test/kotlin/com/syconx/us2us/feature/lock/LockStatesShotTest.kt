@@ -14,7 +14,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Every lock harness state, dark and light, named by route (`lock_throttled`) as the iOS captures
- * are, for Q1's comparison with the simulator; and what the drawn states say.
+ * are, for comparison with the simulator; and what the drawn states say.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

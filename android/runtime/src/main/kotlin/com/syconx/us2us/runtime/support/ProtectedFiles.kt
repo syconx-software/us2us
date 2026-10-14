@@ -5,7 +5,7 @@ import java.io.File
 import java.io.IOException
 
 /**
- * File helpers for PROTOCOL.md §5.3 and the owner's "no backups" rule.
+ * File helpers for PROTOCOL.md §5.3 and the app's "no backups" rule.
  *
  * Every file of the app lives under [com.syconx.us2us.runtime.vault.AppDirectories], inside
  * `noBackupFilesDir`, which Auto Backup never copies (the manifest also turns backup and device

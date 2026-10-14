@@ -1,6 +1,6 @@
 # us2us iOS — flows and navigation
 
-Screen ids refer to `inventory.md` / `reference/`. “(proposed)” marks a step the design implies but does not draw; everything else is drawn or stated in a designer note. Motion names (`curveSoft`, `springSoft`, `screenPush` …) are defined in `tokens.json › motion` — the owner wants every transition very soft (no bounce, no overshoot).
+Screen ids refer to `inventory.md` / `reference/`. “(proposed)” marks a step the design implies but does not draw; everything else is drawn or stated in a designer note. Motion names (`curveSoft`, `springSoft`, `screenPush` …) are defined in `tokens.json › motion` — every transition is meant to be very soft (no bounce, no overshoot).
 
 ## 1 · Map
 
@@ -64,7 +64,7 @@ flowchart TD
 | state | shows | enters when | leaves when |
 |---|---|---|---|
 | `onboarding` | 1.1 → 1.3 → 2.x | no account/vault on the device | setup finished (→ `unlocked`) or restore finished (→ set code → `unlocked`) |
-| `locked` | 3.1 (Face ID enabled) or 3.2 | **every launch** and **every return from background** (owner decision; no grace period) | correct code / Face ID success |
+| `locked` | 3.1 (Face ID enabled) or 3.2 | **every launch** and **every return from background** (by design; no grace period) | correct code / Face ID success |
 | `unlocked` | NavigationStack at 4.1 (restores the last screen after unlock) | unlock | app goes inactive |
 | `privacyCover` | 3.4 cover | `scenePhase` becomes `.inactive` or `.background` (instantly, before the snapshot) | unlock completes (cover dissolves 0.36 s) |
 | `wiping` | — | 3.3 “Her şeyi sil” + 2nd confirmation | → `onboarding` (1.1) |

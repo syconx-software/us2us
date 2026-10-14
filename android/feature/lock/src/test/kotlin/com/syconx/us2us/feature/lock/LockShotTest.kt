@@ -15,7 +15,7 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * The drawn screens of 03 · Kilit against `ios/design/reference` and the layout JSON: 3.1, 3.2 (and
  * its light 8.3), 3.3, dark and light; the English versions are named by route. The frames are the
- * gate (±1 dp); `scripts/compare_shots.py` diffs the pictures for review. (3.4 is the app's: D1.)
+ * gate (±1 dp); `scripts/compare_shots.py` diffs the pictures for review. (3.4 is tested in the app module.)
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

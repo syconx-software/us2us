@@ -89,7 +89,7 @@ class MainLooperExpiryTimer(private val now: () -> Instant = Instant::now) : Exp
 }
 
 /**
- * Clipboard hygiene (owner decision):
+ * Clipboard hygiene:
  *
  * - Every copy stays on this phone: Android has no clipboard sync of its own, and a copy is never
  *   labelled, so cross-device clipboards of other vendors get nothing that names its source.
