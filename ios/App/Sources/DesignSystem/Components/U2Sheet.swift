@@ -20,6 +20,13 @@ extension View {
     ///
     /// It is a full-screen presentation with a clear background, so it covers
     /// everything (headers, the composer) and traps VoiceOver focus.
+    ///
+    /// What the sheet shows must reach `content` live — from an `@Observable`
+    /// model, or as the item of `u2Sheet(item:)`. SwiftUI evaluates `content`
+    /// with the presenting view's `@State` as of that view's last body pass:
+    /// state set in the same tap as `isPresented` and never read by the body
+    /// itself arrives stale (in 1.0.7 the profile picture sheet rose empty,
+    /// a bare grabber, the first time it was opened).
     func u2Sheet<SheetContent: View>(
         isPresented: Binding<Bool>, style: U2SheetStyle = .fullHeight, isDismissible: Bool = true,
         onDismiss: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> SheetContent

@@ -368,13 +368,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hi! I’d like to talk with you on us2us, an app that never asks for a phone number and keeps our messages only on our two phones. My username: @%1$@\n%2$@"
+            "value": "Hi! I’d like to talk with you on us2us, an app that never asks for a phone number, encrypts messages end to end and keeps our chat history only on our two phones. My username: @%1$@\n%2$@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Merhaba! Seninle us2us’ta konuşmak istiyorum: telefon numarası istemeyen, mesajları yalnızca ikimizin telefonunda tutan bir uygulama. Kullanıcı adım: @%1$@\n%2$@"
+            "value": "Merhaba! Seninle us2us’ta konuşmak istiyorum: telefon numarası istemeyen, mesajları uçtan uca şifreleyen ve sohbet geçmişini yalnızca ikimizin telefonunda tutan bir uygulama. Kullanıcı adım: @%1$@\n%2$@"
           }
         }
       }

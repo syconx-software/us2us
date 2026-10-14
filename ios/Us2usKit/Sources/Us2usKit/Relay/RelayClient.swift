@@ -162,15 +162,27 @@ public final class RelayClient: Sendable {
             request("PUT", "accounts/me/username", auth: true, body: try encode(UsernameHashBody(usernameHash: hash))))
     }
 
-    /// Rotates the auth token; the old one stops working immediately (§4.3, §5.5).
-    @discardableResult
-    public func rotateAuthToken() async throws -> RelayCredentials {
-        guard let current = credentials else { throw RelayError.notAuthenticated }
-        let response: AuthTokenResponse = try await json(request("POST", "accounts/me/token", auth: true))
-        guard response.authToken.count == 32 else { throw RelayError.invalidResponse }
-        let rotated = RelayCredentials(accountId: current.accountId, authToken: response.authToken)
-        setCredentials(rotated)
-        return rotated
+    /// One `POST /v1/accounts/me/token` with `{"newAuthToken"}` (§4.3),
+    /// authenticated with `token` instead of the client's credentials, which
+    /// stay as they are: the caller has stored `newToken` before and decides
+    /// from the answer which token the account has (§5.5 step 3). Never the
+    /// deprecated empty body, whose lost answer loses the account.
+    ///
+    /// - Returns: the account's token now: `newToken` on `204`. A relay that
+    ///   predates client-chosen tokens ignores the body and answers `200`
+    ///   with a token it chose; that one is returned then, since it is the
+    ///   only one that works.
+    /// - Throws: ``RelayError``; `401` means `token` is not (or no longer)
+    ///   the account's token.
+    public func rotateAuthToken(to newToken: Data, authenticatingWith token: Data) async throws -> Data {
+        let body = try encode(AuthTokenRotationBody(newAuthToken: newToken))
+        let request = try request("POST", "accounts/me/token", auth: true, token: token, body: body)
+        let (data, response) = try await transport { try await self.authenticatedSession.data(for: request) }
+        let answer = try check(data, response)
+        if (response as? HTTPURLResponse)?.statusCode == 204 { return newToken }
+        let chosen: AuthTokenResponse = try decode(answer)
+        guard chosen.authToken.count == 32 else { throw RelayError.invalidResponse }
+        return chosen.authToken
     }
 
     /// Sets `SHA-256(accessKey)`, or `nil` to require proof-of-work from everyone.
@@ -312,7 +324,10 @@ public final class RelayClient: Sendable {
     ///   refused with ``RelayError/payloadTooLarge`` as soon as its
     ///   `Content-Length` or its bytes show it, so a lying sender cannot fill
     ///   the disk; recipients know the exact blob size (§7).
-    public func downloadMedia(id mediaId: Data, to destination: URL, maxBytes: UInt64 = .max) async throws {
+    /// `progress` hears the bytes received so far, after every chunk.
+    public func downloadMedia(
+        id mediaId: Data, to destination: URL, maxBytes: UInt64 = .max, progress: (@Sendable (UInt64) -> Void)? = nil
+    ) async throws {
         let request = try request("GET", "media/\(mediaId.base64URLEncodedString())", auth: false)
         let (bytes, response) = try await transport { try await self.anonymousSession.bytes(for: request) }
         guard let http = response as? HTTPURLResponse else { throw RelayError.invalidResponse }
@@ -350,6 +365,7 @@ public final class RelayClient: Sendable {
                     try handle.write(contentsOf: buffer)
                     written += UInt64(buffer.count)
                     buffer.removeAll(keepingCapacity: true)
+                    progress?(written)
                 }
             }
         } catch let error as URLError {
@@ -357,6 +373,7 @@ public final class RelayClient: Sendable {
         }
         try handle.write(contentsOf: buffer)
         try handle.close()
+        progress?(written + UInt64(buffer.count))
         if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
         try fileManager.moveItem(at: partial, to: destination)
     }
@@ -368,11 +385,109 @@ public final class RelayClient: Sendable {
         try await perform(request, session: anonymousSession)
     }
 
+    // MARK: §4.12 Avatar records
+
+    /// `PUT /v1/accounts/me/avatar`: stores the record (its version is in its
+    /// header). `409 stale_version` is an answer, not an error: see
+    /// ``AvatarWriteOutcome``. A relay without avatar records answers `404`
+    /// or `405` (thrown).
+    public func putAvatar(_ record: Data) async throws -> AvatarWriteOutcome {
+        guard record.count <= AvatarRecord.maxLength else { throw RelayError.payloadTooLarge }
+        var request = try request(
+            "PUT", "accounts/me/avatar", auth: true, body: record, contentType: "application/octet-stream")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return try await avatarWrite(request)
+    }
+
+    /// `DELETE /v1/accounts/me/avatar` with `X-Avatar-Version: version`;
+    /// `204` also when nothing was stored.
+    public func deleteAvatar(version: UInt64) async throws -> AvatarWriteOutcome {
+        var request = try request("DELETE", "accounts/me/avatar", auth: true)
+        request.setValue(String(version), forHTTPHeaderField: "X-Avatar-Version")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return try await avatarWrite(request)
+    }
+
+    /// `GET /v1/accounts/{accountId}/avatar` (authenticated, rate limited
+    /// like the directory). With `ifNoneMatch` (the version of a cached
+    /// copy) the relay answers `304` while that is still the stored one.
+    /// Never served from or stored in a URL cache; an answer longer than the
+    /// largest record is refused as it arrives.
+    public func fetchAvatar(of account: AccountId, ifNoneMatch version: UInt64? = nil) async throws
+        -> AvatarFetchResult
+    {
+        var request = try request("GET", "accounts/\(account.string)/avatar", auth: true)
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        if let version { request.setValue("\"\(version)\"", forHTTPHeaderField: "If-None-Match") }
+        let (bytes, response) = try await transport { try await self.authenticatedSession.bytes(for: request) }
+        guard let http = response as? HTTPURLResponse else { throw RelayError.invalidResponse }
+        switch http.statusCode {
+        case 304:
+            bytes.task.cancel()
+            return .notModified
+        case 404:
+            bytes.task.cancel()
+            return .notFound
+        case 200:
+            guard http.expectedContentLength <= Int64(AvatarRecord.maxLength) else {
+                bytes.task.cancel()
+                throw RelayError.payloadTooLarge
+            }
+            var body = Data()
+            do {
+                for try await byte in bytes {
+                    guard body.count < AvatarRecord.maxLength else {
+                        bytes.task.cancel()
+                        throw RelayError.payloadTooLarge
+                    }
+                    body.append(byte)
+                }
+            } catch let error as URLError {
+                throw RelayError.network(error.code)
+            }
+            return .record(body)
+        default:
+            // Error bodies are small JSON (§2.1).
+            var body = Data()
+            for try await byte in bytes {
+                body.append(byte)
+                if body.count == Self.maxErrorBodyBytes { break }
+            }
+            bytes.task.cancel()
+            guard !(200..<300).contains(http.statusCode) else { throw RelayError.invalidResponse }
+            throw Self.error(status: http.statusCode, response: http, body: body)
+        }
+    }
+
+    private func avatarWrite(_ request: URLRequest) async throws -> AvatarWriteOutcome {
+        let (data, response) = try await transport { try await self.authenticatedSession.data(for: request) }
+        if let http = response as? HTTPURLResponse, http.statusCode == 409 {
+            let error = Self.error(status: 409, response: http, body: data)
+            guard error.code == .staleVersion else { throw error }
+            return .stale(highestVersion: http.value(forHTTPHeaderField: "X-Avatar-Version").flatMap(Self.avatarVersion))
+        }
+        _ = try check(data, response)
+        return .accepted
+    }
+
+    /// A decimal version in 1 … 2^63 − 1 (`X-Avatar-Version`), else `nil`.
+    static func avatarVersion(_ text: String) -> UInt64? {
+        let digits = text.trimmingCharacters(in: .whitespaces)
+        guard !digits.isEmpty, digits.utf8.count <= 19,
+            digits.utf8.allSatisfy({ (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }),
+            let version = UInt64(digits), AvatarRecord.versions.contains(version)
+        else { return nil }
+        return version
+    }
+
     // MARK: Plumbing
 
+    /// - Parameter token: authenticates with this token instead of the
+    ///   stored credentials (only the token rotation does).
     private func request(
-        _ method: String, _ path: String, query: [URLQueryItem] = [], auth: Bool, body: Data? = nil,
-        contentType: String? = nil
+        _ method: String, _ path: String, query: [URLQueryItem] = [], auth: Bool, token: Data? = nil,
+        body: Data? = nil, contentType: String? = nil
     ) throws -> URLRequest {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("v1/" + path), resolvingAgainstBaseURL: false)!
@@ -381,8 +496,8 @@ public final class RelayClient: Sendable {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if auth {
-            guard let credentials else { throw RelayError.notAuthenticated }
-            request.setValue(credentials.authToken.base64URLEncodedString(), forHTTPHeaderField: "X-Auth-Token")
+            guard let authToken = token ?? credentials?.authToken else { throw RelayError.notAuthenticated }
+            request.setValue(authToken.base64URLEncodedString(), forHTTPHeaderField: "X-Auth-Token")
         }
         request.httpBody = body
         if let contentType = contentType ?? (body != nil ? "application/json" : nil) {

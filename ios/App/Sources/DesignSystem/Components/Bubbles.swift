@@ -311,6 +311,11 @@ struct ReplyQuote: View {
 }
 
 /// A photo: pad 5 5 8 5, photo r15 (258 × 176 in the design), caption pad 2 8 0, time with 8 pt trailing margin.
+/// While only the thumbnail is here (still on the relay, downloading, gone)
+/// the 5.2 glass circle sits in its centre with the state (proposed). A
+/// photo sent from here shows at once while it is prepared, like a video:
+/// its preview with the ring; if preparing it fails, the warning (the
+/// sentence under it offers “Tekrar gönder”).
 struct PhotoBubble: View {
     let message: Message
     let source: MediaSource
@@ -323,8 +328,19 @@ struct PhotoBubble: View {
         ) {
             BubbleMediaView(source: source, size: CGSize(width: 258, height: 176))
                 .frame(width: 258, height: 176)
+                .overlay {
+                    if !message.mediaAvailability.isReady {
+                        MediaGlassCircle {
+                            MediaStateGlyph(availability: message.mediaAvailability, readyGlyph: .none)
+                        }
+                        .transition(.u2Fade)
+                    }
+                }
+                .u2Animation(U2Motion.state, value: message.mediaAvailability.isReady)
                 .clipShape(RoundedRectangle(cornerRadius: U2Radius.bubbleMedia, style: .continuous))
+                .accessibilityElement()
                 .accessibilityLabel(Text("media.photo"))
+                .accessibilityValue(MediaAccessibility.state(message.mediaAvailability))
             if let caption {
                 Text(verbatim: caption)
                     .u2Font(.bubble)
@@ -339,7 +355,11 @@ struct PhotoBubble: View {
 }
 
 /// A video poster (236 × 124 r15) with the centred glass play button and the
-/// “0:18 · 12,4 MB” label.
+/// “0:18 · 12,4 MB” label. A video sent from here shows at once while it is
+/// prepared (proposed): the ring in the glass circle and “0:18 · Hazırlanıyor”
+/// — the poster and the length as soon as they are read; if preparing it
+/// fails, the warning and the length (the sentence under it offers
+/// “Tekrar gönder”).
 struct VideoBubble: View {
     let message: Message
     let poster: MediaSource
@@ -355,33 +375,73 @@ struct VideoBubble: View {
             BubbleMediaView(source: poster, size: CGSize(width: 236, height: 124))
                 .frame(width: 236, height: 124)
                 .overlay {
-                    PhosphorIcon(.play, weight: .fill, size: 19)
-                        .foregroundStyle(Color.u2.onMedia)
-                        .frame(width: 46, height: 46)
-                        .u2Backdrop(.mediaButton, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.u2.onMedia.opacity(0.35), lineWidth: 1))
+                    // Play; or (proposed) download, the ring, the warning.
+                    MediaGlassCircle {
+                        MediaStateGlyph(availability: message.mediaAvailability)
+                    }
                 }
                 .overlay(alignment: .bottomLeading) {
-                    Text(verbatim: "\(U2Format.voiceDuration(duration)) · \(U2Format.byteCount(byteCount, locale: locale))")
-                        .u2Font(.monoFileMeta)
-                        .foregroundStyle(Color.u2.onMedia)
-                        .padding(EdgeInsets(top: 3, leading: 7, bottom: 3, trailing: 7))
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.u2.onMediaGlass(0.55)))
-                        .padding(.leading, 10)
-                        .padding(.bottom, 9)
+                    if let label {
+                        Text(verbatim: label)
+                            .u2Font(.monoFileMeta)
+                            .foregroundStyle(Color.u2.onMedia)
+                            .padding(EdgeInsets(top: 3, leading: 7, bottom: 3, trailing: 7))
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.u2.onMediaGlass(0.55)))
+                            .padding(.leading, 10)
+                            .padding(.bottom, 9)
+                            .transition(.u2Fade)
+                    }
                 }
+                .u2Animation(U2Motion.state, value: label)
                 .clipShape(RoundedRectangle(cornerRadius: U2Radius.bubbleMedia, style: .continuous))
                 .accessibilityElement()
-                .accessibilityLabel(Text("media.video"))
+                .accessibilityLabel(spokenLabel)
+                .accessibilityValue(MediaAccessibility.state(message.mediaAvailability))
             BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
                 .padding(.trailing, 8)
                 .u2BubbleTrailing()
         }
     }
+
+    /// “0:18 · 12,4 MB”; while preparing “0:18 · Hazırlanıyor” (the size is
+    /// not known yet); failed: “0:18”. No length read yet: only the state.
+    private var label: String? {
+        let length = duration > 0 ? U2Format.voiceDuration(duration) : nil
+        switch message.mediaAvailability {
+        case .preparing:
+            let preparing = StringTable.conversation.string("video.preparing", locale: locale)
+            return length.map { "\($0) · \(preparing)" } ?? preparing
+        case .preparationFailed:
+            return length
+        case .ready, .remote, .downloading, .held, .unavailable:
+            return "\(U2Format.voiceDuration(duration)) · \(U2Format.byteCount(byteCount, locale: locale))"
+        }
+    }
+
+    private var spokenLabel: Text {
+        if message.isPendingMedia {
+            guard duration > 0 else { return Text("media.video") }
+            return StringTable.conversation.text("a11y.video.pending \(U2Format.voiceDuration(duration))", locale: locale)
+        }
+        return StringTable.conversation.text(
+            "a11y.video \(U2Format.voiceDuration(duration)) \(U2Format.byteCount(byteCount, locale: locale))",
+            locale: locale)
+    }
 }
 
 /// A voice message: pad 9 12 8 9 — play button (36, 1 pt `accent`,
 /// `ph:play` fill 15 `accent300`), 132 × 28 waveform, duration (Mono 11).
+///
+/// Playing (proposed beyond the design's paused bubble; `VoicePlayback`
+/// in the environment of 5.1): the button pauses, the played part of the
+/// waveform grows in `accent300`, a sideways drag on the waveform scrubs and
+/// a tap on it jumps there, the time
+/// says where it is, and a chip under the button switches 1× · 1,5× · 2×.
+/// Still on the relay: the download glyph; downloading or decrypting: the
+/// ring; held or gone: the warning, disabled. Not played yet (incoming): a
+/// 6 pt `accent300` dot before the time; played by the other side
+/// (outgoing): `ph:microphone` 13 in `accent300`. Overlays and the time
+/// row only: the bubble keeps its size.
 struct VoiceBubble: View {
     let message: Message
     let duration: TimeInterval
@@ -390,34 +450,249 @@ struct VoiceBubble: View {
     var isTail = false
     var onPlay: () -> Void = {}
 
+    @Environment(VoicePlayback.self) private var playback: VoicePlayback?
+    @Environment(\.locale) private var locale
+
+    /// The design's waveform box.
+    static let waveformSize = CGSize(width: 132, height: 28)
+
     var body: some View {
+        let isActive = playback?.activeID == message.id
         MessageBubble(
             direction: message.direction, isTail: isTail, padding: EdgeInsets(top: 9, leading: 9, bottom: 8, trailing: 12)
         ) {
             HStack(spacing: 10) {
-                Button(action: onPlay) {
-                    PhosphorIcon(.play, weight: .fill, size: 15)
-                        .foregroundStyle(Color.u2.accent300)
-                        .frame(width: 36, height: 36)
-                        .overlay(Circle().strokeBorder(Color.u2.accent, lineWidth: 1))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(CardButtonStyle())
-                .accessibilityLabel(Text("a11y.voice.play"))
-                Waveform(bars: waveform, playedFraction: playedFraction)
-                    .frame(width: 132, height: 28)
-                Text(verbatim: U2Format.voiceDuration(duration))
-                    .u2Font(.monoVoiceDuration)
-                    .foregroundStyle(Color.u2.textSecondary)
+                playButton(isActive: isActive)
+                VoiceBubbleWaveform(
+                    id: message.id, bars: waveform, fallback: playedFraction, isActive: isActive, playback: playback
+                )
+                .frame(width: Self.waveformSize.width, height: Self.waveformSize.height)
+                VoiceBubbleTime(duration: duration, isActive: isActive, playback: playback)
             }
-            BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
-                .u2BubbleTrailing()
+            HStack(spacing: 6) {
+                playedMark
+                BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
+            }
+            .u2Animation(U2Motion.state, value: message.isVoicePlayed)
+            .u2BubbleTrailing()
         }
+        .overlay(alignment: .bottomLeading) {
+            if isActive, let playback {
+                speedChip(playback)
+            }
+        }
+        .u2Animation(U2Motion.micro, value: isActive)
+    }
+
+    // MARK: Play button
+
+    private enum PlayGlyph: Equatable {
+        case play, pause, download, loading, unavailable
+    }
+
+    private func currentGlyph(isActive: Bool) -> PlayGlyph {
+        if isActive, let playback {
+            if playback.isLoading { return .loading }
+            return playback.isPlaying ? .pause : .play
+        }
+        switch message.mediaAvailability {
+        case .ready: return .play
+        case .remote: return .download
+        case .downloading: return .loading
+        case .held, .unavailable, .preparing, .preparationFailed: return .unavailable
+        }
+    }
+
+    private func playButton(isActive: Bool) -> some View {
+        let glyph = currentGlyph(isActive: isActive)
+        var downloaded: Double?
+        if case .downloading(let fraction) = message.mediaAvailability { downloaded = fraction }
+        let fraction = downloaded
+        return Button(action: onPlay) {
+            StateCrossFade(value: glyph) { glyph in
+                switch glyph {
+                case .play:
+                    PhosphorIcon(.play, weight: .fill, size: 15)
+                case .pause:
+                    MediaGlyphIcon(.pause, size: 14)
+                case .download:
+                    MediaGlyphIcon(.download, size: 16)
+                case .loading:
+                    MediaProgressRing(
+                        fraction: fraction, shape: TopStartCircle(), tint: Color.u2.accent300,
+                        track: Color.u2.accent300.opacity(0.25)
+                    )
+                    .padding(9)
+                case .unavailable:
+                    PhosphorIcon(.warningCircle, size: 16)
+                }
+            }
+            .foregroundStyle(glyph == .unavailable ? Color.u2.textTertiary : Color.u2.accent300)
+            .frame(width: 36, height: 36)
+            .overlay(Circle().strokeBorder(Color.u2.accent, lineWidth: 1))
+            .contentShape(Circle())
+        }
+        .buttonStyle(CardButtonStyle())
+        .disabled(glyph == .unavailable)
+        .accessibilityLabel(spokenLabel(glyph))
+        .accessibilityValue(spokenValue)
+    }
+
+    private func spokenLabel(_ glyph: PlayGlyph) -> Text {
+        switch glyph {
+        case .pause: Text("voice.pause", table: .conversation)
+        case .download: Text("file.download", table: .conversation)
+        case .loading: Text("voice.loading", table: .conversation)
+        case .play, .unavailable: Text("a11y.voice.play")
+        }
+    }
+
+    /// The length, and what VoiceOver cannot see: where the file is, and
+    /// whether it was played.
+    private var spokenValue: Text {
+        let length = U2Format.voiceDuration(duration)
+        switch message.mediaAvailability {
+        case .ready:
+            break
+        case .remote, .downloading, .held, .unavailable, .preparing, .preparationFailed:
+            return Text(verbatim: "\(length), ") + MediaAccessibility.state(message.mediaAvailability)
+        }
+        if message.isOutgoing, message.isVoicePlayed {
+            return Text("voice.a11y.played \(length)", table: .conversation)
+        }
+        if !message.isOutgoing, !message.isVoicePlayed {
+            return Text("voice.a11y.unplayed \(length)", table: .conversation)
+        }
+        return Text(verbatim: length)
+    }
+
+    // MARK: Played state and speed
+
+    @ViewBuilder private var playedMark: some View {
+        if message.isOutgoing {
+            if message.isVoicePlayed {
+                PhosphorIcon(.microphone, size: 13)
+                    .foregroundStyle(Color.u2.accent300)
+                    .transition(.u2Fade)
+            }
+        } else if !message.isVoicePlayed, message.mediaAvailability != .unavailable {
+            Circle()
+                .fill(Color.u2.accent300)
+                .frame(width: 6, height: 6)
+                .transition(.u2Fade)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// 1× · 1,5× · 2× under the play button, centred on the time row.
+    private func speedChip(_ playback: VoicePlayback) -> some View {
+        let label = playback.rate.label(locale: locale)
+        let rowHeight: CGFloat = message.status == nil ? 11.5 : 15
+        return Button(action: playback.cycleRate) {
+            Text(verbatim: label)
+                .u2Font(.monoTimerInBubble)
+                .foregroundStyle(Color.u2.accent300)
+                .frame(width: 36, height: 16)
+                .background(Capsule().fill(Color.u2.fileIconFill))
+                .padding(6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .offset(x: 9 - 6, y: -(8 + (rowHeight - 16) / 2 - 6))
+        .transition(.u2Fade)
+        .accessibilityLabel(Text("voice.speed", table: .conversation))
+        // “1,5 kat hız”, not “1,5 multiplied by”.
+        .accessibilityValue(Text("voice.speed.value \(label.replacingOccurrences(of: "×", with: ""))", table: .conversation))
+    }
+}
+
+/// A voice bubble's waveform with what is played: while its message is the
+/// active one the live position — read here only, so the player's ticks
+/// redraw this waveform alone; a sideways drag on it scrubs (a vertical one
+/// is left to the column, a press to the bubble's long-press), a tap jumps
+/// there, VoiceOver adjusts it by five seconds.
+private struct VoiceBubbleWaveform: View {
+    let id: MessageID
+    let bars: [Double]
+    let fallback: Double
+    let isActive: Bool
+    let playback: VoicePlayback?
+    @GestureState private var isDragging = false
+
+    var body: some View {
+        let fraction = playback?.shownFraction(of: id, fallback: fallback) ?? fallback
+        Waveform(bars: bars, playedFraction: fraction)
+            .contentShape(Rectangle())
+            .gesture(scrub.exclusively(before: tapToSeek), including: isActive ? .all : .subviews)
+            // A drag the system takes away (the column scrolls) never ends:
+            // the scrub ends here instead, so the player is not left paused.
+            .onChange(of: isDragging) { _, dragging in
+                if !dragging, let playback, playback.isScrubbing { playback.endScrub(id) }
+            }
+            .accessibilityElement()
+            .accessibilityHidden(!isActive)
+            .accessibilityLabel(Text("player.position", table: .conversation))
+            .accessibilityValue(Text(verbatim: U2Format.voiceDuration(playback?.currentTime ?? 0)))
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: playback?.skip(id, by: 5)
+                case .decrement: playback?.skip(id, by: -5)
+                @unknown default: break
+                }
+            }
+    }
+
+    /// Starts after a few points, and only sideways: a scroll that begins on
+    /// the waveform never seeks.
+    private var scrub: some Gesture {
+        DragGesture(minimumDistance: 6)
+            .updating($isDragging) { _, dragging, _ in dragging = true }
+            .onChanged { value in
+                guard let playback else { return }
+                if !playback.isScrubbing {
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                    playback.beginScrub(id)
+                }
+                playback.scrub(id, to: Self.fraction(at: value.location))
+            }
+            .onEnded { value in
+                guard let playback, playback.isScrubbing else { return }
+                playback.scrub(id, to: Self.fraction(at: value.location))
+                playback.endScrub(id)
+            }
+    }
+
+    private var tapToSeek: some Gesture {
+        SpatialTapGesture()
+            .onEnded { value in
+                playback?.scrub(id, to: Self.fraction(at: value.location))
+            }
+    }
+
+    private static func fraction(at location: CGPoint) -> Double {
+        Double(location.x / VoiceBubble.waveformSize.width)
+    }
+}
+
+/// A voice bubble's time: the length, or — while its message is the
+/// active one — where it is (read here only).
+private struct VoiceBubbleTime: View {
+    let duration: TimeInterval
+    let isActive: Bool
+    let playback: VoicePlayback?
+
+    var body: some View {
+        let shown = isActive && (playback?.duration ?? 0) > 0 ? (playback?.currentTime ?? duration) : duration
+        Text(verbatim: U2Format.voiceDuration(shown))
+            .u2Font(.monoVoiceDuration)
+            .foregroundStyle(Color.u2.textSecondary)
+            .accessibilityHidden(true)
     }
 }
 
 /// The voice waveform: bars 2.4 wide with round caps at a 4.4 pitch, centred
-/// vertically; played part `accent300`, rest `text·38%`.
+/// vertically; played part `accent300`, rest `text·38%`. More bars than fit
+/// at that pitch are drawn closer together.
 struct Waveform: View {
     /// Bar heights as fractions of the 28 pt box.
     let bars: [Double]
@@ -427,8 +702,9 @@ struct Waveform: View {
         Canvas { context, size in
             let played = Int((Double(bars.count) * playedFraction).rounded())
             let scale = size.height / 28
+            let pitch = bars.count > 1 ? min(4.4 * scale, (size.width - 4 * scale) / CGFloat(bars.count - 1)) : 0
             for (index, height) in bars.enumerated() {
-                let x = (2 + 4.4 * CGFloat(index)) * scale
+                let x = 2 * scale + pitch * CGFloat(index)
                 let h = CGFloat(height) * size.height
                 var path = Path()
                 path.move(to: CGPoint(x: x, y: (size.height - h) / 2))
@@ -444,6 +720,12 @@ struct Waveform: View {
 
 /// A file: pad 10 12 8 10 — tile 42 × 50 r10 `bg·35%` with `ph:file-pdf` 25
 /// `accent300`; name `bubbleTitleS` (one line); meta Mono 10.5 `text·68%`.
+///
+/// States (5.2, proposed): still on the relay → the download glyph in the
+/// tile; downloading or opening → a 2 pt `accent300` ring around the tile
+/// (3 pt out, over `text·18%`) filling with the progress; gone → the glyph
+/// in `text·40%` and “Artık indirilemez” after the meta. Overlays only: the
+/// bubble keeps its size.
 struct FileBubble: View {
     let message: Message
     let name: String
@@ -452,16 +734,33 @@ struct FileBubble: View {
     let pageCount: Int?
     var isTail = false
     @Environment(\.locale) private var locale
+    @Environment(ConversationMediaActivity.self) private var activity: ConversationMediaActivity?
 
     var body: some View {
+        let availability = message.mediaAvailability
+        let isOpening = activity?.isOpening(message.id) ?? false
         MessageBubble(
             direction: message.direction, isTail: isTail, padding: EdgeInsets(top: 10, leading: 10, bottom: 8, trailing: 12)
         ) {
             HStack(spacing: 12) {
-                PhosphorIcon(.filePdf, size: 25)
-                    .foregroundStyle(Color.u2.accent300)
-                    .frame(width: 42, height: 50)
-                    .background(RoundedRectangle(cornerRadius: U2Radius.iconTileL, style: .continuous).fill(Color.u2.fileIconFill))
+                StateCrossFade(value: tileGlyph(availability)) { glyph in
+                    glyph.view
+                        .foregroundStyle(availability == .unavailable ? Color.u2.textTertiary : Color.u2.accent300)
+                }
+                .frame(width: 42, height: 50)
+                .background(RoundedRectangle(cornerRadius: U2Radius.iconTileL, style: .continuous).fill(Color.u2.fileIconFill))
+                .overlay {
+                    if availability.isDownloading || isOpening {
+                        MediaProgressRing(
+                            fraction: isOpening ? nil : downloadFraction(availability),
+                            shape: TopStartRoundedRectangle(cornerRadius: U2Radius.iconTileL + 3),
+                            tint: Color.u2.accent300, track: Color.u2.text.opacity(0.18)
+                        )
+                        .padding(-3)
+                        .transition(.u2Fade)
+                    }
+                }
+                .u2Animation(U2Motion.state, value: availability.isDownloading || isOpening)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(verbatim: name)
                         .u2Font(.bubbleTitleS)
@@ -477,6 +776,9 @@ struct FileBubble: View {
             BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
                 .u2BubbleTrailing()
         }
+        .accessibilityElement(children: .combine)
+        // “Artık indirilemez” is already part of the meta.
+        .accessibilityValue(MediaAccessibility.state(availability == .unavailable || availability == .held ? .ready : availability))
     }
 
     private var meta: String {
@@ -484,7 +786,63 @@ struct FileBubble: View {
         if let pageCount {
             parts.append(L10n.string("file.pages \(pageCount)", locale: locale))
         }
+        switch message.mediaAvailability {
+        case .unavailable: parts.append(StringTable.conversation.string("file.unavailable", locale: locale))
+        case .held: parts.append(StringTable.conversation.string("file.held", locale: locale))
+        default: break
+        }
         return parts.joined(separator: " · ")
+    }
+
+    /// The type glyph (`ph:file-pdf` 25 for a PDF, the play glyph for a
+    /// video, a plain page otherwise), or the download glyph while the file
+    /// is still on the relay.
+    private func tileGlyph(_ availability: MediaAvailability) -> FileTileGlyph {
+        if availability == .remote { return .download }
+        switch MediaFileKind(fileName: name) {
+        case .pdf: return .pdf
+        case .movie: return .movie
+        default: return .file
+        }
+    }
+
+    private func downloadFraction(_ availability: MediaAvailability) -> Double? {
+        if case .downloading(let fraction) = availability { return fraction }
+        return nil
+    }
+}
+
+private enum FileTileGlyph: Equatable {
+    case pdf, movie, file, download
+
+    @MainActor @ViewBuilder var view: some View {
+        switch self {
+        case .pdf: PhosphorIcon(.filePdf, size: 25)
+        case .movie: PhosphorIcon(.play, weight: .fill, size: 19)
+        case .file: MediaGlyphIcon(.file, size: 25)
+        case .download: MediaGlyphIcon(.download, size: 23)
+        }
+    }
+}
+
+/// VoiceOver's value for a photo, video or file bubble: nothing when it is
+/// here, otherwise its state.
+enum MediaAccessibility {
+    static func state(_ availability: MediaAvailability) -> Text {
+        switch availability {
+        case .ready: Text(verbatim: "")
+        case .remote: Text("a11y.media.remote", table: .conversation)
+        case .downloading(let fraction):
+            if let fraction {
+                Text("a11y.media.downloading.progress \(Int((fraction * 100).rounded()))", table: .conversation)
+            } else {
+                Text("a11y.media.downloading", table: .conversation)
+            }
+        case .held: Text("file.held", table: .conversation)
+        case .unavailable: Text("file.unavailable", table: .conversation)
+        case .preparing: Text("video.preparing", table: .conversation)
+        case .preparationFailed: Text("video.preparationFailed", table: .conversation)
+        }
     }
 }
 
@@ -1042,9 +1400,11 @@ final class BubbleImageCache {
 // MARK: - Any message
 
 /// One message as a C15 bubble, with the conversation's interactions: tap a
-/// photo / video (viewer), a view-once bubble (5.6), “Durdur” in a live
+/// photo (viewer), a video (player), a file (Quick Look), a view-once bubble (5.6), a place (open in
+/// maps), a running live location (the map), “Durdur” in a live
 /// location (5.2). Live location switches to its ended state by itself. The
 /// reaction chip sits 12 pt in from the bubble's leading edge on both sides.
+/// A built-in sticker has no bubble (`BrandStickerMessage`).
 ///
 /// A change of kind (text → “herkesten silindi” trace, live → ended, view
 /// once → opened) morphs when the column passes the message it `replacing`:
@@ -1054,6 +1414,9 @@ final class BubbleImageCache {
 struct MessageBubbleView: View {
     let message: Message
     var isTail = false
+    /// A sticker just sent or received settles in once (`BrandStickerView`);
+    /// history does not.
+    var animatesEntrance = false
     /// The message as it was before its kind changed (the column's morph).
     var replacing: Message? = nil
     /// The morph finished.
@@ -1061,6 +1424,12 @@ struct MessageBubbleView: View {
     var onStopLiveLocation: () -> Void = {}
     var onOpenViewOnce: () -> Void = {}
     var onOpenMedia: () -> Void = {}
+    /// A place: Apple Maps or Google Maps (5.2, proposed chooser).
+    var onOpenLocation: () -> Void = {}
+    /// A running live location: the in-app map (5.2, proposed).
+    var onOpenLiveMap: () -> Void = {}
+    /// A voice message's play / pause.
+    var onToggleVoice: () -> Void = {}
 
     @State private var morphProgress: Double = 0
     @State private var finishedMorph: String?
@@ -1087,19 +1456,28 @@ struct MessageBubbleView: View {
         // sides: on an outgoing bubble the trailing corner holds the time
         // and the delivery state, which must stay readable (5.1 draws only
         // the incoming case).
+        // The “Kaydetti” chip (the user's own media, saved by the other
+        // side) sits right of the reaction, never over it.
         .overlay(alignment: .bottomLeading) {
-            if let reaction = message.reactions.first {
-                ReactionChip(reaction: reaction)
-                    .padding(.leading, 12)
-                    .offset(y: 15)
-                    .transition(.u2Pop)
+            HStack(spacing: 6) {
+                if let reaction = message.reactions.first {
+                    ReactionChip(reaction: reaction)
+                        .transition(.u2Pop)
+                }
+                if SavedMediaChip.isShown(for: message) {
+                    SavedChip()
+                        .transition(.u2Pop)
+                }
             }
+            .padding(.leading, 12)
+            .offset(y: 15)
         }
         // Animatable, so the column's height grows frame by frame and
         // the rows above glide instead of jumping (a plain padding change
         // resizes the bottom-anchored list at once).
-        .modifier(AnimatedBottomSpace(space: message.reactions.isEmpty ? 0 : 14))
+        .modifier(AnimatedBottomSpace(space: message.showsBubbleChips ? 14 : 0))
         .u2Animation(U2Motion.state, value: message.reactions)
+        .u2Animation(U2Motion.state, value: SavedMediaChip.isShown(for: message))
         .onChange(of: key, initial: true) { _, key in
             guard let key, key != finishedMorph else { return }
             withAnimation(U2Motion.resolve(U2Motion.state, reduceMotion: reduceMotion), completionCriteria: .logicallyComplete) {
@@ -1125,25 +1503,66 @@ struct MessageBubbleView: View {
                 TextBubble(message: message, text: text, isTail: isTail)
             }
         case .photo(let source, let caption):
+            // A photo still being prepared here (or that failed to be) opens
+            // once it is sent; the same view either way, so the picture stays
+            // when the sent photo takes the bubble's place.
+            let isPending = message.isPendingMedia
             PhotoBubble(message: message, source: source, caption: caption, isTail: isTail)
-                .onTapGesture(perform: onOpenMedia)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction(named: Text("a11y.media.open"), onOpenMedia)
+                .onTapGesture {
+                    if !isPending { onOpenMedia() }
+                }
+                .accessibilityAddTraits(isPending ? [] : .isButton)
+                .accessibilityActions {
+                    if !isPending {
+                        Button(action: onOpenMedia) { Text("a11y.media.open") }
+                    }
+                }
         case .video(let poster, let duration, let byteCount):
+            // A video still being prepared here (or that failed to be) has
+            // nothing to play yet. The same view either way, so the poster
+            // stays when the prepared video takes the bubble's place.
+            let isPending = message.isPendingMedia
             VideoBubble(message: message, poster: poster, duration: duration, byteCount: byteCount, isTail: isTail)
-                .onTapGesture(perform: onOpenMedia)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction(named: Text("a11y.media.open"), onOpenMedia)
+                .onTapGesture {
+                    if !isPending { onOpenMedia() }
+                }
+                .accessibilityAddTraits(isPending ? [] : .isButton)
+                .accessibilityActions {
+                    if !isPending {
+                        Button(action: onOpenMedia) {
+                            message.mediaAvailability == .remote
+                                ? Text("file.download", table: .conversation) : Text("player.play", table: .conversation)
+                        }
+                    }
+                }
         case .voice(let duration, let waveform, let played):
-            VoiceBubble(message: message, duration: duration, waveform: waveform, playedFraction: played, isTail: isTail)
+            VoiceBubble(
+                message: message, duration: duration, waveform: waveform, playedFraction: played, isTail: isTail,
+                onPlay: onToggleVoice)
         case .file(let name, let byteCount, let typeLabel, let pageCount):
             FileBubble(message: message, name: name, byteCount: byteCount, typeLabel: typeLabel, pageCount: pageCount, isTail: isTail)
+                .onTapGesture(perform: onOpenMedia)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(
+                    named: message.mediaAvailability == .remote
+                        ? Text("file.download", table: .conversation) : Text("a11y.media.open"),
+                    onOpenMedia)
         case .location(let name, let locality, _, _):
             LocationBubble(message: message, name: name, locality: locality, isTail: isTail)
+                .accessibilityElement(children: .combine)
+                .onTapGesture(perform: onOpenLocation)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(named: Text("location.open.title", table: .conversation), onOpenLocation)
         case .liveLocation(let expiresAt, let isActive):
-            LiveLocationContent(message: message, expiresAt: expiresAt, isActive: isActive, isTail: isTail, onStop: onStopLiveLocation)
+            LiveLocationContent(
+                message: message, expiresAt: expiresAt, isActive: isActive, isTail: isTail, onStop: onStopLiveLocation,
+                onOpenMap: onOpenLiveMap)
         case .textSticker(let text):
             TextStickerMessage(message: message, text: text)
+        case .sticker(let packID, let stickerID, let emoji, let lang):
+            BrandStickerMessage(
+                message: message, packID: packID, stickerID: stickerID, emoji: emoji, lang: lang,
+                animatesEntrance: animatesEntrance && message.id == self.message.id)
         case .viewOnce(let isVideo, let state):
             ViewOnceBubble(message: message, isVideo: isVideo, state: state, isTail: isTail)
                 .onTapGesture {
@@ -1204,20 +1623,23 @@ private struct AnimatedBottomSpace: ViewModifier, Animatable {
     }
 }
 
-/// Live location: active (countdown in the bubble + “Durdur”) until it is
-/// stopped or runs out — then the ended state (5.2 › States). Switches by
-/// itself when the time is up.
+/// Live location: active (countdown in the bubble + “Durdur”; a tap opens
+/// the map) until it is stopped or runs out — then the ended state (5.2 ›
+/// States), which opens nothing. Switches by itself when the time is up.
 private struct LiveLocationContent: View {
     let message: Message
     let expiresAt: Date
     let isActive: Bool
     let isTail: Bool
     let onStop: () -> Void
+    let onOpenMap: () -> Void
 
     var body: some View {
         U2TimeView(interval: 30) { now in
             if isActive && expiresAt > now {
                 LiveLocationBubble(message: message, expiresAt: expiresAt, isActive: true, isTail: isTail, onStop: onStop)
+                    .onTapGesture(perform: onOpenMap)
+                    .accessibilityAction(named: Text("a11y.liveLocation.map", table: .conversation), onOpenMap)
                     .transition(.u2Fade)
             } else {
                 EndedLiveLocationBubble(message: message, isTail: isTail)
@@ -1288,6 +1710,8 @@ struct SystemEventPill: View {
             SystemPill(glyph: .camera, text: Text("system.screenshot \(user)"))
         case .safetyNumberChanged:
             SystemPill(glyph: .warningCircle, text: Text("system.safetyNumber.changed"))
+        case .safetyNumberAccepted:
+            SystemPill(glyph: .check, text: Text("system.safetyNumber.accepted"))
         case .safetyNumberVerified:
             SystemPill(glyph: .sealCheck, glyphWeight: .fill, text: Text("system.safetyNumber.verified"))
         }

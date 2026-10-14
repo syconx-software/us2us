@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="android_biometric_unlock">Biyometrik ile aç</string>
+    <string name="android_biometric_unlocking">Biyometrik ile açılıyor</string>
+    <string name="android_biometric_reason">us2us\'ı açmak için parmak izini veya yüzünü kullanır.</string>
+    <string name="android_biometric_confirm_reason">us2us\'ı biyometrik ile açabilmek için kendini doğrula.</string>
+    <string name="android_biometric_unavailable">Biyometrik açılamadı.</string>
+    <string name="android_biometric_enable_title">Biyometrik için kodunu gir</string>
+    <string name="android_biometric_enabled_toast">Biyometrik açıldı.</string>
+</resources>

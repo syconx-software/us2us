@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The end-to-end test talks to a local relay over `adb reverse` (plain http to the loopback only). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- “+” › Konum and live location; granted by scripts/e2e-live.sh, the fix set with `adb emu geo fix`. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <application android:networkSecurityConfig="@xml/e2e_network_security_config">
+        <!-- A screen in front while the location steps run: Android gives a background app no fixes. -->
+        <activity android:name="androidx.activity.ComponentActivity" android:exported="false" />
+    </application>
+</manifest>

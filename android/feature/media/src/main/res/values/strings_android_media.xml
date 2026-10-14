@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy of the media screens: where the iOS catalogue names an Apple app or service
+     (Photos, Apple Maps) that Android does not have. Everything else comes from the iOS catalogues. -->
+<resources>
+    <!-- “Kaydet” in the viewers saves to the device's gallery (iOS: Photos). -->
+    <string name="media_android_saved_toast">Saved to the gallery</string>
+    <string name="media_android_gallery_denied_title">Saving to the gallery is off</string>
+    <string name="media_android_gallery_denied_body">us2us isn\'t allowed to save to this device\'s storage. You can allow it in Settings; us2us never reads your gallery.</string>
+    <!-- 5.2 › “Haritada aç”: the first card opens the place in a maps app on this device (iOS: Apple Maps). -->
+    <string name="media_android_location_open_maps">Open in Maps app</string>
+    <string name="media_android_location_open_maps_detail">A maps app on this device</string>
+    <!-- …or, without one, OpenStreetMap in the browser. -->
+    <string name="media_android_location_open_osm">Open in OpenStreetMap</string>
+    <string name="media_android_location_open_osm_detail">Opens openstreetmap.org in your browser</string>
+    <!-- The live-location map is drawn on this phone: no map service sees the area. -->
+    <string name="media_android_livemap_tiles">The map is drawn on this phone; no map service sees the area shown.</string>
+    <!-- 5.6 screenshot warning: Android blocks the capture itself (iOS can only tell the sender). -->
+    <string name="media_android_viewonce_screenshot_body">Screenshots are blocked here; %s has been told anyway.</string>
+</resources>

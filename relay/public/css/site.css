@@ -366,10 +366,28 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 .wordmark { font-family: var(--font-display); font-variation-settings: 'ROND' 100; font-size: 22px; font-weight: 900; letter-spacing: 0; }
 .wordmark-sm { font-size: 17px; }
 
-.section-links { display: none; gap: 24px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em; }
+.section-links { display: flex; gap: 24px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em; }
 .section-links a { color: var(--color-text); }
 .section-links a:hover { color: var(--color-accent-300); }
-@media (min-width: 860px) { .section-links { display: flex; } }
+.section-links a[aria-current="page"] { color: var(--accent-text); }
+/* The link to the "why we built it" page (not in the design) shows at every
+   width from 360px: on phones under its short label ("Neden?", the full one
+   stays for screen readers), with the header's gaps narrowed so it fits
+   between the mark and the controls. The landing page's sections join it,
+   to its left, where all five fit beside the controls (the English labels
+   need about 990px; the design's four fitted from 860px). Under 360px it
+   is only the footer's first link. */
+.section-links a:not(.nav-page), .nav-page-short { display: none; }
+@media (min-width: 1000px) { .section-links a:not(.nav-page) { display: inline; } }
+@media (max-width: 599px) {
+  .site-nav { gap: 16px; }
+  .nav-page-full {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .nav-page-short { display: inline; }
+}
+@media (max-width: 359px) { .section-links { display: none; } }
 
 .header-controls { display: flex; align-items: center; gap: 10px; }
 .lang-switch .seg-opt { padding: 5px 10px; }
@@ -469,6 +487,25 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 @media (max-width: 599px) {
   .store-soon { position: absolute; top: -9px; right: 10px; margin: 0; padding: 1px 6px; line-height: 1.3; }
 }
+/* The closed-beta line under the buttons (not in the design): the facts'
+   mono voice, drawn close to the buttons it explains, after a small accent
+   dot whose ring breathes out (transform and opacity only; still with
+   reduced motion). The dot sits on the first line's centre. */
+.stores-note {
+  display: flex; align-items: flex-start; gap: 9px; max-width: 620px; margin-top: -10px;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6; letter-spacing: 0.02em;
+  color: var(--fg-70); text-wrap: pretty;
+}
+.beta-dot {
+  position: relative; width: 7px; height: 7px; flex: none; margin-top: calc(0.8em - 3.5px);
+  border-radius: 50%; background: var(--color-accent);
+}
+.beta-dot::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--color-accent);
+  opacity: 0; animation: u2-beta-ring 3.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+@keyframes u2-beta-ring { 0% { transform: scale(1); opacity: 0.55; } 60%, 100% { transform: scale(2.8); opacity: 0; } }
+/* In the hero it comes in between the buttons and the facts (see motion). */
 
 .facts { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 0; list-style: none; font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-70); }
 .facts li { display: inline-flex; align-items: center; gap: 7px; }
@@ -679,6 +716,8 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 .footer-link.footer-legal:hover { color: var(--color-accent-300); }
 /* About 38px tall touch targets that do not move the text (WCAG 2.5.8). */
 .footer-link::after { content: ''; position: absolute; inset: -8px -6px; }
+/* Fine print under the row (not in the design), in the muted mono of the notes. */
+.footer-fine { margin-top: 20px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; letter-spacing: 0.02em; color: var(--fg-55); text-wrap: pretty; }
 
 /* ── privacy, support and error pages ──────────────────────────────────── */
 
@@ -717,17 +756,242 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 .faq-item summary:hover { color: var(--color-accent-300); }
 .faq-item summary:focus-visible { outline-offset: -2px; border-radius: var(--radius-sm); }
 .faq-item p { padding: 0 40px 18px 0; color: var(--fg-74); }
+/* The support page's beta notes (not in the design): the feature cards of
+   the landing page, laid flat with the icon beside the text; a warning
+   takes the danger tone of "İletilemedi". */
+.notes { display: flex; flex-direction: column; gap: 12px; padding: 0; list-style: none; }
+.note { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; align-items: start; padding: 20px 22px; }
+.note-copy { display: flex; flex-direction: column; gap: 8px; }
+.note-title { margin-top: 10px; }
+.prose .note-body { font-size: 15px; line-height: 1.6; color: var(--fg-74); }
+.prose .note-email { align-self: flex-start; padding: 3px 0; font-family: var(--font-mono); font-size: 13px; }
+.note-danger .note-icon {
+  color: var(--u-danger);
+  background: color-mix(in srgb, var(--u-danger) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--u-danger) 34%, transparent);
+}
+@media (max-width: 480px) {
+  .note { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 18px; }
+  .note-title { margin-top: 0; }
+}
 .error-page { display: flex; flex-direction: column; gap: 18px; min-height: 80vh; justify-content: center; }
 .error-page .display-page { font-size: clamp(96px, 12vw, 168px); line-height: 0.9; }
 .error-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
 .error-links .btn { padding: 12px 20px; font-size: 15px; min-height: 44px; }
+
+/* ── "why we built it" (not in the design): the team's statement as a
+   press release, in the privacy page's frame, with a narrower measure for
+   long reading. Pull quotes hang off a dotted rule (the eyebrow's dots);
+   citation marks are small mono numbers that link to the sources, and the
+   source a mark leads to lights up. ────────────────────────── */
+
+.prose.why { max-width: 700px; }
+.prose .why-standfirst { font-size: clamp(18px, 1.7vw, 21px); line-height: 1.55; color: var(--fg-86); }
+.why .prose-section > p { font-size: 17px; line-height: 1.7; }
+.pull-quote { position: relative; display: flex; flex-direction: column; gap: 12px; margin: 10px 0; padding: 4px 0 4px 28px; }
+.pull-quote::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px;
+  background: radial-gradient(circle, var(--color-accent) 1.4px, transparent 1.9px) 50% 0 / 4px 6px repeat-y;
+}
+.pull-quote blockquote { margin: 0; }
+.prose .pull-quote p { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: clamp(22px, 2.5vw, 28px); line-height: 1.35; color: var(--color-text); text-wrap: balance; }
+.pull-quote blockquote p::before { content: '“'; }
+.pull-quote blockquote p::after { content: '”'; }
+.pull-quote figcaption { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent-300); }
+.cite { position: relative; margin-left: 1px; font-size: 100%; line-height: 0; vertical-align: 0.5em; }
+.prose .cite a { position: relative; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; color: var(--accent-text); text-decoration: none; }
+.prose .cite a:hover { text-decoration: underline; }
+.cite a::after { content: ''; position: absolute; inset: -12px -5px; }
+/* "Back to the text" lands with a few lines of the text above the mark. */
+.cite a { scroll-margin-top: 22vh; }
+.why-cta { margin-top: 12px; }
+.why-cta-links { display: flex; flex-wrap: wrap; gap: 12px; }
+.why-cta-links .btn { min-height: 44px; padding: 12px 20px; font-size: 15px; }
+.prose .why-cta .stores-note { font-size: 11.5px; line-height: 1.6; color: var(--fg-70); }
+.about-card { gap: 12px; margin-top: 30px; padding: 22px 24px; }
+.prose .about-body { font-size: 15px; line-height: 1.65; color: var(--fg-74); }
+.prose .about-press { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 15px; }
+.sources { display: flex; flex-direction: column; gap: 4px; padding: 0; list-style: none; }
+.source { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 12px 14px 12px 4px; border-radius: var(--radius-md); }
+.prose .source-n { font-family: var(--font-mono); font-size: 13px; line-height: 1.85; text-align: right; color: var(--accent-text); }
+.source-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.prose .source-title { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.prose .source-meta { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6; letter-spacing: 0.02em; color: var(--fg-66); }
+.source-meta time { white-space: nowrap; }
+.prose .source-back { align-self: flex-start; padding: 2px 0; font-family: var(--font-mono); font-size: 11.5px; }
+/* The arrow is drawn, not read (empty alternative text where supported). */
+.source-back::before { content: '↑ '; content: '↑ ' / ''; }
+/* :target after a jump (marks and back links use the browser's own scroll); :focus where focus lands. */
+.source:is(:target, :focus) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+
+/* ── motion ────────────────────────────────────────────────────────────── */
+/* Calm and short. Only transform and opacity move (small controls also fade
+   their colours), so nothing shifts the layout, and all of it waits for
+   `prefers-reduced-motion: no-preference`. Everything is in place without
+   JavaScript or if a script fails: the hero and page-top entrances are CSS
+   animations that always finish (theme.js sets .js before the first paint),
+   and the blocks further down wait hidden only once site.js watches them
+   (.reveal on <html>, .rv on each block, .is-in as it comes into view, once). */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@keyframes u2-rise { from { opacity: 0; translate: 0 16px; } }
+@keyframes u2-open { from { opacity: 0; translate: 0 -4px; } }
+@keyframes u2-fade { from { opacity: 0; } }
+@keyframes u2-ping { 45% { transform: scale(1.3); } }
+@keyframes u2-turn { from { opacity: 0; transform: rotate(-80deg) scale(0.6); } }
+@keyframes u2-focus { from { outline-offset: 6px; outline-color: transparent; } }
+@keyframes u2-quarter { from { rotate: -90deg; } }
+@keyframes u2-scan { from { translate: 0 -100%; } to { translate: 0 100%; } }
+@keyframes u2-drift { to { transform: translate3d(0, 12vh, 0); } }
+@keyframes u2-dots { to { transform: translate3d(0, -240px, 0); } }
+
+/* Hover and focus. Section and footer links grow a dotted underline (the
+   eyebrow's dots); content cards light a soft accent ring. */
+.section-links a::before, .footer-link::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; pointer-events: none;
+  background: radial-gradient(circle, currentColor 0.8px, transparent 1.2px) 0 50% / 4px 2px repeat-x;
+  opacity: 0; transform: scaleX(0); transform-origin: left center;
+}
+.section-links a:hover::before, .footer-link:hover::before { opacity: 1; transform: none; }
+.section-links a[aria-current="page"]::before { opacity: 1; transform: none; }
+.point, .feature { position: relative; }
+.point::after, .feature::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 60%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .point:hover::after, .feature:hover::after { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a, .faq-item summary { transition: color 200ms ease; }
+  .btn, .seg-opt { transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease, transform 200ms var(--ease-out); }
+  :is(a, button).btn:not([aria-disabled="true"]):active { transform: scale(0.97); transition-duration: 80ms; }
+  .skip-link { transition: transform 300ms var(--ease-out); }
+  :focus-visible:not(.seg-opt, summary) { animation: u2-focus 260ms var(--ease-out); }
+  .section-links a::before, .footer-link::before { transition: opacity 200ms ease, transform 450ms var(--ease-out); }
+  .point, .feature { transition: transform 450ms var(--ease-out); }
+  .point::after, .feature::after { transition: opacity 350ms ease; }
+  .point-icon, .feature-icon { transition: transform 450ms var(--ease-out); }
+
+  /* The mark on hover: one end, then the other, like a message crossing. */
+  .brand:hover .mark > span:first-child { animation: u2-ping 650ms var(--ease-out); }
+  .brand:hover .mark > span:last-child { animation: u2-ping 650ms var(--ease-out) 200ms; }
+
+  /* The theme toggle turns its new icon in (theme.js sets .theme-switched on
+     the first switch, so nothing turns at load) and the page cross-fades. */
+  .theme-toggle .icon { transition: transform 500ms var(--ease-out); }
+  .theme-switched .theme-toggle .icon { animation: u2-turn 550ms var(--ease-out); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 450ms; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+
+  /* The hero (and the invite page's) comes in line by line, its full stop
+     last; the privacy, support and 404 pages do the same with their first
+     lines. */
+  :root.js :is(.hero, .page-invite) :is(.hero-badge, .kicker, .display, .hero-lead, .stores, .stores-note, .facts, .section-copy),
+  :root.js :is(.page-pad > .prose, .error-page) > :nth-child(-n+5) { animation: u2-rise 1000ms var(--ease-out) backwards; }
+  :root.js :is(.hero, .page-invite) .kicker, :root.js :is(.page-pad > .prose, .error-page) > :nth-child(2) { animation-delay: 90ms; }
+  :root.js :is(.hero, .page-invite) .display, :root.js :is(.page-pad > .prose, .error-page) > :nth-child(3) { animation-delay: 170ms; }
+  :root.js :is(.hero, .page-invite) .hero-lead, :root.js :is(.page-pad > .prose, .error-page) > :nth-child(4) { animation-delay: 290ms; }
+  :root.js :is(.hero, .page-invite) .stores, :root.js :is(.page-pad > .prose, .error-page) > :nth-child(5) { animation-delay: 390ms; }
+  :root.js :is(.hero, .page-invite) .stores-note { animation-delay: 450ms; }
+  :root.js :is(.hero, .page-invite) .facts { animation-delay: 520ms; }
+  :root.js :is(.hero, .page-invite) .section-copy { animation-delay: 620ms; }
+  :root.js .hero .display .dot { animation: u2-fade 700ms ease 1050ms backwards; }
+  /* A link target (/tr/destek#beta) only fades: the browser scrolls to it
+     while it would still be rising, and would land that much off. */
+  :root.js :is(.page-pad > .prose, .error-page) > [id]:nth-child(-n+5) { animation-name: u2-fade; }
+
+  /* The current status: its accent mark grows, its icon lifts a little. */
+  .status-mark { background: var(--color-accent); opacity: 0; transform: scaleY(0.3); transition: opacity 300ms ease, transform 500ms var(--ease-out); }
+  .status.is-active .status-mark { opacity: 1; transform: none; }
+  .status-icon { transition: opacity 300ms ease, color 300ms ease, transform 500ms var(--ease-out); }
+  .status-list.is-stepping .status.is-active .status-icon { transform: scale(1.08); }
+
+  .faq-item[open] > p { animation: u2-open 450ms var(--ease-out); }
+  .source { transition: background-color 500ms ease, box-shadow 500ms ease; }
+  .faq-item[open] summary::after { animation: u2-quarter 350ms var(--ease-out); }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .point:hover, .feature:hover { transform: translateY(-3px); }
+  .point:hover .point-icon { transform: rotate(-8deg) scale(1.06); }
+  .feature:hover .feature-icon { transform: translateY(-1px) scale(1.06); }
+  .theme-toggle:hover .theme-sun { transform: rotate(45deg); }
+  .theme-toggle:hover .theme-moon { transform: rotate(-18deg); }
+}
+
+/* Scroll reveal (site.js). A block rises 20px as it fades in; blocks that
+   arrive together follow each other by 70ms (--rv-delay). Hiding has no
+   transition, so a block never fades out. */
+@media screen and (prefers-reduced-motion: no-preference) {
+  .reveal .rv:not(.is-in, :focus-within) { opacity: 0; translate: 0 20px; }
+  /* Link targets (#guvenlik, #lisanslar) only fade, so an anchor link or the
+     slow scroll lands where scroll-padding says, not 20px under the header. */
+  .reveal .rv:is([id], :has([id])):not(.is-in) { translate: none; }
+  .reveal .rv.is-in { transition: opacity 800ms var(--ease-out) var(--rv-delay, 0ms), translate 1000ms var(--ease-out) var(--rv-delay, 0ms); }
+  .reveal :is(.point, .feature).rv.is-in { transition: opacity 800ms var(--ease-out) var(--rv-delay, 0ms), translate 1000ms var(--ease-out) var(--rv-delay, 0ms), transform 450ms var(--ease-out); }
+
+  /* A heading's full stop lands a moment after it; an eyebrow draws its dots. */
+  .reveal .rv:not(.is-in) .dot { opacity: 0; }
+  .reveal .rv.is-in .dot { transition: opacity 600ms ease calc(var(--rv-delay, 0ms) + 450ms); }
+  .reveal .eyebrow.rv::before { transform-origin: left center; }
+  .reveal .eyebrow.rv:not(.is-in)::before { transform: scaleX(0); }
+  .reveal .eyebrow.rv.is-in::before { transition: transform 700ms var(--ease-out) calc(var(--rv-delay, 0ms) + 150ms); }
+
+  /* The band: one end lights, the wire is drawn across, the other end
+     lights, then the packets start to travel. */
+  .reveal .band-line.rv .band-wire { transform-origin: left center; }
+  .reveal .band-line.rv:not(.is-in) .band-wire { transform: scaleX(0); }
+  .reveal .band-line.rv:not(.is-in) .band-end { opacity: 0; transform: scale(0.4); }
+  .reveal .band-line.rv:not(.is-in) .packet { visibility: hidden; }
+  .reveal .band-line.rv.is-in .band-wire { transition: transform 1200ms var(--ease-in-out) calc(var(--rv-delay, 0ms) + 150ms); }
+  .reveal .band-line.rv.is-in .band-end { transition: opacity 500ms ease, transform 700ms var(--ease-out); transition-delay: var(--rv-delay, 0ms); }
+  .reveal .band-line.rv.is-in .band-end:last-child { transition-delay: calc(var(--rv-delay, 0ms) + 1250ms); }
+  .reveal .band-line.rv.is-in .packet { transition: visibility 0s linear calc(var(--rv-delay, 0ms) + 1450ms); }
+
+  /* The example QR code is scanned once. */
+  .reveal .verify-card.rv .qr { position: relative; overflow: hidden; }
+  .reveal .verify-card.rv.is-in .qr::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(transparent 40%, color-mix(in srgb, var(--color-accent) 55%, transparent) 50%, transparent 60%);
+    animation: u2-scan 1600ms var(--ease-in-out) calc(var(--rv-delay, 0ms) + 600ms) both;
+  }
+}
+
+/* Parallax, where the browser drives it from the scroll position on its own
+   (scroll-driven animations; elsewhere nothing moves): the dot grid drifts
+   up a little slower than the page, and the landing hero's copy lags behind
+   as it leaves (only there: the invite page's .hero-copy is the whole page).
+   The dots move inside .bg-dots, so its mask stays where it is. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .bg-dots { background: none; }
+    .bg-dots::before {
+      content: ''; position: absolute; inset: 0 0 -240px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--color-text) 15%, transparent) 1px, transparent 1.6px) 0 0 / 22px 22px;
+      animation: u2-dots linear both;
+      animation-timeline: scroll(root);
+    }
+    .hero .hero-copy {
+      animation: u2-drift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0px 100vh;
+    }
+  }
+}
 
 /* ── reduced motion: no packets, no transitions (and site.js neither loads
    the 3D scene nor runs the countdown) ──────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   .packet { display: none; }
+  .beta-dot::after { animation: none; }
   .status-icon, .status-label, .status-desc { transition: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 
 /* ── forced colours (Windows High Contrast): box-shadows and backgrounds are
@@ -740,4 +1004,5 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
   .status.is-active .status-mark { forced-color-adjust: none; background: Highlight; }
   .status-list.is-stepping .status:not(.is-active) .status-icon { opacity: 1; }
   .qr { forced-color-adjust: none; }
+  .source:is(:target, :focus) { outline: 2px solid Highlight; outline-offset: -2px; }
 }

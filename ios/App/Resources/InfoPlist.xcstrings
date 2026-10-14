@@ -41,13 +41,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The camera opens only to scan a safety-number QR code; the image never leaves your device."
+            "value" : "The camera opens only to scan a QR code (a contact code or a safety number) or to take a profile photo. QR images never leave your device; a photo you take is shared only if you make it your profile photo, reduced and without location or camera details, with your contacts (and, while “Show in search” is on, anyone who knows your username)."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kamera yalnızca güvenlik numarası QR kodunu okutmak için açılır; görüntü cihazdan çıkmaz."
+            "value" : "Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır."
           }
         }
       }
@@ -75,13 +75,63 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your location is sent only when you share it, encrypted, to that one chat."
+            "value" : "Your location is sent only when you share it, encrypted, to that one chat; on the live-location map your own position is shown on this device only."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir."
+            "value" : "Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir; canlı konum haritasında kendi yerini yalnızca bu cihazda gösterir."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The microphone is on only while you record a voice message. A recording leaves your phone only if you send it, end-to-end encrypted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikrofon yalnızca sen sesli mesaj kaydederken açılır. Kayıt yalnızca sen gönderirsen telefonundan çıkar ve uçtan uca şifreli gider."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds a photo or video to Photos only when you choose to save it; when you save something you received, the sender sees that you saved it. It never reads your library."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotoğraf ya da videoyu yalnızca sen kaydetmeyi seçtiğinde Fotoğraflar'a ekler; aldığın bir şeyi kaydettiğinde gönderen bunu görür. Arşivini okumaz."
+          }
+        }
+      }
+    },
+    "us2us Backup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "us2us Backup"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "us2us Yedeği"
           }
         }
       }

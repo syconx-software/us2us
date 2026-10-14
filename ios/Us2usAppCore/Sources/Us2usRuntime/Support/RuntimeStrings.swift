@@ -16,8 +16,10 @@ public enum RuntimeString: String, CaseIterable, Sendable {
     case screenRecordingByMe
     /// System line when the contact's safety number changed (sending is blocked).
     case safetyNumberChangedLine
-    /// System line when the user accepted a changed safety number.
+    /// System line when the user accepted a changed safety number (without verifying it).
     case safetyNumberAcceptedLine
+    /// System line when the user verified the safety number.
+    case safetyNumberVerifiedLine
     /// System line when a message request was accepted.
     case requestAcceptedLine
     /// Tombstone of a message deleted for everyone.
@@ -41,7 +43,12 @@ public enum RuntimeString: String, CaseIterable, Sendable {
             return ("Screen recording detected. They were notified.", "Ekran kaydı algılandı. Karşı taraf bilgilendirildi.")
         case .safetyNumberChangedLine:
             return ("The safety number changed. Verify it before sending.", "Güvenlik numarası değişti. Göndermeden önce doğrula.")
-        case .safetyNumberAcceptedLine: return ("You accepted the new safety number.", "Yeni güvenlik numarasını kabul ettin.")
+        case .safetyNumberAcceptedLine:
+            return (
+                "You accepted the new safety number without verifying it.",
+                "Yeni güvenlik numarasını doğrulamadan kabul ettin."
+            )
+        case .safetyNumberVerifiedLine: return ("You verified the safety number.", "Güvenlik numarasını doğruladın.")
         case .requestAcceptedLine: return ("Message request accepted.", "Mesaj isteği kabul edildi.")
         case .deletedForEveryone: return ("This message was deleted for everyone", "Bu mesaj herkesten silindi")
         case .lineOpen: return ("Line open · messages arriving", "Hat açık · mesajlar geliyor")
@@ -50,7 +57,11 @@ public enum RuntimeString: String, CaseIterable, Sendable {
         case .lineOffline: return ("Line closed", "Hat kapalı")
         case .lineWaitingForNetwork: return ("No internet · waiting", "İnternet yok · bekleniyor")
         case .lineRevoked:
-            return ("This account is now used on another phone", "Bu hesap artık başka bir telefonda kullanılıyor")
+            // A revoked token: the account was deleted, or restored on another phone.
+            return (
+                "This phone's line was closed: the account was deleted or is used on another phone",
+                "Bu telefonun hattı kapandı: hesap silindi ya da başka bir telefonda kullanılıyor"
+            )
         case .lineLocked: return ("Locked", "Kilitli")
         }
     }

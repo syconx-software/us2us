@@ -16,6 +16,19 @@ struct DesignArtworkView: View {
         .accessibilityHidden(true)
     }
 
+    /// The artwork as a photo of its own proportions (the 5.1 photo 3 : 2,
+    /// the 5.2 video poster 16 : 9), `pixelWidth` wide — what the viewer, the
+    /// player and the fixtures' payloads show.
+    @MainActor
+    static func renderedImage(_ artwork: DesignArtwork, pixelWidth: CGFloat) -> UIImage? {
+        let aspect: CGFloat = artwork == .sunsetVideo ? 16.0 / 9.0 : 3.0 / 2.0
+        let size = CGSize(width: (pixelWidth / 2).rounded(), height: (pixelWidth / 2 / aspect).rounded())
+        let renderer = ImageRenderer(content: DesignArtworkView(artwork: artwork).frame(width: size.width, height: size.height))
+        renderer.scale = 2
+        renderer.isOpaque = true
+        return renderer.uiImage
+    }
+
     private static func rgba(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) -> Color {
         Color(.sRGB, red: r / 255, green: g / 255, blue: b / 255, opacity: a)
     }
@@ -120,14 +133,46 @@ struct MediaView: View {
         case .designArtwork(let artwork):
             DesignArtworkView(artwork: artwork)
         case .file(let url):
-            if let image = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Color.u2.surface
-            }
+            FileImageView(url: url)
         case .memory(let data):
             MemoryImageView(data: data)
         }
+    }
+}
+
+/// An image file, decoded off the main thread (never in `body`) and shown
+/// over `surface` like `MemoryImageView`.
+struct FileImageView: View {
+    let url: URL
+    var maxPixel: Int = 2_048
+    @State private var decoded: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.u2.surface
+            if let decoded {
+                Image(uiImage: decoded).resizable().scaledToFill().transition(.opacity)
+            }
+        }
+        .task(id: url) {
+            let source = url
+            let limit = maxPixel
+            let image = await Task.detached(priority: .userInitiated) { FileImageView.decode(source, maxPixel: limit) }.value
+            withAnimation(U2Motion.micro) { decoded = image }
+        }
+    }
+
+    nonisolated static func decode(_ url: URL, maxPixel: Int) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+        else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, maxPixel),
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
     }
 }
 

@@ -104,7 +104,7 @@ describe('EnvelopePersister', () => {
     const [a, b] = [envelope(recipient), envelope(recipient)]
     persister.enqueue([a, b, envelope()])
     expect(persister.held(key)).toEqual({ count: 2, bytes: a.body.length + b.body.length })
-    expect(persister.overloaded).toBe(false)
+    expect(persister.heldBytes).toBe(3 * 8)
 
     const flushed = persister.flushed(key, Date.now() + 5000)
     let done = false
@@ -115,6 +115,7 @@ describe('EnvelopePersister', () => {
     await flushed
     expect(mailbox.rows.has(a.idKey) && mailbox.rows.has(b.idKey)).toBe(true)
     expect(persister.held(key)).toEqual({ count: 0, bytes: 0 })
+    await until(() => persister.heldBytes === 0)
   })
 
   it('stops waiting for a flush at the deadline', async () => {

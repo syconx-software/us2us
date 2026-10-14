@@ -31,25 +31,58 @@ const SLICE_ROWS = Math.floor(4 * 1024 * 1024 / ENVELOPE_LIMIT)
  * Stored envelopes (PROTOCOL.md §4.6): ciphertext addressed to an account id.
  *
  * It also keeps, in memory, how many envelopes and bytes each recipient has
- * stored, so that one mailbox cannot fill the disk (`admits`). The relay is
- * a single process and every write goes through here, except an account
- * deletion, which calls `forgetUsage`. Only rows written since the process
- * started are counted, so after a restart a mailbox can hold up to one more
- * limit's worth until its older rows are acknowledged or expire. Deletes
- * report only a row count; their bytes are estimated from the mailbox's
- * average, and are exact again whenever a mailbox is emptied; the count
- * limit holds regardless.
+ * stored, so that one mailbox cannot fill the disk (`admits`). Every mailbox
+ * is counted in the database once, at start-up (`load`), so rows from before
+ * a restart count too; nothing is admitted before that, and later sends
+ * never touch the database for it, whoever the recipient is. From then on
+ * every write goes through here (the relay is a single process), except an
+ * account deletion, which calls `forgetUsage`. The count and the writes take
+ * turns: a write waits while the count runs, and the count waits for the
+ * writes already running, so each write is either in the count or applied
+ * to it. Deletes report only a row count; their bytes are estimated from the
+ * mailbox's average, and are exact again whenever a mailbox is emptied; the
+ * count limit holds regardless.
  */
 export class Mailbox {
   private readonly usage = new Map<string, Usage>()
+  private counted = false
+  /** The count, while it runs; writes wait for it. */
+  private counting: Promise<void> | null = null
+  /** Writes running; the count waits until there are none. */
+  private writes = 0
+  private writesDone: (() => void) | null = null
+  /** Accounts deleted while the count runs, which it may still have seen. */
+  private readonly forgotten = new Set<string>()
 
   constructor(
     private readonly database: Database,
     private readonly limits: MailboxLimits,
   ) {}
 
-  /** Whether a recipient may store one more envelope of `bytes`, on top of `pending` ones not written yet. */
+  /** Whether every mailbox has been counted, so that `admits` can answer. */
+  get loaded(): boolean {
+    return this.counted
+  }
+
+  /**
+   * Counts what every mailbox holds, unless that is done already; joins a
+   * count that is running, and a failed one is tried again on the next call.
+   * One read of the whole table, at start-up.
+   */
+  load(): Promise<void> {
+    if (this.counted) return Promise.resolve()
+    this.counting ??= this.count().finally(() => {
+      this.counting = null
+    })
+    return this.counting
+  }
+
+  /**
+   * Whether a recipient may store one more envelope of `bytes`, on top of
+   * `pending` ones not written yet. Refuses until `load` has finished.
+   */
   admits(recipientKey: string, bytes: number, pending: Usage = { count: 0, bytes: 0 }): boolean {
+    if (!this.counted) return false
     const usage = this.usage.get(recipientKey) ?? { count: 0, bytes: 0 }
     return usage.count + pending.count < this.limits.maxEnvelopes
       && usage.bytes + pending.bytes + bytes <= this.limits.maxBytes
@@ -61,10 +94,12 @@ export class Mailbox {
    */
   async insert(rows: MailboxRow[]): Promise<void> {
     if (rows.length === 0) return
-    await this.database.db.insert(envelopes)
-      .values(rows.map(row => ({ recipient: row.recipient, id: row.id, serverTimestamp: row.serverTimestamp, body: row.body })))
-      .onDuplicateKeyUpdate({ set: { id: sql`${envelopes.id}` } })
-    for (const row of rows) this.added(row.recipient.toString('hex'), row.body.length)
+    await this.write(async () => {
+      await this.database.db.insert(envelopes)
+        .values(rows.map(row => ({ recipient: row.recipient, id: row.id, serverTimestamp: row.serverTimestamp, body: row.body })))
+        .onDuplicateKeyUpdate({ set: { id: sql`${envelopes.id}` } })
+      for (const row of rows) this.added(row.recipient.toString('hex'), row.body.length)
+    })
   }
 
   /** Oldest first; `after` continues from the last id of the previous page. */
@@ -103,39 +138,85 @@ export class Mailbox {
 
   async delete(recipient: Buffer, ids: Buffer[]): Promise<void> {
     if (ids.length === 0) return
-    const [result] = await this.database.db.delete(envelopes)
-      .where(and(eq(envelopes.recipient, recipient), inArray(envelopes.id, ids)))
-    this.removed(recipient.toString('hex'), result.affectedRows)
+    await this.write(async () => {
+      const [result] = await this.database.db.delete(envelopes)
+        .where(and(eq(envelopes.recipient, recipient), inArray(envelopes.id, ids)))
+      this.removed(recipient.toString('hex'), result.affectedRows)
+    })
   }
 
   /** Deletes up to `limit` envelopes that arrived before `cutoff`; returns how many. */
   async deleteArrivedBefore(cutoff: number, limit: number): Promise<number> {
-    const expired = await this.database.transaction(async (tx) => {
-      const rows = await tx.select({ recipient: envelopes.recipient, id: envelopes.id }).from(envelopes)
-        .where(lt(envelopes.serverTimestamp, cutoff))
-        .orderBy(asc(envelopes.serverTimestamp))
-        .limit(limit)
-        .for('update')
-      if (rows.length > 0) {
-        await tx.delete(envelopes).where(sql`(${envelopes.recipient}, ${envelopes.id}) IN (${sql.join(rows.map(row => sql`(${row.recipient}, ${row.id})`), sql`, `)})`)
+    return this.write(async () => {
+      const expired = await this.database.transaction(async (tx) => {
+        const rows = await tx.select({ recipient: envelopes.recipient, id: envelopes.id }).from(envelopes)
+          .where(lt(envelopes.serverTimestamp, cutoff))
+          .orderBy(asc(envelopes.serverTimestamp))
+          .limit(limit)
+          .for('update')
+        if (rows.length > 0) {
+          await tx.delete(envelopes).where(sql`(${envelopes.recipient}, ${envelopes.id}) IN (${sql.join(rows.map(row => sql`(${row.recipient}, ${row.id})`), sql`, `)})`)
+        }
+        return rows
+      })
+      const perRecipient = new Map<string, number>()
+      for (const { recipient } of expired) {
+        const key = recipient.toString('hex')
+        perRecipient.set(key, (perRecipient.get(key) ?? 0) + 1)
       }
-      return rows
+      for (const [key, count] of perRecipient) this.removed(key, count)
+      return expired.length
     })
-    const perRecipient = new Map<string, number>()
-    for (const { recipient } of expired) {
-      const key = recipient.toString('hex')
-      perRecipient.set(key, (perRecipient.get(key) ?? 0) + 1)
-    }
-    for (const [key, count] of perRecipient) this.removed(key, count)
-    return expired.length
   }
 
   /** The account was deleted together with its mailbox. */
   forgetUsage(recipientKey: string): void {
     this.usage.delete(recipientKey)
+    if (this.counting) this.forgotten.add(recipientKey)
   }
 
+  private async count(): Promise<void> {
+    try {
+      await this.countAll()
+    } finally {
+      this.forgotten.clear()
+    }
+  }
+
+  private async countAll(): Promise<void> {
+    while (this.writes > 0) await new Promise<void>(resolve => (this.writesDone = resolve))
+    const rows = await this.database.db
+      .select({
+        recipient: envelopes.recipient,
+        count: sql<number>`count(*)`.mapWith(Number),
+        bytes: sql<number>`coalesce(sum(length(${envelopes.body})), 0)`.mapWith(Number),
+      })
+      .from(envelopes)
+      .groupBy(envelopes.recipient)
+    for (const row of rows) {
+      const recipientKey = row.recipient.toString('hex')
+      if (!this.forgotten.has(recipientKey)) this.usage.set(recipientKey, { count: row.count, bytes: row.bytes })
+    }
+    this.counted = true
+  }
+
+  /** Runs a mailbox write, never at the same time as the count. */
+  private async write<T>(run: () => Promise<T>): Promise<T> {
+    while (this.counting) await this.counting.catch(() => {})
+    this.writes++
+    try {
+      return await run()
+    } finally {
+      if (--this.writes === 0 && this.writesDone) {
+        this.writesDone()
+        this.writesDone = null
+      }
+    }
+  }
+
+  /** Until the count, writes are not applied: it reads the database after they are done. */
   private added(recipientKey: string, bytes: number): void {
+    if (!this.counted) return
     const usage = this.usage.get(recipientKey)
     if (usage) {
       usage.count++
@@ -145,9 +226,10 @@ export class Mailbox {
     }
   }
 
+  /** An emptied mailbox is forgotten, which also makes its bytes exact again. */
   private removed(recipientKey: string, count: number): void {
     const usage = this.usage.get(recipientKey)
-    if (!usage || count === 0) return
+    if (!this.counted || !usage || count === 0) return
     if (count >= usage.count) {
       this.usage.delete(recipientKey)
       return

@@ -19,6 +19,9 @@
     /// | `wrong` | 3.2 | the reference: first wrong code — red dots + “2 yanlış daha …” |
     /// | `lastchance` | 3.2 | second wrong code — “1 yanlış daha …” |
     /// | `throttled` | 3.2 | third wrong code — dimmed dots, keypad at 45 %, “… 01:00 sonra tekrar dene.” |
+    /// | `unavailable` | 3.2 | not a wrong code: the vault could not be read right now (proposed) |
+    /// | `unusable` | 3.2 | not a wrong code: this phone can no longer open the vault (proposed) |
+    /// | `wiped` | 3.2 › | the optional wipe fired: “Veriler silindi.” with restore / start over (proposed) |
     /// | `forgot` | 3.3 | the floating sheet |
     /// | `erase` | 3.3 | the second confirmation |
     /// | `restore` | 3.3 › 7.3 | the restore hand-off inside the lock |
@@ -36,6 +39,9 @@
             case wrong
             case lastChance = "lastchance"
             case throttled
+            case unavailable
+            case unusable
+            case wiped
             case forgot
             case erase
             case restore
@@ -102,6 +108,11 @@
                     for _ in 0..<earlier { _ = await messenger.unlock(code: Self.wrongCode) }
                     for digit in Self.wrongCode { code.type(Int(String(digit)) ?? 0) }
                 }
+            case .unavailable, .unusable:
+                flow.setForHarness(stage: .code)
+                code.setMessageForHarness(screen == .unusable ? .unusable : .unavailable)
+            case .wiped:
+                flow.setForHarness(stage: .wiped)
             case .forgot:
                 flow.setForHarness(stage: .code, forgot: .options)
             case .erase:

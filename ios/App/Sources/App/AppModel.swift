@@ -36,6 +36,9 @@ final class AppModel {
         case welcome
         /// 2.2 “1 / 2” — a backup was restored inside the lock (3.3 › 7.3).
         case newCodeAfterRestore
+        /// 7.3 with the document picker — “Yedekten geri yükle” after the
+        /// optional wipe erased everything.
+        case restoreFromBackup
     }
 
     private(set) var phase: Phase
@@ -45,6 +48,9 @@ final class AppModel {
     private(set) var onboardingEntry: OnboardingEntry = .welcome
     /// The blurred snapshot under the privacy cover (nil = solid cover).
     private(set) var privacySnapshot: UIImage?
+    /// The optional wipe erased everything outside the lock (7.1 › Gizli
+    /// kodu değiştir): the lock opens on “Veriler silindi”.
+    private(set) var showsWipedOutcome = false
 
     let messenger: any MessengerService
     let preferences: AppPreferences
@@ -59,6 +65,12 @@ final class AppModel {
     init(configuration: AppConfiguration, preferences: AppPreferences, messenger: (any MessengerService)? = nil) {
         self.configuration = configuration
         self.preferences = preferences
+        // Decrypted preview copies never survive a launch (a crash, a kill),
+        // nor do the copies of picked photos, videos and files, nor a voice
+        // recording that was cut off.
+        ProtectedPreviewFiles.removeAll()
+        SystemPickers.removeAllPicked()
+        VoiceRecordingFiles.removeAll()
         if configuration.resetPreferences { preferences.reset() }
         if let theme = configuration.theme { preferences.theme = theme }
         if let language = configuration.language { preferences.language = language }
@@ -83,7 +95,12 @@ final class AppModel {
         // The live service decides the start: onboarding without an account,
         // otherwise the lock — at every launch (owner decision).
         var start = configuration.start
-        if service is RealMessengerService { start = service.hasAccount ? .locked : .welcome }
+        if service is RealMessengerService {
+            start = service.hasAccount ? .locked : .welcome
+            // No account (a fresh start, or a wipe the app did not live to
+            // finish): nothing of an earlier account's acknowledgements stays.
+            if !service.hasAccount { preferences.hasAcknowledgedSaveNotice = false }
+        }
 
         switch start {
         case .welcome:
@@ -145,6 +162,10 @@ final class AppModel {
 
     func sceneDidEnterBackground() {
         messenger.scenePhaseChanged(.background)
+        // Quick Look / Files copies go with the foreground (the screens close
+        // them too), and so does a voice recording (the chat throws it away).
+        ProtectedPreviewFiles.removeAll()
+        VoiceRecordingFiles.removeAll()
         guard messenger.hasAccount, phase != .onboarding else { return }
         lockIsDue = true
         if overlay == .none {
@@ -220,9 +241,21 @@ final class AppModel {
     /// 3.3 / 7.1 “Her şeyi sil” after the second confirmation: wipe → 1.1.
     func eraseEverything() async {
         await messenger.eraseEverything()
+        ProtectedPreviewFiles.removeAll()
+        VoiceRecordingFiles.removeAll()
+        forgetAccountPreferences()
         lockIsDue = false
         onboardingEntry = .welcome
         swapToOnboarding()
+    }
+
+    /// The account on this phone went (erased, wiped after wrong codes,
+    /// replaced by a restore): what the app keeps about it outside the vault
+    /// goes too — the next account is told again before its first save
+    /// (PROTOCOL §8.4), and nothing says that this phone ever saved
+    /// received media.
+    func forgetAccountPreferences() {
+        preferences.hasAcknowledgedSaveNotice = false
     }
 
     /// 3.3 › 7.3 finished restoring inside the lock: the restored vault needs
@@ -234,10 +267,58 @@ final class AppModel {
         swapToOnboarding()
     }
 
+    /// 2.3 could not finish but left a vault on this phone, locked — the
+    /// account saved before the failure, or the vault a refused restore
+    /// inside the lock never touched (`SetupInterruption`): onboarding is
+    /// over, the lock opens it. The lock is in place at once (never faded in
+    /// over content); the root behind it becomes the locked one.
+    func returnToLock() {
+        lockIsDue = false
+        onboardingEntry = .welcome
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { overlay = .lock }
+        securityWindow?.show()
+        withTransaction(transaction) { phase = .locked }
+        router.setPath([])
+    }
+
+    /// The optional wipe fired outside the lock — the 10th wrong code in a
+    /// row was the current code of 7.1 › Gizli kodu değiştir (PROTOCOL
+    /// §5.2): everything is erased, so the main stack goes at once, under
+    /// the lock, which says what happened (on the lock itself, the lock
+    /// flow shows it without this).
+    func dataWipedAfterWrongCodes() {
+        lockIsDue = false
+        showsWipedOutcome = true
+        forgetAccountPreferences()
+        SettingsFlow.of(self).restoreAccess.reset()
+        ProtectedPreviewFiles.removeAll()
+        VoiceRecordingFiles.removeAll()
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { overlay = .lock }
+        securityWindow?.show()
+        withTransaction(transaction) { phase = .locked }
+        router.setPath([])
+    }
+
+    /// “Yedekten geri yükle” or “Baştan başla” after the wipe: onboarding,
+    /// at 7.3 (the document picker opens) or at 1.1. The lock dissolves.
+    func leaveWipedLock(restoring: Bool) {
+        lockIsDue = false
+        showsWipedOutcome = false
+        onboardingEntry = restoring ? .restoreFromBackup : .welcome
+        swapToOnboarding()
+    }
+
     /// The root cross-fades to onboarding first; the main stack's path is
     /// emptied only once it has gone (resetting it in the same turn, after
     /// an awaited erase, left the root un-updated: 4.1 stayed on screen).
     private func swapToOnboarding() {
+        // Whatever comes next is another account (or the same one restored).
+        SettingsFlow.of(self).restoreAccess.reset()
+        forgetAccountPreferences()
         withU2Animation(U2Motion.screen) {
             phase = .onboarding
         } completion: { [weak self] in

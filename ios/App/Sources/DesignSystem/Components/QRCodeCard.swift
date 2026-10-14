@@ -122,7 +122,7 @@ struct QRCodeCard: View {
 }
 
 #Preview("QR card") {
-    QRCodeCard(payload: ContactCode.encode(username: "selin.n"), label: Text(verbatim: "QR"))
+    QRCodeCard(payload: ContactCode.encode(username: "selin_n"), label: Text(verbatim: "QR"))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.u2.bg)
 }

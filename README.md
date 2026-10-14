@@ -20,7 +20,10 @@ konuştuğumuz o ilk telefon gibi: bir uçta sen, öbür uçta o.
 
 us2us **özgür ve açık kaynaklı** bir yazılımdır. Kodun tamamı burada. "Bu
 uygulama gerçekten mesajlarımı okuyamıyor mu?" sorusunun cevabını bize
-güvenerek değil, kendin bakarak bulabilmen için.
+güvenerek değil, kendin bakarak bulabilmen için. App Store derlemesi henüz
+tekrar üretilebilir (reproducible) değildir; libsignal sürümü ve SHA-256
+değerleri depoda sabitlenmiştir ve her sürümün derleme girdileri kayıt altına
+alınır.
 
 ### Seni nasıl korur?
 
@@ -30,10 +33,13 @@ güvenerek değil, kendin bakarak bulabilmen için.
   ya da otomatik tamamlama yoktur.
 - **Uçtan uca şifreleme.** Mesajlar Signal Protokolü'nün kuantum sonrası
   sürümüyle (libsignal: PQXDH ve üçlü ratchet) yalnızca senin telefonunda
-  kilitlenir, yalnızca karşı tarafın telefonunda açılır.
-- **Kimin kime yazdığı gizli.** Gönderen bilgisi de şifreli zarfın içindedir
-  (sealed sender). Sunucu bir paketin kime gittiğini bilir, kimden geldiğini
-  bilmez.
+  kilitlenir, yalnızca karşı tarafın telefonunda açılır. Kuantum sonrası
+  koruma mesaj içeriği içindir; gönderen bilgisini taşıyan zarf bugün klasik
+  şifrelemeyle korunur.
+- **Gönderen zarfın içinde.** Gönderen bilgisi de şifreli zarfın içindedir
+  (sealed sender): sunucu bir paketin kime gittiğini görür, kimden geldiğini
+  zarftan okuyamaz. Bu tam anonimlik değildir; IP adresi, zamanlama ve yeni
+  kişi sorguları ipucu verebilir (bkz. [docs/PROTOCOL.md §9](docs/PROTOCOL.md)).
 - **Unutan bir sunucu.** Aradaki sunucu (kör aktarıcı) yalnızca kapalı zarfı
   taşır. İçini göremez, anahtarlara dokunamaz. Zarf teslim edilince silinir;
   teslim edilemezse en fazla 14 gün bekler ve yine silinir.
@@ -41,9 +47,11 @@ güvenerek değil, kendin bakarak bulabilmen için.
   ve kimin ne zaman mesaj aldığını onlara söyler. us2us bildirim kullanmaz;
   mesajların uygulamayı açtığında gelir.
 - **Konuşmalar yalnızca iki telefonda.** Bulut yedeği yok, sunucuda geçmiş yok.
-- **Gizli kodla kilitli.** Telefondaki her şey, belirlediğin 6 haneli gizli kod
-  ve telefondan hiç çıkmayan bir donanım sırrıyla şifrelenir. Kod unutulursa
-  veriler geri gelmez. Bu bir eksiklik değil, sözümüzün parçası.
+- **Gizli kodla kilitli.** Telefondaki her şey, 6 haneli gizli kodundan ve
+  yalnızca bu telefonun Anahtar Zinciri'nde duran, hiç yedeklenmeyen ve
+  eşitlenmeyen rastgele bir cihaz sırrından türetilen bir anahtarla şifrelenir;
+  iPhone'da her deneme ayrıca Secure Enclave'den hiç çıkmayan bir anahtar ister.
+  Kod unutulursa veriler geri gelmez. Bu bir eksiklik değil, sözümüzün parçası.
 - **Hayalet mod.** Sessiz kalan bir sohbet, seçtiğin sürenin sonunda iki
   telefondan da iz bırakmadan silinir. Her yeni mesaj sayacı baştan başlatır.
 - **Süreli mesajlar, tek görüntülemelik medya, herkesten silme.**
@@ -51,7 +59,8 @@ güvenerek değil, kendin bakarak bulabilmen için.
   ikinizden başkası olmadığını doğrulayabilirsiniz.
 - **Şifreli hesap yedeği.** Hesabını ve kişilerini ayrı bir yedek parolasıyla
   şifrelenmiş tek bir dosyaya aktarabilirsin. Dosyanın nerede duracağına sen
-  karar verirsin; mesajlar yedeğe hiç girmez.
+  karar verirsin; mesajlar yedeğe hiç girmez. İstersen uygulama senin için
+  rastgele, güçlü bir yedek parolası oluşturur.
 - **Davet ederken rehberine dokunmaz.** Arkadaşını SMS, WhatsApp ya da e-postayla
   davet edebilirsin. Alıcıyı sistemin kendi ekranında sen seçersin; us2us
   kişi listeni okumaz, hiçbir yere yüklemez.
@@ -60,8 +69,10 @@ güvenerek değil, kendin bakarak bulabilmen için.
 
 Hiçbir sistem her şeyi gizleyemez. Sunucu, bağlantı sırasında IP adresini,
 bir zarfın hangi hesaba gittiğini, zarfın boyutunu ve zamanını görebilir.
-Karşı taraf ekranın fotoğrafını çekebilir. Neyin görülüp neyin görülmediğinin
-eksiksiz listesi [docs/PROTOCOL.md §9](docs/PROTOCOL.md) içinde.
+Karşı taraf ekranın fotoğrafını çekebilir. Mühürlü gönderici tam anonimlik
+değildir ve kuantum sonrası koruma yalnızca mesaj içeriğini kapsar; gönderen
+bilgisini taşıyan zarf klasik şifrelemeyle korunur. Neyin görülüp neyin
+görülmediğinin eksiksiz listesi [docs/PROTOCOL.md §9](docs/PROTOCOL.md) içinde.
 
 ### Depo haritası
 
@@ -105,7 +116,9 @@ cups joined by a string: you at one end, them at the other.
 
 us2us is **free and open-source software**. All of the code is here, so you can
 answer "can this app really not read my messages?" by looking for yourself
-instead of taking our word for it.
+instead of taking our word for it. The App Store build is not yet
+reproducible; the libsignal version and SHA-256 hashes are pinned in this
+repository and every release records its build inputs.
 
 ### How it protects you
 
@@ -114,10 +127,14 @@ instead of taking our word for it.
   them. Search needs an exact match: no suggestions, no autocomplete.
 - **End-to-end encryption.** Messages are sealed on your phone and opened only
   on theirs, with the post-quantum version of the Signal Protocol (libsignal:
-  PQXDH and the triple ratchet).
-- **Who talks to whom stays private.** The sender is inside the encrypted
-  envelope too (sealed sender). The server knows where a package goes, not
-  where it comes from.
+  PQXDH and the triple ratchet). The post-quantum protection covers message
+  content; the envelope that carries the sender uses classical encryption
+  today.
+- **The sender is inside the envelope.** The sender is inside the encrypted
+  envelope too (sealed sender): the server sees where a package goes but
+  cannot read from it where it comes from. This is not full anonymity; IP
+  addresses, timing and new-contact lookups can still give hints (see
+  [docs/PROTOCOL.md §9](docs/PROTOCOL.md)).
 - **A server that forgets.** The relay in between only carries sealed
   envelopes. It cannot look inside or touch the keys. An envelope is deleted
   once it is delivered, and after 14 days at the latest if it never is.
@@ -126,9 +143,11 @@ instead of taking our word for it.
   push notifications; your messages arrive when you open the app.
 - **Conversations live only on the two phones.** No cloud backup, no history on
   the server.
-- **Locked with a secret code.** Everything on the phone is encrypted with your
-  6-digit secret code combined with a hardware secret that never leaves the
-  device. Forget the code and the data is gone. That is not a flaw; it is part
+- **Locked with a secret code.** Everything on the phone is encrypted with a
+  key derived from your 6-digit secret code and a random device secret that
+  stays in this phone's Keychain and is never backed up or synced; on an
+  iPhone, every attempt also needs a key that never leaves its Secure Enclave.
+  Forget the code and the data is gone. That is not a flaw; it is part
   of the promise.
 - **Ghost mode.** A conversation that stays quiet is wiped from both phones
   without a trace when the time you chose runs out. Every new message restarts
@@ -138,7 +157,8 @@ instead of taking our word for it.
   sure it is only the two of you on the line.
 - **Encrypted account backup.** Export your account and contacts to a single
   file locked with a separate backup password. You decide where it is kept;
-  messages are never included.
+  messages are never included. The app can generate a strong, random backup
+  password for you.
 - **Invites that never touch your contacts.** Invite a friend by SMS, WhatsApp
   or e-mail. You pick the recipient in the system's own screen; us2us never
   reads or uploads your address book.
@@ -147,7 +167,10 @@ instead of taking our word for it.
 
 No system can hide everything. While you are connected, the server can see your
 IP address, which account an envelope is addressed to, and its size and timing.
-The person you talk to can photograph the screen. The complete list of what is
+The person you talk to can photograph the screen. Sealed sender is not full
+anonymity, and the post-quantum protection covers message content only; the
+envelope carrying the sender is protected with classical encryption. The
+complete list of what is
 and is not visible is in [docs/PROTOCOL.md §9](docs/PROTOCOL.md).
 
 ### Repository map

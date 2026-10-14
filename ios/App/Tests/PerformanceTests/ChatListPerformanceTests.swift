@@ -31,7 +31,7 @@ final class ChatListPerformanceTests: U2PerformanceTestCase {
     /// 4.1 stays alive under 5.1 (opacity 0); it should cost nothing there.
     func testIdleChatListCoveredByConversation() {
         let (app, _) = launchList()
-        app.buttons["chat.mert.k"].tap()
+        app.buttons["chat.mert_k"].tap()
         _ = waitFor(app, "conversation.ghost")
         hold(2)
         measure(metrics: appMetrics(app), options: options(iterations: 3)) { hold(5) }
@@ -65,7 +65,7 @@ final class ChatListPerformanceTests: U2PerformanceTestCase {
         try XCTSkipIf(soakSeconds == 0, "set TEST_RUNNER_U2PERF_SOAK_SECONDS")
         let (app, _) = launchList()
         soak("chatlist-idle") { hold(1) }
-        app.buttons["chat.mert.k"].tap()
+        app.buttons["chat.mert_k"].tap()
         _ = waitFor(app, "conversation.ghost")
         hold(2)
         soak("chatlist-covered") { hold(1) }

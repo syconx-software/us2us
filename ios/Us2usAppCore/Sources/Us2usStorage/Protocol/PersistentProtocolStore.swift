@@ -47,6 +47,29 @@ public final class PersistentProtocolStore: ProtocolStore, TransactionParticipan
         var previous: Data?
         var approved: Bool
         var verified: Bool
+        /// When `key` was verified (ms since 1970) and how
+        /// (`IdentityVerificationMethod`); only while `verified`.
+        var verifiedAt: Int64? = nil
+        var verifiedMethod: Int64? = nil
+        /// While `key` awaits approval: whether `previous` (the approved key)
+        /// was verified, with its record. A return to it keeps that
+        /// verification (§5), so a key injected once cannot strip the seal.
+        var previousVerified = false
+        var previousVerifiedAt: Int64? = nil
+        var previousVerifiedMethod: Int64? = nil
+
+        var verification: IdentityVerification? {
+            guard approved, verified, let verifiedAt, let verifiedMethod,
+                let method = IdentityVerificationMethod(rawValue: Int(verifiedMethod))
+            else { return nil }
+            return IdentityVerification(
+                method: method, verifiedAt: Date(timeIntervalSince1970: TimeInterval(verifiedAt) / 1000))
+        }
+
+        mutating func record(_ verification: IdentityVerification?) {
+            verifiedAt = verification.map { Int64(($0.verifiedAt.timeIntervalSince1970 * 1000).rounded()) }
+            verifiedMethod = verification.map { Int64($0.method.rawValue) }
+        }
     }
 
     private struct LastResortUse: Hashable {
@@ -256,23 +279,43 @@ public final class PersistentProtocolStore: ProtocolStore, TransactionParticipan
     {
         guard
             let row = try connection.queryOne(
-                "SELECT identity_key, previous_key, approved, verified FROM identities WHERE account = ?",
-                [account.bytes])
+                """
+                SELECT identity_key, previous_key, approved, verified, verified_at, verified_method,
+                    previous_verified, previous_verified_at, previous_verified_method
+                FROM identities WHERE account = ?
+                """, [account.bytes])
         else { return nil }
         guard let key = row.blob("identity_key") else { throw ProtocolStoreError.corruptRecord }
         return IdentityRow(
             key: key, previous: row.blob("previous_key"), approved: row.bool("approved"),
-            verified: row.bool("verified"))
+            verified: row.bool("verified"), verifiedAt: row.int64("verified_at"),
+            verifiedMethod: row.int64("verified_method"), previousVerified: row.bool("previous_verified"),
+            previousVerifiedAt: row.int64("previous_verified_at"),
+            previousVerifiedMethod: row.int64("previous_verified_method"))
     }
 
     private static func writeIdentity(_ row: IdentityRow, for account: AccountId, _ connection: SQLiteConnection)
         throws
     {
+        // The record belongs to a verified key only.
+        let recorded = row.approved && row.verified
+        let verifiedAt: Int64? = recorded ? row.verifiedAt : nil
+        let verifiedMethod: Int64? = recorded ? row.verifiedMethod : nil
+        // The previous key's verification only while a change awaits approval.
+        let previousVerified = !row.approved && row.previous != nil && row.previousVerified
+        let previousVerifiedAt: Int64? = previousVerified ? row.previousVerifiedAt : nil
+        let previousVerifiedMethod: Int64? = previousVerified ? row.previousVerifiedMethod : nil
         try connection.run(
             """
-            INSERT OR REPLACE INTO identities (account, identity_key, previous_key, approved, verified)
-            VALUES (?, ?, ?, ?, ?)
-            """, [account.bytes, row.key, row.previous, row.approved, row.verified])
+            INSERT OR REPLACE INTO identities
+                (account, identity_key, previous_key, approved, verified, verified_at, verified_method,
+                 previous_verified, previous_verified_at, previous_verified_method)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                account.bytes, row.key, row.previous, row.approved, row.verified, verifiedAt, verifiedMethod,
+                previousVerified, previousVerifiedAt, previousVerifiedMethod,
+            ])
     }
 
     // MARK: IdentityKeyStore
@@ -296,11 +339,29 @@ public final class PersistentProtocolStore: ProtocolStore, TransactionParticipan
             }
             if existing.key == key { return (nil, .newOrUnchanged) }
             let approvedKey = existing.approved ? existing.key : existing.previous
+            // That key's verification, if it had one.
+            let approvedVerified = existing.approved ? existing.verified : existing.previousVerified
+            let approvedAt = existing.approved ? existing.verifiedAt : existing.previousVerifiedAt
+            let approvedMethod = existing.approved ? existing.verifiedMethod : existing.previousVerifiedMethod
             if key == approvedKey {
-                // Back to the key the user already accepted: nothing left to approve.
-                return (IdentityRow(key: key, previous: nil, approved: true, verified: false), .replacedExisting)
+                // Back to the key the user already accepted: nothing left to
+                // approve, and its verification stands (§5).
+                return (
+                    IdentityRow(
+                        key: key, previous: nil, approved: true, verified: approvedVerified,
+                        verifiedAt: approvedVerified ? approvedAt : nil,
+                        verifiedMethod: approvedVerified ? approvedMethod : nil),
+                    .replacedExisting
+                )
             }
-            return (IdentityRow(key: key, previous: approvedKey, approved: false, verified: false), .replacedExisting)
+            let keepsVerification = approvedKey != nil && approvedVerified
+            return (
+                IdentityRow(
+                    key: key, previous: approvedKey, approved: false, verified: false,
+                    previousVerified: keepsVerification, previousVerifiedAt: keepsVerification ? approvedAt : nil,
+                    previousVerifiedMethod: keepsVerification ? approvedMethod : nil),
+                .replacedExisting
+            )
         }
         if let scope = currentScope {
             return try database.locked { connection in
@@ -605,23 +666,79 @@ public final class PersistentProtocolStore: ProtocolStore, TransactionParticipan
         let key = identity.serialize()
         try database.write(protocolStore: true) { connection in
             let existing = try Self.storedIdentityRow(for: account, connection)
-            let verified = existing.map { $0.approved && $0.key == key && $0.verified } ?? false
-            try Self.writeIdentity(
-                IdentityRow(key: key, previous: nil, approved: true, verified: verified), for: account, connection)
+            let kept = existing.flatMap { $0.approved && $0.key == key && $0.verified ? $0 : nil }
+            var row = IdentityRow(key: key, previous: nil, approved: true, verified: kept != nil)
+            row.record(kept?.verification)
+            try Self.writeIdentity(row, for: account, connection)
         }
     }
 
     public func setIdentityVerified(_ verified: Bool, for account: AccountId) throws {
         try database.write(protocolStore: true) { connection in
             guard var row = try Self.storedIdentityRow(for: account, connection) else { return }
-            row.verified = verified
             if verified {
                 // Verifying the current key in person also accepts it.
+                if !(row.approved && row.verified) { row.record(nil) }
                 row.approved = true
                 row.previous = nil
+            } else {
+                row.record(nil)
             }
+            row.verified = verified
             try Self.writeIdentity(row, for: account, connection)
         }
+    }
+
+    // The key-bound calls below read inside the write transaction, which
+    // first commits whatever a decryption staged: they always compare with
+    // the newest key, and nothing can change it in between.
+
+    public func acceptIdentity(_ expected: IdentityKey, for account: AccountId) throws -> Bool {
+        let key = expected.serialize()
+        return try database.write(protocolStore: true) { connection in
+            guard let row = try Self.storedIdentityRow(for: account, connection), row.key == key else { return false }
+            if !row.approved {
+                try Self.writeIdentity(
+                    IdentityRow(key: key, previous: nil, approved: true, verified: false), for: account, connection)
+            }
+            return true
+        }
+    }
+
+    public func verifyIdentity(_ expected: IdentityKey, for account: AccountId, verification: IdentityVerification)
+        throws -> Bool
+    {
+        let key = expected.serialize()
+        return try database.write(protocolStore: true) { connection in
+            guard let stored = try Self.storedIdentityRow(for: account, connection), stored.key == key else {
+                return false
+            }
+            var row = IdentityRow(key: key, previous: nil, approved: true, verified: true)
+            row.record(verification)
+            try Self.writeIdentity(row, for: account, connection)
+            return true
+        }
+    }
+
+    public func pinVerifiedIdentity(
+        _ identity: IdentityKey, for account: AccountId, verification: IdentityVerification
+    ) throws -> Bool {
+        let key = identity.serialize()
+        return try database.write(protocolStore: true) { connection in
+            if let stored = try Self.storedIdentityRow(for: account, connection) {
+                // Another key is held: a different one, or the approved key a
+                // pending change to this one would replace (§5).
+                guard stored.key == key, stored.approved || stored.previous == nil else { return false }
+            }
+            var row = IdentityRow(key: key, previous: nil, approved: true, verified: true)
+            row.record(verification)
+            try Self.writeIdentity(row, for: account, connection)
+            return true
+        }
+    }
+
+    public func identityVerification(for account: AccountId) throws -> IdentityVerification? {
+        try database.locked { connection in try identityRow(for: account, connection) }?.verification
     }
 
     public func restoreIdentity(_ identity: IdentityKey, for account: AccountId, approved: Bool, verified: Bool) throws {

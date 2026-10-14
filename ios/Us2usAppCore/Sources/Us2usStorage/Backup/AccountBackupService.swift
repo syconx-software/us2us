@@ -12,7 +12,10 @@ import Us2usKit
 /// Which contacts are exported: accepted and blocked ones. Pending message
 /// requests are not relationships yet (§6.4) and are left out; on restore
 /// every non-blocked contact comes back as accepted, with the access key it
-/// gave us, its profile claim (unchecked) and its `presence_sharing`.
+/// gave us, its profile claim (unchecked), its `presence_sharing` and the
+/// profile picture it last sent (§8.9; contacts do not send it again after a
+/// restore until something changes). The own picture and "Show in search"
+/// travel in the account part (`Messenger.makeBackup`).
 public enum AccountBackupService {
     public enum Failure: Error, Equatable, Sendable {
         case invalidPassword(BackupPasswordError)
@@ -31,6 +34,7 @@ public enum AccountBackupService {
             entry.blocked = contact.isBlocked
             entry.theirAccessKey = contact.theirAccessKey ?? Data()
             entry.presenceSharing = contact.profile.presenceSharing
+            if let avatar = contact.profile.avatar.profileAvatar { entry.avatar = avatar }
             return entry
         }
     }
@@ -68,8 +72,9 @@ public enum AccountBackupService {
         return url
     }
 
-    /// Decrypts and parses a backup file (≈1 s: PBKDF2 with 10^6 iterations).
-    /// Nothing is changed anywhere. Throws ``AccountBackupError``.
+    /// Decrypts a backup file and verifies the whole backup (≈1 s: PBKDF2
+    /// with 10^6 iterations), so a backup that opens is one a restore
+    /// accepts. Nothing is changed anywhere. Throws ``AccountBackupError``.
     public static func decrypt(_ file: Data, password: String) async throws -> BRPAccountBackup {
         try await Task.detached(priority: .userInitiated) {
             try AccountBackupFile.import(file, password: password)
@@ -87,7 +92,12 @@ public enum AccountBackupService {
     /// Crash safety: the contacts (blocks included) are written *before* the
     /// irreversible token rotation, which needs none of them. A process that
     /// dies at any point leaves either no account (the backup's token still
-    /// works: restore again) or the rotated account with every contact.
+    /// works: restore again), or the account with every contact and both the
+    /// backup's token and the new one, of which the next start keeps the one
+    /// the relay holds (§5.5 step 3.4), or the rotated account.
+    ///
+    /// Throws `BackupRestoreError` when the relay refuses the backup's token
+    /// and the new one, or the new one alone.
     public static func restore(
         _ backup: BRPAccountBackup, storage: LocalStorage, relay: RelayClient,
         directory: (any IdentityDirectory)? = nil, configuration: Messenger.Configuration = Messenger.Configuration(),
@@ -126,7 +136,8 @@ public enum AccountBackupService {
                 ContactProfile(
                     username: username, usernameStatus: .unchecked,
                     displayName: entry.displayName.isEmpty ? nil : entry.displayName,
-                    presenceSharing: entry.presenceSharing),
+                    presenceSharing: entry.presenceSharing,
+                    avatar: ProfilePicture(entry.hasAvatar ? entry.avatar : nil)),
                 for: account)
             if entry.theirAccessKey.count == AccessKey.byteCount {
                 try tx.contacts.setTheirAccessKey(entry.theirAccessKey, for: account)

@@ -23,7 +23,15 @@ extension LiveChatRecord {
             expireTimerSeconds: summary.conversation.defaultExpireTimerSeconds,
             unreadCount: summary.unreadCount,
             lastActivity: summary.conversation.lastActivity,
-            lastMessage: summary.lastMessage.map { LiveMessageRecord($0, ownAccount: ownAccount) })
+            lastMessage: summary.lastMessage.map { LiveMessageRecord($0, ownAccount: ownAccount) },
+            identityKey: contact.identityKey,
+            avatar: LiveAvatar(contact.avatar))
+    }
+}
+
+extension LiveBlockedRecord {
+    init(_ contact: ContactInfo) {
+        self.init(peer: contact.account.string, username: contact.username, displayName: contact.displayName)
     }
 }
 
@@ -62,7 +70,17 @@ extension LiveMessageRecord {
             quoteTarget: item.quote?.targetMessageId, quoteText: item.quote?.previewText,
             expireTimerSeconds: item.expireTimerSeconds, viewOnce: item.viewOnce,
             reactions: item.reactions.sorted { $0.key < $1.key }.map { (byMe: $0.key == ownAccount, emoji: $0.value) },
-            status: item.status.map(LiveOutgoingStatus.init), deliveredAt: item.deliveredAt, readAt: item.readAt)
+            status: item.status.map(LiveOutgoingStatus.init), deliveredAt: item.deliveredAt, readAt: item.readAt,
+            viewedAt: item.viewedAt, savedByPeerAt: item.savedByPeerAt, savedByMeAt: item.savedByMeAt)
+    }
+}
+
+extension Us2usRuntime.MediaKind {
+    init(_ kind: ChatMediaKind) {
+        switch kind {
+        case .visual: self = .visual
+        case .documents: self = .documents
+        }
     }
 }
 
@@ -90,7 +108,9 @@ extension LiveBody {
                 longitude: location.longitude)
         case .liveLocation(let live):
             self = .liveLocation(sessionId: live.sessionId, expiresAt: live.expiresAt, stopped: live.stopped)
-        case .sticker(let sticker): self = .sticker(emoji: sticker.emoji)
+        case .sticker(let sticker):
+            self = .sticker(
+                packID: sticker.packId, stickerID: sticker.stickerId, emoji: sticker.emoji, lang: sticker.lang)
         case .deleted: self = .deleted
         case .viewOnceOpened: self = .viewOnceOpened
         case .notice(let notice): self = .notice(LiveNotice(notice))
@@ -120,7 +140,7 @@ extension LiveAttachment {
         self.init(
             kind: kind, contentType: item.contentType, fileName: item.fileName, size: item.size,
             durationMs: item.durationMs, thumbnail: item.thumbnail, caption: item.caption, waveform: item.waveform,
-            availability: availability)
+            availability: availability, width: item.width, height: item.height)
     }
 }
 
@@ -131,7 +151,9 @@ extension LiveNotice {
         case .screenRecordingByMe: self = .screenRecordingByMe
         case .screenshotByContact: self = .screenshotByContact
         case .safetyNumberChanged: self = .safetyNumberChanged
-        case .safetyNumberAccepted: self = .safetyNumberAccepted
+        // Builds 4–6 wrote `.safetyNumberAccepted` only when verifying.
+        case .safetyNumberAccepted, .safetyNumberVerified: self = .safetyNumberVerified
+        case .safetyNumberAcceptedUnverified: self = .safetyNumberAccepted
         case .requestAccepted: self = .requestAccepted
         case .settingsChanged(let change):
             self = .settingsChanged(

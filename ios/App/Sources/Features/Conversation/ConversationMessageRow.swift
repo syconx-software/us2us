@@ -16,6 +16,9 @@ struct ConversationMessageRow: View, Equatable {
     let capturesFrame: Bool
     /// The message before its kind changed: the bubble morphs from it.
     var replacing: Message? = nil
+    /// Arrived while the conversation is open (the live end): a sticker
+    /// settles in once. History never animates.
+    var isNew = false
     /// The conversation the row acts on; `nil` for an inert row (4.4).
     let viewModel: ConversationViewModel?
 
@@ -27,17 +30,22 @@ struct ConversationMessageRow: View, Equatable {
     /// Kept in the hierarchy until its collapse has finished.
     @State private var sentenceInLayout: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.locale) private var locale
 
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.row == rhs.row && lhs.isLifted == rhs.isLifted && lhs.capturesFrame == rhs.capturesFrame
-            && lhs.replacing == rhs.replacing && lhs.viewModel === rhs.viewModel
+            && lhs.replacing == rhs.replacing && lhs.isNew == rhs.isNew && lhs.viewModel === rhs.viewModel
     }
 
-    init(row: ConversationRow, isLifted: Bool, capturesFrame: Bool, replacing: Message? = nil, viewModel: ConversationViewModel?) {
+    init(
+        row: ConversationRow, isLifted: Bool, capturesFrame: Bool, replacing: Message? = nil, isNew: Bool = false,
+        viewModel: ConversationViewModel?
+    ) {
         self.row = row
         self.isLifted = isLifted
         self.capturesFrame = capturesFrame
         self.replacing = replacing
+        self.isNew = isNew
         self.viewModel = viewModel
         _sentenceProgress = State(initialValue: row.showsStatusSentence ? 1 : 0)
         _sentenceInLayout = State(initialValue: row.showsStatusSentence)
@@ -90,11 +98,14 @@ struct ConversationMessageRow: View, Equatable {
         let id = message.id
         let viewModel = viewModel
         return MessageBubbleView(
-            message: message, isTail: row.isTail, replacing: replacing,
+            message: message, isTail: row.isTail, animatesEntrance: isNew, replacing: replacing,
             onReplaced: { viewModel?.finishKindChange(id) },
             onStopLiveLocation: { viewModel?.stopLiveLocation(id) },
             onOpenViewOnce: { if let viewModel, let message = viewModel.message(id) { viewModel.openViewOnce(message) } },
-            onOpenMedia: { if let viewModel, let message = viewModel.message(id) { viewModel.openMedia(message) } }
+            onOpenMedia: { if let viewModel, let message = viewModel.message(id) { viewModel.openMedia(message) } },
+            onOpenLocation: { if let viewModel, let message = viewModel.message(id) { viewModel.openLocation(message) } },
+            onOpenLiveMap: { if let viewModel, let message = viewModel.message(id) { viewModel.openLiveMap(message) } },
+            onToggleVoice: { viewModel?.toggleVoice(id) }
         )
         .background {
             if let frames = viewModel?.frames, isPressing || capturesFrame {
@@ -124,10 +135,35 @@ struct ConversationMessageRow: View, Equatable {
         let id = message.id
         let viewModel = viewModel
         let resend: () -> Void = { viewModel?.resend(id) }
-        return StateCrossFade(value: status, alignment: .trailing) { status in
-            MessageStatusSentence(status: status, onResend: status == .failed ? resend : nil)
+        let line = StatusLine(status: status, detail: Self.detail(for: message, locale: locale))
+        return StateCrossFade(value: line, alignment: .trailing) { line in
+            MessageStatusSentence(status: line.status, detail: line.detail, onResend: line.status == .failed ? resend : nil)
         }
         .allowsHitTesting(row.showsStatusSentence)
+    }
+
+    /// The sentence's state and, for a video still on this phone, what it is doing.
+    private struct StatusLine: Equatable {
+        let status: MessageStatus
+        let detail: String?
+    }
+
+    /// A photo or video sent from here explains itself while it is prepared,
+    /// and when preparing it failed (the 14-day “not opened” does not apply).
+    static func detail(for message: Message, locale: Locale) -> String? {
+        let isPhoto = if case .photo = message.content { true } else { false }
+        switch message.mediaAvailability {
+        case .preparing:
+            return isPhoto
+                ? StringTable.conversation.string("photo.preparing.detail", locale: locale)
+                : StringTable.conversation.string("video.preparing.detail", locale: locale)
+        case .preparationFailed:
+            return isPhoto
+                ? StringTable.conversation.string("photo.preparationFailed.detail", locale: locale)
+                : StringTable.conversation.string("video.preparationFailed.detail", locale: locale)
+        case .ready, .remote, .downloading, .held, .unavailable:
+            return nil
+        }
     }
 
     private func longPress() {

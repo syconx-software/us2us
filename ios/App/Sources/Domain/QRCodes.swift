@@ -31,6 +31,8 @@ enum ContactCode {
     static func decode(_ text: String) -> (username: String, keyFingerprint: String?)? {
         guard text.hasPrefix(prefix), text.count <= 512 else { return nil }
         let parts = text.dropFirst(prefix.count).split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        // Codes are written with the normalized name: one that is not
+        // exactly valid as it stands is not ours.
         let name = String(parts.first ?? "")
         guard UsernameRules.isValid(name) else { return nil }
         let fingerprint = parts.count > 1 ? String(parts[1]) : nil

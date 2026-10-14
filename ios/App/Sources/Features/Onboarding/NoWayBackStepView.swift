@@ -14,7 +14,7 @@ struct NoWayBackStepView: View {
             OnboardingFitOrScroll {
                 VStack(spacing: 0) {
                     SetupHeader(step: step.step, stepCount: step.count, onBack: onBack)
-                        .disabled(model.isWorking)
+                        .disabled(model.isWorking || model.returnsToLock)
                     VStack(alignment: .leading, spacing: U2Spacing.titleToBodyGap) {
                         SetupTitle(
                             StringTable.onboarding.resource("onboarding.noWayBack.title"), style: .displayTitleS)
@@ -31,6 +31,12 @@ struct NoWayBackStepView: View {
                         .padding(.top, 20)
                         .padding(.horizontal, U2Spacing.screenGutterS)
 
+                    if model.replacesThisPhone {
+                        replacementNote
+                            .padding(.top, 14)
+                            .padding(.horizontal, U2Spacing.screenGutterL)
+                    }
+
                     if model.biometry != .none {
                         biometryCard
                             .padding(.top, 12)
@@ -39,8 +45,8 @@ struct NoWayBackStepView: View {
 
                     Spacer(minLength: 0)
 
-                    if model.failed {
-                        LocalizedText("onboarding.noWayBack.error", table: .onboarding)
+                    if let failure = model.failure {
+                        LocalizedText(Self.errorKey(failure), table: .onboarding)
                             .u2Font(.calloutL)
                             .foregroundStyle(Color.u2.danger)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,7 +63,7 @@ struct NoWayBackStepView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .toggleStyle(.u2Checkbox)
-                    .disabled(model.isWorking)
+                    .disabled(model.isWorking || model.returnsToLock)
                     .accessibilityIdentifier("onboarding.acknowledge")
                     .padding(.horizontal, U2Spacing.screenGutterL)
                     .padding(.bottom, 18)
@@ -68,12 +74,12 @@ struct NoWayBackStepView: View {
                                 SpinningGlyph(size: 20)
                                     .transition(.u2Fade)
                             }
-                            LocalizedText("onboarding.noWayBack.finish", table: .onboarding)
+                            LocalizedText(Self.actionKey(model), table: .onboarding)
                         }
                         .u2Animation(U2Motion.state, value: model.isWorking)
                     }
                     .buttonStyle(.u2Primary)
-                    .disabled(!model.acknowledged)
+                    .disabled(!model.acknowledged && !model.returnsToLock && !model.choosesAnotherName)
                     .allowsHitTesting(!model.isWorking)
                     .accessibilityIdentifier("onboarding.finish")
                     .padding(.horizontal, U2Spacing.screenGutter)
@@ -82,6 +88,47 @@ struct NoWayBackStepView: View {
                 .u2Animation(U2Motion.state, value: model.failed)
             }
         }
+    }
+
+    /// The sentence above the checkbox: try again, or — the restored
+    /// backup's account is gone — start a new account, or — a vault is
+    /// still on this phone — go to the lock, or — the name is taken —
+    /// choose another (the CTA says so).
+    static func errorKey(_ failure: NoWayBackStepModel.Failure) -> String.LocalizationValue {
+        switch failure {
+        case .network: "onboarding.noWayBack.error"
+        case .backupGone: "onboarding.noWayBack.error.backupGone"
+        case .backupDamaged: "onboarding.noWayBack.error.backupDamaged"
+        case .accountKept: "onboarding.noWayBack.error.accountKept"
+        case .previousVaultKept: "onboarding.noWayBack.error.previousVaultKept"
+        case .usernameTaken: "onboarding.noWayBack.error.usernameTaken"
+        }
+    }
+
+    /// “Kurulumu tamamla”, or where the CTA goes after a failure that
+    /// finishing again cannot fix.
+    static func actionKey(_ model: NoWayBackStepModel) -> String.LocalizationValue {
+        if model.returnsToLock { return "onboarding.noWayBack.toLock" }
+        if model.choosesAnotherName { return "onboarding.noWayBack.chooseAnotherName" }
+        return "onboarding.noWayBack.finish"
+    }
+
+    /// Restoring inside the lock: what finishing costs this phone, said
+    /// before it happens (the warning line of 7.2, in `danger`).
+    private var replacementNote: some View {
+        HStack(alignment: .top, spacing: 12) {
+            PhosphorIcon(.warning, size: 18)
+                .foregroundStyle(Color.u2.danger)
+                .frame(height: U2TextStyle.captionTight.lineHeight)
+                .accessibilityHidden(true)
+            LocalizedText("onboarding.noWayBack.replacesThisPhone", table: .onboarding)
+                .u2Font(.captionTight)
+                .foregroundStyle(Color.u2.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("onboarding.replacesThisPhone")
     }
 
     /// Three facts on `surface` r16; rows 52 / 52 / 62 high, pad 0 16, gap

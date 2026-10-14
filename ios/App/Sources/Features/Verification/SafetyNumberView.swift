@@ -1,14 +1,19 @@
 import SwiftUI
 
-/// 06 · Güvenlik numarası — the `.safetyNumber` route (5.1 › header name).
+/// 06 · Güvenlik numarası — the `.safetyNumber` route (5.1 › header name):
+/// the contact screen (proposed), with 6.1 as its first tab (Doğrulama) and
+/// the chat's photos and documents beside it (`ContactScreen`).
 ///
 /// Hosts the whole verification flow of one chat: 6.1 itself, 6.3 pushed
 /// over it, and the 6.2 scanner cover. All state lives in
-/// `VerificationModel`, all data comes through `MessengerService`.
+/// `VerificationModel` (and `ContactMediaModel` for the other tabs), all
+/// data comes through `MessengerService`.
 struct SafetyNumberView: View {
     let chatID: ChatID
     @Environment(AppModel.self) private var app
     @State private var model: VerificationModel?
+    @State private var media: ContactMediaModel?
+    @State private var actions: ContactActionsModel?
 
     private var chat: ChatID { chatID }
 
@@ -28,8 +33,9 @@ struct SafetyNumberView: View {
 
     @ViewBuilder private var flow: some View {
         ZStack {
-            if let model {
-                VerificationFlowView(model: model, onBack: app.router.pop, onBackToChat: backToChat)
+            if let model, let media, let actions {
+                VerificationFlowView(
+                    model: model, media: media, actions: actions, onBack: app.router.pop, onBackToChat: backToChat)
             } else {
                 U2Screen { Color.clear }
             }
@@ -44,6 +50,30 @@ struct SafetyNumberView: View {
                 }
             #endif
             model = VerificationModel(chatID: chat, messenger: app.messenger)
+            let media = ContactMediaModel(chatID: chat, messenger: app.messenger, saveNotice: app.preferences)
+            if let tab = VerificationHarness.initialTab { media.show(tab) }
+            self.media = media
+            actions = ContactActionsModel(chatID: chat, messenger: app.messenger)
+        }
+        // The chat went while this screen was open (“Engeli kaldır” made a
+        // blocked request a request again, or Ghost erased it): back past
+        // the chat as well, not onto its empty shell. Not for a lock, which
+        // empties the live service's chats under the cover for a while.
+        .onChange(of: app.messenger.chat(chat) == nil) { _, isGone in
+            if isGone, app.overlay == .none { leaveGoneChat() }
+        }
+    }
+
+    /// Pops this screen and the chat under it (5.1 › header) in one soft pop.
+    private func leaveGoneChat() {
+        let path = app.router.path
+        let own: Set<AppRoute> = [.conversation(chat), .safetyNumber(chatID)]
+        guard let top = path.last, own.contains(top) else { return }
+        let below = path.reversed().drop { own.contains($0) }.first
+        if let below {
+            app.router.pop(to: below)
+        } else {
+            app.router.popToRoot()
         }
     }
 
@@ -59,9 +89,12 @@ struct SafetyNumberView: View {
     }
 }
 
-/// 6.1 with 6.3 pushed over it, the 6.2 cover and the confirmations.
+/// 6.1 (inside the contact screen's tabs) with 6.3 pushed over it, the 6.2
+/// cover and the confirmations.
 struct VerificationFlowView: View {
     @Bindable var model: VerificationModel
+    let media: ContactMediaModel
+    let actions: ContactActionsModel
     /// 6.1 back (pops the route).
     let onBack: () -> Void
     /// 6.3 close / “Sohbete dön”.
@@ -74,7 +107,7 @@ struct VerificationFlowView: View {
 
     var body: some View {
         ZStack {
-            SafetyNumberScreen(model: model, onBack: onBack)
+            ContactScreen(verification: model, media: media, actions: actions, onBack: onBack)
                 // 6.3 is “pushed”: 6.1 fades out drifting 16 pt to the leading side.
                 .opacity(model.showsVerified ? 0 : 1)
                 .offset(x: model.showsVerified && !reduceMotion ? -16 : 0)
@@ -91,8 +124,14 @@ struct VerificationFlowView: View {
             model.localeForAnnouncements = locale
             await model.load()
             await VerificationHarness.apply(to: model)
+            await VerificationHarness.apply(to: actions)
         }
         .onChange(of: locale) { _, new in model.localeForAnnouncements = new }
+        // A new key (or a decision made elsewhere) while 6.1 is open: the
+        // number on screen is always the current one.
+        .onChange(of: model.identityState) { _, _ in
+            Task { await model.load(animation: U2Motion.state) }
+        }
         .u2FadeCover(
             isPresented: $model.isScannerPresented, fadeOut: { model.scannerFadeOut }, onEscape: model.closeScanner
         ) {
@@ -126,31 +165,51 @@ struct VerificationFlowView: View {
         } message: {
             Text("safety.remove.message", table: .verification)
         }
+        .alert(Text("safety.accept.title", table: .verification), isPresented: $model.confirmsAccept) {
+            Button(role: .cancel) {
+            } label: {
+                Text("common.cancel")
+            }
+            Button {
+                Task { await model.acceptChangeWithoutVerifying() }
+            } label: {
+                Text("safety.accept.confirm", table: .verification)
+            }
+        } message: {
+            Text("safety.accept.message", table: .verification)
+        }
     }
 }
 
 // MARK: - 6.1
 
-/// 6.1 · Güvenlik numarası: C7 header (back · title · share), the sen ↔
-/// peer line (seal once verified), the QR card of the scannable fingerprint,
-/// the 12 × 5 digits; “QR kodu okut” (C1) and “Doğrulandı olarak işaretle”
+/// 6.1 · Güvenlik numarası, the contact screen's Doğrulama tab (under its
+/// header — back · the name · share — and the tabs): the sen ↔ peer line
+/// (seal once verified), the QR card of the scannable fingerprint, the
+/// 12 × 5 digits; “QR kodu okut” (C1) and “Doğrulandı olarak işaretle”
 /// (C3) — “Doğrulamayı kaldır” once verified. A changed number shows a
-/// danger note above the line (proposed).
-private struct SafetyNumberScreen: View {
+/// danger note above the line (proposed), and so does a blocked person,
+/// with “Engeli kaldır” (`ContactBlockedNote`).
+struct SafetyNumberTab: View {
     let model: VerificationModel
-    let onBack: () -> Void
-    @Environment(\.locale) private var locale
+    /// The contact screen's block state and “Engeli kaldır”.
+    var contact: ContactActionsModel? = nil
 
     var body: some View {
-        U2Screen {
-            FitOrScroll { content }
-        }
+        FitOrScroll { content }
     }
 
     private var content: some View {
         VStack(spacing: 0) {
-            header
-            if model.numberChanged {
+            if let contact, contact.isBlocked {
+                ContactBlockedNote(name: model.peerName) {
+                    Task { await contact.unblock() }
+                }
+                .padding(.horizontal, U2Spacing.screenGutterS)
+                .padding(.top, 16)
+                .transition(.u2Drop)
+            }
+            if model.numberChanged || model.changedWhileOpen {
                 changedNote
             }
             safetyNumber
@@ -162,24 +221,16 @@ private struct SafetyNumberScreen: View {
             Spacer(minLength: 24)
             actions
         }
-    }
-
-    private var header: some View {
-        CenteredTitleHeader(Text("safety.title", table: .verification)) {
-            U2GlassIconButton(.caretLeft, label: Text("a11y.back"), action: onBack)
-                .accessibilityIdentifier("safety.back")
-        } trailing: {
-            U2GlassIconButton(.shareNetwork, label: Text("a11y.share")) { share() }
-                .disabled(model.info == nil)
-                .accessibilityIdentifier("safety.share")
-        }
+        .u2Animation(U2Motion.state, value: contact?.isBlocked ?? false)
     }
 
     private var changedNote: some View {
         NoteCard(
             glyph: .warningCircle,
             title: Text("safety.changed.title", table: .verification),
-            message: Text("safety.changed.message \(model.peerName)", table: .verification)
+            message: model.changedWhileOpen
+                ? Text("safety.changedWhileOpen.message", table: .verification)
+                : Text("safety.changed.message \(model.peerName)", table: .verification)
         )
         .padding(.horizontal, U2Spacing.screenGutterS)
         .padding(.top, 16)
@@ -193,7 +244,7 @@ private struct SafetyNumberScreen: View {
                 ownUsername: model.ownUsername, ownLabel: Text("safety.you", table: .verification),
                 peer: peer, showsSeal: model.isVerified, animatesSeal: true
             )
-            .padding(.top, 26)
+            .padding(.top, 20)
         }
         QRCodeCard(modules: model.qrModules, label: Text("safety.a11y.qr", table: .verification))
             .padding(.top, 22)
@@ -229,6 +280,19 @@ private struct SafetyNumberScreen: View {
             .buttonStyle(U2TextButtonStyle(tone: .quiet, height: U2Size.textButtonS))
             .disabled(model.info == nil)
             .accessibilityIdentifier("safety.markVerified")
+            // After a change (proposed): go on without verifying — sending
+            // resumes, the chat keeps no seal. Distinct from verifying.
+            if model.numberChanged {
+                Button {
+                    model.requestAccept()
+                } label: {
+                    Text("safety.acceptChange", table: .verification).u2Font(.rowTitle)
+                }
+                .buttonStyle(U2TextButtonStyle(tone: .quiet, height: U2Size.textButtonS))
+                .disabled(model.info == nil)
+                .transition(.opacity)
+                .accessibilityIdentifier("safety.acceptChange")
+            }
         }
         .padding(.horizontal, U2Spacing.screenGutter)
         .u2Bottom(40)
@@ -240,7 +304,9 @@ private struct SafetyNumberScreen: View {
             : Text("safety.markVerified", table: .verification)
     }
 
-    private func share() {
+    /// 6.1 › share: the digits as text (the contact screen's header button).
+    @MainActor
+    static func share(_ model: VerificationModel, locale: Locale) {
         guard let groups = model.info?.groups else { return }
         SystemShareSheet.present(
             [VerificationText.shareText(own: model.ownUsername, peer: model.peerName, groups: groups, locale: locale)],
@@ -270,7 +336,8 @@ private struct VerifiedSincePill: View {
     }
 
     private var text: String {
-        guard let date = info.verifiedAt else { return "" }
+        // Verified before dates were kept (or restored from a backup): no date.
+        guard let date = info.verifiedAt else { return StringTable.verification.string("safety.verified", locale: locale) }
         let when = VerificationText.longDate(date, locale: locale) + " · " + U2Format.clockTime(date, locale: locale)
         return StringTable.verification.string("safety.verifiedSince \(when)", locale: locale)
     }

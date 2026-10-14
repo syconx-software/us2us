@@ -234,9 +234,17 @@ struct RelayClientTests {
         #expect(server.last.header("Content-Type") == "application/octet-stream")
         #expect(server.last.header("X-Auth-Token") != nil)
 
-        try await server.client.downloadMedia(id: upload.mediaId, to: directory.file("downloaded"))
+        let received = Locked<[UInt64]>([])
+        try await server.client.downloadMedia(id: upload.mediaId, to: directory.file("downloaded")) { bytes in
+            received.withLock { $0.append(bytes) }
+        }
         #expect(try Data(contentsOf: directory.file("downloaded")) == blob)
         #expect(server.last.header("X-Auth-Token") == nil)
+        // Progress after every 64 KiB chunk and at the end, never backwards.
+        let progress = received.withLock { $0 }
+        #expect(progress.last == UInt64(blob.count))
+        #expect(progress.count == blob.count / (64 * 1024) + 1)
+        #expect(progress == progress.sorted())
         // A blob longer than the caller expects is cut off and nothing is left behind (§7).
         try await server.client.downloadMedia(
             id: upload.mediaId, to: directory.file("exact"), maxBytes: UInt64(blob.count))
@@ -253,14 +261,26 @@ struct RelayClientTests {
         #expect(server.last.header("X-Auth-Token") == nil)
     }
 
-    @Test("token rotation replaces the stored credentials")
+    @Test("token rotation sends the client's new token and leaves the credentials alone (§4.3)")
     func rotation() async throws {
-        let fresh = Data(repeating: 0x11, count: 32)
-        let server = Server { _ in Server.json(200, #"{"authToken":"\#(fresh.base64URLEncodedString())"}"#) }
-        let rotated = try await server.client.rotateAuthToken()
-        #expect(rotated.authToken == fresh)
-        #expect(server.client.credentials?.authToken == fresh)
-        #expect(server.last.header("X-Auth-Token") == Server.credentials.authToken.base64URLEncodedString())
+        let old = Data(repeating: 0x22, count: 32)
+        let fresh = Data((0..<32).map { UInt8($0 * 7) })
+        let server = Server { _ in (204, [:], Data()) }
+        #expect(try await server.client.rotateAuthToken(to: fresh, authenticatingWith: old) == fresh)
+        #expect(server.last.method == "POST")
+        #expect(server.last.path == "/v1/accounts/me/token")
+        #expect(server.last.header("X-Auth-Token") == old.base64URLEncodedString())
+        #expect(try server.last.json()["newAuthToken"] as? String == fresh.base64URLEncodedString())
+        #expect(server.client.credentials == Server.credentials)
+
+        // A relay that predates client-chosen tokens answers with its own: that one is the account's now.
+        let chosen = Data(repeating: 0x11, count: 32)
+        let older = Server { _ in Server.json(200, #"{"authToken":"\#(chosen.base64URLEncodedString())"}"#) }
+        #expect(try await older.client.rotateAuthToken(to: fresh, authenticatingWith: old) == chosen)
+        let refused = Server { _ in Server.json(401, #"{"error":{"code":"unauthorized","message":"no"}}"#) }
+        await #expect(throws: RelayError.server(status: 401, code: .unauthorized, message: "no")) {
+            _ = try await refused.client.rotateAuthToken(to: fresh, authenticatingWith: old)
+        }
     }
 
     @Test("WebSocket frames (§4.7)")

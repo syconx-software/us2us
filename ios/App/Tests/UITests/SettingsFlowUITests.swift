@@ -19,8 +19,9 @@ final class SettingsFlowUITests: XCTestCase {
         field.typeText(text)
     }
 
-    /// 7.1 › Yedek → 7.2: weak password refused, asked twice, mismatch shown,
-    /// then the system share sheet with the .u2u file.
+    /// 7.1 › Yedek → 7.2: a short and a guessable password are refused with
+    /// their reasons, then it is asked twice, the mismatch is shown, then the
+    /// system share sheet with the .u2u file.
     func testBackupExportAsksTwiceAndOpensTheShareSheet() {
         let app = launch(["-U2Route", "settings"])
         app.buttons["settings.backup"].tap()
@@ -29,36 +30,64 @@ final class SettingsFlowUITests: XCTestCase {
         let password = app.secureTextFields.element(boundBy: 0)
         type("kedi12", into: password)
         app.buttons["backup.export"].tap()
-        XCTAssertTrue(app.staticTexts["Bu parola kolay tahmin edilir. Daha uzun bir parola seç ya da harf, rakam ve işaretleri karıştır."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Yedek parolası en az 10 karakter olmalı."].waitForExistence(timeout: 5))
 
         password.tap()
-        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "kuzey7deniz42k")
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "Ahmet1985!")
+        app.buttons["backup.export"].tap()
+        let weak = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Bu parola kolay tahmin edilir."))
+            .firstMatch
+        XCTAssertTrue(weak.waitForExistence(timeout: 5))
+
+        password.tap()
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "v7qz3kd9xw2mtr")
         app.buttons["backup.export"].tap()
         let confirmation = app.secureTextFields.element(boundBy: 1)
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
-        confirmation.typeText("kuzey7deniz4")
+        confirmation.typeText("v7qz3kd9xw2m")
         app.buttons["backup.export"].tap()
         XCTAssertTrue(app.staticTexts["Parolalar eşleşmedi."].waitForExistence(timeout: 5))
 
         confirmation.tap()
-        confirmation.typeText("2k")
+        confirmation.typeText("tr")
         app.buttons["backup.export"].tap()
         let sheetTitle = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "u2u")).firstMatch
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 15))
     }
 
-    /// 7.2: switching “Mesajlar” off also switches (and disables) the media row;
-    /// the estimate follows. (Regression: the model's didSet re-entered itself.)
-    func testMessagesOffTakesMediaWithIt() {
+    /// 7.2: the screen says what the backup holds (no switches: never
+    /// messages or media); “Güçlü parola oluştur” fills the field and shows
+    /// the password with “Kopyala”; the confirmation is still asked.
+    func testGeneratedPasswordIsShownCopiedAndConfirmed() throws {
         let app = launch(["-U2Route", "settings:7.2-empty"])
-        let messages = app.switches["backup.contents.messages"]
-        XCTAssertTrue(messages.waitForExistence(timeout: 8))
-        messages.tap()
-        XCTAssertTrue(app.staticTexts["Yalnızca ayarlar ve kişiler"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.switches["backup.contents.media"].value as? String, "0")
-        XCTAssertFalse(app.switches["backup.contents.media"].isEnabled)
-        messages.tap()
-        XCTAssertTrue(app.staticTexts["Tahmini 184 MB · 3.920 mesaj"].waitForExistence(timeout: 5))
+        let generate = app.buttons["backup.password.generate"]
+        XCTAssertTrue(generate.waitForExistence(timeout: 8))
+        XCTAssertEqual(app.switches.count, 0)
+        XCTAssertTrue(app.staticTexts["backup.contents.footnote"].exists)
+
+        generate.tap()
+        let shown = app.staticTexts["backup.password.generated"]
+        XCTAssertTrue(shown.waitForExistence(timeout: 5))
+        // Hidden until “Göster”: VoiceOver hears “Gizli”, never the password.
+        XCTAssertEqual(shown.value as? String, "Gizli")
+        app.buttons["backup.password.reveal"].tap()
+        let generated = try XCTUnwrap(shown.value as? String)
+        XCTAssertEqual(generated.count, 24)
+        XCTAssertEqual(generated.filter { $0 == "-" }.count, 4)
+
+        let copy = app.buttons["backup.password.copy"]
+        copy.tap()
+        let copied = app.descendants(matching: .any)["backup.password.copied"]
+        XCTAssertTrue(copied.waitForExistence(timeout: 5))
+        XCTAssertTrue(copied.label.contains("Kopyalandı · yalnızca bu cihazda, 1 dk sonra silinir"))
+
+        app.buttons["backup.export"].tap()
+        let confirmation = app.secureTextFields.element(boundBy: 1)
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.typeText(generated)
+        app.buttons["backup.export"].tap()
+        let sheetTitle = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "u2u")).firstMatch
+        XCTAssertTrue(sheetTitle.waitForExistence(timeout: 15))
     }
 
     /// 7.1 › Gizli kodu değiştir: current (through the lock's throttle) → new ×2 →

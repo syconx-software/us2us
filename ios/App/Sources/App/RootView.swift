@@ -21,6 +21,8 @@ struct RootView: View {
                 // stack can be seen: its continuous animations pause.
                 MainStackView()
                     .environment(\.u2IsLayerVisible, model.overlay == .none)
+                    // The own profile picture, for every place that draws it (proposed).
+                    .environment(\.u2OwnAvatar, model.messenger.ownAvatar.picture)
                     .transition(model.isLeavingOnboarding ? .identity : .u2Fade)
             }
             // Onboarding stays in the tree (not a removal transition) until it
@@ -45,7 +47,11 @@ struct RootView: View {
         }
         #if DEBUG
             .overlay {
-                if model.configuration.showsGallery {
+                if model.configuration.showsStickerGallery {
+                    BrandStickerGallery()
+                } else if model.configuration.showsAvatarGallery {
+                    BrandAvatarGallery()
+                } else if model.configuration.showsGallery {
                     ComponentGallery()
                 }
             }

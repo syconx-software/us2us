@@ -14,6 +14,9 @@ export const MAX_ACK_IDS = 500
 export const EPHEMERAL_BATCH_MAX_ITEMS = 200
 export const EPHEMERAL_ENVELOPE_MAX_BYTES = 4096
 export const ACCESS_KEY_LENGTH = 16
+/** An auth token (§4) is 32 random bytes, chosen by the relay at registration and by the client when rotating. */
+export const AUTH_TOKEN_LENGTH = 32
+const MIN_TOKEN_BYTE_VALUES = 16
 const KEY_ID_MAX = 0xffffff
 const REGISTRATION_ID_MAX = 16380
 const EC_PUBLIC_KEY_LENGTH = 33
@@ -185,6 +188,23 @@ export function accessKeyHashBody(body: unknown): Buffer | null {
   const json = object(body, 'body')
   if (!('accessKeyHash' in json)) throw badRequest('accessKeyHash is required (use null to disable)')
   return json.accessKeyHash === null ? null : bytes(json.accessKeyHash, 'accessKeyHash', 32)
+}
+
+/**
+ * The body of a token rotation (§4.3): the client's new token, or null for
+ * an empty body (`undefined`), the deprecated form in which the relay
+ * chooses the token. A body without `newAuthToken` is refused rather than
+ * taken for the old form: a client that got the field wrong would otherwise
+ * be handed a token it never stored. So is a token that is plainly not
+ * random, such as the zero-filled buffer of a random generator whose failure
+ * went unchecked: 32 random bytes take fewer than 16 different values with a
+ * probability below 10^-16.
+ */
+export function tokenRotationBody(body: unknown): Buffer | null {
+  if (body === undefined) return null
+  const token = bytes(object(body, 'body').newAuthToken, 'newAuthToken', AUTH_TOKEN_LENGTH)
+  if (new Set(token).size < MIN_TOKEN_BYTE_VALUES) throw badRequest('newAuthToken must be 32 random bytes')
+  return token
 }
 
 export function envelopeIds(value: unknown, path = 'ids'): Buffer[] {

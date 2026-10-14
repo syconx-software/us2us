@@ -22,7 +22,7 @@ public struct MessageRepository {
     static let columns = """
         id, conversation_id, message_id, outgoing, sender, kind, body, sent_at, created_at, server_timestamp,
         status, accepted_at, delivered_at, read_at, viewed_at, not_delivered_at, failed_at, displayed_at,
-        expire_timer, expires_at, view_once, quote_target, live_session, deleted_at
+        expire_timer, expires_at, view_once, quote_target, live_session, deleted_at, saved_by_peer_at, saved_by_me_at
         """
 
     /// After this long without a delivery receipt a sent message is *Not delivered* (§5.4).
@@ -427,6 +427,33 @@ public struct MessageRepository {
 
     // MARK: Live location (§8.3)
 
+    /// Our live-location bubbles in every conversation that are neither
+    /// deleted nor past their deadline, oldest first. Only rows that carry a
+    /// session are read (the `messages_by_live_session` index), so checking
+    /// them at every start does not decrypt whole conversations; a row that
+    /// cannot be read is skipped instead of hiding the others.
+    public func outgoingLiveLocations(now: Date = Date()) throws -> [StoredMessage] {
+        let rows = try tx.connection.query(
+            """
+            SELECT \(Self.columns) FROM messages
+            WHERE live_session IS NOT NULL AND outgoing = 1 AND deleted_at IS NULL
+                AND (expires_at IS NULL OR expires_at > ?)
+            ORDER BY id
+            """, [now.storageMilliseconds])
+        var keys: [Data: Data] = [:]
+        return rows.compactMap { row -> StoredMessage? in
+            guard let bytes = row.blob("conversation_id"), let conversationId = ConversationId(rawValue: bytes)
+            else { return nil }
+            do {
+                let key = try keys[bytes] ?? tx.conversationKey(conversationId)
+                keys[bytes] = key
+                return try message(from: row, key: key)
+            } catch {
+                return nil
+            }
+        }
+    }
+
     private func liveLocationBubble(session: Data, in conversationId: ConversationId) throws -> StoredMessage? {
         guard session.count == RandomId.byteCount else { return nil }
         return try tx.connection.queryOne(
@@ -519,6 +546,53 @@ public struct MessageRepository {
         try page(in: conversationId, limit: 1, now: now).last
     }
 
+    /// The conversation's photos and videos, or its files: up to `limit`
+    /// attachment messages before `before` (a ``StoredMessage/localId``;
+    /// `nil` = from the newest) whose `Attachment.kind` is in `kinds`,
+    /// **newest first**. Never view-once, deleted or expired items, and no
+    /// disappearing item at all (§8.1): a list kept outside the conversation
+    /// must never show one after its deadline, and they cannot be saved.
+    /// Only attachment rows are read (`messages_attachments`), in batches.
+    public func mediaPage(
+        in conversationId: ConversationId, kinds: Set<BRPAttachment.Kind>, before: Int64? = nil, limit: Int = 50,
+        now: Date = Date()
+    ) throws -> [StoredMessage] {
+        guard limit > 0, !kinds.isEmpty else { return [] }
+        let key = try tx.conversationKey(conversationId)
+        let batch = max(limit, 64)
+        var cursor = before ?? Int64.max
+        var result: [StoredMessage] = []
+        while result.count < limit {
+            let rows = try tx.connection.query(
+                """
+                SELECT \(Self.columns) FROM messages
+                WHERE conversation_id = ? AND kind = \(MessageKind.attachment.rawValue) AND id < ?
+                    AND view_once = 0 AND deleted_at IS NULL AND body IS NOT NULL
+                    AND expire_timer = 0 AND (expires_at IS NULL OR expires_at > ?)
+                ORDER BY id DESC LIMIT ?
+                """, [conversationId.rawValue, cursor, now.storageMilliseconds, batch])
+            for row in rows {
+                let stored = try message(from: row, key: key)
+                guard case .attachment(let attachment)? = stored.content?.payload, kinds.contains(attachment.kind)
+                else { continue }
+                result.append(stored)
+                if result.count == limit { break }
+            }
+            guard rows.count == batch, let last = rows.last?.int64("id") else { break }
+            cursor = last
+        }
+        return result
+    }
+
+    /// The local row id (``StoredMessage/localId``) of a message, if it is
+    /// still here; nothing is decrypted.
+    public func localId(of messageId: Data, in conversationId: ConversationId) throws -> Int64? {
+        try tx.connection.queryOne(
+            "SELECT id FROM messages WHERE conversation_id = ? AND message_id = ?",
+            [conversationId.rawValue, messageId]
+        )?.int64("id")
+    }
+
     public func count(in conversationId: ConversationId) throws -> Int {
         Int(
             try tx.connection.queryOne(
@@ -561,7 +635,8 @@ public struct MessageRepository {
 
     /// Applies a `ReceiptMessage` from the conversation's contact to our
     /// outgoing messages. Status only moves forward (a late delivery receipt
-    /// also lifts *Not delivered*). Returns the message ids that changed.
+    /// also lifts *Not delivered*); VIEWED and SAVED are set once. Returns
+    /// the message ids that changed.
     @discardableResult
     public func applyReceipt(
         _ receipt: BRPReceiptMessage, in conversationId: ConversationId, at time: Date = Date()
@@ -596,6 +671,16 @@ public struct MessageRepository {
                     UPDATE messages SET viewed_at = coalesce(viewed_at, ?)
                     WHERE conversation_id = ? AND message_id = ? AND outgoing = 1 AND viewed_at IS NULL
                     """, [now, conversationId.rawValue, messageId])
+            case .saved:
+                // Only for our own photo, video or file to this contact that
+                // can be saved at all (§8.4); ignored for anything else.
+                guard let message = try? get(messageId, in: conversationId, now: time, includeExpired: true),
+                    message.isOutgoing, !message.isDeleted, !message.isViewOnce, message.expireTimerSeconds == 0,
+                    let content = message.content, ReceiptPolicy.isSavable(content)
+                else { continue }
+                try tx.connection.run(
+                    "UPDATE messages SET saved_by_peer_at = ? WHERE id = ? AND saved_by_peer_at IS NULL",
+                    [now, message.localId])
             case .unspecified, .UNRECOGNIZED:
                 continue
             }
@@ -640,6 +725,38 @@ public struct MessageRepository {
             try tx.connection.run("UPDATE messages SET expires_at = ? WHERE id = ?", [deadline, message.localId])
         }
         return displayed
+    }
+
+    /// An incoming voice note was played on this phone: `viewedAt` is set
+    /// once. Returns whether it changed (the first play).
+    @discardableResult
+    public func markPlayed(_ messageId: Data, in conversationId: ConversationId, at time: Date = Date()) throws -> Bool {
+        try tx.requireWritable()
+        try tx.connection.run(
+            """
+            UPDATE messages SET viewed_at = ?
+            WHERE conversation_id = ? AND message_id = ? AND outgoing = 0 AND viewed_at IS NULL AND deleted_at IS NULL
+            """, [time.storageMilliseconds, conversationId.rawValue, messageId])
+        return tx.connection.changes > 0
+    }
+
+    /// A photo, video or file was saved outside the app on this phone:
+    /// `savedByMeAt` is set once. Only a message that can be saved at all
+    /// (§8.4: not view-once, no disappearing timer, not deleted) — anything
+    /// else is refused. Returns whether it changed (the first save).
+    @discardableResult
+    public func markSavedByMe(_ messageId: Data, in conversationId: ConversationId, at time: Date = Date()) throws
+        -> Bool
+    {
+        try tx.requireWritable()
+        guard let message = try get(messageId, in: conversationId, now: time), !message.isDeleted,
+            !message.isViewOnce, message.expireTimerSeconds == 0, let content = message.content,
+            ReceiptPolicy.isSavable(content)
+        else { throw StorageError.invalidState("not a savable message") }
+        try tx.connection.run(
+            "UPDATE messages SET saved_by_me_at = ? WHERE id = ? AND saved_by_me_at IS NULL",
+            [time.storageMilliseconds, message.localId])
+        return tx.connection.changes > 0
     }
 
     /// Displays every incoming message of the conversation (opening it).
@@ -723,7 +840,8 @@ public struct MessageRepository {
                 acceptedAt: row.date("accepted_at"), deliveredAt: row.date("delivered_at"),
                 readAt: row.date("read_at"), viewedAt: row.date("viewed_at"),
                 notDeliveredAt: row.date("not_delivered_at"), failedAt: row.date("failed_at"),
-                displayedAt: row.date("displayed_at")),
+                displayedAt: row.date("displayed_at"), savedByPeerAt: row.date("saved_by_peer_at"),
+                savedByMeAt: row.date("saved_by_me_at")),
             expireTimerSeconds: UInt32(clamping: row.int64("expire_timer") ?? 0),
             expiresAt: row.date("expires_at"), isViewOnce: row.bool("view_once"),
             quoteTarget: row.blob("quote_target"), liveSessionId: row.blob("live_session"),

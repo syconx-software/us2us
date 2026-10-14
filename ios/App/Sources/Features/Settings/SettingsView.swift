@@ -18,8 +18,12 @@ struct SettingsPageView: View {
             BackupExportView()
         case .changeCode:
             ChangeCodeView()
+        case .enableFaceID:
+            ChangeCodeView(purpose: .enableBiometrics)
         case .about:
             AboutView()
+        case .blocked:
+            BlockedPeopleView()
         case .restore:
             RestoreBackupView(onClose: model.router.pop, onFinished: model.router.pop)
         }
@@ -36,18 +40,21 @@ struct SettingsRootView: View {
     @Environment(\.locale) private var locale
 
     @State private var ownCode: MyCodePresentation?
-    @State private var showsErase = false
     @State private var showsInvite = false
-    @State private var isErasing = false
-    @State private var erasesAfterSheet = false
     /// The Face ID switch while the system prompt decides (optimistic).
     @State private var pendingFaceID: Bool?
+    /// “Aramada göster” while the change is made (optimistic).
+    @State private var pendingAvatarSearch: Bool?
+    /// 7.1 › Profil görseli: the full-screen picker; the cover's item carries
+    /// that opening's model (`AvatarEditorPresentation`).
+    @State private var avatarEditor: AvatarEditorPresentation?
 
     private var flow: SettingsFlow { SettingsFlow.of(model) }
     private var messenger: any MessengerService { flow.messenger }
 
     var body: some View {
         @Bindable var flow = flow
+        let erasure = flow.erasure
         let settings = messenger.settings
         U2Screen {
             ScrollViewReader { proxy in
@@ -73,14 +80,36 @@ struct SettingsRootView: View {
                             .accessibilityAddTraits(.isHeader)
 
                         VStack(spacing: U2Spacing.sectionGap) {
+                            if flow.restoreAccess.isShown {
+                                // A restore's token rotation is unanswered: the
+                                // old phone may still have access (§5.5 step 3.4).
+                                RestoreAccessNotice(model: flow.restoreAccess, onResult: restoreAccessChecked)
+                                    .transition(.u2Rise)
+                            }
                             profileCard
-                            GroupedSection(Text("settings.section.privacy", table: .settings)) {
-                                pickerRow(.circleHalf, Text("settings.presence", table: .settings), detail: presenceText(settings.presenceVisibility), picker: .presence)
-                                GroupedSeparator()
-                                GroupedToggleRow(
-                                    tile: IconTile(content: .glyph(.checks)), title: Text("settings.readReceipts", table: .settings),
-                                    isOn: binding(\.readReceipts))
-                                    .accessibilityIdentifier("settings.readReceipts")
+                            VStack(alignment: .leading, spacing: U2Spacing.sectionLabelGap) {
+                                GroupedSection(Text("settings.section.privacy", table: .settings)) {
+                                    pickerRow(.circleHalf, Text("settings.presence", table: .settings), detail: presenceText(settings.presenceVisibility), picker: .presence)
+                                    GroupedSeparator()
+                                    GroupedToggleRow(
+                                        tile: IconTile(content: .glyph(.checks)), title: Text("settings.readReceipts", table: .settings),
+                                        isOn: binding(\.readReceipts))
+                                        .accessibilityIdentifier("settings.readReceipts")
+                                    GroupedSeparator()
+                                    // Proposed: everyone blocked, also those whose chat is gone.
+                                    GroupedNavigationRow(
+                                        tile: IconTile(content: .glyph(.prohibit)), title: Text("settings.blocked", table: .settings),
+                                        detail: blockedCount(messenger.blockedPeople.count)
+                                    ) { flow.open(.blocked, in: model) }
+                                    .accessibilityIdentifier("settings.blocked")
+                                    GroupedSeparator()
+                                    // Proposed (PROTOCOL §8.10): who sees the profile picture.
+                                    GroupedToggleRow(
+                                        tile: IconTile(content: .glyph(.eye)), title: Text("settings.avatarSearch", table: .settings),
+                                        isOn: avatarSearchBinding(messenger.ownAvatar.showInSearch))
+                                        .accessibilityIdentifier("settings.avatarSearch")
+                                }
+                                avatarSearchFootnote
                             }
                             GroupedSection(Text("settings.section.security", table: .settings)) {
                                 GroupedToggleRow(
@@ -133,6 +162,7 @@ struct SettingsRootView: View {
                         }
                         .padding(EdgeInsets(top: 18, leading: 16, bottom: 0, trailing: 16))
                         .u2Bottom(U2Spacing.ctaBottom)
+                        .u2Animation(U2Motion.state, value: flow.restoreAccess.isShown)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -140,6 +170,9 @@ struct SettingsRootView: View {
                 .onAppear { applyHarness(proxy: proxy) }
             }
         }
+        // The copy for search may have been written since (the footnote's
+        // “not on the server yet” line).
+        .task { await messenger.refreshOwnAvatar() }
         .u2Toast($flow.toast)
         .u2Sheet(item: $ownCode) { presentation in
             MyCodeSheet(username: model.messenger.ownUsername, payload: presentation.payload) { ownCode = nil }
@@ -147,12 +180,14 @@ struct SettingsRootView: View {
         .u2Sheet(isPresented: $showsInvite) {
             InviteSheet(username: model.messenger.ownUsername, onClose: { showsInvite = false })
         }
-        .u2Sheet(isPresented: $showsErase, style: .floating, isDismissible: !isErasing, onDismiss: eraseAfterSheet) {
-            EraseConfirmation(
-                isWorking: isErasing, identifiers: ("settings.confirm.destructive", "settings.confirm.cancel"),
-                onConfirm: erase, onCancel: { showsErase = false }
-            )
-            .padding(EdgeInsets(top: 18, leading: 18, bottom: 28, trailing: 18))
+        .u2FadeCover(item: $avatarEditor, onEscape: closeAvatarEditor) { editor in
+            AvatarEditorScreen(model: editor.model, onClose: closeAvatarEditor)
+        }
+        .u2Sheet(
+            isPresented: Bindable(erasure).isPresented, style: .floating, isDismissible: !erasure.isWorking,
+            onDismiss: eraseAfterSheet
+        ) {
+            EraseAccountSheet(model: erasure)
         }
     }
 
@@ -161,7 +196,15 @@ struct SettingsRootView: View {
     private var profileCard: some View {
         let username = model.messenger.account?.username ?? DesignFixtures.ownUsername
         return HStack(spacing: 14) {
-            Avatar(username: username, palette: .d, size: .settings)
+            // Proposed: the avatar opens “Profil görseli” (a camera badge says so).
+            Button(action: openAvatarEditor) {
+                Avatar(username: username, palette: .d, size: .settings, picture: messenger.ownAvatar.picture)
+                    .overlay(alignment: .bottomTrailing) { avatarEditBadge }
+            }
+            .buttonStyle(CardButtonStyle())
+            .accessibilityLabel(Text("avatar.edit", table: .settings))
+            .accessibilityValue(avatarDescription(messenger.ownAvatar.picture))
+            .accessibilityIdentifier("settings.avatar")
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: "@" + username)
                     .u2Font(.monoUsernameL)
@@ -185,8 +228,48 @@ struct SettingsRootView: View {
         .accessibilityElement(children: .contain)
     }
 
+    /// A 20 pt `accent` disc with `ph:camera`, ringed in `surface`, at the
+    /// avatar's lower right.
+    private var avatarEditBadge: some View {
+        ZStack {
+            Circle().fill(Color.u2.accent)
+            PhosphorIcon(.camera, size: 11)
+                .foregroundStyle(Color.u2.accent900)
+        }
+        .frame(width: 20, height: 20)
+        .u2OuterRing(Color.u2.surface, width: 2, in: Circle())
+        .offset(x: 3, y: 3)
+        .accessibilityHidden(true)
+    }
+
+    /// Under Gizlilik: what “Aramada göster” means (PROTOCOL §8.10), and a
+    /// change that has not reached the relay yet.
+    private var avatarSearchFootnote: some View {
+        let own = messenger.ownAvatar
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("settings.avatarSearch.footnote", table: .settings)
+            switch own.searchCopy {
+            case .pending:
+                Text("settings.avatarSearch.pending", table: .settings)
+                    .transition(.u2Fade)
+            case .unavailable where own.isShownInSearch:
+                Text("settings.avatarSearch.unavailable", table: .settings)
+                    .transition(.u2Fade)
+            default:
+                EmptyView()
+            }
+        }
+        .u2Font(.footnote)
+        .foregroundStyle(Color.u2.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .u2Animation(U2Motion.state, value: own.searchCopy)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("settings.avatarSearch.footnote")
+    }
+
     private var eraseRow: some View {
-        Button { showsErase = true } label: {
+        Button { flow.erasure.present() } label: {
             HStack(spacing: U2Spacing.rowGap) {
                 IconTile(content: .glyph(.trash), tone: .danger)
                 Text("settings.erase", table: .settings)
@@ -228,6 +311,12 @@ struct SettingsRootView: View {
         Binding {
             pendingFaceID ?? actual
         } set: { value in
+            if value, messenger.biometricUnlockNeedsCode {
+                // The biometric key wraps the vault key: the code once, on its
+                // own page; the switch follows when it is on.
+                flow.open(.enableFaceID, in: model)
+                return
+            }
             pendingFaceID = value
             let reason = StringTable.settings.string("settings.faceID.reason", locale: locale)
             Task {
@@ -240,6 +329,40 @@ struct SettingsRootView: View {
         }
     }
 
+    /// “Aramada göster”: the switch moves at once; the relay follows
+    /// (off: the search copy is deleted; on: published again).
+    private func avatarSearchBinding(_ actual: Bool) -> Binding<Bool> {
+        Binding {
+            pendingAvatarSearch ?? actual
+        } set: { value in
+            pendingAvatarSearch = value
+            Task {
+                await messenger.setAvatarShownInSearch(value)
+                withU2Animation(U2Motion.state) { pendingAvatarSearch = nil }
+            }
+        }
+    }
+
+    /// The profile card's avatar: “Profil görseli” fades in, full screen.
+    private func openAvatarEditor() {
+        guard avatarEditor == nil else { return }
+        avatarEditor = AvatarEditorPresentation(model: AvatarEditorModel(messenger: messenger, sources: .system))
+    }
+
+    private func closeAvatarEditor() {
+        avatarEditor = nil
+    }
+
+    /// “Şimdi kontrol et” found the outcome: the notice has gone; the toast
+    /// says which way. Still unanswered: the notice says so itself.
+    private func restoreAccessChecked(_ result: RestoreAccessCheck) {
+        switch result {
+        case .closed: flow.toast = Text("access.closed.toast", table: .settings)
+        case .refused: flow.toast = Text("access.refused.toast", table: .settings)
+        case .unanswered: break
+        }
+    }
+
     /// The code is generated before the sheet rises, so it rises complete.
     private func openOwnCode() {
         Task {
@@ -247,25 +370,13 @@ struct SettingsRootView: View {
         }
     }
 
-    private func erase() {
-        isErasing = true
-        Task {
-            // Let the sheet go first (its dismissal calls `eraseAfterSheet`);
-            // then the wipe cross-fades to 1.1.
-            try? await Task.sleep(for: .milliseconds(250))
-            erasesAfterSheet = true
-            showsErase = false
-        }
-    }
-
-    /// The erase sheet is completely gone: now wipe (never under a sheet
-    /// that is still on screen).
+    /// The erase sheet is completely gone: if the account was deleted on the
+    /// relay (or the user chose this phone only), wipe now — never under a
+    /// sheet that is still on screen — and cross-fade to 1.1.
     private func eraseAfterSheet() {
-        guard erasesAfterSheet else { return }
-        erasesAfterSheet = false
+        let erasure = flow.erasure
         Task {
-            await model.eraseEverything()
-            isErasing = false
+            await erasure.sheetDidDismiss { await model.eraseEverything() }
         }
     }
 
@@ -278,6 +389,13 @@ struct SettingsRootView: View {
                         proxy.scrollTo("end", anchor: .bottom)
                     }
                 }
+                if state == "7.1-blocked" { (messenger as? DesignFixturesService)?.loadBlockedPeople() }
+                if state.hasPrefix("7.1-access"), let fixtures = messenger as? DesignFixturesService {
+                    fixtures.restoreAccessPending = true
+                    if state == "7.1-access-unanswered" { fixtures.restoreAccessAnswer = .unanswered }
+                    flow.restoreAccess.applyHarness(
+                        checking: state == "7.1-access-checking", unanswered: state == "7.1-access-unanswered")
+                }
             }
             // Sheets wait for the launch push to settle.
             if SettingsHarness.take(prefix: "qr") != nil {
@@ -286,10 +404,21 @@ struct SettingsRootView: View {
                     openOwnCode()
                 }
             }
-            if SettingsHarness.take(prefix: "erase") != nil {
+            if let state = SettingsHarness.take(prefix: "avatar") {
                 Task {
                     try? await Task.sleep(for: .milliseconds(800))
-                    showsErase = true
+                    openAvatarEditor()
+                    guard state == "avatar-crop" else { return }
+                    try? await Task.sleep(for: .milliseconds(700))
+                    avatarEditor?.model.framing = AvatarEditorModel.harnessSource()
+                }
+            }
+            if let state = SettingsHarness.take(prefix: "erase") {
+                if state == "erase-failed" { (messenger as? DesignFixturesService)?.failsAccountDeletion = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    flow.erasure.present()
+                    if state == "erase-failed" { flow.erasure.showFailureForHarness() }
                 }
             }
             SettingsHarness.apply(model: model, flow: flow)
@@ -297,6 +426,21 @@ struct SettingsRootView: View {
     }
 
     // MARK: Texts
+
+    /// What the profile card's avatar shows, for VoiceOver: the preset's
+    /// name, “Fotoğraf” or “Baş harfin”.
+    private func avatarDescription(_ picture: AvatarPicture) -> Text {
+        if picture.isPhoto { return Text("avatar.current.photo", table: .settings) }
+        if let preset = picture.choice.drawn.preset {
+            return Text(verbatim: preset.label(BrandStickerLanguage(locale: locale)))
+        }
+        return Text("avatar.current.initials", table: .settings)
+    }
+
+    /// How many are blocked; nothing when nobody is.
+    private func blockedCount(_ count: Int) -> Text? {
+        count > 0 ? Text(count, format: .number) : nil
+    }
 
     private func presenceText(_ value: PresenceVisibility) -> Text {
         value == .acceptedContacts ? Text("settings.presence.accepted", table: .settings) : Text("settings.presence.nobody", table: .settings)

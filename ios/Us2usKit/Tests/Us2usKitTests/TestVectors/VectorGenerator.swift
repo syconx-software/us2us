@@ -285,6 +285,39 @@ enum VectorGenerator {
         }
     }
 
+    /// spec/test-vectors/README.md `avatar-record.json`: a preset, photos on
+    /// every size edge, a version above 2^32, and one tampered record.
+    static func avatarRecord() throws -> [AvatarRecordVector] {
+        let username = try NormalizedUsername("kagan_y")
+        let account = AccountId(bytes: .pattern(16, seed: 150))!
+        let seed = AvatarRecord.seed(for: username)
+        let key = AvatarRecordKey(seed: seed, accountId: account)
+        func vector(_ profileAvatar: Data, version: UInt64, nonceSeed: UInt8) throws -> AvatarRecordVector {
+            let nonce = Data.pattern(12, seed: nonceSeed)
+            let record = try AvatarRecord.seal(profileAvatar, version: version, key: key, nonce: nonce)
+            return AvatarRecordVector(
+                username: username.value, accountId: account.bytes.hexString, version: String(version),
+                nonce: nonce.hexString, profileAvatar: profileAvatar.hexString, seed: seed.hexString,
+                avatarKey: key.bytes.hexString, record: record.hexString, valid: true)
+        }
+        var vectors = [
+            try vector(try BRPProfileAvatar.with { $0.presetID = 1 }.serializedBytes(), version: 1, nonceSeed: 160)
+        ]
+        for (index, length) in [8150, 8151, 16342, 16343, 32726, 32727, 49110].enumerated() {
+            vectors.append(
+                try vector(
+                    try AvatarRecordTests.photoAvatar(serializedLength: length), version: UInt64(2 + index),
+                    nonceSeed: UInt8(161 + index)))
+        }
+        vectors.append(
+            try vector(try BRPProfileAvatar.with { $0.presetID = 2 }.serializedBytes(), version: 1 << 40 | 7, nonceSeed: 170))
+        var tampered = vectors[0]
+        tampered.record = tampered.record.hexBytes.flippingBit(at: 30).hexString
+        tampered.valid = false
+        vectors.append(tampered)
+        return vectors
+    }
+
     static func fingerprint() throws -> [FingerprintVector] {
         try (0..<3).map { index in
             let local = AccountId(bytes: .pattern(16, seed: UInt8(130 + index)))!

@@ -119,9 +119,21 @@ struct ReviewBackend: MessagingBackend {
     func changeUsername(to username: NormalizedUsername) async throws { try await inner.changeUsername(to: username) }
     func safetyNumber(with contact: AccountId) async throws -> SafetyNumber? { try await inner.safetyNumber(with: contact) }
     func identityTrust(for contact: AccountId) async throws -> IdentityTrust { try await inner.identityTrust(for: contact) }
-    func approveIdentityChange(for contact: AccountId) async throws { try await inner.approveIdentityChange(for: contact) }
-    func markVerified(_ verified: Bool, contact: AccountId) async throws {
-        try await inner.markVerified(verified, contact: contact)
+    func approveIdentityChange(for contact: AccountId, shownNumber: Data) async throws -> Bool {
+        try await inner.approveIdentityChange(for: contact, shownNumber: shownNumber)
+    }
+    func markVerified(contact: AccountId, comparedNumber: Data, verification: IdentityVerification) async throws
+        -> Bool
+    { try await inner.markVerified(contact: contact, comparedNumber: comparedNumber, verification: verification) }
+    func verifySafetyNumber(contact: AccountId, scanned: Data, verification: IdentityVerification) async throws
+        -> Bool
+    { try await inner.verifySafetyNumber(contact: contact, scanned: scanned, verification: verification) }
+    func pinVerifiedIdentity(_ identityKey: Data, for contact: AccountId, verification: IdentityVerification)
+        async throws -> Bool
+    { try await inner.pinVerifiedIdentity(identityKey, for: contact, verification: verification) }
+    func clearVerification(contact: AccountId) async throws { try await inner.clearVerification(contact: contact) }
+    func identityVerification(for contact: AccountId) async throws -> IdentityVerification? {
+        try await inner.identityVerification(for: contact)
     }
     func forgetContact(_ contact: AccountId) async throws { try await inner.forgetContact(contact) }
     func makeBackup(displayName: String, contacts: [BRPBackupContact]) async throws -> BRPAccountBackup {
@@ -130,6 +142,25 @@ struct ReviewBackend: MessagingBackend {
     func deleteAccount() async throws {
         if failDeleteAccount.withLock({ $0 }) { throw RelayUnreachable() }
         try await inner.deleteAccount()
+    }
+    // Members with protocol defaults: forwarded, so a test through this
+    // backend sees what the fake does (progress, rotation, pictures).
+    func downloadAttachment(
+        _ attachment: BRPAttachment, to destination: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        try await inner.downloadAttachment(attachment, to: destination, progress: progress)
+    }
+    func hasPendingTokenRotation() async -> Bool { await inner.hasPendingTokenRotation() }
+    func finishPendingTokenRotation() async throws -> TokenRotationResult {
+        try await inner.finishPendingTokenRotation()
+    }
+    func ownAvatar() async -> OwnProfilePicture { await inner.ownAvatar() }
+    func setOwnAvatar(_ picture: ProfilePicture, showInSearch: Bool) async throws {
+        try await inner.setOwnAvatar(picture, showInSearch: showInSearch)
+    }
+    func syncAvatarRecord() async -> AvatarRecordStatus { await inner.syncAvatarRecord() }
+    func searchAvatar(username: NormalizedUsername, account: AccountId) async -> ProfilePicture {
+        await inner.searchAvatar(username: username, account: account)
     }
 }
 
@@ -158,6 +189,10 @@ final class ReviewBackendFactory: BackendFactory, @unchecked Sendable {
 
     func open(account: LocalAccount, storage: LocalStorage) throws -> any MessagingBackend {
         wrap(try inner.open(account: account, storage: storage))
+    }
+
+    func checkBackup(_ backup: BRPAccountBackup) async throws {
+        try await inner.checkBackup(backup)
     }
 
     func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend {
@@ -328,6 +363,10 @@ struct SecurityReviewLifecycleTests {
         #expect(
             FileManager.default.fileExists(atPath: fixture.vaultFile.path),
             "the vault holding the only valid (rotated) token was erased")
+        // The app sends the user to the lock instead of offering a retry that
+        // would find this vault and fail.
+        #expect(fixture.runtime.lockState == .locked)
+        #expect(fixture.runtime.keptAccountAfterFailedSetup)
         fixture.relaunch()
         guard fixture.runtime.lockState == .locked else {
             Issue.record("after a relaunch the phone is back at onboarding: the restored account is unrecoverable")
@@ -406,6 +445,23 @@ struct SecurityReviewLifecycleTests {
         #expect(
             fixture.runtime.lockState != .needsSetup,
             "the relay refused the deletion, yet the only credentials that could delete the account are gone")
+    }
+
+    /// The app deletes the account on the relay while its confirmation is
+    /// on screen and erases only once it has gone: the relay half alone
+    /// erases nothing, and a refusal reaches the caller.
+    @Test func deletingTheAccountOnTheRelayAloneErasesNothing() async throws {
+        let fixture = try ReviewRuntimeFixture()
+        try await fixture.onboard()
+        fixture.factory.failDeleteAccount.withLock { $0 = true }
+        await #expect(throws: (any Error).self) { try await fixture.runtime.deleteAccountOnRelay() }
+        #expect(fixture.runtime.lockState == .unlocked, "a refused deletion keeps everything for a retry")
+
+        fixture.factory.failDeleteAccount.withLock { $0 = false }
+        try await fixture.runtime.deleteAccountOnRelay()
+        #expect(fixture.runtime.lockState == .unlocked, "erasing this phone is the caller's second step")
+        await fixture.runtime.eraseEverything()
+        #expect(fixture.runtime.lockState == .needsSetup)
     }
 
     /// openConversation() checks `lockState` only before its first await. If

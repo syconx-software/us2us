@@ -40,6 +40,7 @@ All binary values are **lowercase hex**. Strings are UTF-8 JSON strings.
 | `keyslot.json` | `dek`, `slotId`, `ck`, `nonce`, `slotFile` | create == slotFile, open == ck |
 | `item.json` | `ck`, `itemId`, `nonce`, `plaintext`, `item` | create == item, open == plaintext |
 | `fingerprint.json` | `localId`, `localKey`, `remoteId`, `remoteKey`, `displayable`, `scannable` | libsignal NumericFingerprintGenerator(5200), version 2 |
+| `avatar-record.json` | `username` (normalized), `accountId` (16 B), `version` (decimal string), `nonce` (12 B), `profileAvatar` (protobuf), `seed`, `avatarKey`, `record`, `valid` | PROTOCOL.md §8.10: PBKDF2 and HKDF give `seed` and `avatarKey`; for `"valid": true`, sealing `profileAvatar` with `version` and `nonce` gives `record`, and opening `record` with `username` and `accountId` gives `profileAvatar`; opening fails with another username or another account id. Include `ProfileAvatar{preset_id: 1}`; photos whose serialized `ProfileAvatar` is 8150, 8151, 16342, 16343, 32726, 32727 and 49110 bytes long (records of 8192, 16384, 16384, 32768, 32768, 49152 and 49152 bytes); a version ≥ 2^32; and one `"valid": false` (a flipped ciphertext byte) that must fail to open. Sealers must also refuse a `ProfileAvatar` of 49111 bytes (no vector) |
 
 Keys used by generators (`recipientIdentityKeyPair`, `localKey`, ...) are
 generated once and written into the vector, so verifiers never need the
@@ -59,12 +60,16 @@ hex; `id(n)` means 16 bytes all equal to `n`, e.g. `id(1)` =
 | `location` | `Content{data: DataMessage{message_id: id(8), sent_at: 1760000000003, location: Location{latitude: 41.0082, longitude: 28.9784, accuracy_meters: 12.5, name: "İstanbul"}}}` |
 | `live_location` | `Content{data: DataMessage{message_id: id(9), sent_at: 1760000000004, live_location: LiveLocation{session_id: id(10), latitude: 39.9334, longitude: 32.8597, accuracy_meters: 5, heading_degrees: -1, speed_mps: -1, expires_at: 1760003600000, sequence: 7}}}` |
 | `sticker` | `Content{data: DataMessage{message_id: id(11), sent_at: 1760000000005, sticker: Sticker{pack_id: "cb.basic", sticker_id: 3, emoji: "😂"}}}` |
+| `sticker_lang` | `Content{data: DataMessage{message_id: id(13), sent_at: 1760000000008, sticker: Sticker{pack_id: "us2us.words", sticker_id: 101, emoji: "👋", lang: "tr"}}}` |
 | `reaction` | `Content{data: DataMessage{message_id: id(12), sent_at: 1760000000006, reaction: Reaction{target_message_id: id(1), emoji: "❤️"}}}` |
 | `receipt` | `Content{receipt: ReceiptMessage{type: READ, message_ids: [id(1), id(2)]}}` |
+| `receipt_saved` | `Content{receipt: ReceiptMessage{type: SAVED, message_ids: [id(3)]}}` |
 | `typing` | `Content{typing: TypingMessage{started: true}}` |
 | `presence` | `Content{presence: PresenceMessage{state: ONLINE, valid_for_seconds: 300, reply: true}}` |
 | `ghost_settings` | `Content{control: ControlMessage{settings: ConversationSettings{updated_at: 1760000000007, default_expire_timer_seconds: 0, ghost: GhostMode{enabled: true, timeout_seconds: 3600, wipe_contact: false}}}}` |
 | `wipe` | `Content{control: ControlMessage{wipe: ConversationWipe{requested_at: 1760000000008, reason: GHOST_TIMEOUT}}}` |
 | `access_key` | `Content{control: ControlMessage{access_key: AccessKeyUpdate{access_key: id(13)}}}` |
 | `profile` | `Content{control: ControlMessage{profile: ProfileUpdate{display_name: "Kağan", updated_at: 1760000000009, username: "kagan_y", presence_sharing: true}}}` |
+| `profile_avatar_preset` | `Content{control: ControlMessage{profile: ProfileUpdate{display_name: "Kağan", updated_at: 1760000000010, username: "kagan_y", presence_sharing: true, profile_avatar: ProfileAvatar{preset_id: 1}}}}` |
+| `profile_avatar_photo` | `Content{control: ControlMessage{profile: ProfileUpdate{updated_at: 1760000000011, username: "kagan_y", profile_avatar: ProfileAvatar{photo: AvatarPhoto{content_type: "image/jpeg", data: 0xffd8ffd9}}}}}` |
 | `sealed_content` | `SealedContent{sender_account_id: id(14), sender_device_id: 1, type: 3, ciphertext: 0x0102030405, sender_username: "alice_01"}` (not a `Content`) |

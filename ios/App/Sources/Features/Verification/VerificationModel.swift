@@ -18,6 +18,9 @@ final class VerificationModel {
     private(set) var info: SafetyNumberInfo?
     private(set) var qrModules: QRModules?
     private(set) var numberChanged = false
+    /// A decision about the number on screen was refused because the
+    /// number changed meanwhile; 6.1 now shows the new one and says so.
+    private(set) var changedWhileOpen = false
     private(set) var hasLoaded = false
 
     /// 6.3 pushed over 6.1.
@@ -41,6 +44,7 @@ final class VerificationModel {
     // Confirmations (6.1)
     var confirmsMarkVerified = false
     var confirmsRemoval = false
+    var confirmsAccept = false
 
     init(chatID: ChatID, messenger: any MessengerService) {
         self.chatID = chatID
@@ -49,7 +53,9 @@ final class VerificationModel {
         scanner = QRScannerModel(purpose: .safetyNumber(peer: peerName))
         scanner.evaluate = { [weak self] code in
             guard let self else { return .ignore }
-            switch await self.messenger.compareScannedSafetyCode(code, for: self.chatID) {
+            // A match is stored as verified in the same step (bound to the
+            // key it matched), before 6.3 says so.
+            switch await self.messenger.verifyScannedSafetyCode(code, for: self.chatID) {
             case .notASafetyCode: return .ignore
             case .mismatch: return .warn(.mismatch)
             case .match: return .accept
@@ -68,6 +74,22 @@ final class VerificationModel {
     var ownUsername: String { messenger.ownUsername }
     var isVerified: Bool { info?.isVerified ?? false }
 
+    /// What 6.1 shows besides the digits: the peer's key, a pending change
+    /// and the verification. When any of them changes (a new key arrives
+    /// while 6.1 is open), 6.1 reloads.
+    struct IdentityState: Equatable {
+        let fingerprint: String?
+        let changed: Bool
+        let verified: Bool
+    }
+
+    var identityState: IdentityState {
+        let current = peer
+        return IdentityState(
+            fingerprint: current?.identityFingerprint, changed: current?.safetyNumberChanged ?? false,
+            verified: current?.isVerified ?? false)
+    }
+
     // MARK: Loading
 
     /// Reads the safety number; `animation` softens the change (seal, pill).
@@ -77,14 +99,19 @@ final class VerificationModel {
             qrModules = QRModules(payload: SafetyQRCodec.encode(info.scannablePayload))
         }
         let changed = info?.hasUnverifiedChange ?? false
+        // 6.3 says “Hat doğrulandı.” only while the chat really is verified:
+        // if the key changed under it, 6.1 comes back with the new number.
+        let hidesVerified = showsVerified && !(info?.isVerified ?? false)
         if let animation, hasLoaded {
             withU2Animation(animation) {
                 self.info = info
                 numberChanged = changed
+                if hidesVerified { showsVerified = false }
             }
         } else {
             self.info = info
             numberChanged = changed
+            if hidesVerified { showsVerified = false }
         }
         // “Kendi kodumu göster”: the same safety number — both sides see one
         // number; libsignal's comparison accepts either side's code.
@@ -99,10 +126,18 @@ final class VerificationModel {
         confirmsMarkVerified = true
     }
 
-    /// Confirmed: mark manually and push 6.3.
+    /// Confirmed: mark manually — bound to the number on screen, the one the
+    /// user compared — and push 6.3. If the number changed meanwhile nothing
+    /// is marked: 6.1 shows the new number and says so.
     func markVerifiedManually() async {
-        await messenger.markVerified(chatID, method: .manual)
+        guard let compared = info?.scannablePayload else { return }
+        guard await messenger.markVerified(chatID, comparing: compared) else {
+            await numberChangedMeanwhile()
+            return
+        }
+        changedWhileOpen = false
         await load(animation: U2Motion.state)
+        guard isVerified else { return }
         verifiedEntrance = true
         verifiedEntranceDelay = 0
         U2Haptics.success()
@@ -119,6 +154,35 @@ final class VerificationModel {
         await messenger.clearVerification(chatID)
         // The seal and the pill leave softly.
         await load(animation: U2Motion.state)
+    }
+
+    /// After a change › “Doğrulamadan devam et” → confirmation.
+    func requestAccept() {
+        confirmsAccept = true
+    }
+
+    /// Confirmed: the changed number is accepted without verifying it —
+    /// sending resumes, no seal — bound to the number on screen; then back
+    /// to the chat. Refused like marking if the number changed meanwhile.
+    func acceptChangeWithoutVerifying() async {
+        guard let shown = info?.scannablePayload else { return }
+        guard await messenger.acceptSafetyNumberChange(chatID, showing: shown) else {
+            await numberChangedMeanwhile()
+            return
+        }
+        changedWhileOpen = false
+        await load(animation: U2Motion.state)
+        announce(StringTable.verification.string("safety.accepted.announcement", locale: localeForAnnouncements))
+        exitToChat?()
+    }
+
+    /// A decision about the number on screen was refused: the key changed
+    /// since it was shown. 6.1 shows the new number with a note.
+    private func numberChangedMeanwhile() async {
+        U2Haptics.error()
+        await load(animation: U2Motion.state)
+        withU2Animation(U2Motion.state) { changedWhileOpen = true }
+        announce(StringTable.verification.string("safety.changedWhileOpen.message", locale: localeForAnnouncements))
     }
 
     // MARK: 6.2
@@ -139,12 +203,18 @@ final class VerificationModel {
         isScannerPresented = false
     }
 
-    /// 6.2 match → 6.3: verified face to face; 6.3 is put under the cover,
-    /// which then fades away over 0.5 s (“replace cover content, cross-fade”).
+    /// 6.2 match → 6.3: verified face to face (stored by the match itself,
+    /// bound to the key it matched); 6.3 is put under the cover, which then
+    /// fades away over 0.5 s (“replace cover content, cross-fade”).
     private func didMatch() async {
         scanner.isActive = false
-        await messenger.markVerified(chatID, method: .faceToFace)
+        changedWhileOpen = false
         await load()
+        guard isVerified else {
+            // The key changed again right after the match: back to 6.1.
+            closeScanner()
+            return
+        }
         U2Haptics.success()
         var transaction = Transaction()
         transaction.disablesAnimations = true

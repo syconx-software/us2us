@@ -38,6 +38,13 @@ extension Message {
             return QuotedMessage(author: author, kind: .text(L10n.string("location.live", locale: locale)))
         case .textSticker(let text):
             return QuotedMessage(author: author, kind: .text(text))
+        case .sticker:
+            // The words as drawn, else the emoji and what it shows (“👋 El
+            // sallayan bardak”); an unknown sticker its emoji.
+            let ui = BrandStickerLanguage(locale: locale)
+            let summary = content.stickerResolution(ui: ui)?.summary(ui: ui)
+            return QuotedMessage(
+                author: author, kind: .text(summary ?? L10n.string("chats.preview.sticker", locale: locale)))
         case .viewOnce(let isVideo, _):
             return QuotedMessage(author: author, kind: isVideo ? .video : .photo)
         case .deleted, .system:
@@ -133,5 +140,11 @@ enum ConversationHaptics {
     /// are not motion: Reduce Motion keeps them.
     static func send() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    /// A lighter tap for the voice recorder: recording starts, locks,
+    /// stops at the maximum, is cancelled.
+    static func voice() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
     }
 }

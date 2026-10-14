@@ -50,12 +50,18 @@ public enum AccountBackupFile {
         return header + nonce + (try AES256GCM.seal(plaintext, key: key, nonce: nonce, associatedData: header))
     }
 
-    /// Decrypts a backup file with its password. The password rules are not
-    /// checked here: a backup always opens with the password it was made with.
+    /// Decrypts a backup file with its password and verifies the **whole**
+    /// backup — version, every field's size and format (§5.5 step 1), the
+    /// same check ``Messenger/restore(from:relay:makeStore:directory:configuration:saveAccount:now:)``
+    /// repeats — so a file that opens here is one a restore accepts. The
+    /// password rules are not checked here: a backup always opens with the
+    /// password it was made with.
+    ///
+    /// - Throws: ``AccountBackupError/wrongPassword``, or
+    ///   ``AccountBackupError/invalidFile`` for a damaged or malformed backup.
     public static func `import`(_ file: Data, password: String) throws(AccountBackupError) -> BRPAccountBackup {
         let plaintext = try decrypt(file, password: password)
-        guard let backup = try? BRPAccountBackup(serializedBytes: plaintext),
-            backup.version == currentVersion, AccountId(bytes: backup.accountID) != nil
+        guard let backup = try? BRPAccountBackup(serializedBytes: plaintext), (try? Messenger.validate(backup)) != nil
         else { throw .invalidFile }
         return backup
     }

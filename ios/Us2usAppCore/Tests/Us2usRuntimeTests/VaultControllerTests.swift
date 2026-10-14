@@ -71,13 +71,35 @@ struct VaultFixture {
     let uptime = ManualUptime()
     let vault: VaultController
 
-    init() throws {
+    /// - Parameters:
+    ///   - hardwareKey: off by default, so the tests behave the same on the
+    ///     Simulator and on a device.
+    ///   - standIn: a software stand-in for the vault's Secure Enclave key.
+    init(hardwareKey: VaultHardwareKeyChoice = .disabled, standIn: (any VaultHardwareKey)? = nil) throws {
         directory = try TemporaryDirectory()
         try directory.directories.prepare()
         let uptime = self.uptime
+        var configuration = VaultController.Configuration(iterations: 1000, hardwareKey: hardwareKey)
+        configuration.hardwareKeyStandIn = standIn
         vault = VaultController(
             directories: directory.directories, secureItems: items, biometrics: biometrics, clock: clock,
-            configuration: VaultController.Configuration(iterations: 1000), uptime: { uptime.now })
+            configuration: configuration, uptime: { uptime.now })
+    }
+
+    /// Another controller on the same files, Keychain items and biometrics:
+    /// the app started again, e.g. after an update.
+    func reopened(standIn: (any VaultHardwareKey)?) -> VaultController {
+        let uptime = self.uptime
+        var configuration = VaultController.Configuration(iterations: 1000, hardwareKey: .disabled)
+        configuration.hardwareKeyStandIn = standIn
+        return VaultController(
+            directories: directory.directories, secureItems: items, biometrics: biometrics, clock: clock,
+            configuration: configuration, uptime: { uptime.now })
+    }
+
+    /// Byte 4 of the vault file: its format version (§5.2).
+    func formatByte() throws -> UInt8 {
+        try Data(contentsOf: directory.directories.vault.appendingPathComponent("vault.brpv"))[4]
     }
 
     func pass(_ seconds: TimeInterval) {
@@ -338,8 +360,9 @@ struct QuickUnlockPolicyTests {
         #expect(SecureEnclaveBiometricProtector.map(.biometryNotEnrolled) == .unavailable)
     }
 
-    @Test func simulatorReportsNoSecureEnclave() {
-        // The protector never offers quick unlock without a Secure Enclave.
+    @Test func simulatorNeverOffersQuickUnlock() {
+        // On purpose, even where the Simulator reports a Secure Enclave:
+        // see `SecureEnclaveBiometricProtector.offersQuickUnlock`.
         #if targetEnvironment(simulator)
             #expect(SecureEnclaveBiometricProtector().availability().isUsable == false)
         #endif

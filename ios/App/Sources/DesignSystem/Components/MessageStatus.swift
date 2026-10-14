@@ -83,6 +83,10 @@ extension MessageStatus {
 /// always one line in both languages (9.2 note).
 struct MessageStatusSentence: View {
     let status: MessageStatus
+    /// Replaces the state's own explanation (a sent video being prepared:
+    /// “Gönderiliyor · Video hazırlanıyor”, or failing to be: “İletilemedi ·
+    /// Video hazırlanamadı”).
+    var detail: String? = nil
     var onResend: (() -> Void)? = nil
     @Environment(\.locale) private var locale
 
@@ -113,8 +117,8 @@ struct MessageStatusSentence: View {
         var title = AttributedString(L10n.string(status.titleResource, locale: locale))
         title.font = Font(U2TextStyle.statusLineEmphasis.uiFont() as CTFont)
         title.foregroundColor = Color.u2.text
-        if let rest = status.sentenceResource {
-            var tail = AttributedString(" · " + L10n.string(rest, locale: locale))
+        if let rest = detail ?? status.sentenceResource.map({ L10n.string($0, locale: locale) }) {
+            var tail = AttributedString(" · " + rest)
             tail.font = Font(U2TextStyle.statusLine.uiFont() as CTFont)
             tail.foregroundColor = Color.u2.textSecondary
             title += tail

@@ -37,6 +37,96 @@
         }
       }
     },
+    "safety.accept.confirm": {
+      "comment": "Confirmation after a safety-number change: continue without verifying (button).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam et"
+          }
+        }
+      }
+    },
+    "safety.accept.message": {
+      "comment": "Confirmation body before accepting a changed safety number without verifying it.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your messages will be sent under the new number. The chat stays unverified; you can compare the numbers at any time."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajların yeni numarayla gönderilir. Sohbet doğrulanmamış kalır; numaraları istediğin zaman karşılaştırabilirsin."
+          }
+        }
+      }
+    },
+    "safety.accept.title": {
+      "comment": "Confirmation title before accepting a changed safety number without verifying it.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue without verifying?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulamadan devam edilsin mi?"
+          }
+        }
+      }
+    },
+    "safety.acceptChange": {
+      "comment": "6.1 text button after a safety-number change: accept the new number without verifying it (sending resumes, no seal; proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue without verifying"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulamadan devam et"
+          }
+        }
+      }
+    },
+    "safety.accepted.announcement": {
+      "comment": "VoiceOver announcement after accepting a changed safety number without verifying it.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New safety number accepted. The chat is not verified."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni güvenlik numarası kabul edildi. Sohbet doğrulanmadı."
+          }
+        }
+      }
+    },
     "safety.changed.message %@": {
       "comment": "6.1 danger note body. %@ = peer username.",
       "extractionState": "manual",
@@ -69,6 +159,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Güvenlik numarası değişti"
+          }
+        }
+      }
+    },
+    "safety.changedWhileOpen.message": {
+      "comment": "6.1 danger note body when marking (or accepting) was refused because the safety number changed while the screen was open.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The number changed while you were looking at it. Compare the new number again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numara sen bakarken değişti. Yeni numarayı yeniden karşılaştır."
           }
         }
       }
@@ -271,6 +379,24 @@
         }
       }
     },
+    "safety.verified": {
+      "comment": "6.1 verified pill when the verification date is not known (verified by an earlier version, or restored from a backup).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulandı"
+          }
+        }
+      }
+    },
     "safety.verifiedSince %@": {
       "comment": "6.1 verified pill. %@ = “8 Ekim 2026 · 18:52”.",
       "extractionState": "manual",
@@ -397,6 +523,24 @@
         }
       }
     },
+    "scan.contact.added": {
+      "comment": "VoiceOver after “QR kodla ekle” read a contact code without a key fingerprint (older versions): the contact was added but not verified.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact added. You can compare the safety number from the chat."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişi eklendi. Güvenlik numarasını sohbetten karşılaştırabilirsin."
+          }
+        }
+      }
+    },
     "scan.contact.hint": {
       "comment": "6.2 from 4.1/4.2 “QR kodla ekle”: hint under the viewfinder (proposed).",
       "extractionState": "manual",
@@ -411,6 +555,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Karşındakinin telefonundaki kodu çerçeveye al."
+          }
+        }
+      }
+    },
+    "scan.contact.mismatch.message": {
+      "comment": "6.2 “QR kodla ekle”: the contact code's key is not the key the server serves for that name, or not the one this phone holds (title scan.mismatch.title). Nothing was added.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kodun anahtarı, sunucunun ya da bu telefonun bu kişi için tuttuğu anahtarla uyuşmuyor. Kimse eklenmedi; yüz yüze yeniden dene."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This code's key doesn't match the key the server or this phone holds for this person. Nobody was added; try again in person."
           }
         }
       }
@@ -501,6 +663,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ telefonundaki güvenlik numarası kodunu çerçeveye al."
+          }
+        }
+      }
+    },
+    "scan.lookupFailed.message": {
+      "comment": "6.2 “QR kodla ekle”: message under scan.lookupFailed.title.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucuya ulaşılamadı. Bağlantını kontrol edip kodu yeniden okut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server couldn't be reached. Check your connection and scan the code again."
+          }
+        }
+      }
+    },
+    "scan.lookupFailed.title": {
+      "comment": "6.2 “QR kodla ekle”: the name in the code could not be looked up (no connection). Title of the warning card.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişi aranamadı"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't look up the contact"
           }
         }
       }
@@ -728,13 +926,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You and %@ see the same safety number. There’s no one else on the line between you."
+            "value": "You and %@ see the same safety number: only your two keys are on the line."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sen ve %@ aynı güvenlik numarasını görüyorsunuz. Aradaki hatta başka kimse yok."
+            "value": "Sen ve %@ aynı güvenlik numarasını görüyorsunuz: hatta yalnızca ikinizin anahtarı var."
           }
         }
       }

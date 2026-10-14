@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy of the conversation: the live-location share sheet (owner decision 0b). On
+     Android a share goes on in the background only while its notification can be seen; iOS always
+     shows its own location indicator instead. -->
+<resources>
+    <!-- “+” › Canlı konum while notifications are refused or turned off: one line, then the choice. -->
+    <string name="conversation_android_liveshare_body">Sharing stops when you leave the app unless notifications are allowed.</string>
+    <!-- The system's question (or the app's notification settings once Android no longer asks), then the share. -->
+    <string name="conversation_android_liveshare_allow">Allow notifications</string>
+    <!-- Shares without notifications: only while the app is in front. -->
+    <string name="conversation_android_liveshare_anyway">Share anyway</string>
+</resources>

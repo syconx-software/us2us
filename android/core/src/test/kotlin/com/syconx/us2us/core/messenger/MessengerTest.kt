@@ -1,6 +1,8 @@
 package com.syconx.us2us.core.messenger
 
 import com.google.protobuf.kotlin.toByteString
+import com.syconx.us2us.core.AccountId
+import com.syconx.us2us.core.attachment.AttachmentCipher
 import com.syconx.us2us.core.attachment.AttachmentIntegrityException
 import com.google.protobuf.ByteString
 import com.syconx.us2us.core.contacts.ContactState
@@ -23,6 +25,7 @@ import com.syconx.us2us.core.relay.RelayErrorCode
 import com.syconx.us2us.core.relay.RelayException
 import com.syconx.us2us.core.store.IdentityTrust
 import com.syconx.us2us.core.store.InMemoryProtocolStorage
+import com.syconx.us2us.core.store.ProtocolStorage
 import com.syconx.us2us.core.store.ProtocolStore
 import com.syconx.us2us.core.testing.FakeRelay
 import com.syconx.us2us.core.testing.TestClient
@@ -46,6 +49,7 @@ import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -84,6 +88,41 @@ class MessengerTest : ConversationScenario() {
             runBlocking { Messenger.register(Username("taken"), RelayClient(relayUrl), config = TestClient.testConfig) }
         }
         assertEquals(RelayErrorCode.USERNAME_TAKEN, error.code)
+    }
+
+    @Test
+    fun `a taken username leaves nothing behind and another one can be tried at once`() = runBlocking {
+        coroutineScope {
+            val alice = TestClient.register(relayUrl, "alice", this)
+            alice.awaitUpToDate()
+
+            // Both attempts share the relay client and the stores, as an onboarding screen keeps them.
+            val client = RelayClient(relayUrl)
+            val storage = KeyTrackingStorage()
+            val contacts = InMemoryContactStore()
+            val saved = mutableListOf<LocalAccount>()
+            val error = assertThrows<RelayException> {
+                runBlocking { Messenger.register(Username("alice"), client, storage, contacts, TestClient.testConfig, accountStore = { saved += it }) }
+            }
+            assertEquals(RelayErrorCode.USERNAME_TAKEN, error.code)
+            assertEquals(emptyList<LocalAccount>(), saved, "no account was created")
+            assertEquals(Triple(0, 0, 0), storage.keyCounts(), "the refused attempt's keys are deleted")
+
+            val bob = TestClient(
+                Messenger.register(Username("bob_2"), client, storage, contacts, TestClient.testConfig, accountStore = { saved += it }),
+                this,
+            )
+            assertEquals(listOf(bob.accountId), saved.map { it.accountId }.distinct(), "only the second attempt's account is saved")
+            val batch = TestClient.testConfig.preKeyPolicy.batchSize
+            assertEquals(Triple(1, batch, 1 + batch), storage.keyCounts(), "only the second attempt's keys")
+            assertEquals(batch to batch, relay.oneTimeKeyCounts(bob.accountId))
+
+            bob.awaitUpToDate()
+            assertEquals(bob.accountId, alice.messenger.findByUsername("bob_2")?.accountId)
+            alice.messenger.sendText(bob.accountId, "merhaba")
+            assertEquals("merhaba", bob.nextData().content.data.text.body)
+            listOf(alice, bob).forEach { it.job.cancelAndJoin() }
+        }
     }
 
     @Test
@@ -127,6 +166,69 @@ class MessengerTest : ConversationScenario() {
             assertEquals(0, relay.mailboxSize(bob.accountId), "dropped envelopes are still acknowledged")
 
             listOf(alice, bob, carol).forEach { it.job.cancelAndJoin() }
+        }
+    }
+
+    @Test
+    fun `unblocking returns to the state before the block and hands over the current access key`() = runBlocking {
+        coroutineScope {
+            val (alice, bob) = acceptedPair(this)
+            alice.next { it.content.hasControl() && it.content.control.hasProfile() }
+            bob.messenger.block(alice.accountId)
+            bob.messenger.block(alice.accountId) // twice: still unblocked to ACCEPTED, not to BLOCKED
+            assertEquals(ContactState.ACCEPTED, bob.messenger.contact(alice.accountId)?.stateBeforeBlock)
+            val currentKey = bob.messenger.account.accessKey
+
+            assertTrue(bob.messenger.unblock(alice.accountId))
+            val contact = bob.messenger.contact(alice.accountId)
+            assertEquals(ContactState.ACCEPTED, contact?.state)
+            assertNull(contact?.stateBeforeBlock)
+            // Only our current key, then our profile: no ACCEPT or anything else that would tell her.
+            val key = alice.next { it.sender == bob.accountId }.content.control.accessKey.accessKey
+            assertEquals(currentKey.toBytes().toByteString(), key)
+            assertTrue(alice.next { it.sender == bob.accountId }.content.control.hasProfile())
+            assertTrue(alice.receivesNothingWithin(500.milliseconds))
+            assertEquals(currentKey, alice.messenger.contact(bob.accountId)?.theirAccessKey)
+
+            alice.messenger.sendText(bob.accountId, "barışalım mı?")
+            assertEquals("access-key", relay.lastDeliveryTo(bob.accountId))
+            assertEquals("barışalım mı?", bob.nextData().content.data.text.body)
+            assertTrue(bob.messenger.unblock(alice.accountId), "unblocking an unblocked contact changes nothing")
+            assertEquals(ContactState.ACCEPTED, bob.messenger.contact(alice.accountId)?.state)
+            listOf(alice, bob).forEach { it.job.cancelAndJoin() }
+        }
+    }
+
+    @Test
+    fun `a stranger or a contact restored blocked is unblocked as an incoming request, and backups follow`() = runBlocking {
+        coroutineScope {
+            val (alice, bob) = acceptedPair(this)
+            val carol = TestClient.register(relayUrl, "carol", this)
+            val blocked = { backup: ByteArray ->
+                AccountBackup.parseFrom(BackupFile.open(backup, "yedek parolam 7")).contactsList
+                    .associate { AccountId.fromBytes(it.accountId.toByteArray()) to it.blocked }
+            }
+
+            bob.messenger.block(carol.accountId)
+            assertTrue(bob.messenger.unblock(carol.accountId))
+            assertEquals(ContactState.INCOMING_REQUEST, bob.messenger.contact(carol.accountId)?.state)
+            assertTrue(carol.receivesNothingWithin(300.milliseconds), "nothing tells a stranger")
+
+            bob.messenger.block(alice.accountId)
+            assertEquals(mapOf(alice.accountId to true), blocked(bob.messenger.exportBackup("yedek parolam 7", iterations = 1000)))
+            bob.messenger.unblock(alice.accountId)
+            assertEquals(mapOf(alice.accountId to false), blocked(bob.messenger.exportBackup("yedek parolam 7", iterations = 1000)))
+
+            // A backup holds only the flag: unblocked after a restore, the contact writes first again.
+            bob.messenger.block(alice.accountId)
+            val backup = bob.messenger.exportBackup("yedek parolam 7", iterations = 1000)
+            bob.job.cancelAndJoin()
+            val restored = Messenger.restore(backup, "yedek parolam 7", RelayClient(relayUrl), InMemoryProtocolStorage(), InMemoryContactStore(), TestClient.testConfig)
+            assertEquals(ContactState.BLOCKED, restored.contact(alice.accountId)?.state)
+            assertTrue(restored.unblock(alice.accountId))
+            assertEquals(ContactState.INCOMING_REQUEST, restored.contact(alice.accountId)?.state)
+            assertEquals(emptyMap<Any, Boolean>(), blocked(restored.exportBackup("yedek parolam 7", iterations = 1000)), "a request is not in a backup")
+            listOf(alice, carol).forEach { it.job.cancelAndJoin() }
         }
     }
 
@@ -221,8 +323,14 @@ class MessengerTest : ConversationScenario() {
             val restored = Messenger.restore(
                 backup, "yedek parolam 7", RelayClient(relayUrl), InMemoryProtocolStorage(), InMemoryContactStore(), TestClient.testConfig, accountStore = { saved += it },
             )
-            assertEquals(setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
-            assertNotEquals(alice.messenger.account.authToken, saved.single().authToken, "the rotated token is saved at once")
+            // The avatar record waits for the keys (§5.5 step 5).
+            assertEquals(setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
+            // The new token is saved as pending before the relay hears of it, then as the account's (§5.5 step 3).
+            assertEquals(2, saved.size)
+            assertEquals(alice.messenger.account.authToken, saved.first().authToken)
+            val chosen = checkNotNull(saved.first().pendingAuthToken)
+            assertEquals(chosen, saved.last().authToken, "the rotated token is saved at once")
+            assertNull(saved.last().pendingAuthToken)
 
             // The receive loop finishes the setup after the backlog; the relay then serves only new keys.
             val newPhone = TestClient(restored, this)
@@ -310,8 +418,13 @@ class MessengerTest : ConversationScenario() {
             assertThrows<AttachmentIntegrityException> { runBlocking { bob.messenger.downloadAttachment(malformed, ByteArrayOutputStream()) } }
 
             val honest = ByteArrayOutputStream()
-            bob.messenger.downloadAttachment(upload, honest)
+            val fractions = CopyOnWriteArrayList<Double>()
+            bob.messenger.downloadAttachment(upload, honest) { fractions += it }
             assertEquals(100_000, honest.size())
+            // The progress of the blob, after every 64 KiB and ending with all of it.
+            assertEquals(1.0, fractions.last())
+            assertEquals(fractions.sorted(), fractions.toList())
+            assertEquals(AttachmentCipher.blobSize(100_000) / (64 * 1024) + 1, fractions.size.toLong())
             listOf(alice, bob).forEach { it.job.cancelAndJoin() }
         }
     }
@@ -435,7 +548,7 @@ class MessengerTest : ConversationScenario() {
             alice.job.cancelAndJoin()
             repeat(3) { relay.failNext("PUT", "/v1/keys") }
             val restored = Messenger.restore(backup, "yedek parolam 7", RelayClient(relayUrl), config = TestClient.testConfig)
-            assertEquals(setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
+            assertEquals(setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE), restored.account.pendingSetup)
 
             val newPhone = TestClient(restored, this)
             newPhone.awaitUpToDate()
@@ -489,4 +602,82 @@ class MessengerTest : ConversationScenario() {
             listOf(alice, bob).forEach { it.job.cancelAndJoin() }
         }
     }
+
+    /**
+     * Alice writes to Bob, so Bob's directory cache says "alice" is hers. Then she deletes her
+     * account, which releases the name at once, and someone else registers it.
+     */
+    private suspend fun moveAliceAfterRequest(scope: CoroutineScope): Triple<TestClient, TestClient, TestClient> {
+        val alice = TestClient.register(relayUrl, "alice", scope)
+        val bob = TestClient.register(relayUrl, "bob", scope)
+        alice.awaitUpToDate()
+        bob.awaitUpToDate()
+        alice.messenger.findByUsername("bob")
+        alice.messenger.sendText(bob.accountId, "hi")
+        assertEquals(alice.accountId, bob.nextData().sender)
+        assertEquals(UsernameStatus.VERIFIED, bob.messenger.contact(alice.accountId)?.usernameStatus)
+
+        // Her phone keeps the app installed but can no longer connect.
+        alice.job.cancelAndJoin()
+        alice.messenger.deleteAccount()
+        val newAlice = TestClient.register(relayUrl, "alice", scope)
+        newAlice.awaitUpToDate()
+        newAlice.messenger.findByUsername("bob")
+        return Triple(alice, bob, newAlice)
+    }
+
+    @Test
+    fun `a username that moved while the cache is warm reaches its new owner`() = runBlocking {
+        coroutineScope {
+            val (oldAlice, bob, newAlice) = moveAliceAfterRequest(this)
+            val lookups = relay.directoryLookups
+            newAlice.messenger.sendText(bob.accountId, "the name is mine now")
+            val request = bob.nextData()
+            assertEquals(newAlice.accountId, request.sender)
+            assertEquals("alice", request.senderUsername)
+            assertEquals(UsernameStatus.VERIFIED, bob.messenger.contact(newAlice.accountId)?.usernameStatus)
+            assertEquals(lookups + 1, relay.directoryLookups, "one refresh of the cached owner")
+
+            // The old account's client can still send sealed envelopes; its claim is refused now,
+            // without asking the relay again so soon.
+            oldAlice.messenger.sendText(bob.accountId, "still alice")
+            newAlice.messenger.sendText(bob.accountId, "second")
+            val next = bob.nextData()
+            assertEquals(newAlice.accountId, next.sender)
+            assertEquals("second", next.content.data.text.body)
+            assertEquals(lookups + 1, relay.directoryLookups)
+            listOf(bob, newAlice).forEach { it.job.cancelAndJoin() }
+        }
+    }
+
+    @Test
+    fun `a search replaces a stale cached owner`() = runBlocking {
+        coroutineScope {
+            val (_, bob, newAlice) = moveAliceAfterRequest(this)
+            assertEquals(newAlice.accountId, bob.messenger.findByUsername("alice")?.accountId)
+            val lookups = relay.directoryLookups
+            newAlice.messenger.sendText(bob.accountId, "hello again")
+            assertEquals(newAlice.accountId, bob.nextData().sender)
+            assertEquals(UsernameStatus.VERIFIED, bob.messenger.contact(newAlice.accountId)?.usernameStatus)
+            assertEquals(lookups, relay.directoryLookups, "the search already gave the new owner")
+            listOf(bob, newAlice).forEach { it.job.cancelAndJoin() }
+        }
+    }
+}
+
+/** Counts the pre-keys it holds: signed, one-time EC, and Kyber (last-resort and one-time). */
+private class KeyTrackingStorage(private val inner: InMemoryProtocolStorage = InMemoryProtocolStorage()) : ProtocolStorage by inner {
+    private val preKeyIds = mutableSetOf<Int>()
+
+    override fun storePreKey(id: Int, record: ByteArray) {
+        inner.storePreKey(id, record)
+        synchronized(preKeyIds) { preKeyIds += id }
+    }
+
+    override fun removePreKey(id: Int) {
+        inner.removePreKey(id)
+        synchronized(preKeyIds) { preKeyIds -= id }
+    }
+
+    fun keyCounts() = Triple(inner.loadSignedPreKeys().size, synchronized(preKeyIds) { preKeyIds.size }, inner.loadKyberPreKeys().size)
 }

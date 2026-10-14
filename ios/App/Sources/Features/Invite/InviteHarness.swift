@@ -11,7 +11,7 @@ import Foundation
     /// | `edit` | the message being edited (keyboard up) |
     /// | `edited` | an edited message (the bubble shows the user's text) |
     /// | `copied` · `sent` | the row status after “Bağlantıyı kopyala” / after Messages sent it |
-    /// | `link` · `link-unknown` | a universal link for `deniz` / `deniz.yilmaz` arrives: 4.2 searched (needs the 4.1 hook) |
+    /// | `link` · `link-unknown` | a universal link for `deniz` / `deniz_yilmaz` arrives: 4.2 searched (needs the 4.1 hook) |
     ///
     /// `-U2OpenURL <url>` hands any URL to the inbox as if iOS had opened the
     /// app with it (invalid ones are ignored, as in production).
@@ -56,7 +56,7 @@ import Foundation
             if let argument = UserDefaults.standard.string(forKey: "U2OpenURL") { return URL(string: argument) }
             switch state {
             case .link: return InviteLink.url(for: "deniz")
-            case .linkUnknown: return InviteLink.url(for: "deniz.yilmaz")
+            case .linkUnknown: return InviteLink.url(for: "deniz_yilmaz")
             default: return nil
             }
         }
@@ -67,6 +67,6 @@ import Foundation
             return own.isEmpty ? DesignFixtures.ownUsername : own
         }
 
-        static let editedSample = "Selam! Artık us2us’tayım, buradan yazışalım mı? @selin.n\nhttps://us2us.app/u/selin.n"
+        static let editedSample = "Selam! Artık us2us’tayım, buradan yazışalım mı? @selin_n\nhttps://us2us.app/u/selin_n"
     }
 #endif

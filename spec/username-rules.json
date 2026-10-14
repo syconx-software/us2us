@@ -1,0 +1,359 @@
+{
+  "description": "Username input rules shared by the iOS app (UsernameRules) and the Kotlin core (UsernameRules). normalized = trim Unicode White_Space, drop one leading '@', then PROTOCOL.md 3.1 normalization (trim White_Space, NFKC, locale-independent lowercase). valid = normalized matches ^[a-z][a-z0-9_]{2,23}$. violations are evaluated on normalized and listed in priority order: turkishCharacters (any of ı ş ğ ü ö ç, or i followed by U+0307 from İ), characters (any other character outside a-z 0-9 _), firstLetter (first character is not a-z and not one of the Turkish letters), length (fewer than 3 or more than 24 characters).",
+  "cases": [
+    {
+      "input": "",
+      "normalized": "",
+      "violations": [
+        "length"
+      ],
+      "valid": false
+    },
+    {
+      "input": "a",
+      "normalized": "a",
+      "violations": [
+        "length"
+      ],
+      "valid": false
+    },
+    {
+      "input": "ab",
+      "normalized": "ab",
+      "violations": [
+        "length"
+      ],
+      "valid": false
+    },
+    {
+      "input": "abc",
+      "normalized": "abc",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "Ali",
+      "normalized": "ali",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "  Ali ",
+      "normalized": "ali",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": " bob　",
+      "normalized": "bob",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "bob\u001c",
+      "normalized": "bob\u001c",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "@deniz",
+      "normalized": "deniz",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "@@deniz",
+      "normalized": "@deniz",
+      "violations": [
+        "characters",
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": " @Deniz\n",
+      "normalized": "deniz",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "@ ali",
+      "normalized": "ali",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "ali.veli",
+      "normalized": "ali.veli",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "selin.n",
+      "normalized": "selin.n",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "selin_n",
+      "normalized": "selin_n",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "mert_k",
+      "normalized": "mert_k",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "ali_",
+      "normalized": "ali_",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "a__b",
+      "normalized": "a__b",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "1abc",
+      "normalized": "1abc",
+      "violations": [
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": "_abc",
+      "normalized": "_abc",
+      "violations": [
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": ".abc",
+      "normalized": ".abc",
+      "violations": [
+        "characters",
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": "...",
+      "normalized": "...",
+      "violations": [
+        "characters",
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": "___",
+      "normalized": "___",
+      "violations": [
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": "1",
+      "normalized": "1",
+      "violations": [
+        "firstLetter",
+        "length"
+      ],
+      "valid": false
+    },
+    {
+      "input": "abcdefghijklmnopqrst",
+      "normalized": "abcdefghijklmnopqrst",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "abcdefghijklmnopqrstu",
+      "normalized": "abcdefghijklmnopqrstu",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "abcdefghijklmnopqrstuvwx",
+      "normalized": "abcdefghijklmnopqrstuvwx",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "abcdefghijklmnopqrstuvwxy",
+      "normalized": "abcdefghijklmnopqrstuvwxy",
+      "violations": [
+        "length"
+      ],
+      "valid": false
+    },
+    {
+      "input": "İsmail",
+      "normalized": "i̇smail",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "ismail",
+      "normalized": "ismail",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "ışık",
+      "normalized": "ışık",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "IŞIK",
+      "normalized": "işik",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "Kağan",
+      "normalized": "kağan",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "Kağan",
+      "normalized": "kağan",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "Şule",
+      "normalized": "şule",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "Müge",
+      "normalized": "müge",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "çiçek",
+      "normalized": "çiçek",
+      "violations": [
+        "turkishCharacters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "şule.x",
+      "normalized": "şule.x",
+      "violations": [
+        "turkishCharacters",
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "ａｌｉｃｅ",
+      "normalized": "alice",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "ＡＬＩＣＥ",
+      "normalized": "alice",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "aｌice",
+      "normalized": "alice",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "ﬁle_x",
+      "normalized": "file_x",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "Kelvin",
+      "normalized": "kelvin",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "Ali Veli",
+      "normalized": "ali veli",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "de-niz",
+      "normalized": "de-niz",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "émile",
+      "normalized": "émile",
+      "violations": [
+        "characters",
+        "firstLetter"
+      ],
+      "valid": false
+    },
+    {
+      "input": "zoë_1",
+      "normalized": "zoë_1",
+      "violations": [
+        "characters"
+      ],
+      "valid": false
+    },
+    {
+      "input": "a1_",
+      "normalized": "a1_",
+      "violations": [],
+      "valid": true
+    },
+    {
+      "input": "Z99",
+      "normalized": "z99",
+      "violations": [],
+      "valid": true
+    }
+  ]
+}

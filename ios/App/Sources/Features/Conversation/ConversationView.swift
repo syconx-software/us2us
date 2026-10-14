@@ -7,15 +7,21 @@ import UIKit
 /// over the bottom-aligned bubble column (gap 6, pad 0 14 100) and the C21
 /// composer, which follows the keyboard. Only the newest outgoing message says
 /// its state as a sentence; earlier ones show the icon. Long-press a bubble →
-/// 5.3; Bilgi → 5.4; a view-once bubble → 5.6; the urgent banner floats above
-/// the composer in Ghost's last hour. New bubbles fade in with an 8 pt rise
-/// (0.36 s ease-out); every change cross-fades — nothing bounces.
+/// 5.3; Bilgi → 5.4; a view-once bubble → 5.6; a photo → the viewer, a video
+/// → the player, a file → Quick Look; the urgent banner floats above
+/// the composer in Ghost's last hour, and a changed safety number keeps a
+/// banner there until the user decides (an unverified chat starts with a
+/// prompt to verify; both open 6.1). The mic records a voice message
+/// (press and hold; proposed), a voice bubble plays one; the screen stays
+/// on while either goes on. New bubbles fade
+/// in with an 8 pt rise (0.36 s ease-out); every change cross-fades —
+/// nothing bounces.
 struct ConversationView: View {
     let chatID: ChatID
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        ConversationScreen(chatID: chatID, messenger: model.messenger)
+        ConversationScreen(chatID: chatID, messenger: model.messenger, saveNotice: model.preferences)
     }
 }
 
@@ -28,9 +34,10 @@ private struct ConversationScreen: View {
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
 
-    init(chatID: ChatID, messenger: any MessengerService) {
+    init(chatID: ChatID, messenger: any MessengerService, saveNotice: any SaveNoticeMemory) {
         ConversationSignposts.beginOpen(chatID)
-        _viewModel = State(initialValue: ConversationViewModel(chatID: chatID, messenger: messenger))
+        _viewModel = State(
+            initialValue: ConversationViewModel(chatID: chatID, messenger: messenger, saveNotice: saveNotice))
     }
 
     var body: some View {
@@ -67,15 +74,47 @@ private struct ConversationScreen: View {
                 }
             }
         }
+        // The composer's sticker key (proposed): the built-in stickers in a
+        // sheet that hugs its content; a sticker sent closes it.
+        .u2Sheet(isPresented: $viewModel.showsStickerPicker, style: .content) {
+            BrandStickerPicker(
+                recents: viewModel.stickerRecents, onSend: viewModel.send(sticker:),
+                onClose: viewModel.closeStickerPicker)
+        }
         .u2Sheet(item: $viewModel.info, style: .fullHeight) { item in
             MessageInfoSheet(viewModel: viewModel, messageID: item.id)
         }
         .u2FadeCover(item: $viewModel.viewer) { item in
-            ViewOnceViewer(item: item, themeScheme: colorScheme) {
-                viewModel.viewerDidDetectScreenshot(item)
-            } onClose: {
-                viewModel.closeViewer()
+            Group {
+                switch item.kind {
+                case .viewOnce:
+                    ViewOnceViewer(item: item, themeScheme: colorScheme) {
+                        viewModel.viewerDidDetectScreenshot(item)
+                    } onClose: {
+                        viewModel.closeViewer()
+                    }
+                case .photo:
+                    MediaViewer(item: item, viewModel: viewModel, themeScheme: colorScheme, onClose: viewModel.closeViewer)
+                case .video:
+                    VideoPlayerScreen(item: item, viewModel: viewModel, themeScheme: colorScheme, onClose: viewModel.closeViewer)
+                }
             }
+            .environment(\.locale, locale)
+            .environment(\.u2Clock, model.clock)
+        }
+        // A file Quick Look will not show (save it instead), or that failed.
+        .u2Sheet(item: $viewModel.fileNotice, style: .floating, onDismiss: viewModel.fileNoticeDidDismiss) { notice in
+            FileNoticeSheet(notice: notice, onSave: viewModel.saveNoticeFile, onClose: viewModel.closeFileNotice)
+        }
+        // 5.2 › konum (proposed): a place opens in Apple Maps or Google Maps
+        // from the floating chooser; a running live share opens the map.
+        .u2Sheet(item: $viewModel.locationChoice, style: .floating, onDismiss: viewModel.locationChoiceDidDismiss) { choice in
+            LocationOpenSheet(choice: choice, onChoose: viewModel.chooseMapApp, onCancel: viewModel.closeLocationChoice)
+        }
+        .u2FadeCover(item: $viewModel.liveMap, onEscape: viewModel.closeLiveMap) { item in
+            LiveLocationMapView(
+                chatID: viewModel.chatID, focus: item.id, messenger: viewModel.messenger, onClose: viewModel.closeLiveMap
+            )
             .environment(\.locale, locale)
             .environment(\.u2Clock, model.clock)
         }
@@ -98,6 +137,15 @@ private struct ConversationScreen: View {
             )
             .padding(EdgeInsets(top: 18, leading: 18, bottom: 28, trailing: 18))
         }
+        // The microphone was refused: why, and the way to Settings.
+        .u2Sheet(
+            isPresented: Binding(
+                get: { viewModel.voice.showsPermissionNotice },
+                set: { viewModel.voice.showsPermissionNotice = $0 }),
+            style: .floating
+        ) {
+            VoicePermissionSheet { viewModel.voice.showsPermissionNotice = false }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardVisible = true
             viewModel.dismissAttachMenu()
@@ -105,11 +153,40 @@ private struct ConversationScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isKeyboardVisible = false
         }
-        // The chat ended underneath (Ghost erased it on both ends, or it was
-        // removed elsewhere): leave softly instead of showing an empty shell.
-        .onChange(of: viewModel.chat == nil) { _, isGone in
-            if isGone, model.router.top == .conversation(viewModel.chatID) { model.router.pop() }
+        // Ordinary media closes with the app (the lock follows) or when its
+        // message goes; a file tapped while it downloaded opens once it is here.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            viewModel.closeMedia()
+            viewModel.closeLocationScreens()
+            // A recording and a voice message in memory go with the foreground too.
+            viewModel.stopVoice()
+            UIApplication.shared.isIdleTimerDisabled = false
         }
+        .onChange(of: viewModel.presentedMediaIsGone) { _, isGone in
+            if isGone { viewModel.closeMedia() }
+        }
+        .onChange(of: viewModel.playingVoiceIsGone) { _, isGone in
+            if isGone { viewModel.stopVoicePlayback() }
+        }
+        .onChange(of: viewModel.pendingFileIsReady) { _, isReady in
+            if isReady { viewModel.openPendingFile() }
+        }
+        // Blocked while the chat is open (from the contact screen): the
+        // composer goes, and with it the keyboard and whatever it had open.
+        .onChange(of: viewModel.isBlocked) { _, isBlocked in
+            if isBlocked { viewModel.leaveComposer() }
+        }
+        .environment(viewModel.mediaActivity)
+        .environment(viewModel.voicePlayer)
+        .onChange(of: locale, initial: true) { _, locale in viewModel.presentationLocale = locale }
+        // The chat ended underneath (Ghost erased it on both ends, or it was
+        // removed elsewhere): leave softly instead of showing an empty shell —
+        // also when this screen is on top again after it went under another
+        // one (the contact screen).
+        .onChange(of: viewModel.chat == nil && model.router.top == .conversation(viewModel.chatID)) { _, isOrphaned in
+            if isOrphaned { model.router.pop() }
+        }
+        .background { VoiceKeepsScreenAwake(viewModel: viewModel) }
         #if DEBUG
             .modifier(ConversationHarnessModifier(viewModel: viewModel))
         #endif
@@ -139,9 +216,13 @@ private struct ConversationScreen: View {
             .onAppear { ConversationSignposts.didAppear(viewModel.chatID) }
             .onDisappear {
                 ConversationSignposts.didDisappear(viewModel.chatID)
+                viewModel.stopVoice()
                 viewModel.messenger.conversationDisappeared(viewModel.chatID)
             }
-            .task(id: viewModel.chatID) { await viewModel.messenger.conversationAppeared(viewModel.chatID) }
+            .task(id: viewModel.chatID) {
+                viewModel.loadStickerRecents()
+                await viewModel.messenger.conversationAppeared(viewModel.chatID)
+            }
             header
         }
     }
@@ -150,12 +231,21 @@ private struct ConversationScreen: View {
         if let chat = viewModel.chat {
             ChatHeader(
                 username: chat.peer.username, palette: chat.peer.palette, isVerified: chat.peer.isVerified,
-                showsOnlineDot: chat.peer.isOnline, onBack: model.router.pop,
-                onTapPeer: { model.router.push(.safetyNumber(viewModel.chatID)) }
+                showsOnlineDot: chat.peer.isOnline, avatar: chat.peer.avatar, onBack: model.router.pop,
+                onTapPeer: { model.router.push(.safetyNumber(viewModel.chatID)) },
+                peerHint: Text("a11y.header.peer.hint", table: .conversation)
             ) {
-                PresenceLine(presence: chat.peer.isAcceptedContact ? chat.peer.presence : .hidden)
+                if chat.peer.isBlocked {
+                    Text("block.blocked")
+                        .transition(.u2Fade)
+                } else {
+                    PresenceLine(presence: chat.peer.isAcceptedContact ? chat.peer.presence : .hidden)
+                }
             } trailing: {
+                // Blocked: shown as it is, but nothing can be changed (nothing reaches them).
                 GhostChip(ghost: chat.ghost, action: viewModel.openGhostSettings)
+                    .disabled(chat.peer.isBlocked)
+                    .opacity(chat.peer.isBlocked ? U2Opacity.disabled : 1)
                     .accessibilityIdentifier("conversation.ghost")
             }
         }
@@ -164,8 +254,28 @@ private struct ConversationScreen: View {
     // MARK: Composer
 
     private func composer(keyboard: CGFloat) -> some View {
-        ConversationComposerBar(viewModel: viewModel, bottomPadding: max(8, safeArea.bottom(36) - keyboard))
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { composerFrame = $0 }
+        VStack(spacing: 6) {
+            if viewModel.isBlocked, let chat = viewModel.chat {
+                // Blocked (proposed): the bar takes the composer's place, as
+                // 4.4's decision bar does; nothing is sent from here.
+                BlockedChatBar(username: chat.peer.username, onUnblock: viewModel.unblock, bottomPadding: safeArea.bottom(40))
+                    .transition(.u2Fade)
+            } else {
+                // A changed safety number holds sending until the user decides
+                // (proposed): the banner stays above the composer, in the
+                // column's inset, so it never covers the newest messages.
+                if viewModel.showsSafetyNumberChanged {
+                    SafetyNumberChangedBanner { model.router.push(.safetyNumber(viewModel.chatID)) }
+                        .padding(.horizontal, 12)
+                        .transition(.u2Rise)
+                }
+                ConversationComposerBar(viewModel: viewModel, bottomPadding: max(8, safeArea.bottom(36) - keyboard))
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { composerFrame = $0 }
+                    .transition(.u2Fade)
+            }
+        }
+        .u2Animation(U2Motion.state, value: viewModel.showsSafetyNumberChanged)
+        .u2Animation(U2Motion.state, value: viewModel.isBlocked)
         .overlay(alignment: .top) {
             urgentBanner
         }
@@ -213,13 +323,34 @@ private struct ConversationScreen: View {
 
     private var attachItems: [FloatingMenuItem] {
         [
-            FloatingMenuItem(id: "photo", title: Text("media.photo"), glyph: .image) { viewModel.sendDemoAttachment(.photo) },
+            FloatingMenuItem(id: "photo", title: Text("attach.media", table: .conversation), glyph: .image) {
+                viewModel.sendDemoAttachment(.photo)
+            },
             FloatingMenuItem(id: "file", title: Text("attach.file", table: .conversation), glyph: .filePdf) { viewModel.sendDemoAttachment(.file) },
             FloatingMenuItem(id: "location", title: Text("media.location"), glyph: .mapPin, glyphWeight: .fill) { viewModel.sendDemoAttachment(.location) },
             FloatingMenuItem(id: "liveLocation", title: Text("location.live"), glyph: .navigationArrow) {
                 viewModel.sendDemoAttachment(.liveLocation)
             },
         ]
+    }
+}
+
+/// Keeps the screen on while a voice message records or plays (auto-lock
+/// would send the app to the background, which throws a hands-free
+/// recording away and stops playback), and lets it sleep again when that
+/// ends or the chat closes. Only this view reads the state, so recording
+/// and playing never re-render the screen itself.
+private struct VoiceKeepsScreenAwake: View {
+    let viewModel: ConversationViewModel
+
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onChange(of: viewModel.keepsScreenAwake, initial: true) { _, awake in
+                UIApplication.shared.isIdleTimerDisabled = awake
+            }
+            .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 }
 
@@ -245,8 +376,8 @@ private struct ConversationComposerBar: View {
         Composer(
             text: draft, quote: viewModel.replyTo, onCancelQuote: viewModel.cancelReply,
             onSend: viewModel.sendDraft, onAttach: viewModel.toggleAttachMenu, onTimer: viewModel.openGhostSettings,
-            onSticker: viewModel.sendSticker, onRecord: {},
-            bottomPadding: bottomPadding
+            onSticker: viewModel.openStickerPicker, onRecord: {},
+            bottomPadding: bottomPadding, voice: viewModel.voice
         )
     }
 }
@@ -289,7 +420,7 @@ struct PresenceLine: View {
 
 #Preview("5.2 Medya ve konum") {
     let model = AppModel.preview()
-    return ConversationView(chatID: "mert.k")
+    return ConversationView(chatID: "mert_k")
         .environment(model)
         .environment(\.locale, model.locale)
         .environment(\.u2Clock, model.clock)

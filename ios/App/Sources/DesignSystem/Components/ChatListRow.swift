@@ -5,7 +5,8 @@ import SwiftUI
 /// line) + verified seal 14 + time (`caption`, tabular; `accent300` when
 /// unread) · line 2 (min 22, gap 6): status glyph, type glyph, preview
 /// (`preview` 14.5, one line; `text` when unread, `danger` when failed) and
-/// the Ghost pill or the unread badge.
+/// the Ghost pill or the unread badge. Someone blocked: “Engellendi” with
+/// `ph:prohibit` in the preview's place (proposed).
 ///
 /// Changes animate in place, never by rebuilding the row: the preview
 /// cross-fades, the time and the counters roll (`numericText`), the status
@@ -22,7 +23,9 @@ struct ChatListRow: View {
 
     var body: some View {
         HStack(spacing: U2Spacing.rowGap) {
-            Avatar(username: chat.peer.username, palette: chat.peer.palette, size: .listRow, showsOnlineDot: chat.peer.isOnline)
+            Avatar(
+                username: chat.peer.username, palette: chat.peer.palette, size: .listRow,
+                showsOnlineDot: chat.peer.isOnline, picture: chat.peer.avatar)
             VStack(alignment: .leading, spacing: 4) {
                 firstLine
                 secondLine
@@ -36,6 +39,7 @@ struct ChatListRow: View {
         // changes animate where they are (the list moves the row itself).
         .u2Animation(U2Motion.state, value: chat.lastMessage)
         .u2Animation(U2Motion.state, value: chat.unreadCount)
+        .u2Animation(U2Motion.state, value: chat.peer.isBlocked)
         .accessibilityElement(children: .combine)
     }
 
@@ -64,7 +68,17 @@ struct ChatListRow: View {
 
     private var secondLine: some View {
         HStack(spacing: 6) {
-            if let last = chat.lastMessage {
+            if chat.peer.isBlocked {
+                // Blocked (proposed): the state in the preview's place, as a
+                // deleted message's line (`ph:prohibit` + `preview`, `text·68%`).
+                PhosphorIcon(.prohibit, size: 15).foregroundStyle(Color.u2.textSecondary)
+                Text("block.blocked")
+                    .u2Font(.preview)
+                    .foregroundStyle(Color.u2.textSecondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            } else if let last = chat.lastMessage {
                 if last.direction == .outgoing, let status = last.status {
                     MessageStatusIcon(status: status, size: 15)
                 }
@@ -172,6 +186,7 @@ struct ConnectionStatusLine: View {
                 case .open: Text("chats.line.open")
                 case .connecting: Text("chats.line.connecting")
                 case .closed: Text("chats.line.closed")
+                case .revoked: Text("chats.line.revoked")
                 }
             }
             .u2Font(.monoMeta)

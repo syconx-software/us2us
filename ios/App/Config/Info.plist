@@ -28,17 +28,25 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.social-networking</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Kamera yalnızca güvenlik numarası QR kodunu okutmak için açılır; görüntü cihazdan çıkmaz.</string>
+	<string>Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>us2us'ı açmak için yüzünü kullanır.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir.</string>
+	<string>Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir; canlı konum haritasında kendi yerini yalnızca bu cihazda gösterir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mikrofon yalnızca sen sesli mesaj kaydederken açılır. Kayıt yalnızca sen gönderirsen telefonundan çıkar ve uçtan uca şifreli gider.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Fotoğraf ya da videoyu yalnızca sen kaydetmeyi seçtiğinde Fotoğraflar'a ekler; aldığın bir şeyi kaydettiğinde gönderen bunu görür. Arşivini okumaz.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The decrypted preview copies (ProtectedPreviewFiles, in the app's cache) that the file
+     preview's share button and “Dosyalara kaydet” hand on; nothing else is ever shared. -->
+<paths>
+    <cache-path name="preview" path="preview/" />
+</paths>

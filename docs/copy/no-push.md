@@ -28,8 +28,8 @@ aldığını onlar görür. Biz bu izi de bırakmak istemedik.
   anında akar.
 - **Hiçbir mesaj kaybolmaz.** Sen uygulamayı açana kadar mesajlar şifreli
   olarak 14 gün bekler.
-- **Kimse izleyemez.** Apple, Google ya da başka bir şirket, kiminle ne zaman
-  konuştuğunu öğrenemez.
+- **Apple ve Google izleyemez.** Bildirim olmadığı için Apple, Google ya da
+  başka bir bildirim servisi ne zaman mesaj aldığını öğrenemez.
 - **Arka planda hiçbir şey çalışmaz.** Pilin de bundan memnun kalacak.
 
 [ Anladım ]
@@ -51,8 +51,8 @@ when. We didn't want to leave even that trace.
   everything flows instantly.
 - **Nothing gets lost.** Messages wait for you, encrypted, for up to 14 days
   until you open the app.
-- **Nobody is watching.** Not Apple, not Google, not any other company can
-  learn who you talk to or when.
+- **Apple and Google aren't watching.** With no notifications, neither Apple,
+  Google nor any other push service learns when you get messages.
 - **Nothing runs in the background.** Your battery will thank you.
 
 [ Got it ]
@@ -141,25 +141,31 @@ Info sheet when tapping "Gönderildi" / "Sent":
 Çünkü bildirimler Apple ve Google'ın sunucularından geçer ve hangi
 uygulamanın, hangi telefona, ne zaman mesaj gönderdiğini onlara bildirir.
 us2us'ta mesajlar sadece uygulama açıkken, doğrudan bizim kör sunucumuz
-üzerinden alınır. Böylece ne Apple, ne Google, ne de biz kimin ne zaman mesaj
-aldığını bir şirkete raporlamış oluruz. Mesajlar, sen uygulamayı açana kadar
+üzerinden alınır. Böylece Apple'a ve Google'a hiçbir şey bildirilmez. Sunucumuz
+bir zarfın hangi hesaba gittiğini yalnızca onu tutarken bilir, ne zaman teslim
+edildiğini de teslim ederken görür; ikisini de kayda geçirmez ve telefonun
+teslimi onaylar onaylamaz zarfı siler. Mesajlar, sen uygulamayı açana kadar
 şifreli olarak en fazla 14 gün bekler.
 
 ### EN — "Why doesn't us2us send notifications?"
 
 Because notifications travel through Apple's and Google's servers and tell
 them which app sent a message to which phone, and when. In us2us, messages
-are fetched only while the app is open, directly from our blind relay. No
-company, not Apple, not Google, not us, gets a report of who received a
-message and when. Messages wait for you, encrypted, for up to 14 days.
+are fetched only while the app is open, directly from our blind relay. Apple
+and Google are told nothing. Our relay knows which account an envelope is for
+only while it holds it, and sees when it is delivered only while delivering
+it; it logs neither, and deletes the envelope as soon as your phone confirms
+delivery. Messages wait for you, encrypted, for up to 14 days.
 
 ---
 
 ## 6. Store listing paragraph
 
 - **TR:** Bildirim yok, bilerek. us2us, Apple'ın ve Google'ın bildirim
-  sunucularını hiç kullanmaz; kimin ne zaman mesaj aldığı kimseye bildirilmez.
+  sunucularını hiç kullanmaz; kimin ne zaman mesaj aldığı Apple'a ya da
+  Google'a hiç bildirilmez.
   Mesajların, uygulamayı açtığında gelir.
 - **EN:** No notifications, on purpose. us2us never uses Apple's or Google's
-  push servers, so no one is told who receives messages or when. Your
+  push servers, so Apple and Google are never told who receives messages or
+  when. Your
   messages arrive when you open the app.

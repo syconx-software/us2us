@@ -12,6 +12,12 @@ export interface PendingEnvelope {
   body: Buffer
   acked: boolean
   ackTimer?: NodeJS.Timeout
+  /**
+   * Set when a live session first takes the envelope. Past it, the envelope
+   * goes to the mailbox even if it was never sent or a reconnect moved it
+   * to a new session in the meantime.
+   */
+  holdUntil?: number
 }
 
 export interface HeldUsage {
@@ -21,8 +27,6 @@ export interface HeldUsage {
 
 const BATCH_SIZE = 100
 const MAX_RETRY_DELAY_MS = 30_000
-/** Above this the relay takes no new sealed envelopes (it is only reached while MySQL cannot keep up). */
-const MAX_HELD_BYTES = 128 * 1024 * 1024
 const FLUSH_POLL_MS = 10
 
 /**
@@ -46,7 +50,7 @@ export class EnvelopePersister {
   private readonly owned = new Map<string, PendingEnvelope>()
   /** What `owned` holds per recipient, and in total. */
   private readonly perRecipient = new Map<string, HeldUsage>()
-  private heldBytes = 0
+  private totalBytes = 0
   private writing: Promise<void> | null = null
   private writingRecipients = new Set<string>()
   private scheduled = false
@@ -83,19 +87,24 @@ export class EnvelopePersister {
    * Hands back the queued (not yet written) envelopes of a recipient who just
    * connected, so they are delivered live instead of stored. If a write that
    * includes this recipient is running, waits for it, so that afterwards
-   * every envelope is either returned here or visible in the mailbox.
+   * every envelope is either returned here or visible in the mailbox. While
+   * it waits, the envelopes it took still count as held here, so the
+   * recipient's mailbox limits see them.
    */
   async reclaim(recipientKey: string): Promise<PendingEnvelope[]> {
     const taken: PendingEnvelope[] = []
-    for (;;) {
-      const mine = this.queue.filter(entry => entry.recipientKey === recipientKey)
-      if (mine.length > 0) {
-        this.queue = this.queue.filter(entry => entry.recipientKey !== recipientKey)
-        for (const entry of mine) this.disown(entry)
-        taken.push(...mine)
+    try {
+      for (;;) {
+        const mine = this.queue.filter(entry => entry.recipientKey === recipientKey)
+        if (mine.length > 0) {
+          this.queue = this.queue.filter(entry => entry.recipientKey !== recipientKey)
+          taken.push(...mine)
+        }
+        if (!this.writing || !this.writingRecipients.has(recipientKey)) return taken
+        await this.writing.catch(() => {})
       }
-      if (!this.writing || !this.writingRecipients.has(recipientKey)) return taken
-      await this.writing.catch(() => {})
+    } finally {
+      for (const entry of taken) this.disown(entry)
     }
   }
 
@@ -135,9 +144,9 @@ export class EnvelopePersister {
     return this.perRecipient.get(recipientKey) ?? { count: 0, bytes: 0 }
   }
 
-  /** True while so much is waiting for MySQL that new envelopes must be refused. */
-  get overloaded(): boolean {
-    return this.heldBytes > MAX_HELD_BYTES
+  /** Bytes held for all recipients and not written yet. */
+  get heldBytes(): number {
+    return this.totalBytes
   }
 
   /** Writes everything that is queued; used on shutdown. Resolves true when nothing is left. */
@@ -155,7 +164,7 @@ export class EnvelopePersister {
 
   private own(entry: PendingEnvelope): void {
     this.owned.set(entry.idKey, entry)
-    this.heldBytes += entry.body.length
+    this.totalBytes += entry.body.length
     const usage = this.perRecipient.get(entry.recipientKey)
     if (usage) {
       usage.count++
@@ -167,7 +176,7 @@ export class EnvelopePersister {
 
   private disown(entry: PendingEnvelope): void {
     if (!this.owned.delete(entry.idKey)) return
-    this.heldBytes -= entry.body.length
+    this.totalBytes -= entry.body.length
     const usage = this.perRecipient.get(entry.recipientKey)!
     if (--usage.count === 0) this.perRecipient.delete(entry.recipientKey)
     else usage.bytes -= entry.body.length

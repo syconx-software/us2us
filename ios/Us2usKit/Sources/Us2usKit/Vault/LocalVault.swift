@@ -83,9 +83,16 @@ struct UnlockAttempts: Codable, Equatable {
     }
 }
 
-/// The on-disk vault of one installation: the vault file, the attempt counter
-/// and the device secret (PROTOCOL.md §5.2). Unlocking yields the DEK, from
-/// which the database key and key-slot keys derive (§5.3).
+/// The on-disk vault of one installation: the vault file, the attempt counter,
+/// the device secret and, for format v2, the hardware key (PROTOCOL.md §5.2).
+/// Unlocking yields the DEK, from which the database key and key-slot keys
+/// derive (§5.3).
+///
+/// With a ``VaultHardwareKey`` that is available, new vaults are v2 and a v1
+/// vault moves to v2 at its next successful unlock: the same DEK is sealed
+/// under a fresh hardware key, checked against a second evaluation, and only
+/// then replaces the v1 file in one atomic write. Any failure leaves the v1
+/// file in place for the next unlock to try again.
 public final class LocalVault: Sendable {
     public struct Configuration: Sendable {
         /// The "wipe after 10 wrong attempts" option of §5.2.
@@ -110,6 +117,7 @@ public final class LocalVault: Sendable {
     private let vaultURL: URL
     private let attemptsURL: URL
     private let deviceSecrets: any DeviceSecretProvider
+    private let hardwareKey: (any VaultHardwareKey)?
     private let configuration: Configuration
     private let now: @Sendable () -> Date
     private let uptime: @Sendable () -> TimeInterval
@@ -117,18 +125,22 @@ public final class LocalVault: Sendable {
     private let lock = Locked(())
 
     /// - Parameters:
+    ///   - hardwareKey: the per-guess hardware step of format v2 (the Secure
+    ///     Enclave on iOS). `nil` keeps writing v1 and cannot open a v2 vault.
     ///   - now: the wall clock, used only to tell the user when the next
     ///     attempt is allowed.
     ///   - uptime: time since boot including sleep, which the user cannot
     ///     set; the delays are measured with it (§5.2).
     public init(
-        directory: URL, deviceSecrets: any DeviceSecretProvider, configuration: Configuration = Configuration(),
+        directory: URL, deviceSecrets: any DeviceSecretProvider, hardwareKey: (any VaultHardwareKey)? = nil,
+        configuration: Configuration = Configuration(),
         now: @escaping @Sendable () -> Date = { Date() },
         uptime: @escaping @Sendable () -> TimeInterval = { LocalVault.systemUptime() }
     ) {
         self.vaultURL = directory.appendingPathComponent("vault.brpv")
         self.attemptsURL = directory.appendingPathComponent("vault-attempts.json")
         self.deviceSecrets = deviceSecrets
+        self.hardwareKey = hardwareKey
         self.configuration = configuration
         self.now = now
         self.uptime = uptime
@@ -145,7 +157,15 @@ public final class LocalVault: Sendable {
         FileManager.default.fileExists(atPath: vaultURL.path)
     }
 
+    /// The format of the vault file on disk (v2 = with the hardware step), or
+    /// `nil` when there is no readable vault file.
+    public var formatVersion: VaultFormatVersion? {
+        lock.withLock { _ in formatVersionOnDisk() }
+    }
+
     /// Creates the vault for a new installation and returns the fresh DEK.
+    /// The vault is v2 when the hardware key is available and can be created,
+    /// otherwise v1 (§5.2).
     public func create(code: String, confirmation: String) throws(VaultError) -> Data {
         do {
             try SecretCode.validate(code, confirmation: confirmation)
@@ -155,13 +175,16 @@ public final class LocalVault: Sendable {
         return try lock.withLock { _ throws(VaultError) in
             guard !exists else { throw .alreadyExists }
             let dek = SecureRandom.bytes(VaultFormat.keyLength)
-            let deviceSecret = SecureRandom.bytes(VaultFormat.keyLength)
+            var deviceSecret = SecureRandom.bytes(VaultFormat.keyLength)
+            defer { deviceSecret.zeroize() }
             do {
                 try deviceSecrets.storeDeviceSecret(deviceSecret)
             } catch {
                 throw .storage("device secret: \(error)")
             }
-            try write(dek: dek, code: code, deviceSecret: deviceSecret)
+            if !writeWithHardwareStep(dek: dek, code: code, deviceSecret: deviceSecret) {
+                try write(dek: dek, code: code, deviceSecret: deviceSecret, hardwareKey: nil)
+            }
             try saveAttempts(UnlockAttempts())
             return dek
         }
@@ -188,7 +211,10 @@ public final class LocalVault: Sendable {
     /// The attempt is written to disk as a failure *before* the code is
     /// checked and cleared only on success. Otherwise killing the app during
     /// the slow key derivation would allow unlimited guesses without delays.
-    /// Input that is not six digits is refused first and not counted.
+    /// Input that is not six digits is refused first and not counted. A v2
+    /// vault evaluates the hardware key once per attempt, right or wrong; a
+    /// v1 vault moves to v2 after a successful attempt where the hardware
+    /// key is available.
     public func unlock(code: String) throws(VaultError) -> Data {
         guard SecretCode.isWellFormed(code) else { throw .malformedCode }
         return try lock.withLock { _ throws(VaultError) in
@@ -198,8 +224,14 @@ public final class LocalVault: Sendable {
             let attempt = UnlockAttempts(failures: previous.failures + 1, waited: 0, uptime: uptime())
             try saveAttempts(attempt)
             do throws(VaultError) {
-                let dek = try VaultFormat.open(vault, code: code, deviceSecret: try loadDeviceSecret())
+                var deviceSecret = try loadDeviceSecret()
+                defer { deviceSecret.zeroize() }
+                let dek = try VaultFormat.open(
+                    vault, code: code, deviceSecret: deviceSecret, hardwareKey: hardwareKey)
                 try saveAttempts(UnlockAttempts())
+                if VaultFormat.version(of: vault) == .v1 {
+                    _ = writeWithHardwareStep(dek: dek, code: code, deviceSecret: deviceSecret)
+                }
                 return dek
             } catch .wrongCode {
                 if let limit = configuration.wipeAfterFailures, attempt.failures >= limit {
@@ -208,8 +240,9 @@ public final class LocalVault: Sendable {
                 }
                 throw .wrongCode
             } catch {
-                // Not a guess at the code (missing device secret, corrupt file):
-                // it must not count towards the delays or the optional wipe.
+                // Not a guess at the code (missing device secret or hardware
+                // key, a hardware or Keychain error, a corrupt file): it must
+                // not count towards the delays or the optional wipe.
                 try saveAttempts(previous)
                 throw error
             }
@@ -235,22 +268,55 @@ public final class LocalVault: Sendable {
     }
 
     /// Re-wraps the DEK under a new code (instant; no data is re-encrypted).
+    /// The format stays: a v2 vault is sealed again with the same hardware key.
     public func changeCode(current: String, new: String, confirmation: String) throws(VaultError) {
         do {
             try SecretCode.validate(new, confirmation: confirmation)
         } catch {
             throw .invalidNewCode(error)
         }
-        let dek = try unlock(code: current)
+        var dek = try unlock(code: current)
+        defer { dek.zeroize() }
         try lock.withLock { _ throws(VaultError) in
-            try write(dek: dek, code: new, deviceSecret: try loadDeviceSecret())
+            var deviceSecret = try loadDeviceSecret()
+            defer { deviceSecret.zeroize() }
+            let keepsHardwareStep = formatVersionOnDisk() == .v2
+            if keepsHardwareStep, hardwareKey == nil { throw .deviceSecretMissing }
+            try write(
+                dek: dek, code: new, deviceSecret: deviceSecret, hardwareKey: keepsHardwareStep ? hardwareKey : nil)
         }
     }
 
-    /// Crypto-shreds the vault: without the device secret and the vault file
-    /// the DEK, and everything encrypted under it, is unrecoverable.
+    /// Crypto-shreds the vault: without the device secret (and the hardware
+    /// key) and the vault file the DEK, and everything encrypted under it, is
+    /// unrecoverable.
     public func destroy() throws(VaultError) {
         try lock.withLock { _ throws(VaultError) in try destroyFiles() }
+    }
+
+    // MARK: Hardware step (format v2)
+
+    /// Seals the DEK as v2 under a new hardware key and writes it, if the
+    /// hardware is available; returns whether it did. On any failure the new
+    /// key is deleted again (unless the file on disk is v2 after all) and the
+    /// vault file is as before, so a new vault is written as v1 and a v1
+    /// vault stays v1 until the next unlock tries again. Replacing the key is
+    /// safe here: only a v2 file depends on it, and the file is not v2.
+    private func writeWithHardwareStep(dek: Data, code: String, deviceSecret: Data) -> Bool {
+        guard let hardwareKey, hardwareKey.isAvailable else { return false }
+        do {
+            try hardwareKey.createKey()
+            try write(dek: dek, code: code, deviceSecret: deviceSecret, hardwareKey: hardwareKey)
+            return true
+        } catch {
+            if formatVersionOnDisk() != .v2 { try? hardwareKey.deleteKey() }
+            return false
+        }
+    }
+
+    private func formatVersionOnDisk() -> VaultFormatVersion? {
+        guard let vault = try? Data(contentsOf: vaultURL) else { return nil }
+        return VaultFormat.version(of: vault)
     }
 
     // MARK: Files
@@ -266,10 +332,15 @@ public final class LocalVault: Sendable {
         return secret
     }
 
-    private func write(dek: Data, code: String, deviceSecret: Data) throws(VaultError) {
+    /// Seals (v2 with `hardwareKey`, else v1) and replaces the vault file in
+    /// one atomic write, so a crash leaves either the old file or the new one.
+    private func write(
+        dek: Data, code: String, deviceSecret: Data, hardwareKey: (any VaultHardwareKey)?
+    ) throws(VaultError) {
         let vault = try VaultFormat.seal(
-            dek: dek, code: code, deviceSecret: deviceSecret, salt: SecureRandom.bytes(FileHeader.saltLength),
-            iterations: configuration.iterations, nonce: SecureRandom.bytes(AES256GCM.nonceLength))
+            dek: dek, code: code, deviceSecret: deviceSecret, hardwareKey: hardwareKey,
+            salt: SecureRandom.bytes(FileHeader.saltLength), iterations: configuration.iterations,
+            nonce: SecureRandom.bytes(AES256GCM.nonceLength))
         try writeProtected(vault, to: vaultURL)
     }
 
@@ -303,6 +374,9 @@ public final class LocalVault: Sendable {
     private func destroyFiles() throws(VaultError) {
         do {
             try deviceSecrets.deleteDeviceSecret()
+            // Best effort: without the device secret the vault is already
+            // unopenable, and the app deletes all its Keychain items as well.
+            try? hardwareKey?.deleteKey()
             for url in [vaultURL, attemptsURL] where FileManager.default.fileExists(atPath: url.path) {
                 try FileManager.default.removeItem(at: url)
             }

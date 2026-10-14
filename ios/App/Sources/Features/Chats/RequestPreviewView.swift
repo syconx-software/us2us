@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 4.4 · İstek önizleme — a request read in context before deciding.
 ///
@@ -8,23 +9,41 @@ import SwiftUI
 /// what it is. “Kabul et” turns this screen into 5.1: the decision bar slides
 /// down (0.4 s) while the composer fades in and the header settles into the
 /// chat's, then the conversation takes over. Engelle (after a confirmation)
-/// and Sil go back to 4.3, where the card collapses.
+/// and Sil go back to 4.3, where the card collapses. “Bildir” (the “…” menu,
+/// or beside Engelle in its confirmation) opens the report sheet; when the
+/// report blocked the sender, closing it goes back to 4.3 too.
 struct RequestPreviewView: View {
     let requestID: RequestID
 
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.locale) private var locale
     @State private var triage = RequestTriageModel()
     /// The request as first shown — kept while the screen leaves after a decision.
     @State private var shown: MessageRequest?
     @State private var acceptedChat: ChatID?
     @State private var showsMenu = false
     @State private var confirmsBlock = false
+    /// “Bildir”: the report sheet, and the last one shown (read once it has gone).
+    @State private var report: ReportModel?
+    @State private var lastReport: ReportModel?
     @State private var barHeight: CGFloat = 161
     @State private var composerHeight: CGFloat = 94
     @State private var threadHeight: CGFloat = 0
     /// For the accepted rows (5.1's own row view; nothing is lifted here).
     @State private var frames = BubbleFrameStore()
+    /// “Profil resmini göster” (proposed, PROTOCOL §8.9): the sender's
+    /// picture is neither fetched nor decoded before this tap.
+    @State private var avatarReveal: AvatarReveal = .hidden
+
+    /// The sender's picture on this screen.
+    private enum AvatarReveal: Equatable {
+        /// The initial; “Profil resmini göster” offered when the sender's username is verified.
+        case hidden
+        case loading
+        /// What the tap found (the initial when there is none: 4.4 says so).
+        case shown(AvatarPicture)
+    }
 
     init(requestID: RequestID) {
         self.requestID = requestID
@@ -64,9 +83,18 @@ struct RequestPreviewView: View {
             } label: {
                 Text("request.block")
             }
+            Button {
+                if let request { openReport(request, afterAlert: true) }
+            } label: {
+                Text("report.action")
+            }
             Button(role: .cancel) {} label: { Text("common.cancel") }
         } message: {
             Text("requests.block.message", table: .chats)
+        }
+        .u2Sheet(item: $report, onDismiss: reportDidClose) { report in
+            ReportSheet(model: report)
+                .environment(\.locale, locale)
         }
         .onAppear {
             if shown == nil { shown = model.messenger.requests.first { $0.id == requestID } }
@@ -78,6 +106,9 @@ struct RequestPreviewView: View {
                     accept(request)
                 } else if await ChatsHarness.waitForDemo(.deletePreview) {
                     leave(then: { await model.messenger.delete(request) })
+                } else if ChatsHarness.current == .previewReport {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    openReport(request)
                 }
             }
         #endif
@@ -90,7 +121,8 @@ struct RequestPreviewView: View {
         // `onTapPeer` must be set: ChatHeader disables (and so dims) the peer
         // button without it. Nothing to open before the request is accepted.
         return ChatHeader(
-            username: request.sender, palette: chat?.peer.palette ?? .c, onBack: model.router.pop, onTapPeer: {}
+            username: request.sender, palette: chat?.peer.palette ?? .c,
+            avatar: chat?.peer.avatar ?? revealedAvatar(request), onBack: model.router.pop, onTapPeer: {}
         ) {
             // Accepted: the status line gives way to the chat's presence line,
             // which a just-accepted contact does not share yet (nothing shown).
@@ -117,6 +149,9 @@ struct RequestPreviewView: View {
 
     private var menuItems: [FloatingMenuItem] {
         [
+            FloatingMenuItem(id: "report", title: Text("report.action"), glyph: .warning) {
+                if let request { openReport(request) }
+            },
             FloatingMenuItem(id: "block", title: Text("request.block"), glyph: .prohibit, tone: .destructive) {
                 confirmsBlock = true
             },
@@ -185,25 +220,98 @@ struct RequestPreviewView: View {
         .accessibilityIdentifier("preview.thread")
     }
 
-    /// Profile block (pad 8 0 16, gap 10, centred): avatar 64, name, explanation.
+    /// Profile block (pad 8 0 16, gap 10, centred): avatar 64, name,
+    /// explanation; below them (proposed) “Profil resmini göster” — the
+    /// sender's picture only on that tap, never on its own (PROTOCOL §8.9),
+    /// with a line saying that the server sees the look (§9).
     private func profile(_ request: MessageRequest) -> some View {
         VStack(spacing: 10) {
-            Avatar(username: request.sender, palette: .c, size: .profile)
-            Text(verbatim: request.sender)
-                .u2Font(.monoUsernameXL)
-                .foregroundStyle(Color.u2.text)
-                .lineLimit(1)
-            Text("preview.intro", table: .chats)
-                .u2Font(.callout)
-                .foregroundStyle(Color.u2.textSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 290)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 10) {
+                Avatar(username: request.sender, palette: .c, size: .profile, picture: revealedAvatar(request))
+                    .overlay {
+                        if avatarReveal == .loading {
+                            AvatarLoadingRing(diameter: Avatar.Size.profile.diameter)
+                                .transition(.u2Fade)
+                        }
+                    }
+                Text(verbatim: request.sender)
+                    .u2Font(.monoUsernameXL)
+                    .foregroundStyle(Color.u2.text)
+                    .lineLimit(1)
+                Text("preview.intro", table: .chats)
+                    .u2Font(.callout)
+                    .foregroundStyle(Color.u2.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 290)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            avatarAction(request)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
         .padding(.bottom, 16)
-        .accessibilityElement(children: .combine)
+        .u2Animation(U2Motion.state, value: avatarReveal)
+    }
+
+    private func revealedAvatar(_ request: MessageRequest) -> AvatarPicture {
+        if case .shown(let picture) = avatarReveal { return picture }
+        return request.avatar
+    }
+
+    /// “Profil resmini göster” while nothing was asked, over the line that
+    /// the server sees the look; “Profil resmi yok” when the tap found none.
+    @ViewBuilder private func avatarAction(_ request: MessageRequest) -> some View {
+        switch avatarReveal {
+        case .hidden where request.offersAvatar, .loading where request.offersAvatar:
+            VStack(spacing: 2) {
+                Button {
+                    revealAvatar(request)
+                } label: {
+                    HStack(spacing: 6) {
+                        PhosphorIcon(.eye, size: 16)
+                        Text("preview.avatar.show", table: .chats)
+                    }
+                }
+                .buttonStyle(U2TextButtonStyle(tone: .accent, height: 36, fillsWidth: false))
+                .disabled(avatarReveal == .loading)
+                .accessibilityHint(Text("preview.avatar.show.hint", table: .chats))
+                .accessibilityIdentifier("preview.showAvatar")
+                Text("preview.avatar.show.note", table: .chats)
+                    .u2Font(.footnote)
+                    .foregroundStyle(Color.u2.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 290)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // The button's hint says the same to VoiceOver.
+                    .accessibilityHidden(true)
+            }
+            .transition(.u2Fade)
+        case .shown(let picture) where picture.isInitials:
+            Text("preview.avatar.none", table: .chats)
+                .u2Font(.footnote)
+                .foregroundStyle(Color.u2.textSecondary)
+                .transition(.u2Fade)
+                .accessibilityIdentifier("preview.noAvatar")
+        default:
+            EmptyView()
+        }
+    }
+
+    private func revealAvatar(_ request: MessageRequest) {
+        guard avatarReveal == .hidden else { return }
+        avatarReveal = .loading
+        let locale = locale
+        Task {
+            let picture = await model.messenger.revealAvatar(of: request)
+            avatarReveal = .shown(picture)
+            // The button is gone: VoiceOver hears what the tap found.
+            let found =
+                picture.isInitials
+                ? StringTable.chats.string("preview.avatar.none", locale: locale)
+                : request.sender + ", " + StringTable.chats.string("preview.avatar.shown.a11y", locale: locale)
+            UIAccessibility.post(notification: .announcement, argument: found)
+        }
     }
 
     private static func isText(_ message: Message) -> Bool {
@@ -300,6 +408,33 @@ struct RequestPreviewView: View {
             guard model.router.top == .requestPreview(requestID) else { return }
             model.router.replaceTop(with: .conversation(chat), animated: false)
         }
+    }
+
+    /// “Bildir”: the report sheet, “Bu kişiyi de engelle” on. From the
+    /// block confirmation it rises once the alert has gone.
+    private func openReport(_ request: MessageRequest, afterAlert: Bool = false) {
+        let messenger = model.messenger
+        let subject = messenger.reportSubject(for: request) ?? ReportSubject(username: nil, isUsernameVerified: false)
+        let sheet = ReportModel(subject: subject, personName: request.sender, offersBlock: true) {
+            await messenger.block(request)
+        }
+        sheet.onClose = { _ in report = nil }
+        lastReport = sheet
+        guard afterAlert else {
+            report = sheet
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            report = sheet
+        }
+    }
+
+    /// The sheet has gone: a report that blocked the sender ends here, as Engelle does.
+    private func reportDidClose() {
+        let blocked = lastReport?.didBlock ?? false
+        lastReport = nil
+        if blocked, model.router.top == .requestPreview(requestID) { model.router.pop() }
     }
 
     /// Back to 4.3 first, then the decision — so the card is seen collapsing.
@@ -439,7 +574,7 @@ struct RequestMessageView: View {
         case .location: Text("media.location")
         case .liveLocation: Text("location.live")
         case .viewOnce(let isVideo, _): isVideo ? Text("media.video") : Text("media.photo")
-        case .textSticker: Text("chats.preview.sticker")
+        case .textSticker, .sticker: Text("chats.preview.sticker")
         case .text, .deleted, .system: Text(verbatim: "")
         }
     }
@@ -447,7 +582,7 @@ struct RequestMessageView: View {
 
 #Preview("4.4 İstek önizleme") {
     let model = AppModel.preview()
-    return RequestPreviewView(requestID: "kuzey.dev")
+    return RequestPreviewView(requestID: "kuzey_dev")
         .environment(model)
         .environment(\.locale, model.locale)
         .environment(\.u2Clock, model.clock)

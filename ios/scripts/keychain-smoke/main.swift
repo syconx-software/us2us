@@ -55,8 +55,8 @@ do {
     check(attributes != nil, "the item's attributes are readable")
     check(
         attributes?[kSecAttrAccessible as String] as? String
-            == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String,
-        "accessibility is AfterFirstUnlockThisDeviceOnly (never migrated or backed up)")
+            == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String,
+        "accessibility is WhenUnlockedThisDeviceOnly (never migrated or backed up, unreadable while locked)")
     check(
         (attributes?[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue != true,
         "not synchronized to iCloud Keychain")

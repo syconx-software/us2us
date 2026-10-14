@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy of the report: where the iOS catalogue names the iOS app. Everything else
+     comes from the iOS catalogues (strings_report.xml in the design system). -->
+<resources>
+    <!-- Report e-mail body (iOS report.mail.app). %s = versionName (versionCode), e.g. 1.0.0 (1). -->
+    <string name="report_android_mail_app">App: us2us Android %s</string>
+</resources>

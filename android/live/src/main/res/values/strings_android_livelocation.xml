@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy: the notification of the foreground service that keeps a live-location share
+     going in the background (PROTOCOL §8.3). It never names the contact or shows anything from the
+     chat; iOS shows its own location indicator instead. -->
+<resources>
+    <!-- The notification channel (system settings). -->
+    <string name="live_sharing_channel">Live location</string>
+    <string name="live_sharing_channel_description">Shown while you share your live location. It never says with whom.</string>
+    <string name="live_sharing_title">Sharing your location</string>
+    <!-- The minutes left until the last share ends, as the bubble says it. -->
+    <string name="live_sharing_remaining">%d min left</string>
+    <!-- Stops every live-location share. -->
+    <string name="live_sharing_stop">Stop</string>
+</resources>

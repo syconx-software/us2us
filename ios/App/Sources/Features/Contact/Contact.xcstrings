@@ -1,0 +1,330 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.blocked %@": {
+      "comment": "VoiceOver announcement after Engelle on the contact screen. %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellendi."
+          }
+        }
+      }
+    },
+    "a11y.loadingMore": {
+      "comment": "VoiceOver: the next page of photos or documents is loading.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha fazlası yükleniyor"
+          }
+        }
+      }
+    },
+    "a11y.more": {
+      "comment": "VoiceOver label of the contact screen's “…” header button (share · Bildir · Engelle).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
+    "a11y.photo %@ %@": {
+      "comment": "VoiceOver label of a photo tile on the contact screen: the sender (username or “sen”) and the day.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo, %1$@, %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf, %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "a11y.unblock.hint": {
+      "comment": "VoiceOver hint of “Engeli kaldır” in the contact screen's blocked note.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messaging opens again"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlaşma yeniden açılır"
+          }
+        }
+      }
+    },
+    "a11y.unblocked %@": {
+      "comment": "VoiceOver announcement after “Engeli kaldır” on the contact screen. %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is no longer blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ artık engelli değil."
+          }
+        }
+      }
+    },
+    "a11y.video %@ %@ %@": {
+      "comment": "VoiceOver label of a video tile on the contact screen: its length, the sender (username or “sen”) and the day.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %1$@, %2$@, %3$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video, %1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "blocked.message": {
+      "comment": "Contact screen › Doğrulama, the note while the person is blocked (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Their messages don't reach you and you can't write to them. They don't know they're blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazdıkları sana ulaşmaz, sen de ona yazamazsın. Engellendiğini bilmez."
+          }
+        }
+      }
+    },
+    "blocked.title %@": {
+      "comment": "Contact screen › Doğrulama, the note while the person is blocked (proposed). %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is blocked"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellendi"
+          }
+        }
+      }
+    },
+    "documents.empty.body %@": {
+      "comment": "Contact screen › Belgeler, nothing yet. %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files you share with %@ will show up here. Files in disappearing messages don't."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ile paylaştığınız dosyalar burada görünür. Süreli mesajlardaki dosyalar burada görünmez."
+          }
+        }
+      }
+    },
+    "documents.empty.title": {
+      "comment": "Contact screen › Belgeler, nothing yet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No documents yet"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz belge yok"
+          }
+        }
+      }
+    },
+    "documents.sender.you": {
+      "comment": "Contact screen › Belgeler: who sent a file, the user themselves (lower case, like the usernames).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sen"
+          }
+        }
+      }
+    },
+    "menu.share": {
+      "comment": "Contact screen “…” menu, on Doğrulama: shares the safety number's digits as text (6.1's share).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share number"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numarayı paylaş"
+          }
+        }
+      }
+    },
+    "photos.empty.body %@": {
+      "comment": "Contact screen › Fotoğraflar, nothing yet. %@ = the contact's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos and videos you share with %@ will show up here. View-once and disappearing ones don't."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ile paylaştığınız fotoğraf ve videolar burada görünür. Tek seferlik ve süreli olanlar burada görünmez."
+          }
+        }
+      }
+    },
+    "photos.empty.title": {
+      "comment": "Contact screen › Fotoğraflar, nothing yet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photos yet"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz fotoğraf yok"
+          }
+        }
+      }
+    },
+    "tab.documents": {
+      "comment": "Contact screen tab: the chat's files.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belgeler"
+          }
+        }
+      }
+    },
+    "tab.photos": {
+      "comment": "Contact screen tab: the chat's photos and videos.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraflar"
+          }
+        }
+      }
+    },
+    "tab.verification": {
+      "comment": "Contact screen tab: the safety number (6.1).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verification"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrulama"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

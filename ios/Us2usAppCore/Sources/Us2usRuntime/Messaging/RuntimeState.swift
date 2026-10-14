@@ -13,6 +13,43 @@ struct RuntimeStateData: Codable, Equatable {
     var pendingAccessKeyRotation = false
     /// Conversation id (hex) → notice key-slot id (hex), see ``NoticeStore``.
     var noticeSlots: [String: String] = [:]
+    /// When an exported account backup was last saved (7.1 “Yedek · Son: …”);
+    /// only the time, nothing about the file or where it went. `nil` before
+    /// the first one, also after a restore (its token rotation, §5.5, makes
+    /// the restored file unusable). Optional, so state files written by
+    /// earlier builds, which lack it, still load with all their settings.
+    var lastBackupAt: Date?
+    /// The built-in stickers last sent (the picker's recents), newest first:
+    /// short opaque ids the app chose (“101.tr”), at most
+    /// ``MessagingEngine/maxRecentStickers``. Which stickers only — never
+    /// to whom or when — and here, encrypted, rather than in UserDefaults.
+    var recentStickers: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case settings, pendingAccessKeyRotation, noticeSlots, lastBackupAt, recentStickers
+    }
+}
+
+// Tolerant decoding: a field that is missing or unreadable falls back to its
+// default, so a state file written by another build (one that lacks a field
+// added later, or wrote one differently) still loads with everything else it
+// holds, instead of failing as a whole — `RuntimeStateFile.load()` would then
+// silently reset every setting, the display name and the notice slots. New
+// fields need nothing more than a default here.
+extension RuntimeStateData {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = RuntimeStateData()
+        settings = (try? container.decodeIfPresent(UserSettings.self, forKey: .settings)) ?? defaults.settings
+        pendingAccessKeyRotation =
+            (try? container.decodeIfPresent(Bool.self, forKey: .pendingAccessKeyRotation))
+            ?? defaults.pendingAccessKeyRotation
+        noticeSlots =
+            (try? container.decodeIfPresent([String: String].self, forKey: .noticeSlots)) ?? defaults.noticeSlots
+        lastBackupAt = (try? container.decodeIfPresent(Date.self, forKey: .lastBackupAt)) ?? defaults.lastBackupAt
+        recentStickers =
+            (try? container.decodeIfPresent([String].self, forKey: .recentStickers)) ?? defaults.recentStickers
+    }
 }
 
 final class RuntimeStateFile: @unchecked Sendable {

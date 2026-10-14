@@ -1,6 +1,12 @@
 import SwiftUI
 
-/// C12 — a circle with the username's first letter in Martian Mono 500.
+/// C12 — a circle with the username's first letter in Martian Mono 500;
+/// or, where the person chose one (proposed, PROTOCOL §8.9), a preset cup
+/// (`BrandAvatarCanvas`) or their photo in the same circle. A preset id this
+/// build does not know, a photo without its bytes and one that does not
+/// decode all draw the letter; while a photo decodes (off the main thread,
+/// once per app session) the letter shows and the photo fades in over it.
+/// VoiceOver reads the person's name either way.
 struct Avatar: View {
     /// The design's avatar sizes and their letter styles.
     enum Size: Sendable {
@@ -56,8 +62,47 @@ struct Avatar: View {
     var size: Size = .listRow
     /// Only for accepted contacts who share presence (4.1 note).
     var showsOnlineDot = false
+    /// What the circle shows: the initial (C12), a preset or a photo.
+    var choice: AvatarChoice = .initials
+    /// The photo's bytes when `choice` is `.photo`.
+    var photo: AvatarPhotoData? = nil
 
     var body: some View {
+        face
+            .frame(width: size.diameter, height: size.diameter)
+            .overlay(alignment: .bottomTrailing) {
+                if showsOnlineDot {
+                    PresenceDot(diameter: size.onlineDot.diameter, ring: size.onlineDot.ring)
+                        .transition(.u2Fade)
+                }
+            }
+            .u2Animation(U2Motion.state, value: showsOnlineDot)
+            .accessibilityElement()
+            .accessibilityLabel(Text(verbatim: username))
+            .accessibilityValue(showsOnlineDot ? Text("a11y.online") : Text(verbatim: ""))
+    }
+
+    @ViewBuilder private var face: some View {
+        switch choice.drawn {
+        case .preset:
+            if let preset = choice.preset {
+                BrandAvatarCanvas(preset: preset)
+            } else {
+                letter
+            }
+        case .photo:
+            if let photo {
+                AvatarPhotoFace(photo: photo, diameter: size.diameter) { letter }
+            } else {
+                letter
+            }
+        case .initials:
+            letter
+        }
+    }
+
+    /// C12 as drawn: the palette's circle and the first letter.
+    private var letter: some View {
         ZStack {
             Circle().fill(fill)
             if palette == .d {
@@ -67,17 +112,6 @@ struct Avatar: View {
                 .u2Font(size.letterStyle)
                 .foregroundStyle(ink)
         }
-        .frame(width: size.diameter, height: size.diameter)
-        .overlay(alignment: .bottomTrailing) {
-            if showsOnlineDot {
-                PresenceDot(diameter: size.onlineDot.diameter, ring: size.onlineDot.ring)
-                    .transition(.u2Fade)
-            }
-        }
-        .u2Animation(U2Motion.state, value: showsOnlineDot)
-        .accessibilityElement()
-        .accessibilityLabel(Text(verbatim: username))
-        .accessibilityValue(showsOnlineDot ? Text("a11y.online") : Text(verbatim: ""))
     }
 
     private var initial: String {
@@ -103,6 +137,19 @@ struct Avatar: View {
     }
 }
 
+extension Avatar {
+    /// The avatar of someone whose picture is known (`Peer.avatar`, the own
+    /// `OwnAvatarState.picture`).
+    init(
+        username: String, palette: AvatarPalette, size: Size = .listRow, showsOnlineDot: Bool = false,
+        picture: AvatarPicture
+    ) {
+        self.init(
+            username: username, palette: palette, size: size, showsOnlineDot: showsOnlineDot, choice: picture.choice,
+            photo: picture.photo)
+    }
+}
+
 /// The green presence dot with its `bg` cut-out ring (C12). Inline status
 /// lines use a 7 pt dot without a ring.
 struct PresenceDot: View {
@@ -122,15 +169,15 @@ struct PresenceDot: View {
     VStack(spacing: 20) {
         HStack(spacing: 14) {
             Avatar(username: "deniz", palette: .a)
-            Avatar(username: "mert.k", palette: .b, showsOnlineDot: true)
+            Avatar(username: "mert_k", palette: .b, showsOnlineDot: true)
             Avatar(username: "ayla_", palette: .c)
             Avatar(username: "kaan", palette: .d)
         }
         HStack(spacing: 14) {
-            Avatar(username: "kuzey.dev", palette: .c, size: .profile)
-            Avatar(username: "selin.n", palette: .d, size: .settings)
-            Avatar(username: "selin.n", palette: .d, size: .verify)
-            Avatar(username: "mert.k", palette: .b, size: .header, showsOnlineDot: true)
+            Avatar(username: "kuzey_dev", palette: .c, size: .profile)
+            Avatar(username: "selin_n", palette: .d, size: .settings)
+            Avatar(username: "selin_n", palette: .d, size: .verify)
+            Avatar(username: "mert_k", palette: .b, size: .header, showsOnlineDot: true)
         }
     }
     .padding(30)

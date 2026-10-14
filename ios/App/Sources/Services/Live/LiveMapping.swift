@@ -38,6 +38,16 @@ struct LiveAttachment: Equatable, Sendable {
     var caption: String?
     var waveform: Data?
     var availability: Availability
+    /// Pixel size as sent (0: not given).
+    var width: UInt32 = 0
+    var height: UInt32 = 0
+}
+
+/// An attachment being fetched: asked for by the user, or reported by the
+/// runtime with its progress.
+struct LiveDownload: Equatable, Sendable {
+    /// 0…1, `nil` until the size is known.
+    var fraction: Double?
 }
 
 enum LiveNotice: Equatable, Sendable {
@@ -46,6 +56,7 @@ enum LiveNotice: Equatable, Sendable {
     case screenshotByContact
     case safetyNumberChanged
     case safetyNumberAccepted
+    case safetyNumberVerified
     case requestAccepted
     case settingsChanged(
         ghostEnabled: Bool, ghostTimeout: UInt32, expireTimer: UInt32, previousGhostEnabled: Bool,
@@ -57,7 +68,8 @@ enum LiveBody: Equatable, Sendable {
     case attachment(LiveAttachment)
     case location(name: String?, address: String?, latitude: Double, longitude: Double)
     case liveLocation(sessionId: Data, expiresAt: Date, stopped: Bool)
-    case sticker(emoji: String)
+    /// A sticker (PROTOCOL §8.8) as it travelled; `lang` as received.
+    case sticker(packID: String, stickerID: UInt32, emoji: String, lang: String)
     case deleted
     case viewOnceOpened
     case notice(LiveNotice)
@@ -82,6 +94,12 @@ struct LiveMessageRecord: Equatable, Sendable {
     var status: LiveOutgoingStatus?
     var deliveredAt: Date?
     var readAt: Date?
+    /// A voice note played — outgoing: by the contact; incoming: here.
+    var viewedAt: Date?
+    /// Outgoing photo, video or file: the contact saved it (their SAVED, §8.4).
+    var savedByPeerAt: Date? = nil
+    /// Saved outside the app on this phone.
+    var savedByMeAt: Date? = nil
 
     static func == (lhs: LiveMessageRecord, rhs: LiveMessageRecord) -> Bool {
         lhs.id == rhs.id && lhs.direction == rhs.direction && lhs.body == rhs.body && lhs.sentAt == rhs.sentAt
@@ -89,7 +107,8 @@ struct LiveMessageRecord: Equatable, Sendable {
             && lhs.expireTimerSeconds == rhs.expireTimerSeconds && lhs.viewOnce == rhs.viewOnce
             && lhs.reactions.map(\.emoji) == rhs.reactions.map(\.emoji)
             && lhs.reactions.map(\.byMe) == rhs.reactions.map(\.byMe) && lhs.status == rhs.status
-            && lhs.deliveredAt == rhs.deliveredAt && lhs.readAt == rhs.readAt
+            && lhs.deliveredAt == rhs.deliveredAt && lhs.readAt == rhs.readAt && lhs.viewedAt == rhs.viewedAt
+            && lhs.savedByPeerAt == rhs.savedByPeerAt && lhs.savedByMeAt == rhs.savedByMeAt
     }
 }
 
@@ -111,6 +130,20 @@ struct LiveChatRecord: Equatable, Sendable {
     var unreadCount: Int
     var lastActivity: Date
     var lastMessage: LiveMessageRecord?
+    /// The contact's current identity key (serialized), `nil` before one is known.
+    var identityKey: Data? = nil
+    /// The contact's picture as the runtime has it (accepted contacts: their
+    /// last profile update); for the user's own request, the search copy
+    /// found this session (LiveMapping+Avatars.swift decides what is drawn).
+    var avatar: LiveAvatar = .initials
+}
+
+/// A blocked contact, with or without a conversation (7.1 › Engellenenler).
+struct LiveBlockedRecord: Equatable, Sendable {
+    /// The contact's account id (canonical string) — the app's `ChatID`.
+    var peer: String
+    var username: String?
+    var displayName: String?
 }
 
 // MARK: - Mapping
@@ -181,9 +214,13 @@ enum LiveMapping {
     /// The name the UI shows: the username (the design's only name), else the
     /// display name, else a short form of the account id.
     static func username(of chat: LiveChatRecord) -> String {
-        if let username = chat.username, !username.isEmpty { return username }
-        if let name = chat.displayName, !name.isEmpty { return name }
-        return String(chat.peer.prefix(8))
+        shownName(username: chat.username, displayName: chat.displayName, peer: chat.peer)
+    }
+
+    static func shownName(username: String?, displayName: String?, peer: String) -> String {
+        if let username, !username.isEmpty { return username }
+        if let displayName, !displayName.isEmpty { return displayName }
+        return String(peer.prefix(8))
     }
 
     static func peer(_ chat: LiveChatRecord, presence: LivePresence?, now: Date, ownSharing: Bool) -> Peer {
@@ -194,7 +231,34 @@ enum LiveMapping {
             palette: chat.requestState == .incomingRequest ? .c : AvatarPalette.forUsername(name),
             isVerified: chat.verified && !chat.safetyNumberChanged,
             isAcceptedContact: accepted,
-            presence: accepted && chat.presenceSharing ? Self.presence(presence, now: now, ownSharing: ownSharing) : .hidden)
+            presence: accepted && chat.presenceSharing ? Self.presence(presence, now: now, ownSharing: ownSharing) : .hidden,
+            safetyNumberChanged: chat.safetyNumberChanged,
+            identityFingerprint: chat.identityKey.map { Self.identityFingerprint($0) },
+            avatar: avatar(of: chat), isBlocked: chat.requestState == .blocked)
+    }
+
+    /// Who a report names: the username alone — never the display name or
+    /// the account id `username(of:)` falls back to for showing.
+    static func reportSubject(_ chat: LiveChatRecord) -> ReportSubject {
+        guard let username = chat.username, !username.isEmpty else {
+            return ReportSubject(username: nil, isUsernameVerified: false)
+        }
+        return ReportSubject(username: username, isUsernameVerified: chat.usernameVerified)
+    }
+
+    // MARK: Blocked people (7.1 › Engellenenler)
+
+    /// Someone blocked, as 4.1 would name them (a chat may be gone); the
+    /// initial in the palette of that name, never a picture.
+    static func blockedPerson(_ record: LiveBlockedRecord) -> BlockedPerson {
+        let name = shownName(username: record.username, displayName: record.displayName, peer: record.peer)
+        return BlockedPerson(
+            id: record.peer, name: name, isUsernameKnown: !(record.username ?? "").isEmpty,
+            palette: .forUsername(name))
+    }
+
+    static func blockedPeople(_ records: [LiveBlockedRecord]) -> [BlockedPerson] {
+        BlockedPerson.listed(records.map(blockedPerson))
     }
 
     static func ghost(_ chat: LiveChatRecord) -> GhostState {
@@ -202,10 +266,14 @@ enum LiveMapping {
         return GhostState(isEnabled: true, period: ghostPeriod(seconds: chat.ghostTimeoutSeconds), deadline: chat.ghostDeadline)
     }
 
+    /// Someone blocked has no unread count: a blocked request's messages
+    /// were never displayed, and a badge would only invite the user back
+    /// into the chat of a person they just blocked.
     static func chatSummary(_ chat: LiveChatRecord, presence: LivePresence?, now: Date, ownSharing: Bool) -> ChatSummary {
         ChatSummary(
             id: chat.peer, peer: peer(chat, presence: presence, now: now, ownSharing: ownSharing),
-            lastMessage: chat.lastMessage.flatMap { preview(of: $0, now: now) }, unreadCount: chat.unreadCount,
+            lastMessage: chat.lastMessage.flatMap { preview(of: $0, now: now) },
+            unreadCount: chat.requestState == .blocked ? 0 : chat.unreadCount,
             ghost: ghost(chat), disappearing: disappearing(seconds: chat.expireTimerSeconds))
     }
 
@@ -255,7 +323,7 @@ enum LiveMapping {
         return MessageRequest(
             id: chat.peer, sender: sender, receivedAt: chat.lastMessage?.sentAt ?? chat.lastActivity,
             preview: chat.lastMessage.flatMap { previewKind(of: $0, now: now) } ?? .text(""), flags: flags,
-            messages: messages)
+            messages: messages, avatar: .initials, offersAvatar: offersAvatar(of: chat))
     }
 
     static func containsLink(_ text: String) -> Bool {
@@ -268,14 +336,21 @@ enum LiveMapping {
     // MARK: Messages
 
     /// A whole conversation, oldest first. `media` holds decrypted full images
-    /// (by message id) loaded so far; until then a bubble shows the inline thumbnail.
+    /// (by message id) loaded so far; until then a bubble shows the inline
+    /// thumbnail. `downloads` are the attachments being fetched right now,
+    /// with their progress when it is known. `showsPeerPlayback`: whether an
+    /// outgoing voice message may show that the other side played it (read
+    /// receipts on — they are mutual).
     static func messages(
-        _ records: [LiveMessageRecord], ownUsername: String, peerUsername: String, now: Date, media: [MessageID: Data]
+        _ records: [LiveMessageRecord], ownUsername: String, peerUsername: String, now: Date, media: [MessageID: Data],
+        downloads: [MessageID: LiveDownload] = [:], showsPeerPlayback: Bool = true
     ) -> [Message] {
         var lookup: [Data: LiveMessageRecord] = [:]
         for record in records { lookup[record.id] = record }
         return records.flatMap {
-            message($0, ownUsername: ownUsername, peerUsername: peerUsername, lookup: lookup, now: now, media: media)
+            message(
+                $0, ownUsername: ownUsername, peerUsername: peerUsername, lookup: lookup, now: now, media: media,
+                downloads: downloads, showsPeerPlayback: showsPeerPlayback)
         }
     }
 
@@ -283,7 +358,7 @@ enum LiveMapping {
     /// changed both Ghost and the timer — two rows.
     static func message(
         _ record: LiveMessageRecord, ownUsername: String, peerUsername: String, lookup: [Data: LiveMessageRecord],
-        now: Date, media: [MessageID: Data]
+        now: Date, media: [MessageID: Data], downloads: [MessageID: LiveDownload] = [:], showsPeerPlayback: Bool = true
     ) -> [Message] {
         let id = messageID(record.id)
         let direction: MessageDirection = record.direction == .outgoing ? .outgoing : .incoming
@@ -304,6 +379,22 @@ enum LiveMapping {
             let author = target?.direction == .outgoing ? ownUsername : peerUsername
             message.replyTo = QuotedMessage(
                 author: author, kind: .text(text), thumbnail: nil, messageID: record.quoteTarget.map(messageID))
+        }
+        if case .attachment(let attachment) = record.body, !record.viewOnce {
+            message.mediaAvailability = availability(
+                attachment, outgoing: direction == .outgoing, download: downloads[id])
+            if attachment.width > 0, attachment.height > 0 {
+                message.mediaSize = MediaDimensions(width: Int(attachment.width), height: Int(attachment.height))
+            }
+            if attachment.kind == .voice {
+                message.isVoicePlayed = record.viewedAt != nil && (direction == .incoming || showsPeerPlayback)
+            }
+            // Saved outside the app (§8.4): told whatever the read-receipt setting.
+            let savableKinds: [LiveAttachment.Kind] = [.image, .video, .file]
+            let savable = savableKinds.contains(attachment.kind) && record.expireTimerSeconds == 0
+            message.savedByPeer = savable && direction == .outgoing && record.savedByPeerAt != nil
+            message.savedByPeerAt = message.savedByPeer ? record.savedByPeerAt : nil
+            message.savedByMe = savable && record.savedByMeAt != nil
         }
         message.reactions = reactions(record.reactions)
         message.disappearing = disappearing(seconds: record.expireTimerSeconds)
@@ -328,9 +419,12 @@ enum LiveMapping {
             case .image:
                 return .photo(source, caption: attachment.caption)
             case .video:
+                // A video sent from here this session keeps the poster its
+                // bubble showed while it was prepared (sharper than the
+                // inline thumbnail).
                 return .video(
-                    .memory(attachment.thumbnail ?? Data()), duration: TimeInterval(attachment.durationMs) / 1000,
-                    byteCount: Int64(attachment.size))
+                    .memory(media[id] ?? attachment.thumbnail ?? Data()),
+                    duration: TimeInterval(attachment.durationMs) / 1000, byteCount: Int64(attachment.size))
             case .voice:
                 return .voice(
                     duration: TimeInterval(attachment.durationMs) / 1000, waveform: waveform(attachment.waveform),
@@ -347,8 +441,17 @@ enum LiveMapping {
             return .location(name: name ?? "", locality: address ?? "", latitude: latitude, longitude: longitude)
         case .liveLocation(_, let expiresAt, let stopped):
             return .liveLocation(expiresAt: expiresAt, isActive: !stopped && now < expiresAt)
-        case .sticker(let emoji):
-            return .textSticker(emoji)
+        case .sticker(let packID, let stickerID, let emoji, let lang):
+            // The plain text stickers of earlier builds keep their card;
+            // every other sticker is resolved by the bubble, in the reader's
+            // language only where the sender's is missing or unknown.
+            if packID == BrandStickerCatalog.legacyTextPackID,
+                case .legacyText(let text) = BrandStickerCatalog.resolve(
+                    packID: packID, stickerID: stickerID, emoji: emoji, lang: lang, fallback: .turkish)
+            {
+                return .textSticker(text)
+            }
+            return .sticker(packID: packID, stickerID: stickerID, emoji: emoji, lang: lang)
         case .deleted:
             return .deleted
         case .viewOnceOpened:
@@ -358,12 +461,29 @@ enum LiveMapping {
         }
     }
 
+    /// Where the attachment's file is, as its bubble shows it. What this
+    /// phone sent is here (also while it uploads); what it received is
+    /// downloading while the runtime transfers it or the user asked for it
+    /// (`download`: the fraction when known).
+    static func availability(_ attachment: LiveAttachment, outgoing: Bool, download: LiveDownload? = nil)
+        -> MediaAvailability
+    {
+        switch attachment.availability {
+        case .local: return .ready
+        case .transferring: return outgoing ? .ready : .downloading(download?.fraction)
+        case .remote: return download.map { .downloading($0.fraction) } ?? .remote
+        case .heldUntilAccepted: return .held
+        case .unavailable: return .unavailable
+        }
+    }
+
     static func events(of notice: LiveNotice, ownUsername: String, peerUsername: String) -> [SystemEvent] {
         switch notice {
         case .screenshotByMe, .screenRecordingByMe: return [.screenshotTaken(by: ownUsername)]
         case .screenshotByContact: return [.screenshotTaken(by: peerUsername)]
         case .safetyNumberChanged: return [.safetyNumberChanged]
-        case .safetyNumberAccepted: return [.safetyNumberVerified]
+        case .safetyNumberAccepted: return [.safetyNumberAccepted]
+        case .safetyNumberVerified: return [.safetyNumberVerified]
         case .requestAccepted: return []
         case .settingsChanged(
             let ghostEnabled, let ghostTimeout, let expireTimer, let previousGhostEnabled, let previousGhostTimeout,
@@ -396,14 +516,10 @@ enum LiveMapping {
         return order.compactMap { byEmoji[$0] }
     }
 
-    /// The voice note's waveform bytes (0…255) → 31 bars (0…1), as the design draws.
-    static func waveform(_ data: Data?, bars: Int = 31) -> [Double] {
-        guard let data, !data.isEmpty else { return Array(repeating: 0.3, count: bars) }
-        let bytes = Array(data)
-        return (0..<bars).map { bar in
-            let index = min(bytes.count - 1, bar * bytes.count / bars)
-            return max(0.08, Double(bytes[index]) / 255)
-        }
+    /// The voice note's waveform bytes (up to 100, 0…255) → the design's 30
+    /// bars (0…1), each the mean of an equal stretch.
+    static func waveform(_ data: Data?, bars: Int = 30) -> [Double] {
+        VoiceWaveform.bars(data, count: bars)
     }
 
     static func typeLabel(fileName: String) -> String {
@@ -443,7 +559,8 @@ enum LiveMapping {
         switch status {
         case .open, .syncing: .open
         case .connecting, .retrying: .connecting
-        case .offline, .waitingForNetwork, .revoked: .closed
+        case .offline, .waitingForNetwork: .closed
+        case .revoked: .revoked
         }
     }
 }

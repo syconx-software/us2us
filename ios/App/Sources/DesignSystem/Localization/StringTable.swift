@@ -17,6 +17,8 @@ struct StringTable: Hashable, Sendable {
     static let chats = StringTable(name: "Chats")
     static let conversation = StringTable(name: "Conversation")
     static let verification = StringTable(name: "Verification")
+    /// The contact screen's tabs, grid and list (Features/Contact).
+    static let contact = StringTable(name: "Contact")
     static let settings = StringTable(name: "Settings")
 
     func string(_ key: String.LocalizationValue, locale: Locale) -> String {

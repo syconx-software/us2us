@@ -14,9 +14,13 @@ public enum KeychainError: Error, Equatable, Sendable {
     case unexpectedStatus(OSStatus)
 }
 
-/// Keychain-backed device secret: a generic password item with
-/// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, so it is excluded from
-/// iCloud Keychain and from device-to-device migration.
+/// Keychain-backed device secret: a generic password item in the data
+/// protection keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+/// and never synchronizable, so it is excluded from iCloud Keychain, backups
+/// and device-to-device migration, and readable only while the phone is
+/// unlocked, like the vault file (complete file protection). The app uses the
+/// same attributes through its own Keychain store (Us2usRuntime
+/// `DeviceSecretItem`).
 public struct KeychainDeviceSecretProvider: DeviceSecretProvider {
     public let service: String
     public let account: String
@@ -38,6 +42,7 @@ public struct KeychainDeviceSecretProvider: DeviceSecretProvider {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecAttrSynchronizable as String: false,
+            kSecUseDataProtectionKeychain as String: true,
         ]
         if let accessGroup { query[kSecAttrAccessGroup as String] = accessGroup }
         return query
@@ -60,7 +65,7 @@ public struct KeychainDeviceSecretProvider: DeviceSecretProvider {
         try deleteDeviceSecret()
         var attributes = baseQuery
         attributes[kSecValueData as String] = secret
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
     }

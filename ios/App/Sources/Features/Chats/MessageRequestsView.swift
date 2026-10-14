@@ -5,14 +5,17 @@ import SwiftUI
 /// Nothing opens until accepted: snippets are text only, media shows as a
 /// word plus the “hidden” flag, links are flagged and never tappable. The
 /// sender can't tell whether the request was seen. Engelle asks first
-/// (proposed alert), Sil is silent, Kabul et moves the chat to 4.1 and opens
-/// 5.1. Decided cards fade and collapse (0.36 s).
+/// (proposed alert, with “Bildir” beside it: the report sheet), Sil is
+/// silent, Kabul et moves the chat to 4.1 and opens 5.1. Decided cards fade
+/// and collapse (0.36 s).
 struct MessageRequestsView: View {
     @Environment(AppModel.self) private var model
     @State private var triage = RequestTriageModel()
     @State private var showsMenu = false
     @State private var blockCandidate: MessageRequest?
     @State private var confirmsDeleteAll = false
+    /// “Bildir” from the block confirmation: the report sheet.
+    @State private var report: ReportModel?
     @State private var isScrolled = false
     /// “Kabul et” on a card: the list as it was, while this screen gives way to
     /// 5.1 (the card is not seen collapsing behind the incoming chat).
@@ -108,9 +111,17 @@ struct MessageRequestsView: View {
             } label: {
                 Text("request.block")
             }
+            Button {
+                openReport(request)
+            } label: {
+                Text("report.action")
+            }
             Button(role: .cancel) {} label: { Text("common.cancel") }
         } message: { _ in
             Text("requests.block.message", table: .chats)
+        }
+        .u2Sheet(item: $report) { report in
+            ReportSheet(model: report)
         }
         .alert(Text("requests.deleteAll.title", table: .chats), isPresented: $confirmsDeleteAll) {
             Button(role: .destructive) {
@@ -128,7 +139,7 @@ struct MessageRequestsView: View {
                 if ChatsHarness.current == .requestsBlock, let first = requests.first {
                     try? await Task.sleep(for: .milliseconds(600))
                     blockCandidate = first
-                } else if await ChatsHarness.waitForDemo(.delete), let media = requests.first(where: { $0.id == "n.aksoy" }) {
+                } else if await ChatsHarness.waitForDemo(.delete), let media = requests.first(where: { $0.id == "n_aksoy" }) {
                     await triage.delete(media, in: model.messenger)
                 } else if await ChatsHarness.waitForDemo(.acceptCard), let first = requests.first {
                     accept(first)
@@ -144,6 +155,22 @@ struct MessageRequestsView: View {
             Text("requests.block.title \(blockCandidate.sender)", table: .chats)
         } else {
             Text(verbatim: "")
+        }
+    }
+
+    /// “Bildir” beside Engelle: the report sheet once the alert has gone,
+    /// “Bu kişiyi de engelle” on (the card then collapses like Engelle's).
+    private func openReport(_ request: MessageRequest) {
+        let messenger = model.messenger
+        let triage = triage
+        let subject = messenger.reportSubject(for: request) ?? ReportSubject(username: nil, isUsernameVerified: false)
+        let sheet = ReportModel(subject: subject, personName: request.sender, offersBlock: true) {
+            await triage.block(request, in: messenger)
+        }
+        sheet.onClose = { _ in report = nil }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            report = sheet
         }
     }
 

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- “Kaydet” in the viewers on Android 9: the gallery is written through shared storage.
+         Android 10 and later need no permission for it. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- 5.6: a screenshot of a view-once photo tells its sender (Android 14+), and the photo hides
+         while the screen is recorded (Android 15+). -->
+    <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" />
+    <uses-permission android:name="android.permission.DETECT_SCREEN_RECORDING" />
+
+    <!-- 5.2 › “Haritada aç”: whether a maps app or the Google Maps app is installed. -->
+    <queries>
+        <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
+    <application>
+        <!-- The file preview's share button: the decrypted copy, readable only by the app it is
+             handed to, and only while that share lasts. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.media.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/media_file_paths" />
+        </provider>
+    </application>
+</manifest>

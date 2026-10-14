@@ -1,3 +1,4 @@
+import Us2usKit
 import XCTest
 
 @testable import us2us
@@ -95,22 +96,75 @@ final class LocalizationTests: XCTestCase {
 }
 
 final class DomainRuleTests: XCTestCase {
-    func testUsernameRules() {
-        XCTAssertNil(UsernameRules.violation("selin.n"))
-        XCTAssertNil(UsernameRules.violation("ayla_"))
-        XCTAssertEqual(UsernameRules.violation("se"), .length)
-        XCTAssertEqual(UsernameRules.violation(String(repeating: "a", count: 21)), .length)
-        XCTAssertEqual(UsernameRules.violation("selin-n"), .characters)
-        XCTAssertEqual(UsernameRules.violation("ayşe"), .turkishCharacters)
-        XCTAssertEqual(UsernameRules.sanitize("Selin.N"), "selin.n")
-        XCTAssertEqual(UsernameRules.sanitize("İpek"), "ipek")
-        XCTAssertEqual(UsernameRules.sanitize("ayşe öz"), "ayeöz".filter { $0.isASCII })
-        XCTAssertEqual(UsernameRules.sanitize(String(repeating: "x", count: 30)).count, 20)
+    /// Every case of spec/username-rules.json, the table the Android app
+    /// tests against too: normalization, the broken rules in their order,
+    /// validity.
+    func testUsernameRulesFollowTheSharedTable() throws {
+        let cases = try UsernameRuleCases.load()
+        XCTAssertFalse(cases.isEmpty)
+        for rule in cases {
+            let label = rule.input.debugDescription
+            let normalized = UsernameRules.normalize(rule.input)
+            XCTAssertEqual(Array(normalized.unicodeScalars), Array(rule.normalized.unicodeScalars), label)
+            XCTAssertEqual(UsernameRules.violations(normalized).map(\.rawValue), rule.violations, label)
+            XCTAssertEqual(UsernameRules.violation(normalized)?.rawValue, rule.violations.first, label)
+            XCTAssertEqual(UsernameRules.isValid(normalized), rule.valid, label)
+        }
+    }
+
+    /// A name the rules accept is exactly what Us2usKit registers and hashes
+    /// (PROTOCOL §3.1), and one they refuse is refused by the kit too.
+    func testUsernameRulesAgreeWithTheKit() throws {
+        for rule in try UsernameRuleCases.load() {
+            let label = rule.input.debugDescription
+            let normalized = UsernameRules.normalize(rule.input)
+            let kit = try? NormalizedUsername(Self.withoutOneLeadingAt(rule.input))
+            XCTAssertEqual(UsernameRules.isValid(normalized), kit != nil, label)
+            if let kit { XCTAssertEqual(Array(kit.value.utf8), Array(normalized.utf8), label) }
+        }
+    }
+
+    func testUsernameRulesNeverRewriteAName() {
+        // Nothing is dropped, converted or cut: what breaks a rule stays.
+        XCTAssertEqual(UsernameRules.normalize("Kağan"), "kağan")
+        XCTAssertEqual(UsernameRules.normalize("Ali Veli"), "ali veli")
+        XCTAssertEqual(UsernameRules.normalize(String(repeating: "x", count: 30)).count, 30)
+        XCTAssertEqual(UsernameRules.displayForm(" Selin_N "), " selin_n ")
+        XCTAssertEqual(UsernameRules.displayForm("ayşe öz"), "ayşe öz")
+        XCTAssertEqual(UsernameRules.violations("kağan"), [.turkishCharacters])
+        XCTAssertEqual(UsernameRules.violations("selin.n"), [.characters])
+        XCTAssertEqual(UsernameRules.violations(String(repeating: "a", count: 25)), [.length])
+        XCTAssertTrue(UsernameRules.isValid(String(repeating: "a", count: 24)))
+        XCTAssertEqual(UsernameRules.Violation.allCases, [.turkishCharacters, .characters, .firstLetter, .length])
+    }
+
+    /// What the 2.1 field shows stands for the same name as what was typed:
+    /// the “@” dropped is only one typed as “@”, never a fullwidth one NFKC
+    /// turns into it.
+    func testUsernameDisplayFormKeepsTheName() throws {
+        let inputs = try UsernameRuleCases.load().map(\.input) + ["\u{FF20}abc", "\u{FE6B}selin_n", "\u{A8}a", "＠Deniz"]
+        for input in inputs {
+            let shown = UsernameRules.displayForm(input)
+            XCTAssertEqual(
+                Array(UsernameRules.normalize(shown).unicodeScalars), Array(UsernameRules.normalize(input).unicodeScalars),
+                input.debugDescription)
+        }
+        XCTAssertEqual(UsernameRules.displayForm("\u{FF20}abc"), "\u{FF20}abc")
+        XCTAssertEqual(UsernameRules.violations(UsernameRules.normalize(UsernameRules.displayForm("\u{FF20}abc"))), [.characters, .firstLetter])
+        XCTAssertEqual(UsernameRules.displayForm("ＡＬＩＣＥ"), "alice")
+    }
+
+    /// The input as the kit gets it: white space around it and one leading “@” dropped.
+    private static func withoutOneLeadingAt(_ input: String) -> String {
+        let scalars = input.unicodeScalars
+        guard let start = scalars.firstIndex(where: { !$0.properties.isWhitespace }) else { return "" }
+        let rest = scalars[start] == "@" ? scalars[scalars.index(after: start)...] : scalars[start...]
+        return String(rest)
     }
 
     func testAvatarPaletteIsStable() {
         XCTAssertEqual(AvatarPalette.forUsername("deniz"), AvatarPalette.forUsername("deniz"))
-        let palettes = Set(["deniz", "mert.k", "ayla_", "kaan", "ece.y", "bora", "oya.t", "selin.n"].map(AvatarPalette.forUsername))
+        let palettes = Set(["deniz", "mert_k", "ayla_", "kaan", "ece_y", "bora", "oya_t", "selin_n"].map(AvatarPalette.forUsername))
         XCTAssertGreaterThan(palettes.count, 1)
     }
 
@@ -128,13 +182,13 @@ final class DomainRuleTests: XCTestCase {
         XCTAssertEqual(route("conversation:deniz")?.path, [.conversation("deniz")])
         XCTAssertEqual(route("conversation:deniz/5.3")?.path, [.conversation("deniz")])
         XCTAssertEqual(route("conversation:deniz/5.3")?.state(for: .conversation), "5.3")
-        XCTAssertEqual(route("conversation:mert.k/5.2-ended")?.target, "mert.k")
+        XCTAssertEqual(route("conversation:mert_k/5.2-ended")?.target, "mert_k")
         XCTAssertNil(route("conversation:deniz/5.3")?.state(for: .safety))
         XCTAssertEqual(route("settings")?.path, [.settings])
         XCTAssertEqual(route("settings:7.2-empty")?.state(for: .settings), "7.2-empty")
         XCTAssertEqual(route("safety:deniz/scan")?.path, [.safetyNumber("deniz")])
         XCTAssertEqual(route("safety:deniz/scan")?.state(for: .safety), "scan")
-        XCTAssertEqual(route("request:kuzey.dev")?.path, [.requests, .requestPreview("kuzey.dev")])
+        XCTAssertEqual(route("request:kuzey_dev")?.path, [.requests, .requestPreview("kuzey_dev")])
         XCTAssertEqual(route("requests")?.path, [.requests])
         XCTAssertEqual(route("backup")?.path, [.settings, .backupExport])
         XCTAssertEqual(route("newChat:deniz")?.target, "deniz")
@@ -157,5 +211,30 @@ final class DomainRuleTests: XCTestCase {
         XCTAssertEqual(AppConfiguration.fromLaunchArguments(defaults).start, .welcome)
         defaults.set("lock:code", forKey: "U2Route")
         XCTAssertEqual(AppConfiguration.fromLaunchArguments(defaults).start, .locked, "the lock harness always starts locked")
+    }
+}
+
+/// `spec/username-rules.json` (PROTOCOL.md §3.1), read from the repository.
+struct UsernameRuleCases: Decodable {
+    struct Case: Decodable {
+        let input: String
+        let normalized: String
+        let violations: [String]
+        let valid: Bool
+    }
+
+    let cases: [Case]
+
+    static func load() throws -> [Case] {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // UnitTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // App
+            .deletingLastPathComponent()  // ios
+            .deletingLastPathComponent()  // repository
+            .appendingPathComponent("spec/username-rules.json")
+        let cases = try JSONDecoder().decode(UsernameRuleCases.self, from: Data(contentsOf: url)).cases
+        guard !cases.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+        return cases
     }
 }

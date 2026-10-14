@@ -1,6 +1,7 @@
 package com.syconx.us2us.core.testing
 
 import com.syconx.us2us.core.AccountId
+import com.syconx.us2us.core.AuthToken
 import com.syconx.us2us.core.encoding.Base64Url
 import com.syconx.us2us.core.pow.ProofOfWork
 import kotlinx.serialization.json.JsonArray
@@ -50,11 +51,17 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         val kyberOneTimePreKeys = ArrayDeque<JsonObject>()
         val mailbox = LinkedHashMap<String, JsonObject>()
         var socket: WebSocket? = null
+
+        /** §4.12: the highest version of a store or delete, which outlives the record. */
+        var avatarHighestVersion = 0L
+        var avatarRecord: ByteArray? = null
     }
 
     private class Blob(val bytes: ByteArray, val deleteToken: String)
 
     private class Failure(val status: Int, val code: String, message: String) : Exception(message)
+
+    private class StaleVersion(val highest: Long) : Exception("stale avatar version")
 
     private val accounts = HashMap<AccountId, Account>()
     private val directory = HashMap<String, AccountId>()
@@ -82,18 +89,109 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
     var directoryLookups = 0
         private set
 
+    /** Avatar fetches (`GET /v1/accounts/{id}/avatar`) and how many of them were answered `304`. */
+    @Volatile
+    var avatarFetches = 0
+        private set
+
+    @Volatile
+    var avatarNotModified = 0
+        private set
+
+    /** Avatar writes (`PUT` and `DELETE /v1/accounts/me/avatar`) received, whatever the answer. */
+    @Volatile
+    var avatarWrites = 0
+        private set
+
+    /** Behave like a relay from before §4.12: the avatar paths are unknown (`404`). */
+    @Volatile
+    var avatarsSupported = true
+
+    /**
+     * Behave like a relay from before client-chosen tokens (§4.3): a rotation ignores the body,
+     * chooses the token itself and answers `200 {"authToken"}`.
+     */
+    @Volatile
+    var choosesTokens = false
+
+    /** Every request as `"METHOD /path"`, in order, also those answered by an injected failure. */
+    val requests = CopyOnWriteArrayList<String>()
+
+    /** The token each rotation (`POST /v1/accounts/me/token`) was authenticated with, in order. */
+    val tokenRotations = CopyOnWriteArrayList<AuthToken>()
+
+    /** Whether the relay holds an account [accountId]. */
+    fun hasAccount(accountId: AccountId): Boolean = synchronized(lock) { accountId in accounts }
+
+    /** Whether [token] is [accountId]'s token now. */
+    fun holdsToken(accountId: AccountId, token: AuthToken): Boolean =
+        synchronized(lock) { accounts[accountId]?.tokenHash?.contentEquals(sha256(token.toBytes())) == true }
+
+    /** Another phone restored the account's backup and rotated its token first: no token this test knows works. */
+    fun rotateTokenElsewhere(accountId: AccountId) = synchronized(lock) {
+        accounts.getValue(accountId).tokenHash = sha256(ByteArray(32).also(random::nextBytes))
+    }
+
+    /** The avatar record the relay holds for [accountId], or `null`. */
+    fun avatarRecord(accountId: AccountId): ByteArray? = synchronized(lock) { accounts[accountId]?.avatarRecord?.copyOf() }
+
+    /** The highest avatar version of [accountId] (0 if none, or no such account). */
+    fun avatarHighestVersion(accountId: AccountId): Long = synchronized(lock) { accounts[accountId]?.avatarHighestVersion ?: 0 }
+
+    /**
+     * Serves [record] (or a `404` for `null`) for [accountId] from now on, whatever was written, as a
+     * hostile relay replaying an earlier record would (PROTOCOL.md §9 "Rollback"). The highest
+     * version is left alone.
+     */
+    fun replaceAvatarRecord(accountId: AccountId, record: ByteArray?) = synchronized(lock) {
+        accounts.getValue(accountId).avatarRecord = record?.copyOf()
+    }
+
     /** JSON `ping` frames received, per account (WebSocket-level pings are not counted, as on the real relay). */
     private val pings = CopyOnWriteArrayList<AccountId>()
 
     fun pingsFrom(accountId: AccountId): Int = pings.count { it == accountId }
 
     /** Makes the next request matching [method] and [path] fail with a 503, as a flaky network would. */
-    fun failNext(method: String, path: String) = failNext { it.method == method && it.url.encodedPath == path }
+    fun failNext(method: String, path: String) = failNext(matching(method, path))
 
     /** Makes the next request matching [matches] fail with a 503. */
-    fun failNext(matches: (RecordedRequest) -> Boolean) = synchronized(lock) { failures += matches }
+    fun failNext(matches: (RecordedRequest) -> Boolean) = inject(matches, Injection.Fail)
 
-    private val failures = ArrayList<(RecordedRequest) -> Boolean>()
+    /**
+     * The next request matching [method] and [path] is carried out, but its answer is lost: the
+     * client gets a 503, as if the connection dropped on the way back.
+     */
+    fun loseNextAnswer(method: String, path: String) = inject(matching(method, path), Injection.LoseAnswer)
+
+    /** Makes the next request matching [method] and [path] fail with `429` and `Retry-After: [seconds]`. */
+    fun rateLimitNext(method: String, path: String, seconds: Long) = inject(matching(method, path), Injection.RateLimit(seconds))
+
+    /** Answers the next request matching [method] and [path] with [status] and [code], as the relay refuses a request; not carried out. */
+    fun refuseNext(method: String, path: String, status: Int, code: String = "bad_request") =
+        inject(matching(method, path), Injection.Refuse(status, code))
+
+    /** What happens to a request an injection matches. */
+    private sealed interface Injection {
+        /** A 503; the request is not carried out. */
+        data object Fail : Injection
+
+        /** Carried out, then a 503. */
+        data object LoseAnswer : Injection
+
+        /** `429` with `Retry-After`; not carried out. */
+        class RateLimit(val seconds: Long) : Injection
+
+        /** [status] with the error [code]; not carried out. */
+        class Refuse(val status: Int, val code: String) : Injection
+    }
+
+    /** Used up in order: a request meets the first one registered that matches it. */
+    private val injections = ArrayList<Pair<(RecordedRequest) -> Boolean, Injection>>()
+
+    private fun inject(matches: (RecordedRequest) -> Boolean, injection: Injection) = synchronized(lock) { injections += matches to injection }
+
+    private fun matching(method: String, path: String): (RecordedRequest) -> Boolean = { it.method == method && it.url.encodedPath == path }
 
     /** How the most recent sealed send to [recipient] was authorized. */
     fun lastDeliveryTo(recipient: AccountId): String? = deliveries.lastOrNull { it.first == recipient }?.second
@@ -118,12 +216,26 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
     override fun dispatch(request: RecordedRequest): MockResponse = synchronized(lock) {
         try {
             watchConnection(request)
-            val injected = failures.indexOfFirst { it(request) }
-            if (injected >= 0) {
-                failures.removeAt(injected)
-                return error(503, "internal", "injected failure")
+            requests += "${request.method} ${request.url.encodedPath}"
+            if (request.method == "POST" && request.url.encodedPath == "/v1/accounts/me/token") {
+                request.headers["X-Auth-Token"]?.let { header -> runCatching { AuthToken.parse(header) }.getOrNull()?.let(tokenRotations::add) }
             }
-            route(request)
+            val injected = injections.indexOfFirst { it.first(request) }
+            when (val injection = if (injected >= 0) injections.removeAt(injected).second else null) {
+                Injection.Fail -> error(503, "internal", "injected failure")
+                Injection.LoseAnswer -> {
+                    runCatching { route(request) }
+                    error(503, "internal", "answer lost")
+                }
+                is Injection.RateLimit ->
+                    error(429, "rate_limited", "injected limit").newBuilder().addHeader("Retry-After", injection.seconds.toString()).build()
+                is Injection.Refuse -> error(injection.status, injection.code, "injected refusal")
+                null -> route(request)
+            }
+        } catch (e: StaleVersion) {
+            error(409, "stale_version", "avatar version is not above the highest").newBuilder()
+                .addHeader("X-Avatar-Version", e.highest.toString())
+                .build()
         } catch (e: Failure) {
             error(e.status, e.code, e.message ?: "")
         } catch (e: IllegalArgumentException) {
@@ -141,9 +253,13 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
             r.method == "POST" && p == listOf("accounts") -> register(r)
             r.method == "GET" && p == listOf("accounts", "me") -> me(authenticate(r))
             r.method == "PUT" && p == listOf("accounts", "me", "username") -> changeUsername(authenticate(r), r)
-            r.method == "POST" && p == listOf("accounts", "me", "token") -> rotateToken(authenticate(r))
+            r.method == "POST" && p == listOf("accounts", "me", "token") -> rotateToken(authenticate(r), r)
             r.method == "PUT" && p == listOf("accounts", "me", "access-key") -> setAccessKey(authenticate(r), r)
             r.method == "DELETE" && p == listOf("accounts", "me") -> deleteAccount(authenticate(r))
+            p.size == 3 && p[0] == "accounts" && p[2] == "avatar" && !avatarsSupported -> unknownAvatarPath(r)
+            r.method == "PUT" && p == listOf("accounts", "me", "avatar") -> putAvatar(authenticate(r), r)
+            r.method == "DELETE" && p == listOf("accounts", "me", "avatar") -> deleteAvatar(authenticate(r), r)
+            r.method == "GET" && p.size == 3 && p[0] == "accounts" && p[2] == "avatar" -> fetchAvatar(r, p[1])
             r.method == "GET" && p.size == 3 && p[0] == "accounts" && p[2] == "identity" -> identity(r, AccountId.parse(p[1]))
             r.method == "GET" && p.size == 2 && p[0] == "directory" -> lookup(r, p[1])
             r.method == "PUT" && p == listOf("keys") -> uploadKeys(authenticate(r), body(r))
@@ -219,13 +335,36 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         reservedUsernames.remove(hash)
         directory[hash] = account.id
         account.usernameHash = hash
+        account.avatarRecord = null // §4.3: the record goes with the old username; the version stays.
         return noContent()
     }
 
-    private fun rotateToken(account: Account): MockResponse {
-        val token = ByteArray(32).also(random::nextBytes)
-        account.tokenHash = sha256(token)
-        return json(200, buildJsonObject { put("authToken", Base64Url.encode(token)) })
+    /**
+     * §4.3: the client chooses the token. Only the token that authenticated the request is replaced
+     * (a stale one is `401`, as any unknown token here); asking again with the new token is `204`
+     * without a change. An open WebSocket of the replaced token is closed with `4401`. The
+     * deprecated empty body is refused, so a client that still sends it fails the tests, unless
+     * [choosesTokens] makes this an older relay.
+     */
+    private fun rotateToken(account: Account, r: RecordedRequest): MockResponse {
+        if (choosesTokens) {
+            val token = ByteArray(32).also(random::nextBytes)
+            replaceToken(account, sha256(token))
+            return json(200, buildJsonObject { put("authToken", Base64Url.encode(token)) })
+        }
+        val encoded = body(r)["newAuthToken"]?.jsonPrimitive?.content ?: throw Failure(400, "bad_request", "newAuthToken missing")
+        val token = runCatching { Base64Url.decode(encoded, 32) }.getOrNull() ?: throw Failure(400, "bad_request", "newAuthToken must be 32 bytes")
+        if (token.toSet().size < 16) throw Failure(400, "bad_request", "newAuthToken must be 32 random bytes")
+        val hash = sha256(token)
+        if (account.tokenHash.contentEquals(hash)) return noContent()
+        if (accounts.values.any { it.tokenHash.contentEquals(hash) }) throw Failure(400, "bad_request", "newAuthToken cannot be used")
+        replaceToken(account, hash)
+        return noContent()
+    }
+
+    private fun replaceToken(account: Account, hash: ByteArray) {
+        account.tokenHash = hash
+        account.socket?.close(4401, "token rotated")
     }
 
     private fun setAccessKey(account: Account, r: RecordedRequest): MockResponse {
@@ -252,6 +391,64 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         directoryLookups++
         val account = directory[hash]?.let(accounts::get) ?: throw Failure(404, "not_found", "no such username")
         return json(200, buildJsonObject { put("accountId", account.id.toString()); put("identityKey", account.identityKey) })
+    }
+
+    // Avatar records (§4.12)
+
+    /** A relay from before §4.12: the request is counted, and the path is unknown. */
+    private fun unknownAvatarPath(r: RecordedRequest): MockResponse {
+        if (r.method == "GET") avatarFetches++ else avatarWrites++
+        throw Failure(404, "not_found", "no route for ${r.method} ${r.url.encodedPath}")
+    }
+
+    private fun putAvatar(account: Account, r: RecordedRequest): MockResponse {
+        avatarWrites++
+        val record = r.body?.toByteArray() ?: ByteArray(0)
+        if (record.size > AVATAR_MAX_LENGTH) throw Failure(413, "payload_too_large", "avatar record too large")
+        if (record.size !in AVATAR_LENGTHS) throw Failure(400, "bad_request", "avatar record length")
+        if (!record.copyOfRange(0, 5).contentEquals(byteArrayOf(0x42, 0x52, 0x50, 0x41, 0x01))) throw Failure(400, "bad_request", "avatar record header")
+        val version = (5 until 13).fold(0L) { v, i -> (v shl 8) or (record[i].toLong() and 0xff) }
+        if (version < 1) throw Failure(400, "bad_request", "avatar record version")
+        checkAvatarVersion(account, version)
+        account.avatarHighestVersion = version
+        account.avatarRecord = record
+        return MockResponse.Builder().code(204).addHeader("ETag", "\"$version\"").build()
+    }
+
+    private fun deleteAvatar(account: Account, r: RecordedRequest): MockResponse {
+        avatarWrites++
+        val header = r.headers["X-Avatar-Version"] ?: throw Failure(400, "bad_request", "X-Avatar-Version missing")
+        val version = header.takeIf { it.matches(Regex("[0-9]{1,19}")) }?.toLongOrNull()?.takeIf { it >= 1 }
+            ?: throw Failure(400, "bad_request", "malformed X-Avatar-Version")
+        checkAvatarVersion(account, version)
+        account.avatarHighestVersion = version
+        account.avatarRecord = null
+        return noContent()
+    }
+
+    private fun checkAvatarVersion(account: Account, version: Long) {
+        if (version <= account.avatarHighestVersion) throw StaleVersion(account.avatarHighestVersion)
+    }
+
+    private fun fetchAvatar(r: RecordedRequest, id: String): MockResponse {
+        authenticate(r)
+        avatarFetches++
+        val accountId = AccountId.parse(id)
+        val account = accounts[accountId]
+        val record = account?.avatarRecord ?: throw Failure(404, "not_found", "no avatar record")
+        // The version in the stored record's header, as the relay reads it (§4.12).
+        val etag = "\"${(5 until 13).fold(0L) { version, i -> (version shl 8) or (record[i].toLong() and 0xff) }}\""
+        if (r.headers["If-None-Match"] == etag) {
+            avatarNotModified++
+            return MockResponse.Builder().code(304).addHeader("ETag", etag).build()
+        }
+        return MockResponse.Builder()
+            .code(200)
+            .addHeader("Content-Type", "application/octet-stream")
+            .addHeader("ETag", etag)
+            .addHeader("Cache-Control", "no-store")
+            .body(Buffer().write(record))
+            .build()
     }
 
     // Keys
@@ -501,6 +698,11 @@ class FakeRelay(private val registerDifficulty: Int = 4, private val messageDiff
         MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body.toString()).build()
 
     private fun noContent() = MockResponse.Builder().code(204).build()
+
+    private companion object {
+        val AVATAR_LENGTHS = setOf(8192, 16384, 32768, 49152)
+        const val AVATAR_MAX_LENGTH = 49152
+    }
 
     private fun error(status: Int, code: String, message: String) = json(
         status,

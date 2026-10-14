@@ -16,7 +16,7 @@ enum AppRoute: Hashable, Sendable {
     case settingsPicker(SettingsPicker)
     /// 7.2 Yedeği dışa aktar.
     case backupExport
-    /// 7.1 › Gizli kodu değiştir, Hakkında, (DEBUG) 7.3.
+    /// 7.1 › Gizli kodu değiştir, Engellenenler, Hakkında, (DEBUG) 7.3.
     case settingsPage(SettingsPage)
 
     /// Edge-swipe back is allowed everywhere on the main stack (flows.md › Back behaviour).
@@ -41,8 +41,14 @@ enum SettingsPage: Hashable, Sendable {
     case backupExport
     /// 7.1 › Gizli kodu değiştir: current code (3.2 layout) → new code ×2 (2.2 layout).
     case changeCode
+    /// 7.1 › “Face ID ile aç” turned on while it is off: the code once (3.2
+    /// layout, proposed), so the biometric key can wrap the vault key.
+    case enableFaceID
     /// 7.1 › Hakkında: version, privacy, licences.
     case about
+    /// 7.1 › Gizlilik › Engellenenler (proposed): everyone blocked, also
+    /// without a chat, each with “Engeli kaldır”.
+    case blocked
     /// 7.3 Yedekten geri yükle. Production entry points are 1.1 and 3.3;
     /// inside settings only the DEBUG harness opens it.
     case restore

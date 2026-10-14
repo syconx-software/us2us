@@ -9,6 +9,8 @@ import SwiftUI
 struct MyCodeView: View {
     let username: String
     let modules: QRModules?
+    /// The own profile picture (proposed), set at the root.
+    @Environment(\.u2OwnAvatar) private var ownAvatar
 
     init(username: String, modules: QRModules?) {
         self.username = username
@@ -23,7 +25,7 @@ struct MyCodeView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                Avatar(username: username, palette: .d, size: .verify)
+                Avatar(username: username, palette: .d, size: .verify, picture: ownAvatar)
                 Text(verbatim: username)
                     .u2Font(.monoMeta)
                     .foregroundStyle(Color.u2.textSecondary)
@@ -86,7 +88,7 @@ extension MessengerService {
 
 #Preview("Kodum") {
     let model = AppModel.preview()
-    return MyCodeSheet(username: "selin.n", payload: ContactCode.encode(username: "selin.n"), onClose: {})
+    return MyCodeSheet(username: "selin_n", payload: ContactCode.encode(username: "selin_n"), onClose: {})
         .environment(model)
         .background(Color.u2.surface)
 }
