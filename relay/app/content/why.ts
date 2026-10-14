@@ -470,7 +470,7 @@ export const why: Record<Locale, WhyText> = {
     about: {
       title: 'SyconX hakkında',
       paragraphs: [
-        'SyconX, us2us’ı geliştiren yazılım ekibidir. us2us, iki kişi arasındaki konuşmalar için uçtan uca şifreli bir mesajlaşma uygulamasıdır: telefon numarası istemez, push bildirimi göndermez, konuşmaları yalnızca iki telefonda tutar. Ücretsizdir; reklam, izleyici ya da analiz aracı içermez. Kodu AGPL-3.0 lisanslıdır ve yakında herkese açık olarak yayımlanacak.',
+        'SyconX, us2us’ı geliştiren yazılım ekibidir. us2us, iki kişi arasındaki konuşmalar için uçtan uca şifreli bir mesajlaşma uygulamasıdır: telefon numarası istemez, push bildirimi göndermez, konuşmaları yalnızca iki telefonda tutar. Ücretsizdir; reklam, izleyici ya da analiz aracı içermez. Kodu AGPL-3.0 lisanslıdır ve github.com/syconx-software/us2us adresinde herkese açıktır.',
         'us2us şu an iOS’ta TestFlight üzerinden kapalı betada; App Store ve Android sürümleri yakında. Basın soruları ve görüşme talepleri için aşağıdaki adrese yazabilirsiniz.',
       ],
       pressLabel: 'Basın iletişimi',
@@ -595,7 +595,7 @@ export const why: Record<Locale, WhyText> = {
     about: {
       title: 'About SyconX',
       paragraphs: [
-        'SyconX is the software team behind us2us. us2us is an end-to-end encrypted messenger for conversations between two people: it asks for no phone number, sends no push notifications and keeps conversations on the two phones only. It is free, with no ads, trackers or analytics. Its code is licensed under the AGPL-3.0 and will soon be published for everyone.',
+        'SyconX is the software team behind us2us. us2us is an end-to-end encrypted messenger for conversations between two people: it asks for no phone number, sends no push notifications and keeps conversations on the two phones only. It is free, with no ads, trackers or analytics. Its code is licensed under the AGPL-3.0 and is public at github.com/syconx-software/us2us.',
         'us2us is in closed beta on iOS through TestFlight; the App Store and Android versions are coming soon. For press questions and interview requests, please write to the address below.',
       ],
       pressLabel: 'Press contact',
