@@ -7,7 +7,8 @@ import { useRelay } from '../../../../relay'
 /**
  * §3.3 / §4.3 Change username. Every change reserves the previous name for
  * 14 days, so changes are rate limited per account to stop one account from
- * squatting many names.
+ * squatting many names. A change also deletes the avatar record (§4.12),
+ * which the client publishes again under the new name.
  */
 export default defineApiRoute({
   PUT: async (event) => {

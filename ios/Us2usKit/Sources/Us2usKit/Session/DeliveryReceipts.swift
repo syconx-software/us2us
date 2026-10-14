@@ -19,6 +19,22 @@ public enum ReceiptPolicy {
         }
     }
 
+    /// Whether a `DataMessage` can be saved outside the app, and so be
+    /// acknowledged with `ReceiptMessage{SAVED}` (§8.4): a photo, video or
+    /// file that stays — never view-once and never with a disappearing
+    /// timer, which cannot be saved at all. The sender applies a SAVED only
+    /// to its own messages that pass the same check, and ignores it for
+    /// anything else.
+    public static func isSavable(_ data: BRPDataMessage) -> Bool {
+        guard !data.viewOnce, data.expireTimerSeconds == 0, case .attachment(let attachment) = data.payload else {
+            return false
+        }
+        switch attachment.kind {
+        case .image, .video, .file: return true
+        case .unspecified, .voice, .stickerImage, .UNRECOGNIZED: return false
+        }
+    }
+
     /// `ReceiptMessage`s for `messageIds`, in order, at most ``maxMessageIds`` each.
     public static func receipts(_ type: BRPReceiptMessage.TypeEnum, messageIds: [Data]) -> [BRPContent] {
         stride(from: 0, to: messageIds.count, by: maxMessageIds).map { start in

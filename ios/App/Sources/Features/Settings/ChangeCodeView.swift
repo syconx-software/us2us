@@ -4,9 +4,20 @@ import Us2usKit
 /// State of 7.1 › Gizli kodu değiştir: the current code (3.2 layout, through
 /// the lock's throttle) → a new code (2.2 layout, the same rules as setup) →
 /// the new code again → re-key. Codes live only in this model.
+///
+/// The same first step turns Face ID on from 7.1 (`.enableBiometrics`): the
+/// biometric key wraps the vault key, so the code is needed once; a right
+/// code turns it on and the page closes.
 @Observable
 @MainActor
 final class ChangeCodeModel {
+    enum Purpose: Equatable {
+        /// 7.1 › Gizli kodu değiştir: three steps.
+        case changeCode
+        /// 7.1 › “Face ID ile aç”: the current code only.
+        case enableBiometrics
+    }
+
     enum Step: Int, Equatable {
         case current = 1
         case new = 2
@@ -28,6 +39,10 @@ final class ChangeCodeModel {
         case mismatch
         /// Re-keying failed; the old code still works.
         case failed
+        /// The current code could not be checked right now (not counted).
+        case unavailable
+        /// The vault can no longer be opened on this phone once it locks.
+        case unusable
     }
 
     private(set) var step: Step = .current
@@ -37,13 +52,27 @@ final class ChangeCodeModel {
     private(set) var message: Message?
     private(set) var isBusy = false
 
+    let purpose: Purpose
     private var currentCode = ""
     private var newCode = ""
     private let messenger: any MessengerService
     private let onChanged: () -> Void
+    /// The current code was the 10th wrong code in a row and the optional
+    /// wipe erased everything (PROTOCOL §5.2): the app leaves 7.1 for the
+    /// lock's “Veriler silindi”.
+    private let onWiped: () -> Void
+    /// `.enableBiometrics`: biometrics cannot be used right now (or the
+    /// vault could not be read): 7.1 says “Face ID açılamadı.”
+    private let onUnavailable: () -> Void
 
-    init(messenger: any MessengerService, onChanged: @escaping () -> Void) {
+    init(
+        messenger: any MessengerService, purpose: Purpose = .changeCode, onChanged: @escaping () -> Void,
+        onWiped: @escaping () -> Void = {}, onUnavailable: @escaping () -> Void = {}
+    ) {
         self.messenger = messenger
+        self.purpose = purpose
+        self.onWiped = onWiped
+        self.onUnavailable = onUnavailable
         self.onChanged = onChanged
         if let next = messenger.unlockStatus.nextAttemptAllowedAt, next > Date() {
             message = .throttled(until: next)
@@ -100,12 +129,25 @@ final class ChangeCodeModel {
         let code = entered
         switch step {
         case .current:
-            let result = await messenger.verifySecretCode(code)
+            let result: UnlockAttemptResult
+            if purpose == .enableBiometrics {
+                result = await messenger.enableBiometricUnlock(code: code)
+            } else {
+                result = await messenger.verifySecretCode(code)
+            }
             isBusy = false
             switch result {
+            case .unlocked where purpose == .enableBiometrics:
+                // Face ID is on; the page closes (the dots stay full meanwhile).
+                isBusy = true
+                U2Haptics.success()
+                onChanged()
             case .unlocked:
                 currentCode = code
                 advance(to: .new)
+            case .vaultUnavailable where purpose == .enableBiometrics:
+                withU2Animation(U2Motion.state) { entered = "" }
+                onUnavailable()
             case .wrongCode(let status):
                 if let next = status.nextAttemptAllowedAt, next > Date() {
                     fail(.throttled(until: next))
@@ -120,7 +162,23 @@ final class ChangeCodeModel {
                     appearance = .dimmed
                     entered = ""
                 }
-            case .malformed:
+            case .vaultUnavailable, .vaultUnusable:
+                // Not a wrong code: no red dots, no delays ahead.
+                withU2Animation(U2Motion.state) {
+                    message = result == .vaultUnusable ? Message.unusable : Message.unavailable
+                    appearance = .normal
+                    entered = ""
+                }
+            case .wiped:
+                // Never “Kod yanlış”: nothing is left to change.
+                withU2Animation(U2Motion.state) {
+                    message = nil
+                    appearance = .normal
+                    entered = ""
+                }
+                U2Haptics.error()
+                onWiped()
+            case .malformed, .interrupted:
                 entered = ""
             }
         case .new:
@@ -227,6 +285,11 @@ struct ChangeCodeView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @State private var viewModel: ChangeCodeModel?
+    private let purpose: ChangeCodeModel.Purpose
+
+    init(purpose: ChangeCodeModel.Purpose = .changeCode) {
+        self.purpose = purpose
+    }
 
     var body: some View {
         U2Screen {
@@ -244,10 +307,20 @@ struct ChangeCodeView: View {
         guard viewModel == nil else { return }
         let flow = SettingsFlow.of(model)
         let router = model.router
-        let created = ChangeCodeModel(messenger: flow.messenger) {
-            flow.toast = Text("code.changed.toast", table: .settings)
-            router.pop()
-        }
+        let enablesBiometrics = purpose == .enableBiometrics
+        let created = ChangeCodeModel(
+            messenger: flow.messenger, purpose: purpose,
+            onChanged: {
+                flow.toast =
+                    enablesBiometrics
+                    ? Text("faceID.enabled.toast", table: .settings) : Text("code.changed.toast", table: .settings)
+                router.pop()
+            },
+            onWiped: { [model] in model.dataWipedAfterWrongCodes() },
+            onUnavailable: {
+                flow.toast = Text("settings.faceID.unavailable", table: .settings)
+                router.pop()
+            })
         #if DEBUG
             if let state = SettingsHarness.take(prefix: "code") { created.applyHarness(state) }
         #endif
@@ -256,8 +329,20 @@ struct ChangeCodeView: View {
 
     private func content(_ vm: ChangeCodeModel) -> some View {
         VStack(spacing: 0) {
-            SetupHeader(step: vm.step.rawValue) {
-                if !vm.back() { model.router.pop() }
+            if vm.purpose == .enableBiometrics {
+                // One step: the setup header's back button, without a counter.
+                HStack {
+                    U2GlassIconButton(.caretLeft, glyphSize: 22, label: Text("a11y.back"), action: model.router.pop)
+                        .accessibilityIdentifier("faceID.enable.back")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, U2Spacing.screenGutterS)
+                .frame(height: U2Size.iconButton)
+                .u2Top(U2Spacing.headerTopButtons)
+            } else {
+                SetupHeader(step: vm.step.rawValue) {
+                    if !vm.back() { model.router.pop() }
+                }
             }
             ZStack(alignment: .top) {
                 switch vm.step {
@@ -278,20 +363,29 @@ struct ChangeCodeView: View {
         .u2Animation(U2Motion.state, value: vm.step)
     }
 
-    /// Step 1 — the 3.2 composition: lock badge, centred title, dots, message.
+    /// Step 1 — the 3.2 composition: lock badge, centred title, dots, message
+    /// (turning Face ID on: the Face ID glyph and its own title).
     private func currentBlock(_ vm: ChangeCodeModel) -> some View {
-        VStack(spacing: 0) {
+        let enablesBiometrics = vm.purpose == .enableBiometrics
+        return VStack(spacing: 0) {
             VStack(spacing: 16) {
-                PhosphorIcon(.lockSimple, size: 24)
-                    .foregroundStyle(Color.u2.accent300)
-                    .frame(width: U2Size.lockIcon, height: U2Size.lockIcon)
-                    .background(Circle().fill(Color.u2.accent900))
-                    .overlay(Circle().strokeBorder(Color.u2.accent800, lineWidth: 1))
-                    .accessibilityHidden(true)
-                Text("code.current.title", table: .settings)
+                Group {
+                    if enablesBiometrics {
+                        FaceIDGlyph(size: 24, lineWidth: 1.8)
+                    } else {
+                        PhosphorIcon(.lockSimple, size: 24)
+                    }
+                }
+                .foregroundStyle(Color.u2.accent300)
+                .frame(width: U2Size.lockIcon, height: U2Size.lockIcon)
+                .background(Circle().fill(Color.u2.accent900))
+                .overlay(Circle().strokeBorder(Color.u2.accent800, lineWidth: 1))
+                .accessibilityHidden(true)
+                Text(enablesBiometrics ? "faceID.enable.title" : "code.current.title", table: .settings)
                     .u2Font(.displayTitleXS)
                     .foregroundStyle(Color.u2.text)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, U2Spacing.screenGutterL)
                     .accessibilityAddTraits(.isHeader)
             }
             .padding(.top, 6)
@@ -348,6 +442,8 @@ struct ChangeCodeView: View {
         case .sameAsCurrent: sentence(Text("code.same", table: .settings))
         case .mismatch: sentence(Text("code.mismatch", table: .settings))
         case .failed: sentence(Text("code.failed", table: .settings))
+        case .unavailable: sentence(Text("code.unavailable", table: .settings))
+        case .unusable: sentence(Text("code.unusable", table: .settings))
         }
     }
 

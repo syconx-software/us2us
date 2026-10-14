@@ -33,17 +33,24 @@ ios/
 
 ```sh
 ios/scripts/fetch-libsignal.sh            # download, verify, assemble (idempotent)
-ios/scripts/fetch-libsignal.sh --force    # rebuild even if the stamp matches
+ios/scripts/fetch-libsignal.sh --force    # rebuild even if the existing copy matches
+ios/scripts/fetch-libsignal.sh --verify   # only check ios/Vendor; downloads and changes nothing
 ```
 
 The script pins **libsignal v0.105.0** (the same version as `android/core`,
-PROTOCOL.md §2) and the SHA-256 of
-`https://build-artifacts.signal.org/libraries/libsignal-client-ios-build-v0.105.0.tar.gz`.
-It then
+PROTOCOL.md §2), the SHA-256 of
+`https://build-artifacts.signal.org/libraries/libsignal-client-ios-build-v0.105.0.tar.gz`,
+the commit the `v0.105.0` tag points to (`4beb029d8a941f81e7d9c6d8af1ed25a677569a8`;
+the tag is unsigned and could be moved, the commit cannot) and, in the
+committed `scripts/libsignal-vendor.sha256`, the SHA-256 of every vendored file
+a device build compiles, links or bundles (the `lipo`-merged simulator archive
+is left out; it never ships). It then
 
 1. verifies the tarball checksum (cached in `~/Library/Caches/org.signal.libsignal`,
    the same cache Signal's CocoaPods integration uses);
-2. clones `signalapp/libsignal` at tag `v0.105.0` and checks the podspec version;
+2. clones `signalapp/libsignal` at tag `v0.105.0`, requires the checkout to be
+   exactly the pinned commit with no local changes in the copied files, and
+   checks the podspec version;
 3. `lipo`-merges the arm64 and x86_64 simulator slices;
 4. assembles `Vendor/SignalFfi.xcframework` (device + simulator) with the
    `SignalFfi` headers and `module.modulemap` of the same tag. The Info.plist is
@@ -52,7 +59,18 @@ It then
 5. copies the `LibSignalClient` Swift sources of the same tag to
    `Vendor/LibSignalClient`, plus `LICENSE.libsignal` and
    `acknowledgments-ios.plist` (the app must show both);
-6. writes `Vendor/libsignal.version`.
+6. checks the new copy against `scripts/libsignal-vendor.sha256` and only
+   then replaces `Vendor/` and writes `Vendor/libsignal.version`.
+
+`Vendor/` is git-ignored, so the manifest is what keeps it honest: a run
+without flags keeps an existing copy only if it still matches (otherwise it
+rebuilds), `--verify` fails on any changed, added or missing file, and
+`ios/App/scripts/archive.sh` refuses to archive until `--verify` passes. The
+App Store build is not reproducible (Apple re-signs and encrypts it), so this
+is release provenance for us, not a way for others to check the store binary:
+`archive.sh` also writes `provenance.txt` (git HEAD and whether the tree was
+clean, the libsignal stamp, commit and manifest hash, the `Package.resolved`
+pins, the Xcode version and the `.ipa` hash) next to the archive.
 
 Offline or behind a proxy, point it at local copies:
 
@@ -178,7 +196,7 @@ ios/scripts/keychain-smoke.sh            # optional argument: simulator name
 
 It compiles `KeychainDeviceSecretProvider` with `scripts/keychain-smoke/main.swift`
 into a minimal app that carries a keychain entitlement, runs it on the
-Simulator and checks store/replace/delete, `AfterFirstUnlockThisDeviceOnly` and
+Simulator and checks store/replace/delete, `WhenUnlockedThisDeviceOnly` and
 that the item is not synchronizable (exit status 0 = pass). The vault logic
 itself is fully tested with `InMemoryDeviceSecretProvider`.
 
@@ -196,9 +214,11 @@ itself is fully tested with `InMemoryDeviceSecretProvider`.
 | Sessions, sealed envelope, sender verification, message requests | `Session/*` | §5, §6 |
 | Presence ("active now": eligibility, tracker, labels) | `Session/Presence.swift` | §8.6 |
 | Contact profiles (complete updates, username claims) | `Session/ContactProfile.swift` | §3.3, §8.7 |
+| Profile pictures (checks), avatar records for search (KDF, AES-GCM, padding) | `Profile/ProfilePicture.swift`, `Profile/AvatarRecord.swift`, `Messenger/Messenger+Avatar.swift` | §4.12, §8.9, §8.10 |
 | Delivery receipts (which messages, batching, ≤ 1000 ids) | `Session/DeliveryReceipts.swift` | §8.4 |
 | Attachments (streaming AES-CBC + HMAC, P(n)) | `Attachments/AttachmentCipher.swift` | §7 |
 | Secret code, vault, device secret, attempt delays | `Vault/SecretCode.swift`, `VaultFormat.swift`, `LocalVault.swift`, `DeviceSecretProvider.swift` | §5.2 |
+| Vault v2 hardware step (protocol, hash-to-curve PRF) | `Vault/VaultHardwareKey.swift` (the Secure Enclave key itself is in Us2usAppCore) | §5.2 |
 | dbKey, key slots, items, ghost wipe schedule | `Vault/ConversationKeys.swift` | §5.3, §8.2 |
 | Account backup file | `Vault/AccountBackupFile.swift` | §5.5 |
 | Safety numbers | `SafetyNumber/SafetyNumber.swift` | §5 |
@@ -208,6 +228,13 @@ itself is fully tested with `InMemoryDeviceSecretProvider`.
 `NormalizedUsername` is deliberately not called `Username`: LibSignalClient
 exports a `Username` type, and apps that implement a persistent store import
 both modules.
+
+What a user types (2.1, the 4.2 search, invite links) goes through the app's
+`UsernameRules` (`ios/App/Sources/Domain`): trim, one leading `@` dropped,
+then `NormalizedUsername.normalize`, and every §3.1 rule the result breaks,
+without turning it into another name. It is the counterpart of the Kotlin
+core's `UsernameRules`; both are tested against the same case table,
+`spec/username-rules.json`.
 
 ## Consuming the kit from the app
 
@@ -222,10 +249,16 @@ both modules.
   `register`, `restore` and `init`: the messenger saves `LocalAccount` through it
   whenever it changes, before relying on the change. `run` retries unfinished
   relay setup after the backlog and with every `pong`.
-* **Restore** (§5.5): `AccountBackupFile.import` → `Messenger.restore(from:…)`,
-  which validates every field first, writes the contacts' identity keys as they
-  were (an unaccepted change stays blocked), rotates the token, saves the
-  account and uploads fresh keys. Then create the app's contacts from
+* **Restore** (§5.5): `AccountBackupFile.import` (which already verifies every
+  field, so a backup that opens is one a restore accepts) → before replacing
+  anything already on the phone, `Messenger.checkBackup(_:relay:)` (one
+  read-only request with the backup's token) → `Messenger.restore(from:…)`,
+  which validates again, writes the contacts' identity keys as they were (an
+  unaccepted change stays blocked), stores a new token it chose next to the
+  backup's, rotates to it and saves the outcome, then uploads fresh keys. If
+  the rotation's answer is lost, the restore returns with both tokens kept and
+  none used; `Messenger.finishPendingTokenRotation()` (called by
+  `performMaintenance()` and before connecting) settles it. Then create the app's contacts from
   `backup.contacts` (`presence_sharing` included) and call
   `announceProfile(_:to:)` with every accepted contact. `makeBackup` takes the
   app's contacts and fills in their identity fields from the store.
@@ -234,6 +267,15 @@ both modules.
   verified only after `usernameOwner(_:)` confirmed it, checked lazily when the
   conversation opens (§3.3). Feed stored messages to a `DeliveryReceiptBatch`
   and send what `drain()` returns (per contact, ≤ 1000 ids per receipt, §8.4).
+* **Profile pictures** (§8.9, §8.10): `setProfilePicture(_:showInSearch:)`
+  saves the picture and "Show in search" with `LocalAccount`, then
+  `syncAvatarRecord()` publishes, replaces or deletes the avatar record (also
+  done after a username change, after a restore, at each `queue_empty` and by
+  `performMaintenance()`). Send `ownProfileUpdate(…)` to accepted contacts when
+  the picture changed. For a search result call
+  `searchAvatar(username:account:)` after the exact directory hit; every
+  failure is `.initials`. Photos must be made with Us2usAppCore's
+  `AvatarPhotoProcessor` (≤ 256 px, no metadata).
 * **Background** (§5.4): keep the socket for the 30-second grace period
   (`beginBackgroundTask`), then send `PresencePolicy.offline()` to
   `PresenceTracker.onlineContacts()` and close the connection. Run CPU-heavy
@@ -275,9 +317,13 @@ upgrade deliberately and together with Android:
 1. Pick a tag that has the `libsignal-client-ios-build-v<ver>.tar.gz.sha256`
    release asset (not every tag has an iOS prebuild); read `RELEASE_NOTES.md`
    and the annotated tag message for Swift and store-protocol changes.
-2. Update `LIBSIGNAL_VERSION` and `LIBSIGNAL_TARBALL_SHA256` (first field of the
-   `.sha256` asset) in `scripts/fetch-libsignal.sh`.
-3. `scripts/fetch-libsignal.sh --force`, fix compile errors, run the test suite.
+2. Update `LIBSIGNAL_VERSION`, `LIBSIGNAL_TARBALL_SHA256` (first field of the
+   `.sha256` asset) and `LIBSIGNAL_COMMIT` (the commit the tag points to:
+   `git ls-remote https://github.com/signalapp/libsignal.git 'refs/tags/v<ver>^{}'`)
+   in `scripts/fetch-libsignal.sh`.
+3. `scripts/fetch-libsignal.sh --force --write-manifest`, review the diff of
+   `scripts/libsignal-vendor.sha256` and commit it with the script, fix compile
+   errors, run the test suite.
 4. Bump `android/core` to the same version, update "libsignal version" in
    PROTOCOL.md §2, and make sure both test-vector directories still verify.
 5. If the Xcode used by Signal's release runner is newer than yours, linking
@@ -295,7 +341,12 @@ kod kasası ve yerel depolama şifrelemesi.
   derlemesini (v0.105.0) indirir, SHA-256'yı doğrular, simülatör dilimlerini
   birleştirir, `Vendor/SignalFfi.xcframework` ve aynı etiketin Swift
   kaynaklarını oluşturur. İnternet yoksa `LIBSIGNAL_TARBALL` ve `LIBSIGNAL_SRC`
-  ile yerel kopyalar verilebilir. `Vendor/` git'e girmez.
+  ile yerel kopyalar verilebilir. `Vendor/` git'e girmez; bu yüzden etiketin
+  işaret ettiği commit betikte, kopyalanan her dosyanın SHA-256 değeri de
+  commit'lenen `scripts/libsignal-vendor.sha256` dosyasında sabitlenmiştir.
+  `--verify` yalnızca denetler, `ios/App/scripts/archive.sh` bu denetim
+  geçmeden arşiv almaz ve arşivin yanına `provenance.txt` yazar. Sürüm
+  yükseltirken `--force --write-manifest` çalıştırılır ve fark incelenir.
 * **Kod üretimi:** `ios/scripts/gen-proto.sh`, `brp.proto`'dan Swift kodunu
   üretir ve `common-secret-codes.txt` listesini pakete kopyalar. İkisi de
   commit'lenir; liste kayarsa bir test başarısız olur.
@@ -312,8 +363,17 @@ kod kasası ve yerel depolama şifrelemesi.
   yetkili küçük bir uygulamayla dener.
 * **Gizli kod:** tüm yerel veriler kullanıcının hesap açarken belirlediği gizli
   koddan (ve cihaza bağlı bir sırdan) türetilen anahtarla şifrelenir; kullanıcı
-  adı hiçbir anahtarda kullanılmaz, bu yüzden kullanıcı adı istenildiği zaman
-  değiştirilebilir.
+  adı hiçbir yerel anahtarda kullanılmaz, bu yüzden kullanıcı adı istenildiği
+  zaman değiştirilebilir. (Yalnızca aramada gösterilen profil resminin relay'deki
+  kaydı kullanıcı adından türetilen bir anahtarla şifrelenir; ad değişince
+  yeni adla yeniden yayınlanır, PROTOCOL.md §8.10.)
+* **Kullanıcı adı kuralı:** yazılan ad (2.1, 4.2 araması, davet bağlantıları)
+  uygulamanın `UsernameRules`'undan geçer: baştaki ve sondaki boşluklar ve
+  baştaki tek bir `@` atılır, `NormalizedUsername.normalize` uygulanır ve
+  PROTOCOL.md §3.1'in kırılan her kuralı bildirilir (3–24 karakter, harfle
+  başlar, yalnızca a-z, 0-9 ve alt çizgi); ad başka bir ada çevrilmez. Kotlin
+  çekirdeğindeki `UsernameRules` ile aynı `spec/username-rules.json`
+  tablosuyla test edilir.
 * **Yedekten geri yükleme:** yedek her alanıyla doğrulanır, yeni oturum
   anahtarı relay'den alınıp anahtar yüklemesinden önce kaydedilir
   (`AccountSaver`), yükleme başarılı olana kadar yeniden denenir; ardından

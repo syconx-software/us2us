@@ -8,7 +8,7 @@
         @State private var toggle = true
         @State private var checkbox = true
         @State private var chip = GhostPeriod.oneDay
-        @State private var username = "selin.n"
+        @State private var username = "selin_n"
         @State private var search = "deniz"
         @State private var password = "correct horse battery"
         @State private var draft = ""
@@ -23,6 +23,10 @@
             }
         }()
         @State private var toast: Text?
+        /// The built-in sticker gallery over this one (also `-U2Gallery stickers`).
+        @State private var showsStickers = false
+        /// The preset avatar gallery over this one (also `-U2Gallery avatars`).
+        @State private var showsAvatars = false
         @FocusState private var passwordFocus: PasswordFieldFocus?
         @Environment(\.u2Clock) private var clock
 
@@ -36,7 +40,7 @@
                             Text(verbatim: "Sohbetler").u2Font(.displayTitle)
                             Text(verbatim: "23:41:07").u2Font(.displayCountdownL).foregroundStyle(Color.u2.accent200)
                             Text(verbatim: "us2us iki kişi arasında şifreli bir hat kurar.").u2Font(.bodyL).foregroundStyle(Color.u2.textSecondary)
-                            Text(verbatim: "deniz · mert.k · 1 / 3").u2Font(.monoUsername)
+                            Text(verbatim: "deniz · mert_k · 1 / 3").u2Font(.monoUsername)
                             SectionLabel(Text(verbatim: "Gizlilik · istekler"), horizontalPadding: 0)
                         }
                         group("Buttons") {
@@ -74,6 +78,8 @@
                         }
                         group("Rows & cards") {
                             RequestsCard(count: 2) {}
+                            // 4.1 after a restore whose token rotation is unanswered (proposed).
+                            RestoreAccessCard {}
                             ForEach(DesignFixtures.chats(now: clock.now, ghostUrgent: false, english: false).prefix(4)) { chat in
                                 ChatListRow(chat: chat)
                             }
@@ -95,6 +101,10 @@
                             ForEach([MessageStatus.sent, .delivered, .read, .failed], id: \.self) { MessageStatusLegendRow(status: $0) }
                             MessageStatusSentence(status: .sent)
                             SystemPill(text: Text(verbatim: "Ghost mod açık · 24 saat"))
+                            // 5.1 verification (proposed): the prompt's look and the held-send banner.
+                            SystemPill(glyph: .qrCode, text: Text("verify.prompt", table: .conversation))
+                                .frame(maxWidth: .infinity)
+                            SafetyNumberChangedBanner {}
                         }
                         group("Bubbles") {
                             let messages = DesignFixtures.denizMessages(english: false) + DesignFixtures.mertMessages(english: false)
@@ -103,10 +113,71 @@
                                     .frame(maxWidth: .infinity, alignment: message.isOutgoing ? .trailing : .leading)
                             }
                         }
+                        group("Stickers (proposed)") {
+                            // Received: a known sticker in its sender's language, an
+                            // older sender without one, a newer pack, nothing to draw.
+                            let stickers: [MessageContent] = [
+                                .sticker(packID: "us2us.words", stickerID: 103, emoji: "🫂", lang: "en"),
+                                .sticker(packID: "us2us.words", stickerID: 109, emoji: "👌", lang: ""),
+                                .sticker(packID: "us2us.future", stickerID: 9001, emoji: "🫶", lang: ""),
+                                .sticker(packID: "us2us.future", stickerID: 9002, emoji: "", lang: ""),
+                            ]
+                            ForEach(stickers.indices, id: \.self) { index in
+                                MessageBubbleView(
+                                    message: Message(
+                                        id: "gallery.sticker.\(index)", direction: .incoming,
+                                        sentAt: DesignFixtures.referenceDate, content: stickers[index]),
+                                    isTail: true
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            Button { showsStickers = true } label: { U2ButtonLabel(verbatim: "Sticker gallery") }
+                                .buttonStyle(.u2Secondary)
+                        }
+                        group("Avatars (proposed)") {
+                            HStack(spacing: 12) {
+                                Avatar(username: "deniz", palette: .a)
+                                Avatar(username: "kaan", palette: .d, picture: .preset(2))
+                                Avatar(username: "oya_t", palette: .c, showsOnlineDot: true, picture: DesignFixtures.photoAvatar)
+                                Avatar(username: "lale", palette: .b, picture: .preset(14))
+                                    .overlay { AvatarLoadingRing(diameter: Avatar.Size.listRow.diameter) }
+                            }
+                            Button { showsAvatars = true } label: { U2ButtonLabel(verbatim: "Avatar gallery") }
+                                .buttonStyle(.u2Secondary)
+                        }
+                        group("Media states (proposed)") {
+                            HStack(spacing: 12) {
+                                ForEach(
+                                    [MediaAvailability.ready, .remote, .downloading(nil), .downloading(0.4), .unavailable],
+                                    id: \.self
+                                ) { state in
+                                    MediaGlassCircle { MediaStateGlyph(availability: state) }
+                                }
+                            }
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: U2Radius.bubbleMedia).fill(Color.u2.mediaViewerBg))
+                            HStack(spacing: 18) {
+                                ForEach(MediaGlyph.allCases, id: \.self) { MediaGlyphIcon($0, size: 21) }
+                            }
+                            .foregroundStyle(Color.u2.text)
+                            ForEach([MediaAvailability.remote, .downloading(0.62), .unavailable], id: \.self) { state in
+                                MessageBubbleView(message: fileMessage(state))
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                            ForEach([MediaAvailability.preparing, .preparationFailed], id: \.self) { state in
+                                MessageBubbleView(message: outgoingVideo(state))
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                            ForEach([MediaAvailability.preparing, .preparationFailed], id: \.self) { state in
+                                MessageBubbleView(message: outgoingPhoto(state))
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                        }
                         group("Line") {
                             LineMark()
                             ConnectionStatusLine(state: .open)
-                            ConnectionLine(ownUsername: "selin.n", ownLabel: Text(verbatim: "sen"), peer: DesignFixtures.deniz, showsSeal: true)
+                            ConnectionStatusLine(state: .revoked)
+                            ConnectionLine(ownUsername: "selin_n", ownLabel: Text(verbatim: "sen"), peer: DesignFixtures.deniz, showsSeal: true)
                             QRCodeCard(payload: SafetyQRCodec.encode(Data("0822378626740242326312493".utf8)), label: Text(verbatim: "QR")).frame(maxWidth: .infinity)
                         }
                         group("Composer & sheet") {
@@ -127,6 +198,50 @@
                     onSave: { _, _, _ in sheetStyle = nil }, onClose: { sheetStyle = nil })
             }
             .u2Toast($toast)
+            .overlay {
+                if showsStickers {
+                    BrandStickerGallery()
+                        .overlay(alignment: .topTrailing) {
+                            U2GlassIconButton(.x, label: Text("a11y.close")) { showsStickers = false }
+                                .padding(.top, 54)
+                                .padding(.trailing, 16)
+                        }
+                } else if showsAvatars {
+                    BrandAvatarGallery()
+                        .overlay(alignment: .topTrailing) {
+                            U2GlassIconButton(.x, label: Text("a11y.close")) { showsAvatars = false }
+                                .padding(.top, 54)
+                                .padding(.trailing, 16)
+                        }
+                }
+            }
+        }
+
+        /// The 5.2 file bubble in another state.
+        private func fileMessage(_ state: MediaAvailability) -> Message {
+            var message = DesignFixtures.mertMessages(english: false).first { $0.id == "m1" }!
+            message.mediaAvailability = state
+            return message
+        }
+
+        /// A photo of a pick from “+” while it is prepared, or after preparing it failed.
+        private func outgoingPhoto(_ state: MediaAvailability) -> Message {
+            var message = Message(
+                id: "gallery.photo.\(state)", direction: .outgoing, sentAt: DesignFixtures.referenceDate,
+                content: .photo(.designArtwork(.nightPier), caption: nil),
+                status: state == .preparationFailed ? .failed : .sending)
+            message.mediaAvailability = state
+            return message
+        }
+
+        /// A video sent from “+” while it is prepared, or after preparing it failed.
+        private func outgoingVideo(_ state: MediaAvailability) -> Message {
+            var message = Message(
+                id: "gallery.video.\(state)", direction: .outgoing, sentAt: DesignFixtures.referenceDate,
+                content: .video(.designArtwork(.sunsetVideo), duration: 18, byteCount: 0),
+                status: state == .preparationFailed ? .failed : .sending)
+            message.mediaAvailability = state
+            return message
         }
 
         private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

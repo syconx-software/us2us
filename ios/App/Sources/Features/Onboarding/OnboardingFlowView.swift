@@ -24,9 +24,12 @@ private struct OnboardingFlowHost: View {
     init(appModel: AppModel) {
         let flow = OnboardingFlowModel(
             messenger: appModel.messenger,
-            onFinished: { [weak appModel] in appModel?.didFinishOnboarding() })
-        if appModel.onboardingEntry == .newCodeAfterRestore {
-            flow.continueAfterRestore()
+            onFinished: { [weak appModel] in appModel?.didFinishOnboarding() },
+            onReturnToLock: { [weak appModel] in appModel?.returnToLock() })
+        switch appModel.onboardingEntry {
+        case .newCodeAfterRestore: flow.continueAfterRestore()
+        case .restoreFromBackup: flow.startRestore()
+        case .welcome: break
         }
         var focuses = true
         #if DEBUG

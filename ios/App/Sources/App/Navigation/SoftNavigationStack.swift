@@ -60,6 +60,15 @@ final class U2Router<Route: Hashable & Sendable> {
         animate("pop") { self.entries.removeAll() }
     }
 
+    /// Pops back to the topmost `route`, with every screen above it, in one
+    /// soft pop (2.3 → 2.1). Nothing happens when `route` is not below the top.
+    func pop(to route: Route) {
+        guard let index = entries.lastIndex(where: { $0.route == route && !$0.isLeaving }),
+            index < entries.count - 1
+        else { return }
+        animate("pop") { self.entries.removeSubrange((index + 1)...) }
+    }
+
     /// Replaces the top screen. `animated: false` swaps in one frame — for a
     /// screen that has already morphed into the one replacing it (4.4
     /// “Kabul et” → 5.1).

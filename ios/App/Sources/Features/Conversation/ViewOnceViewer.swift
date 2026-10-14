@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// 5.6 · Tek görüntülemelik — the full-screen viewer for view-once media
-/// (and, without the view-once parts, for an ordinary photo or video poster).
+/// only (ordinary photos open in `MediaViewer`, videos in `VideoPlayerScreen`).
 ///
 /// Always dark, whatever the theme. The photo fills the screen under a top
 /// shade (190, `#05060c@70%` → clear) and a bottom shade (220, clear →
@@ -23,7 +23,6 @@ struct ViewOnceViewer: View {
     @State private var showsScreenshotWarning: Bool
     @State private var isCaptured: Bool
     @Environment(\.locale) private var locale
-    @Environment(\.u2Clock) private var clock
 
     init(
         item: ConversationViewModel.ViewerItem, themeScheme: ColorScheme, onScreenshot: @escaping () -> Void,
@@ -44,13 +43,7 @@ struct ViewOnceViewer: View {
             ZStack(alignment: .top) {
                 media
                     .ignoresSafeArea()
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 190).background(Color.u2.mediaTopShade)
-                    Spacer(minLength: 0)
-                    Color.clear.frame(height: 220).background(Color.u2.mediaBottomShade)
-                }
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
+                MediaViewerShades()
                 VStack(spacing: 0) {
                     topBar
                     if showsScreenshotWarning {
@@ -114,21 +107,10 @@ struct ViewOnceViewer: View {
     // MARK: Top bar
 
     private var topBar: some View {
-        HStack(alignment: .center, spacing: 12) {
-            U2GlassIconButton(.x, glyphSize: 21, surface: .media, label: Text("a11y.close"), action: onClose)
-                .environment(\.colorScheme, themeScheme)
-                .accessibilityIdentifier("viewer.close")
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: item.sender)
-                    .u2Font(.monoUsername)
-                    .foregroundStyle(Color.u2.onMedia)
-                    .lineLimit(1)
-                Text(verbatim: sentLine)
-                    .u2Font(.meta)
-                    .foregroundStyle(Color.u2.onMedia.opacity(0.75))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        MediaViewerTopBar(
+            sender: item.sender, sentAt: item.sentAt, themeScheme: themeScheme, closeIdentifier: "viewer.close",
+            onClose: onClose
+        ) {
             if isViewOnce {
                 Text("viewOnce.badge", table: .conversation)
                     .u2Font(.monoMeta, matchLineBox: false)
@@ -140,17 +122,6 @@ struct ViewOnceViewer: View {
                         Capsule().strokeBorder(Color.u2.onMedia.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])))
             }
         }
-        .padding(.horizontal, 16)
-        .u2Top(56)
-    }
-
-    /// “Bugün 18:40” today, otherwise “8 Eki 18:40”.
-    private var sentLine: String {
-        let time = U2Format.clockTime(item.sentAt, locale: locale)
-        if Calendar.current.isDate(item.sentAt, inSameDayAs: clock.now) {
-            return StringTable.conversation.string("viewOnce.today \(time)", locale: locale)
-        }
-        return "\(U2Format.dayMonth(item.sentAt, locale: locale)) \(time)"
     }
 
     // MARK: Screenshot warning

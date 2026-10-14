@@ -37,6 +37,42 @@
         }
       }
     },
+    "access.card.subtitle": {
+      "comment": "4.1 card subtitle: 7.1 explains and has “Şimdi kontrol et”.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayrıntılar ve yeniden kontrol için dokun"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap for details and to check again"
+          }
+        }
+      }
+    },
+    "access.card.title": {
+      "comment": "4.1 card (proposed), only after a restore whose token rotation the server never answered (PROTOCOL §5.5 step 3.4); opens 7.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefonun erişimi kapanmamış olabilir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your old phone may still have access"
+          }
+        }
+      }
+    },
     "list.empty": {
       "comment": "4.1 empty list (proposed copy).",
       "extractionState": "manual",
@@ -163,6 +199,78 @@
         }
       }
     },
+    "newChat.invalid.characters": {
+      "comment": "4.2 result for a name that breaks a username rule (PROTOCOL §3.1): nobody can have it, so it is not searched. After “·” the rule, as on 2.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid username · Only lower-case letters, digits and underscore."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz kullanıcı adı · Yalnızca küçük harf, rakam ve alt çizgi."
+          }
+        }
+      }
+    },
+    "newChat.invalid.firstLetter": {
+      "comment": "4.2 result for a name that breaks a username rule (PROTOCOL §3.1): nobody can have it, so it is not searched. After “·” the rule, as on 2.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid username · Must start with a letter."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz kullanıcı adı · Harfle başlamalı."
+          }
+        }
+      }
+    },
+    "newChat.invalid.tooLong": {
+      "comment": "4.2 result for a name that breaks a username rule (PROTOCOL §3.1): nobody can have it, so it is not searched. After “·” the rule, as on 2.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid username · At most 24 characters."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz kullanıcı adı · En fazla 24 karakter."
+          }
+        }
+      }
+    },
+    "newChat.invalid.turkish": {
+      "comment": "4.2 result for a name that breaks a username rule (PROTOCOL §3.1): nobody can have it, so it is not searched. After “·” the rule, as on 2.1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid username · Turkish characters can't be used."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz kullanıcı adı · Türkçe karakter kullanılamaz."
+          }
+        }
+      }
+    },
     "newChat.notFound": {
       "comment": "4.2 not found (proposed).",
       "extractionState": "manual",
@@ -267,6 +375,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesaj yaz"
+          }
+        }
+      }
+    },
+    "preview.avatar.none": {
+      "comment": "4.4 after “Profil resmini göster” found no picture for the sender.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No profile picture."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil resmi yok."
+          }
+        }
+      }
+    },
+    "preview.avatar.show": {
+      "comment": "4.4 text button under the profile block: fetches the sender's profile picture once (never automatically, PROTOCOL §8.9).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show picture"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil resmini göster"
+          }
+        }
+      }
+    },
+    "preview.avatar.show.hint": {
+      "comment": "VoiceOver hint of “Profil resmini göster” on 4.4.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gets the sender's profile picture once. The server sees that you looked at this account's picture; it's never loaded on its own before you accept."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderenin profil resmini bir kez getirir. Sunucu, bu hesabın resmine baktığını görür; kabul etmeden önce resim kendiliğinden yüklenmez."
+          }
+        }
+      }
+    },
+    "preview.avatar.show.note": {
+      "comment": "4.4: the line under “Profil resmini göster” (the fetch tells the relay who probably sent the request, PROTOCOL §9).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server sees that you looked at this account's picture."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu, bu hesabın resmine baktığını görür."
+          }
+        }
+      }
+    },
+    "preview.avatar.shown.a11y": {
+      "comment": "4.4: VoiceOver announcement after “Profil resmini göster” found a picture; follows the username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile picture shown"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil resmi gösteriliyor"
           }
         }
       }
@@ -512,7 +710,7 @@
       }
     },
     "requests.block.message": {
-      "comment": "4.3/4.4 block confirmation message (proposed).",
+      "comment": "Block confirmation message of 4.3/4.4 and of the contact screen (proposed).",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -530,7 +728,7 @@
       }
     },
     "requests.block.title %@": {
-      "comment": "4.3/4.4 block confirmation (proposed). %@ = username.",
+      "comment": "Block confirmation of 4.3/4.4 and of the contact screen (proposed). %@ = username.",
       "extractionState": "manual",
       "localizations": {
         "en": {

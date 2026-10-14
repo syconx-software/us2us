@@ -34,6 +34,10 @@ public protocol PasteboardWriting: AnyObject {
 /// * Sensitive values (safety numbers, codes, usernames shown for sharing)
 ///   expire after ``sensitiveLifetime`` and are also cleared when the app
 ///   locks, but only if the pasteboard still holds what we put there.
+/// * A value copied to be pasted into another app (`.handOff`: the
+///   generated backup password, for a password manager) expires after
+///   ``sensitiveLifetime`` too, but is left in place when the app leaves the
+///   foreground — which is exactly when it is pasted.
 /// * Text from disappearing or view-once messages is never copied (the UI
 ///   disables the action; ``copy(_:sensitivity:)`` refuses `.forbidden`).
 @MainActor
@@ -43,6 +47,10 @@ public final class SecurePasteboard {
         case ordinary
         /// Codes and numbers: local only, expires after ``sensitiveLifetime``.
         case sensitive
+        /// Copied to be pasted into another app (the generated backup
+        /// password): local only, expires after ``sensitiveLifetime``, and
+        /// not cleared by ``clearIfOwned()`` (leaving the app, locking).
+        case handOff
         /// Never copied (disappearing / view-once content).
         case forbidden
     }
@@ -71,11 +79,13 @@ public final class SecurePasteboard {
         switch sensitivity {
         case .forbidden: return false
         case .ordinary: lifetime = Self.ordinaryLifetime
-        case .sensitive: lifetime = Self.sensitiveLifetime
+        case .sensitive, .handOff: lifetime = Self.sensitiveLifetime
         }
         pasteboard.setItems(
             [[UTType.utf8PlainText.identifier: text]], localOnly: true, expiresAt: now().addingTimeInterval(lifetime))
-        ownedChangeCount = pasteboard.changeCount
+        // A hand-off is meant to outlive this app's foreground: only its
+        // expiry removes it.
+        ownedChangeCount = sensitivity == .handOff ? nil : pasteboard.changeCount
         return true
     }
 

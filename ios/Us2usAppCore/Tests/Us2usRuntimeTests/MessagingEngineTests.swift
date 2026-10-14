@@ -1,4 +1,5 @@
 import Foundation
+import LibSignalClient
 import Testing
 import Us2usKit
 import Us2usStorage
@@ -158,6 +159,10 @@ struct InboundTests {
         let fixture = try EngineFixture()
         let peer = try fixture.acceptedContact()
         await fixture.start()
+        let previous = IdentityKeyPair.generate().identityKey
+        let current = IdentityKeyPair.generate().identityKey
+        let shown = Data("the new number".utf8)
+        fixture.backend.setIdentity(.changed(previous: previous, current: current), number: shown, for: peer)
         try await fixture.receive(.textMessage("new phone"), from: peer, identityChanged: true)
         let items = try await fixture.messages(peer)
         #expect(items.contains { $0.body == .notice(.safetyNumberChanged) })
@@ -165,7 +170,7 @@ struct InboundTests {
         await settle()
         // The receipt and the message wait until the user accepts the new number.
         #expect(fixture.backend.sent(to: peer).isEmpty)
-        try await fixture.engine.acceptSafetyNumberChange(peer)
+        #expect(try await fixture.engine.acceptSafetyNumberChange(peer, shownNumber: shown))
         try await eventually("sent after accepting") {
             fixture.backend.sent(to: peer).contains { $0.data?.text.body == "are you sure?" }
         }
@@ -652,5 +657,178 @@ struct LocalActionTests {
             try await fixture.engine.updateUserSettings { $0.displayName = "after lock" }
         }
         #expect(reopened.load().settings.displayName == "Gizli Ad")
+    }
+}
+
+@Suite("Built-in stickers (§8.8)")
+struct StickerLanguageTests {
+    @Test func aStickerKeepsTheLanguageItWasShownInOnTheWireAndAfterAResend() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        let id = try await fixture.engine.send(
+            .sticker(packId: "us2us.words", stickerId: 103, emoji: "🫂", lang: "en"), to: peer)
+        try await eventually { try await fixture.messages(peer).first?.status == .sent }
+        guard case .sticker(let wire)? = fixture.backend.sent(to: peer).last(where: { $0.data?.messageID == id })?
+            .data?.payload
+        else {
+            Issue.record("no sticker sent")
+            return
+        }
+        #expect(wire.packID == "us2us.words")
+        #expect(wire.stickerID == 103)
+        #expect(wire.emoji == "🫂")
+        #expect(wire.lang == "en")
+        guard case .sticker(let ours)? = try await fixture.messages(peer).first?.body else {
+            Issue.record("no sticker bubble")
+            return
+        }
+        #expect(ours.lang == "en")
+        // Sent again as new: the copy keeps the language.
+        let copy = try await fixture.engine.resend(id, peer: peer)
+        #expect(copy != id)
+        try await eventually { fixture.backend.sent(to: peer).contains { $0.data?.messageID == copy } }
+        guard case .sticker(let again)? = fixture.backend.sent(to: peer).last(where: { $0.data?.messageID == copy })?
+            .data?.payload
+        else {
+            Issue.record("no copy sent")
+            return
+        }
+        #expect(again.lang == "en")
+        await fixture.engine.stop()
+    }
+
+    @Test func aWordlessStickerSendsNoLanguage() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        try await fixture.engine.send(.sticker(packId: "us2us.cups", stickerId: 1, emoji: "👋"), to: peer)
+        try await eventually { fixture.backend.sent(to: peer).contains { $0.data != nil } }
+        guard case .sticker(let wire)? = fixture.backend.sent(to: peer).last(where: { $0.data != nil })?.data?.payload
+        else {
+            Issue.record("no sticker sent")
+            return
+        }
+        #expect(wire.lang.isEmpty)
+        // An empty `lang` is not serialized: the bytes are those of a build without field 5.
+        let bare = BRPSticker.with {
+            $0.packID = "us2us.cups"
+            $0.stickerID = 1
+            $0.emoji = "👋"
+        }
+        #expect(try (wire.serializedBytes() as Data) == (bare.serializedBytes() as Data))
+        await fixture.engine.stop()
+    }
+
+    @Test func anOverlongLanguageIsRefused() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        await #expect(throws: EngineError.tooLarge) {
+            try await fixture.engine.send(
+                .sticker(
+                    packId: "us2us.words", stickerId: 101, emoji: "👋",
+                    lang: String(repeating: "a", count: OutgoingContent.maxStickerLangLength + 1)), to: peer)
+        }
+        #expect(try await fixture.messages(peer).isEmpty)
+        await fixture.engine.stop()
+    }
+
+    @Test func recentsAreKeptEncryptedAndBounded() async throws {
+        let fixture = try EngineFixture()
+        await fixture.start()
+        let ids = (1...14).map { "\(100 + $0).tr" } + ["", String(repeating: "x", count: 40), "101.tr"]
+        try await fixture.engine.setRecentStickers(ids)
+        let kept = await fixture.engine.recentStickers()
+        #expect(kept == (1...12).map { "\(100 + $0).tr" })
+        await fixture.engine.stop()
+        let file = fixture.directory.directories.runtime.appendingPathComponent(RuntimeStateFile.fileName)
+        let bytes = try Data(contentsOf: file)
+        #expect(bytes.range(of: Data("101.tr".utf8)) == nil)
+        let reopened = try RuntimeStateFile(directory: fixture.directory.directories.runtime, dek: fixture.key)
+        #expect(reopened.load().recentStickers == kept)
+    }
+
+    @Test func notingARecentPutsItFirstOnceAndKeepsTheBound() async throws {
+        let fixture = try EngineFixture()
+        await fixture.start()
+        try await fixture.engine.setRecentStickers((1...12).map { "\(100 + $0).tr" })
+        try await fixture.engine.noteRecentSticker("105.tr")
+        try await fixture.engine.noteRecentSticker("1.-")
+        let kept = await fixture.engine.recentStickers()
+        #expect(kept.prefix(2) == ["1.-", "105.tr"])
+        #expect(kept.count == MessagingEngine.maxRecentStickers)
+        #expect(Set(kept).count == kept.count)
+        #expect(!kept.contains("112.tr"))
+        await fixture.engine.stop()
+    }
+
+    @Test func resendingAnOldTextStickerSendsItsCatalogSuccessor() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        // As builds up to 1.0.5 stored it: the words in `emoji`.
+        let id = try await fixture.engine.send(.sticker(packId: "us2us.text", stickerId: 0, emoji: "tamam!"), to: peer)
+        try await eventually { try await fixture.messages(peer).first?.status == .sent }
+        let copy = try await fixture.engine.resend(id, peer: peer)
+        #expect(copy != id)
+        try await eventually { fixture.backend.sent(to: peer).contains { $0.data?.messageID == copy } }
+        guard case .sticker(let again)? = fixture.backend.sent(to: peer).last(where: { $0.data?.messageID == copy })?
+            .data?.payload
+        else {
+            Issue.record("no copy sent")
+            return
+        }
+        #expect(again.packID == "us2us.words")
+        #expect(again.stickerID == 109)
+        #expect(again.emoji == "👌")
+        #expect(again.lang.isEmpty)
+        await fixture.engine.stop()
+    }
+
+    @Test func aStickerCanAnswerAMessage() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        let target = try await fixture.engine.send(.text("geliyor musun?"), to: peer)
+        let id = try await fixture.engine.send(
+            .sticker(packId: "us2us.mood", stickerId: 301, emoji: "☕"), to: peer,
+            quote: QuoteInfo(targetMessageId: target, previewText: "geliyor musun?"))
+        try await eventually { fixture.backend.sent(to: peer).contains { $0.data?.messageID == id } }
+        let data = try #require(fixture.backend.sent(to: peer).last(where: { $0.data?.messageID == id })?.data)
+        #expect(data.hasQuote)
+        #expect(data.quote.targetMessageID == target)
+        await fixture.engine.stop()
+    }
+
+    @Test func aReceivedStickerCarriesItsLanguageOrNone() async throws {
+        let fixture = try EngineFixture()
+        let peer = try fixture.acceptedContact()
+        await fixture.start()
+        let withWords = BRPSticker.with {
+            $0.packID = "us2us.words"
+            $0.stickerID = 101
+            $0.emoji = "👋"
+            $0.lang = "tr-TR"
+        }
+        let older = BRPSticker.with {
+            $0.packID = "us2us.text"
+            $0.emoji = "tamam!"
+        }
+        try await fixture.receive(.data(.sticker(withWords)), from: peer)
+        try await fixture.receive(.data(.sticker(older)), from: peer)
+        let stickers = try await fixture.messages(peer).compactMap { item -> StickerInfo? in
+            if case .sticker(let info) = item.body { return info }
+            return nil
+        }
+        #expect(stickers.count == 2)
+        // As received: the app reads the primary subtag (§8.8).
+        let words = try #require(stickers.first { $0.packId == "us2us.words" })
+        #expect(words.stickerId == 101)
+        #expect(words.lang == "tr-TR")
+        let legacy = try #require(stickers.first { $0.packId == "us2us.text" })
+        #expect(legacy.lang.isEmpty)
+        #expect(legacy.emoji == "tamam!")
+        await fixture.engine.stop()
     }
 }

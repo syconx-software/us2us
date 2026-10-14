@@ -6,7 +6,7 @@
  * the page cannot know the visitor's.
  */
 
-import { SITE_SCRIPT, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
+import { ICON_LINKS_HTML, SITE_SCRIPT, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
 import { ICONS, type IconName } from './icons'
 import { LICENCES_ANCHOR, notFoundText, paths, SECURITY_ANCHOR, site } from './site'
 
@@ -29,7 +29,7 @@ export function notFoundPage(assetVersion: string): string {
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="${THEME_COLOR}">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+${ICON_LINKS_HTML}
 <link rel="stylesheet" href="${withVersion(STYLESHEET, assetVersion)}">
 <script type="module" src="${withVersion(SITE_SCRIPT, assetVersion)}"></script>
 </head>
@@ -56,12 +56,14 @@ export function notFoundPage(assetVersion: string): string {
 <footer class="site-footer"><div class="container footer-inner"><div class="hr"></div>
 <nav class="footer-row" aria-label="${en.footer.label}">
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
+<a class="footer-link" href="${paths.en.why}">${en.nav.why}</a>
 <a class="footer-link" href="${paths.en.privacy}">${en.footer.privacy}</a>
 <a class="footer-link" href="${paths.en.privacy}#${SECURITY_ANCHOR.en}">${en.footer.security}</a>
 <a class="footer-link" href="${paths.en.support}">${en.footer.press}</a>
 <a class="footer-link" href="${paths.en.support}">${en.footer.contact}</a>
 <a class="footer-link footer-legal" href="${paths.en.support}#${LICENCES_ANCHOR.en}">${en.footer.licence}</a>
 </nav>
+<p class="footer-fine">${en.footer.noTracking}</p>
 </div></footer>
 </body>
 </html>

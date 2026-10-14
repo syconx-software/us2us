@@ -122,9 +122,17 @@ private struct ConversationColumn: View {
                 isArriving: arriving.contains(row.id), isGrowing: growing.contains(row.id), reduceMotion: reduceMotion,
                 viewModel: viewModel)
         }
+        let verifyPrompt = viewModel.showsVerifyPrompt
         // Spacing 0 everywhere: each row carries the 6 pt gap above it, so a
         // row that grows in or collapses takes its gap along.
         return VStack(spacing: 0) {
+            // An unverified chat starts with the prompt to compare the
+            // safety number; it scrolls away with the history.
+            if verifyPrompt {
+                ConversationVerifyPrompt(chatID: viewModel.chatID)
+                    .padding(.bottom, displayed.isEmpty ? 0 : 2 * U2Spacing.bubbleGap)
+                    .transition(.opacity)
+            }
             // The history: lazy — any length costs only what is on screen.
             LazyVStack(spacing: 0) {
                 ForEach(displayed[..<split]) { makeRow($0, false) }
@@ -271,7 +279,8 @@ private struct RowSlot: View {
 
     var body: some View {
         let content = ConversationMessageRow(
-            row: row, isLifted: isLifted, capturesFrame: capturesFrame, replacing: replacing, viewModel: viewModel
+            row: row, isLifted: isLifted, capturesFrame: capturesFrame, replacing: replacing, isNew: isLive,
+            viewModel: viewModel
         )
         .equatable()
         .padding(.top, isFirst ? 0 : U2Spacing.bubbleGap)

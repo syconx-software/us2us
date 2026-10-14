@@ -64,6 +64,7 @@ struct IconTile: View {
     var cornerRadius: CGFloat = U2Radius.iconTile
     var glyphSize: CGFloat = 18
     var tone: Tone = .accent
+    var glyphWeight: PhosphorWeight = .regular
 
     enum Tone {
         case accent
@@ -83,7 +84,7 @@ struct IconTile: View {
             Group {
                 switch content {
                 case .glyph(let glyph):
-                    PhosphorIcon(glyph, size: glyphSize)
+                    PhosphorIcon(glyph, weight: glyphWeight, size: glyphSize)
                 case .faceID:
                     FaceIDGlyph(size: glyphSize, lineWidth: 1.8)
                 }

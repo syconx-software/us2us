@@ -51,6 +51,7 @@ public final class LocalStorage: @unchecked Sendable {
     private let lock = NSLock()
     private var cachedProtocolStore: PersistentProtocolStore?
     private var cachedAccountId: AccountId?
+    private var accountWasSaved = false
 
     /// The result of opening: the storage and what was wiped on the way.
     public struct Opened: Sendable {
@@ -138,7 +139,19 @@ public final class LocalStorage: @unchecked Sendable {
     /// Persists `LocalAccount` inside the database (pass to `Messenger` as
     /// its `AccountSaver`).
     public var accountSaver: AccountSaver {
-        { [self] account in try write { try $0.account.save(account) } }
+        { [self] account in
+            try write { try $0.account.save(account) }
+            lock.withLock { accountWasSaved = true }
+        }
+    }
+
+    /// Whether ``accountSaver`` committed an account through this instance:
+    /// a durable fact (the write transaction committed), known even when the
+    /// database can no longer be read (closed, an I/O error). A setup that
+    /// fails afterwards must keep the vault — the saved token may be the
+    /// account's only credential (PROTOCOL §5.5).
+    public var hasSavedAccount: Bool {
+        lock.withLock { accountWasSaved }
     }
 
     func ownAccountId(_ connection: SQLiteConnection) throws -> AccountId {

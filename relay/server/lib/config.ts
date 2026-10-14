@@ -22,6 +22,15 @@ export interface RateLimits {
   pow: Rate
   register: Rate
   directory: Rate
+  /** `GET /v1/accounts/{id}/avatar` per account; a `304` counts (§4.11). */
+  avatarFetch: Rate
+  /** `PUT /v1/accounts/me/avatar` (publishing a record), per account (§4.11). */
+  avatarWrite: Rate
+  /**
+   * `DELETE /v1/accounts/me/avatar` per account, a budget of its own (§4.11): turning
+   * "Show in search" off must not wait for a day of picture changes.
+   */
+  avatarDelete: Rate
   keyFetch: Rate
   send: Rate
   ephemeral: Rate
@@ -172,6 +181,9 @@ export function loadConfig(source: Env = process.env): RelayConfig {
       pow: env.rate('RATE_LIMIT_POW', { limit: 30, windowMs: MINUTE }),
       register: env.rate('RATE_LIMIT_REGISTER', { limit: 5, windowMs: HOUR }),
       directory: env.rate('RATE_LIMIT_DIRECTORY', { limit: 60, windowMs: HOUR }),
+      avatarFetch: env.rate('RATE_LIMIT_AVATAR_FETCH', { limit: 60, windowMs: HOUR }),
+      avatarWrite: env.rate('RATE_LIMIT_AVATAR_WRITE', { limit: 30, windowMs: DAY }),
+      avatarDelete: env.rate('RATE_LIMIT_AVATAR_DELETE', { limit: 200, windowMs: DAY }),
       keyFetch: env.rate('RATE_LIMIT_KEY_FETCH', { limit: 120, windowMs: HOUR }),
       send: env.rate('RATE_LIMIT_SEND', { limit: 600, windowMs: MINUTE }),
       ephemeral: env.rate('RATE_LIMIT_EPHEMERAL', { limit: 3000, windowMs: MINUTE }),

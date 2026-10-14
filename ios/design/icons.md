@@ -9,6 +9,7 @@ Not Phosphor:
 * **Face ID glyph** — custom 24×24 stroke path, `icons/custom/face-id.svg` (`M2 7V5a3 3 0 0 1 3-3h2M17 2h2a3 3 0 0 1 3 3v2M22 17v2a3 3 0 0 1-3 3h-2M7 22H5a3 3 0 0 1-3-3v-2M8.5 9v1.5M15.5 9v1.5M12 9v4.5h-1M9 16.5c1.7 1.3 4.3 1.3 6 0`, round caps/joins). Stroke width varies by size: 56 pt @ 1.3 (3.1 disc), 30 pt @ 1.6 (keypad key), 22 pt @ 1.7 (2.3 card), 18 pt @ 1.8 (settings tile). Scale the stroke with the glyph: stroke = value × size/24 in pt. Prefer this over SF Symbol `faceid` (the design draws its own).
 * **Line mark** (two rings + bar), **waveform** (31 rounded bars, 2.4 wide, pitch 4.4, 28 high), **status-bar glyphs** (system) and the **QR code** (generated) are drawn in code — see inventory C20, 5.1.
 * `text-aa` appears only on the 9.3 design note card — do not bundle.
+* **Media control glyphs** (proposed states of 5.1 / 5.2 / 5.6 — the video and voice players, downloads, generic files, the voice recorder; not drawn in the design file): `pause`, `stop` (fill), `speaker-high`, `speaker-x`, `download-simple`, `file`, `caret-up` (regular). Drawn in code on Phosphor's 256-unit grid with its 16-unit round strokes (`MediaGlyph` in the app), so they match the bundled set without adding assets.
 
 | icon | weight | sizes (pt) | screens | where / meaning | glyph |
 |---|---|---|---|---|---|
@@ -18,7 +19,7 @@ Not Phosphor:
 | `caret-left` | regular | 20, 21, 22 | 2.1, 2.2, 2.3, 4.3, 4.4, 5.1, 5.2, 5.3, 6.1, 7.1, 7.2, 8.2, 9.2 | back buttons (22 setup, 21 nav, 20 chat header) | U+E138 |
 | `caret-right` | regular | 15 | 3.3, 4.1, 4.2, 7.1, 8.1, 9.1 | row chevrons, `text·40%` (15) | U+E13A |
 | `chat-circle-dots` | regular | 18 | 7.2 | backup contents “Mesajlar” tile (18) | U+E16C |
-| `check` | regular | 14, 15, 16, 17 | 1.2, 2.3, 4.1, 5.1, 5.3, 5.4, 7.3, 8.1, 8.2, 9.1, 9.2 | status “Gönderildi/Sent” (14–17); checkbox tick (16, `bg` on `accent`); restore step done (15, `online`) | U+E182 |
+| `check` | regular | 14, 15, 16, 17, 18 | 1.2, 2.3, 4.1, 5.1, 5.3, 5.4, 7.2, 7.3, 8.1, 8.2, 9.1, 9.2 | status “Gönderildi/Sent” (14–17); checkbox tick (16, `bg` on `accent`); restore step done (15, `online`); 7.2 backup contents rows and “Kopyalandı” (18); 5.1 “Yeni güvenlik numarası kabul edildi” system line (14, proposed) | U+E182 |
 | `check-circle` | regular | 16 | 2.1 | “bulunur / found” in the exact-match example (16, `online`) | U+E184 |
 | `checks` | regular | 15, 17, 18 | 1.2, 4.1, 5.1, 5.4, 7.1, 8.1, 8.2, 9.1, 9.2 | status “İletildi/Delivered” (15–17); “Okundu bilgisi” settings tile (18) | U+E53A |
 | `circle` | regular | 15 | 7.3 | restore step pending (15) | U+E18A |
@@ -26,7 +27,7 @@ Not Phosphor:
 | `circle-notch` | regular | 15 | 7.3 | restore step in progress — rotates (15); proposed generic spinner | U+EB44 |
 | `clock` | regular | 14 | 6.3 | verified-at pill (14) | U+E19A |
 | `cloud-slash` | regular | 21 | 2.3 | “Kod sunucuya hiç gönderilmez” (21) | U+E1B6 |
-| `copy` | regular | 19 | 5.3 | “Kopyala” in the action menu (19) | U+E1CA |
+| `copy` | regular | 18, 19 | 5.3, 7.2 | “Kopyala” in the action menu (19); copy the generated backup password (18) | U+E1CA |
 | `dots-three` | regular | 20, 21 | 4.3, 4.4 | overflow buttons on requests / request preview (21 / 20) | U+E1FE |
 | `export` | regular | 20 | 7.2 | “Dışa aktar” button (20) | U+EAF0 |
 | `eye` | regular | 20 | 7.2 | reveal password (20) | U+E220 |
@@ -45,13 +46,13 @@ Not Phosphor:
 | `navigation-arrow` | regular | 15 | 4.1, 5.2, 8.1, 9.1 | live location (15) in list preview and bubble | U+EADE |
 | `note-pencil` | regular | 21 | 4.1, 8.1, 9.1 | new-chat button on the chat list (21, `accent300`) | U+E34C |
 | `paper-plane-tilt` | regular | 20 | 4.2 | “Mesaj yaz” button (20); proposed send button in the composer | U+E398 |
-| `password` | regular | 18, 20 | 3.1, 7.1 | “Kodla aç” button (20); “Gizli kodu değiştir” tile (18) | U+E752 |
+| `password` | regular | 18, 20 | 3.1, 7.1, 7.2 | “Kodla aç” button (20); “Gizli kodu değiştir” tile (18); 7.2 “Hesabın” tile and “Güçlü parola oluştur” (18) | U+E752 |
 | `plus` | regular | 18, 22 | 5.1, 5.2, 5.3, 8.2, 9.2 | composer attach (22); “more reactions” (18) | U+E3D4 |
 | `prohibit` | regular | 15, 16, 21 | 2.3, 4.1, 5.2, 8.1, 9.1 | “Kod sıfırlama yok” (21, `danger`); deleted-message tombstone (15/16) | U+E3DE |
-| `qr-code` | regular | 18, 20, 21 | 4.1, 4.2, 6.2, 7.1, 8.1, 9.1 | QR entry points: chat list (21), “Kodumu göster” tile (18), scanner pill (18), profile card (20) | U+E3E6 |
+| `qr-code` | regular | 14, 18, 20, 21 | 4.1, 4.2, 5.1, 6.2, 7.1, 8.1, 9.1 | QR entry points: chat list (21), “Kodumu göster” tile (18), scanner pill (18), profile card (20), 5.1 “Doğrulanmadı · QR ile doğrula” pill (14, proposed) | U+E3E6 |
 | `scan` | regular | 18, 20 | 4.2, 6.1 | “QR kodla ekle” tile (18); “QR kodu okut” button (20) | U+EBB6 |
 | `share-network` | regular | 21 | 6.1 | share safety number (21) | U+E408 |
-| `shield-check` | regular | 22 | 4.3 | requests privacy banner (22) | U+E40C |
+| `shield-check` | regular | 18, 22 | 4.3, 7.2 | requests privacy banner (22); 7.2 “Kimlik anahtarın” tile (18) | U+E40C |
 | `sticker` | regular | 15, 21 | 4.1, 5.1, 5.2, 8.1, 8.2, 9.1, 9.2 | sticker preview in list (15); composer sticker button (21) | U+E5AC |
 | `timer` | regular | 13, 15, 18, 21 | 1.3, 4.1, 5.1, 5.2, 5.3, 7.1, 8.1, 8.2, 9.1, 9.2 | disappearing messages: list (15), bubble badge (13), composer (21), feature list (18), settings tile (18) | U+E492 |
 | `translate` | regular | 18 | 7.1 | “Dil” settings tile (18) | U+E4A2 |
@@ -59,7 +60,7 @@ Not Phosphor:
 | `trash-simple` | regular | 19 | 5.3 | “Benden sil” (19) | U+E4A8 |
 | `tray` | regular | 18, 21 | 4.1, 4.2, 8.1, 9.1 | message requests (21 tile on the list, 18 in 4.2 info row) | U+E4AA |
 | `warning` | regular | 13, 18 | 4.3, 7.2 | “Bağlantı içeriyor” flag (13, `danger`); backup-password warning (18, `accent300`) | U+E4E0 |
-| `warning-circle` | regular | 15, 17, 22 | 1.2, 4.1, 5.4, 8.1, 9.1 | status “İletilemedi/Not delivered” (15–17, `danger`); 5.4 note (22) | U+E4E2 |
+| `warning-circle` | regular | 14, 15, 17, 18, 22 | 1.2, 4.1, 5.1, 5.4, 6.1, 8.1, 9.1 | status “İletilemedi/Not delivered” (15–17, `danger`); 5.4 and 6.1 notes (22); 5.1 “Güvenlik numarası değişti” system line (14) and composer banner (18, `danger`, proposed) | U+E4E2 |
 | `x` | regular | 17, 21 | 5.4, 5.6, 6.2, 6.3, 7.3 | close buttons (21; 17 in sheets) | U+E4F6 |
 | `x-circle` | regular | 16 | 2.1 | “bulunamaz / not found” in the exact-match example (16, `danger`) | U+E4F8 |
 | `check-circle` | fill | 20, 22 | 2.1, 4.2, 7.3 | positive field state: username available, user found, backup/password OK (20–22, `online`) | U+E184 |
@@ -67,7 +68,7 @@ Not Phosphor:
 | `ghost` | fill | 12, 16, 18 | 4.1, 5.1, 8.1, 9.1 | Ghost **urgent** (< 1 h): list pill (12), header chip (16), banner (18) — `danger` | U+E62A |
 | `map-pin` | fill | 24 | 5.2 | location bubble pin (24, `accent300`, drop shadow) | U+E316 |
 | `play` | fill | 15, 19 | 5.1, 5.2, 8.2, 9.2 | voice message play (15), video play (19) | U+E3D0 |
-| `seal-check` | fill | 14, 15, 22 | 4.1, 5.1, 6.3, 8.1, 8.2, 9.1, 9.2 | verified badge: list (14), chat header (15), verified seal on the line (22) — `accent` | U+E606 |
+| `seal-check` | fill | 14, 15, 18, 22 | 4.1, 5.1, 6.3, 7.2, 8.1, 8.2, 9.1, 9.2 | verified badge: list (14), chat header (15), verified seal on the line (22) — `accent`; 7.2 “Kişilerin” tile (18) | U+E606 |
 | `x-circle` | fill | 20 | 4.2 | clear the search field (20, `text·40%`) | U+E4F8 |
 
 Total: 57 glyph/weight combinations.

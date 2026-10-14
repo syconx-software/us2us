@@ -14,6 +14,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import okhttp3.Cache
+import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -28,7 +30,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -266,6 +270,60 @@ class RelayClientTest {
     }
 
     @Test
+    fun `media downloads report their progress after every 64 KiB and at the end`() = runBlocking {
+        val mediaId = ByteArray(16) { 4 }
+        val blob = ByteArray(200_000) { it.toByte() }
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(blob)).build())
+        server.enqueue(MockResponse.Builder().code(206).body(Buffer().write(ByteArray(10) { 6 })).build())
+
+        val received = CopyOnWriteArrayList<Long>()
+        val sink = ByteArrayOutputStream()
+        assertEquals(200_000, anonymous.downloadMedia(mediaId, sink) { received += it })
+        assertArrayEquals(blob, sink.toByteArray())
+        // Never backwards, one report per 64 KiB, and the whole blob last.
+        assertEquals(received.sorted(), received.toList())
+        assertEquals(200_000 / (64 * 1024) + 1, received.size)
+        assertEquals(200_000L, received.last())
+
+        // A resumed download counts the bytes it already had.
+        val resumed = CopyOnWriteArrayList<Long>()
+        assertEquals(10, anonymous.downloadMedia(mediaId, ByteArrayOutputStream(), offset = 990) { resumed += it })
+        assertEquals(listOf(1000L), resumed.toList())
+    }
+
+    @Test
+    fun `token rotation sends the client's new token and leaves the client's own token alone`() = runBlocking {
+        val old = AuthToken(ByteArray(32) { 0x22 })
+        val fresh = AuthToken(ByteArray(32) { (it * 7).toByte() })
+        server.enqueue(noContent())
+        assertEquals(fresh, authed.rotateAuthToken(fresh, authenticatingWith = old))
+        val rotation = take()
+        assertEquals("POST", rotation.method)
+        assertEquals("/v1/accounts/me/token", rotation.url.encodedPath)
+        assertEquals(old.headerValue, rotation.headers["X-Auth-Token"])
+        assertEquals(fresh.headerValue, rotation.jsonBody()["newAuthToken"]?.jsonPrimitive?.content)
+
+        // A relay that predates client-chosen tokens answers with its own: that one is the account's now.
+        val chosen = AuthToken(ByteArray(32) { 0x11 })
+        server.enqueue(json(200, """{"authToken":"${chosen.headerValue}"}"""))
+        assertEquals(chosen, anonymous.rotateAuthToken(fresh, authenticatingWith = old))
+        assertEquals(old.headerValue, take().headers["X-Auth-Token"])
+
+        server.enqueue(json(401, """{"error":{"code":"unauthorized","message":"no"}}"""))
+        assertEquals(401, assertThrows<RelayException> { runBlocking { anonymous.rotateAuthToken(fresh, authenticatingWith = old) } }.httpStatus)
+        take()
+        // An answer that names no usable token leaves the outcome unknown.
+        server.enqueue(json(200, """{"authToken":"AAAA"}"""))
+        assertThrows<IOException> { runBlocking { anonymous.rotateAuthToken(fresh, authenticatingWith = old) } }
+        take()
+
+        // The client's own token is untouched.
+        server.enqueue(json(200, """{"oneTimePreKeys":1,"kyberOneTimePreKeys":1}"""))
+        authed.keyStatus()
+        assertEquals(token.headerValue, take().headers["X-Auth-Token"])
+    }
+
+    @Test
     fun `websocket delivers frames in order and sends acks`() = runBlocking {
         val received = LinkedBlockingQueue<String>()
         server.enqueue(
@@ -319,6 +377,72 @@ class RelayClientTest {
         val failed = events.single() as SocketEvent.Failed
         assertEquals(401, failed.httpStatus)
         assertFalse(failed.isRetryable)
+    }
+
+    @Test
+    fun `avatar writes carry the record or the version, and a stale one learns the highest`() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(204).addHeader("ETag", "\"3\"").build())
+        server.enqueue(json(409, """{"error":{"code":"stale_version","message":"stale"}}""", "X-Avatar-Version" to "7"))
+        server.enqueue(noContent())
+
+        val record = ByteArray(8192) { it.toByte() }
+        authed.putAvatar(record)
+        val stale = assertThrows<RelayException> { runBlocking { authed.deleteAvatar(5) } }
+        assertEquals(RelayErrorCode.STALE_VERSION, stale.code)
+        assertEquals(409, stale.httpStatus)
+        assertEquals(7L, stale.avatarVersion)
+        authed.deleteAvatar(Long.MAX_VALUE)
+        assertThrows<IllegalArgumentException> { runBlocking { authed.deleteAvatar(0) } }
+
+        val put = take()
+        assertEquals("PUT", put.method)
+        assertEquals("/v1/accounts/me/avatar", put.url.encodedPath)
+        assertEquals(token.headerValue, put.headers["X-Auth-Token"])
+        assertEquals("application/octet-stream", put.headers["Content-Type"])
+        assertEquals("8192", put.headers["Content-Length"])
+        assertArrayEquals(record, put.body!!.toByteArray())
+        assertEquals("5", take().headers["X-Avatar-Version"])
+        val delete = take()
+        assertEquals("DELETE", delete.method)
+        assertEquals("/v1/accounts/me/avatar", delete.url.encodedPath)
+        assertEquals(Long.MAX_VALUE.toString(), delete.headers["X-Avatar-Version"])
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun `avatar fetches revalidate, bound the body and never use an HTTP cache`() = runBlocking {
+        val cacheDirectory = kotlin.io.path.createTempDirectory("us2us-cache").toFile()
+        try {
+            // An app that gave the client an HTTP cache, and a relay that wrongly allows caching.
+            val cached = RelayClient(server.url("/").toString(), OkHttpClient.Builder().cache(Cache(cacheDirectory, 1024 * 1024)).build()).withAuthToken(token)
+            val record = ByteArray(8192) { 1 }
+            repeat(2) {
+                server.enqueue(MockResponse.Builder().code(200).addHeader("ETag", "\"4\"").addHeader("Cache-Control", "max-age=3600").body(Buffer().write(record)).build())
+            }
+            server.enqueue(MockResponse.Builder().code(304).addHeader("ETag", "\"4\"").build())
+            server.enqueue(json(404, """{"error":{"code":"not_found","message":"no"}}"""))
+            server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(ByteArray(49153))).build())
+            server.enqueue(json(405, """{"error":{"code":"bad_request","message":"method"}}"""))
+
+            assertArrayEquals(record, (cached.fetchAvatar(peer) as AvatarFetch.Found).record)
+            assertArrayEquals(record, (cached.fetchAvatar(peer) as AvatarFetch.Found).record)
+            assertEquals(AvatarFetch.NotModified, cached.fetchAvatar(peer, ifNoneMatch = 4))
+            assertEquals(AvatarFetch.None, cached.fetchAvatar(peer))
+            assertThrows<java.io.IOException> { runBlocking { cached.fetchAvatar(peer) } }
+            assertEquals(405, assertThrows<RelayException> { runBlocking { cached.fetchAvatar(peer) } }.httpStatus)
+
+            val first = take()
+            assertEquals("GET", first.method)
+            assertEquals("/v1/accounts/$peer/avatar", first.url.encodedPath)
+            assertEquals(token.headerValue, first.headers["X-Auth-Token"])
+            assertNull(first.headers["If-None-Match"])
+            assertNull(take().headers["If-None-Match"], "the second fetch reached the relay, not a cache")
+            assertEquals("\"4\"", take().headers["If-None-Match"])
+            assertEquals(6, server.requestCount)
+            assertEquals(0, cacheDirectory.walk().count { it.isFile && it.length() >= record.size }, "nothing of the record on disk")
+        } finally {
+            cacheDirectory.deleteRecursively()
+        }
     }
 
     private fun dummyRegistration(): RegistrationRequest {

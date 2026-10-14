@@ -22,13 +22,13 @@ const headingOf = (page: string) => textOf(page.match(/<h1\b[\s\S]*?<\/h1>/)![0]
 describe('invite page', () => {
   it('greets in the visitor’s language, with a link to the other one', async () => {
     const cases: Array<[Record<string, string>, string, string]> = [
-      [{ 'accept-language': 'tr-TR,tr;q=0.9,en;q=0.8' }, 'tr', 'us2us’ta @selin.n seninle konuşmak istiyor'],
-      [{ 'accept-language': 'en-GB,en;q=0.9' }, 'en', '@selin.n wants to talk to you on us2us'],
-      [{ 'accept-language': 'de-DE,tr;q=0.5' }, 'tr', 'us2us’ta @selin.n seninle konuşmak istiyor'],
-      [{}, 'en', '@selin.n wants to talk to you on us2us'],
+      [{ 'accept-language': 'tr-TR,tr;q=0.9,en;q=0.8' }, 'tr', 'us2us’ta @selin_n seninle konuşmak istiyor'],
+      [{ 'accept-language': 'en-GB,en;q=0.9' }, 'en', '@selin_n wants to talk to you on us2us'],
+      [{ 'accept-language': 'de-DE,tr;q=0.5' }, 'tr', 'us2us’ta @selin_n seninle konuşmak istiyor'],
+      [{}, 'en', '@selin_n wants to talk to you on us2us'],
     ]
     for (const [headers, lang, heading] of cases) {
-      const response = await get('/u/selin.n', headers)
+      const response = await get('/u/selin_n', headers)
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8')
       expect(response.headers.get('vary')).toBe('accept-language')
@@ -36,10 +36,10 @@ describe('invite page', () => {
       expect(page).toContain(`<html lang="${lang}">`)
       expect(headingOf(page)).toBe(heading)
       const other = lang === 'tr' ? 'en' : 'tr'
-      expect(page).toContain(`href="/u/selin.n?lang=${other}" hreflang="${other}"`)
+      expect(page).toContain(`href="/u/selin_n?lang=${other}" hreflang="${other}"`)
     }
     // The language switch: ?lang= wins over the header.
-    const switched = await (await get('/u/selin.n?lang=en', { 'accept-language': 'tr' })).text()
+    const switched = await (await get('/u/selin_n?lang=en', { 'accept-language': 'tr' })).text()
     expect(switched).toContain('<html lang="en">')
     expect((await get('/u/deniz/')).status).toBe(200)
     expect((await fetch(`${relay.url}/u/deniz`, { method: 'HEAD' })).status).toBe(200)
@@ -72,7 +72,7 @@ describe('invite page', () => {
     const notFound = await (await get('/does/not/exist')).text()
     const paths = [
       '/u/', '/u/ab', `/u/${'a'.repeat(25)}`, '/u/Deniz', '/u/%3Cscript%3E', '/u/de%22niz', '/u/deniz%00', '/u/de%20niz',
-      '/u/deniz/x', '/u/...', '/u/%C5%9Feyma', '/u/deniz;', '/U/deniz', '/u//deniz',
+      '/u/deniz/x', '/u/...', '/u/selin.n', '/u/1ab', '/u/_deniz', '/u/%C5%9Feyma', '/u/deniz;', '/U/deniz', '/u//deniz',
     ]
     for (const path of paths) {
       const response = await get(path)
@@ -86,7 +86,7 @@ describe('invite page', () => {
 
   it('looks the same for every well-formed name, whether or not the account exists', async () => {
     // Nothing is looked up, so a registered-looking name and a random one get the same page.
-    const a = (await (await get('/u/selin.n', { 'accept-language': 'tr' })).text()).replaceAll('selin.n', 'NAME')
+    const a = (await (await get('/u/selin_n', { 'accept-language': 'tr' })).text()).replaceAll('selin_n', 'NAME')
     const b = (await (await get('/u/q9_x7_nobody', { 'accept-language': 'tr' })).text()).replaceAll('q9_x7_nobody', 'NAME')
     expect(a).toBe(b)
   })

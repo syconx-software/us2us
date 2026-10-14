@@ -10,6 +10,11 @@ import { SITE_HEADERS } from '../lib/website'
  * relay state, no database, so the page cannot tell which usernames exist.
  * A malformed name, or any method but GET and HEAD, falls through to the
  * static 404 (server/middleware/not-found.ts runs after this file).
+ *
+ * Every open or link preview of an invite hands this process (the relay's
+ * operator and host) the username in clear, which also unlocks that
+ * account's picture in search (PROTOCOL.md §8.10, §9; docs/INVITES.md).
+ * The name is used for the page only: never logged, stored or looked up.
  */
 export default defineEventHandler((event) => {
   if (event.method !== 'GET' && event.method !== 'HEAD') return

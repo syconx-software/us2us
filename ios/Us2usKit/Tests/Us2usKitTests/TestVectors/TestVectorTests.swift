@@ -28,6 +28,7 @@ struct SwiftVectorGenerationTests {
         case .keyslot: try VectorStore.write(try VectorGenerator.keySlot(), category: category)
         case .item: try VectorStore.write(try VectorGenerator.item(), category: category)
         case .fingerprint: try VectorStore.write(try VectorGenerator.fingerprint(), category: category)
+        case .avatarRecord: try VectorStore.write(try VectorGenerator.avatarRecord(), category: category)
         }
         let failures = try VectorVerifier.verify(generator: "swift", category)
         #expect(failures.isEmpty, "\(failures)")
@@ -54,6 +55,15 @@ struct SwiftVectorGenerationTests {
         #expect(Set(vaults.map(\.iterations)) == [1000, VaultFormat.defaultIterations])
         let passwords = try VectorGenerator.backupPassword()
         #expect(Set(passwords.map(\.problem)) == [nil, "too_short", "common", "repeated", "sequence"])
+
+        // Avatar records: every size edge, a version above 2^32, one tampered record.
+        let records = try VectorGenerator.avatarRecord()
+        #expect(Set(records.filter(\.valid).map { $0.record.count / 2 }) == Set(AvatarRecord.sizes))
+        #expect(Set(records.map { $0.profileAvatar.count / 2 }).isSuperset(of: [8150, 8151, 16342, 16343, 32726, 32727, 49110]))
+        #expect(records.contains { (UInt64($0.version) ?? 0) > UInt64(UInt32.max) })
+        #expect(records.contains { !$0.valid })
+        let contentCases = Set(ContentCases.all.map(\.name))
+        #expect(contentCases.isSuperset(of: ContentCases.newestCases))
     }
 }
 
@@ -96,4 +106,6 @@ struct KotlinVectorVerificationTests {
     @Test(.enabled(if: VectorStore.exists(generator: "kotlin", .item))) func item() throws { try verify(.item) }
     @Test(.enabled(if: VectorStore.exists(generator: "kotlin", .fingerprint)))
     func fingerprint() throws { try verify(.fingerprint) }
+    @Test(.enabled(if: VectorStore.exists(generator: "kotlin", .avatarRecord)))
+    func avatarRecord() throws { try verify(.avatarRecord) }
 }

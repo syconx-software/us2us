@@ -2,12 +2,17 @@
 
 The *blind relay* of [us2us](https://us2us.app): it stores and forwards
 end-to-end encrypted envelopes, hands out pre-key bundles and keeps encrypted
-media blobs for at most 14 days. It cannot read content, does not learn who
-sends sealed messages, and never sees usernames, contacts, profiles or
-locations. There are no push notifications (PROTOCOL.md §1, §4.8): the relay
+media blobs for at most 14 days. It cannot read content or the sender inside
+a sealed envelope, stores usernames only as hashes, and never receives contact
+lists, display names or locations. The one piece of a profile it may hold is
+the profile picture of a user who leaves "Show in search" on, stored
+encrypted under the username: anyone who knows or guesses the username, the
+relay included, can open it. Opening or previewing an invite link
+(`/u/<name>`, served by this process) tells it that username in clear. What
+it can still see or infer is in PROTOCOL.md §9. There are no push notifications (PROTOCOL.md §1, §4.8): the relay
 holds no device tokens and talks to no third party; phones receive while the
 app is open. The same process serves the small public website (`/tr`, `/en`,
-privacy policy, support).
+privacy policy, support, "why we built it").
 
 The contract is [`docs/PROTOCOL.md`](../docs/PROTOCOL.md) (§4 is the relay
 API). This README covers running it. [Türkçe özet aşağıda.](#türkçe)
@@ -17,6 +22,7 @@ API). This README covers running it. [Türkçe özet aşağıda.](#türkçe)
 - [Local development](#local-development)
 - [Tests](#tests)
 - [Migrations](#migrations)
+- [Dependencies](#dependencies)
 - [Deploying on Ubuntu 24.04](#deploying-on-ubuntu-2404)
 - [Backups](#backups)
 - [Configuration reference](#configuration-reference)
@@ -37,14 +43,16 @@ operation is a few indexed queries at most.
 | `server/db/schema.ts` | The schema; binary values are `BINARY`/`VARBINARY`/`MEDIUMBLOB`, times are UTC milliseconds |
 | `drizzle/` | Generated, committed SQL migrations |
 | `app/`, `public/` | The website (see [Website](#website)): static pages rendered at build time plus our own small stylesheet and scripts, nothing from other origins. The production server has no Vue renderer (`noVueServer`); every other path gets one static 404 page (`server/middleware/not-found.ts`, markup in `app/content/not-found.ts`) |
-| `deploy/` | systemd unit, nginx site, MySQL setup |
+| `deploy/` | systemd unit, pm2 app, nginx site, MySQL setup |
 
 Things worth knowing:
 
 - **Online fast path.** An envelope for a recipient with an open WebSocket is
   sent from memory and written to MySQL only if it is not acknowledged within
-  `WS_ACK_TIMEOUT_MS` (10 s), when the socket closes, or on shutdown. Two
-  online users chatting cause no database writes. An envelope for an offline
+  `WS_ACK_TIMEOUT_MS` (10 s), when the socket closes, or on shutdown, and at
+  the latest 30 s after that timeout would first have run out, however often
+  the recipient reconnects. Two online users chatting cause no database
+  writes. An envelope for an offline
   recipient goes to the same persister, which writes it a moment later (in
   batches); a recipient that connects first gets it live. Either way a send
   is answered once the envelope is in memory, so its timing does not tell a
@@ -61,8 +69,13 @@ Things worth knowing:
   mailbox fetch) running at once.
 - **Storage limits.** One mailbox holds at most `MAILBOX_MAX_ENVELOPES` /
   `MAILBOX_MAX_BYTES` (10 000 / 50 MiB); further sends get `429` until the
-  recipient acknowledges. Below `DISK_MIN_FREE_MB` of free disk, uploads and
-  stored envelopes get `503`. These are counted in memory since start-up.
+  recipient acknowledges. Envelopes still in memory (fast path or persister)
+  count like stored ones. Stored rows are counted in MySQL once, at
+  start-up, for all mailboxes together (sends arriving meanwhile wait for
+  that count; if it fails, they get `503` and the next send counts again),
+  so a send never reads the mailbox, whoever it is for. Above
+  128 MiB of envelopes in memory, or below `DISK_MIN_FREE_MB` of free disk,
+  stored envelopes get `503` (uploads too, for the disk).
 - **Failed tokens.** Every `401` counts against the client address
   (`RATE_LIMIT_AUTH_FAIL`, 30/min, §4.11); an address over the limit gets
   `429` for all its authenticated requests and WebSocket upgrades before
@@ -98,11 +111,13 @@ Things worth knowing:
 ## Website
 
 `/tr` and `/en` (plus `/tr/gizlilik`, `/en/privacy`, `/tr/destek`,
-`/en/support`) follow the us2us web design ("us2us Web", Nocturne design
-system). All text, both languages, is in `app/content/site.ts`; the pages
-are Vue components in `app/components/` rendered once at build time. The
-privacy policy follows PROTOCOL.md §4.10 and §9 (including the known
-limits), the "no notifications" texts `docs/copy/no-push.md`.
+`/en/support`, `/tr/neden-yaptik`, `/en/why-we-built-it`) follow the us2us
+web design ("us2us Web", Nocturne design system). All text, both languages,
+is in `app/content/site.ts`, except the "why we built it" statement, which
+has its own `app/content/why.ts`; the pages are Vue components in
+`app/components/` rendered once at build time. The privacy policy follows
+PROTOCOL.md §4.10 and §9 (including the known limits), the "no
+notifications" texts `docs/copy/no-push.md`.
 
 - **Nothing from other origins.** Fonts (Inter, Doto, Martian Mono; latin and
   latin-ext woff2 from Google Fonts, SIL OFL, licences next to them) are in
@@ -145,10 +160,38 @@ limits), the "no notifications" texts `docs/copy/no-push.md`.
   content fits between the header and the bottom of the smallest viewport
   (`.is-pinned`, set by site.js). Our own JavaScript stays under 36 KB
   (about 11 KB compressed; a test checks it).
+- **Motion (not in the design, in its language).** Calm and short, and only
+  with `prefers-reduced-motion: no-preference`; only transform and opacity
+  move (small controls also fade their colours), so nothing shifts the
+  layout. The hero, the invite page and the first lines of the privacy,
+  support and 404 pages rise in line by line (CSS, so they always finish;
+  the hero's full stop lands last). Further down, site.js hides only blocks
+  that are still below the fold (`.reveal`, `.rv`) and lets each rise in
+  once as it is scrolled to (IntersectionObserver; blocks arriving together
+  follow each other by 70 ms; headings' full stops land last, eyebrows draw
+  their dots, the band's wire is drawn from end to end, the example QR code
+  is scanned once). Link targets (anything with an id, such as `#beta` or
+  `#guvenlik`) only fade, never rise, so an anchor link lands exactly
+  under the header. Without JavaScript or with reduced motion nothing is
+  ever hidden. The 3D scene fades up as its camera settles in (1.6 s). The
+  theme toggle cross-fades the page (view transitions) and turns its icon;
+  cards lift slightly and light an accent ring on hover (pointer devices
+  only); section and footer links grow a dotted underline; the current
+  status grows its accent mark. The dot grid and the hero's copy have a
+  subtle parallax where the browser runs scroll-driven animations. Section
+  links glide as before; focus moves to the target at once, so the skip
+  link and an interrupted glide leave keyboard users in the right place.
 - **Departures from the design (on purpose).** The store buttons are not
   links and carry a "Yakında / Coming soon" tag (on screens under 600 px it
   sits on the button's top edge, so both buttons keep the design's size);
-  the CTA says "Yakında / Coming soon" too. While stepping through the statuses, the inactive ones fade
+  the CTA says "Yakında / Coming soon" too. Under both sets of buttons (and
+  on the invite page) a mono line with a breathing accent dot says where the
+  app is today: a closed iOS beta on TestFlight, by invitation. The support
+  page opens with notes for beta testers (no going back to a build older
+  than 1.0.5, keep the backup and its password, how to report bugs, and
+  security problems to `security@us2us.app`), as cards in the features'
+  style with a danger tone for the warning; every footer ends with a
+  fine-print line saying the site uses no cookies or trackers. While stepping through the statuses, the inactive ones fade
   only their icon and turn their text a muted colour that keeps WCAG AA,
   instead of the whole row at 40% opacity. The light theme raises the muted
   text steps (66/60/55% → 76/74/72%) and uses `#5d5294` for small accent
@@ -157,9 +200,42 @@ limits), the "no notifications" texts `docs/copy/no-push.md`.
   more compact (20 px padding, 112 px QR, 11.5 px digits), where the design
   cut off the third digit column. Controls keep the design's size, with
   invisible ~44 px touch targets. The footer ends with the licence note.
+- **"Why we built it" (not in the design).** The SyconX team's statement,
+  laid out as a press release in the privacy page's frame (`WhyPage.vue`):
+  eyebrow, headline, standfirst, dateline, sections with pull quotes, a
+  calm close that links only to our own pages (the beta notes, the privacy
+  policy, the licences), an "About SyconX" box with the press contact, and
+  numbered sources. `[n]` in the text becomes a mark that links to source n,
+  and each source links back to where it is first cited. Marks and back
+  links are footnote jumps: site.js leaves them to the browser's own, quicker
+  scroll (not its slow glide), the source lights up as the `:target`, and the
+  way back lands with a few lines of text above the mark. A word joiner
+  keeps each mark on the line of the word before it. The sources are
+  the only links to other sites anywhere on the site; they open in the same
+  tab with `rel="noopener noreferrer"`, and nothing is ever loaded from
+  them. The page's link preview has its own text (`social`, the Open Graph
+  description) next to the meta description. `test/unit/why-copy.test.ts`
+  checks the text's mechanics (the same sections in both languages, every
+  source cited in both and numbered in the order the text first cites it,
+  quotations under 15 words, no placeholders, only our own pages linked
+  inline). The header links to the page at every width from 360px (on
+  phones under a short label, "Neden?" / "Why?", while screen readers get
+  the full one); the landing page's four section links join it from 1000px
+  (the design showed them from 860px; with the fifth, English, link they
+  need about 990px). It is also the footer's first link.
+- **Icons.** `favicon.svg` is the us2us mark on the app icon's ground (a
+  navy rounded square, so it reads on light and dark tabs); at 24px and
+  smaller it draws the line thicker, so it lands on whole pixels at 16px.
+  `favicon.ico` holds 16, 32 and 48px renders of it for browsers without SVG
+  icons (`sizes="32x32"` keeps Chrome on the SVG), and
+  `apple-touch-icon.png` is the iOS app icon at 180px. Every page names all
+  three (`ICON_LINKS` in `app/content/assets.ts`). There is no web app
+  manifest (the CSP has no `manifest-src`).
 - `test/integration/website.test.ts` checks both languages, the copy,
   the CSP and headers, caching, content types, the 404 page, the fonts,
-  and that no built HTML, CSS, JS or SVG file names another origin.
+  the icons, the "why we built it" page and its sources, and that no built
+  HTML, CSS, JS or SVG file names another origin (the sources of that page
+  aside, as links).
 
 ## Local development
 
@@ -228,6 +304,46 @@ with `pnpm db:migrate` (drizzle-kit, using `DATABASE_URL`; run it with the
 `us2us_migrate` user). MySQL DDL is not transactional, so take a backup
 before migrating production. Stay on drizzle-orm 0.45 / drizzle-kit 0.31.
 
+## Dependencies
+
+`pnpm run audit` (`pnpm audit --audit-level=low`) checks `pnpm-lock.yaml`
+against the registry's advisories and fails on every one that is not
+recorded below. `scripts/deploy-relay.sh` runs it before it uploads
+anything, so a new advisory stops the deploy (`US2US_SKIP_AUDIT=1` skips the
+check, e.g. while the registry cannot be reached).
+
+None of the advisories handled here reaches the running relay:
+`.output/server` holds only mysql2, drizzle-orm and their dependencies. They
+are in the build and development tools that `pnpm install` puts next to it,
+on the production host too (see [Hardening still to
+do](#hardening-still-to-do)).
+
+`pnpm.overrides` in `package.json` replaces vulnerable versions with fixed
+ones. Each override applies only where a package asks for a vulnerable
+range, so it does nothing once upstream requires a fixed version:
+
+| Override | Advisories | Why it is safe | Remove when |
+|---|---|---|---|
+| `@nuxt/devtools>simple-git@<4.0.2` → 4.0.2 | GHSA-x6jw-m9v5-85vh, GHSA-g4wm-2vf7-vfgr, GHSA-858h-whjf-mvg5 | @nuxt/devtools 3.4 asks for simple-git ^3.36, but devtools is off (`nuxt.config.ts`) and never loaded | a stable @nuxt/devtools depends on simple-git ≥ 4.0.2 |
+| `simple-git>@simple-git/argv-parser@<2.0.1` → 2.0.1 | GHSA-v5rq-49vh-5v5c | simple-git 4.0.2 already pins 2.0.1; this keeps it that way | together with the simple-git override |
+| `@esbuild-kit/core-utils>esbuild@<0.25.0` → 0.25.12 | GHSA-67mh-4wv8-2f99 (esbuild's dev server) | drizzle-kit 0.31 still depends on the deprecated @esbuild-kit packages but loads TypeScript with its bundled tsx; 0.25.12 is the esbuild it uses anyway | drizzle-kit no longer depends on @esbuild-kit (1.0) |
+
+`pnpm.auditConfig.ignoreGhsas` lists advisories that have no fixed release
+and that our use cannot trigger:
+
+| Advisory | Package (path) | Why it is ignored | Remove when |
+|---|---|---|---|
+| GHSA-86w9-cpqp-85rv | node-forge ≤ 1.4.0 (nuxt → nitropack → listhen) | It concerns RSA PKCS#1 v1.5 signature verification; listhen only creates self-signed certificates for the dev server and verifies nothing | a node-forge release after 1.4.0 exists (then update) |
+| GHSA-vfj7-8cjw-p6xm | braces ≤ 3.0.3 (nitropack → globby → micromatch) | Stack exhaustion through deeply nested patterns; only the build globs, with the project's own fixed patterns | a braces release after 3.0.3 exists (then update) |
+
+Ignore an advisory only by its id, after checking that it cannot be
+triggered here, and add a row to this table; never lower `--audit-level`.
+After changing these settings run `pnpm install` and commit `package.json`
+and `pnpm-lock.yaml` together: the deploy installs with `--frozen-lockfile`.
+pnpm 10 reads them from `package.json`; a pnpm version that reads them only
+from `pnpm-workspace.yaml` needs them moved there (`overrides:`,
+`auditConfig:`).
+
 ## Deploying on Ubuntu 24.04
 
 ### Shared host with pm2 (how relay.us2us.app runs)
@@ -240,19 +356,80 @@ user with a per-user Node 24 (nvm) under pm2, and is updated with
 US2US_DEPLOY_TARGET=<app-user>@<server> US2US_APP_ROOT=/var/www/<app-user> US2US_PORT=<port> scripts/deploy-relay.sh
 ```
 
-The script uploads `relay/` as an immutable release
+The script first runs the dependency audit locally (see
+[Dependencies](#dependencies)), then uploads `relay/` as an immutable release
 (`$US2US_APP_ROOT/releases/<timestamp>`), runs `pnpm install`, `pnpm build`
 and the migrations there, points the `us2us-relay` symlink at it, reloads the
 pm2 app and checks `/v1/health`; if that fails it switches back to the
 previous release. It keeps the newest three releases. Settings and secrets live
 in `~/us2us.env` (mode 600, loaded with `node --env-file`), the pm2 app in
-`$US2US_APP_ROOT/ecosystem.config.cjs` (one process, `kill_timeout` 15 s
-so shutdown can flush in-memory envelopes), and pm2 is started at boot by the
+`$US2US_APP_ROOT/ecosystem.config.cjs` (a copy of
+`deploy/ecosystem.config.cjs`, see [The pm2 app](#the-pm2-app)), and pm2 is started at boot by the
 `pm2-<app-user>` systemd unit (`pm2 startup`). nginx uses `deploy/nginx/us2us.conf` adapted to
 the shared host: the upstream port from `US2US_PORT`, no `http2` flag (on nginx 1.24 it would
 change the shared 443 socket for every site) and a us2us-specific
 `$us2us_connection_upgrade` map variable. The website and the API are served by
 the same process; the API answers only on `relay.us2us.app`.
+
+#### The pm2 app
+
+`deploy/ecosystem.config.cjs` is the version-controlled template of the
+server's `$US2US_APP_ROOT/ecosystem.config.cjs`: one fork-mode process that
+runs the built `.output/server/index.mjs` (never `nuxt dev`) from the
+`us2us-relay` symlink with `node --env-file=~/us2us.env` and
+`NODE_ENV=production`; `kill_timeout` 35 s, above Nitro's 30 s shutdown
+limit, so shutdown can write the envelopes held in memory; a graceful
+restart above 512 MB of memory, so the relay cannot crowd out the other
+sites; and growing restart delays (up to 15 s) while MySQL is unreachable. It needs no editing: the paths follow from
+where the copy lives and from the pm2 user's home directory. `~/us2us.env`
+holds `DATABASE_URL`, `POW_SECRET`, `HOST=127.0.0.1`, `PORT` (the same as
+`US2US_PORT`, which the health check uses), `TRUST_PROXY=1` and `MEDIA_DIR`.
+
+`scripts/deploy-relay.sh` never writes the server's copy. It stops before
+installing anything if the file is missing, prints a note when it differs
+from the template of the release it deploys, and after the reload warns
+when pm2 does not run `.output/server/index.mjs` with
+`NODE_ENV=production`. Installing or updating it is a manual step on the
+server (`pm2 reload` does not pick up a changed `script`, `node_args` or
+`exec_mode`; `pm2 delete` stops the relay gracefully):
+
+```sh
+cd $US2US_APP_ROOT
+diff ecosystem.config.cjs us2us-relay/deploy/ecosystem.config.cjs
+cp us2us-relay/deploy/ecosystem.config.cjs ecosystem.config.cjs
+pm2 delete us2us-relay && pm2 start ecosystem.config.cjs && pm2 save
+pm2 describe us2us-relay   # script path …/.output/server/index.mjs, node env production
+```
+
+Check that the old file has no settings the env file lacks before
+replacing it.
+
+#### Hardening still to do
+
+Recommendations for the shared host, not implemented yet:
+
+- **Build somewhere else.** Every deploy installs the whole build and
+  development toolchain (about 725 packages: Nuxt, Vite, nitropack,
+  drizzle-kit, vitest, TypeScript, with their install scripts) on the shared
+  production host and runs it there, while the running relay needs only the
+  packages in `.output/server/package.json`. Building `.output/` locally or
+  in CI with the server's Node version, uploading only `.output/` and
+  `drizzle/`, and migrating with drizzle-orm's own migrator
+  (`drizzle-orm/mysql2/migrator`, already a runtime dependency) instead of
+  drizzle-kit would keep that toolchain off the server.
+- **A separate database user for migrations.** The deploy runs
+  `drizzle-kit migrate` with the `DATABASE_URL` from `~/us2us.env`, the
+  relay's own credentials, so that user needs schema rights, and drizzle-kit
+  sees every relay secret. `deploy/mysql/setup.sql` intends two users: the
+  running relay as `us2us` with `SELECT, INSERT, UPDATE, DELETE` only (DML),
+  and `us2us_migrate` with the schema rights (DDL) for migrations alone. Keep
+  the migration user's URL in its own file (mode 600, only `DATABASE_URL`)
+  that only the migrate step loads, and take the DDL rights away from the
+  relay's user.
+- **`server_tokens off;` in nginx.** `deploy/nginx/us2us.conf` does not set
+  it, so the `Server` header and nginx's own error pages name the nginx
+  version. Set it in the `http` block of `/etc/nginx/nginx.conf` (all sites
+  of the shared host) or in each us2us `server` block.
 
 ### Dedicated VM with systemd
 
@@ -319,7 +496,10 @@ that way; raise the level only temporarily while debugging.
 one-time pre-keys are short-lived by design; a backup would
 keep ciphertext the relay promised to forget (privacy policy, PROTOCOL.md
 §4.10), and restoring them would re-deliver acknowledged messages and hand out
-one-time keys a second time.
+one-time keys a second time. The `media` table is the only record of which
+blobs exist: the retention sweep deletes any blob file in `MEDIA_DIR` that is
+older than an hour and has no row, so never point a relay at a database other
+than the one its `MEDIA_DIR` belongs to.
 
 What is worth keeping for disaster recovery is the *directory*, so that
 people do not lose their accounts and usernames if the database is lost:
@@ -330,8 +510,11 @@ mysqldump --single-transaction --no-tablespaces us2us accounts usernames \
 find /var/backups/us2us -name 'directory-*' -mtime +7 -delete
 ```
 
-Encrypt them and keep at most 7 days, as the privacy policy says. After a
-restore: one-time pre-keys are gone (clients refill when
+Encrypt them and keep at most 7 days, as the privacy policy says. The
+`avatars` table (pictures in search, PROTOCOL.md §4.12) is deliberately not
+part of it: a backup would keep pictures their owners took out of search.
+After a restore: pictures are missing from search until their owners change
+picture or setting, one-time pre-keys are gone (clients refill when
 `GET /v1/keys/status` reports fewer than 20), mailboxes are empty, and a
 token rotated after the backup is valid again until the account rotates it
 once more.
@@ -356,7 +539,7 @@ stop the relay at startup with a list of every problem.
 | `WS_ACK_TIMEOUT_MS` | 10000 | Fast path: store if not acked within this |
 | `WS_IDLE_TIMEOUT_MS` | 90000 | Drop sockets silent this long |
 | `WS_MAX_FRAME_BYTES` | 32768 | Max client frame |
-| `MEDIA_DIR` | `./.data/media` | Blob directory (256 subdirectories) |
+| `MEDIA_DIR` | `./.data/media` | Blob directory (256 subdirectories), for the relay alone: blob files without a `media` row are deleted |
 | `MEDIA_MAX_BYTES` | 67108864 | Max blob (64 MiB) |
 | `MEDIA_TTL_DAYS` | 14 | Media retention |
 | `DISK_MIN_FREE_MB` | 1024 | Free space floor of `MEDIA_DIR`'s file system; below it uploads and stored envelopes get 503 (0: off) |
@@ -370,6 +553,9 @@ stop the relay at startup with a list of every problem.
 | `RATE_LIMIT_MEDIA_FETCH` | 600/min | per IP, media download and delete |
 | `RATE_LIMIT_WS_CONNECT` | 60/min | per IP |
 | `RATE_LIMIT_DIRECTORY` | 60/hour | per account |
+| `RATE_LIMIT_AVATAR_FETCH` | 60/hour | per account, `GET /v1/accounts/{id}/avatar` (a `304` counts) |
+| `RATE_LIMIT_AVATAR_WRITE` | 30/day | per account, `PUT /v1/accounts/me/avatar` |
+| `RATE_LIMIT_AVATAR_DELETE` | 200/day | per account, `DELETE /v1/accounts/me/avatar`; separate, so a used-up store budget never delays taking a picture out of search |
 | `RATE_LIMIT_KEY_FETCH` | 120/hour | per account |
 | `RATE_LIMIT_MEDIA_UPLOADS` | 60/hour | per account |
 | `RATE_LIMIT_MEDIA_BYTES` | 2147483648/day | per account, bytes |
@@ -388,24 +574,33 @@ limited per /64.
 
 **us2us aktarıcısı** (blind relay), uçtan uca şifreli zarfları saklayıp
 iletir, ön anahtar paketlerini dağıtır ve şifreli dosyaları en fazla 14 gün
-tutar. İçeriği okuyamaz, mühürlü mesajların göndericisini bilmez; kullanıcı
-adlarını, kişileri, profilleri ve konumları hiç görmez. Bildirim (push)
+tutar. İçeriği ve mühürlü bir zarfın içindeki göndereni okuyamaz; kullanıcı
+adlarını yalnızca özet olarak saklar, kişi listelerini, görünen adları ve
+konumları hiç almaz. Tutabileceği tek profil bilgisi, “Aramada göster”
+ayarını açık bırakan kullanıcının profil resmidir; kullanıcı adıyla
+şifrelenmiş olarak saklanır ve kullanıcı adını bilen ya da tahmin eden
+herkes, aktarıcı da dahil, onu açabilir. Bir davet bağlantısının (`/u/<ad>`,
+aynı süreç sunar) açılması ya da önizlenmesi o kullanıcı adını ona açıkça
+bildirir. Yine de görebildikleri ve çıkarabilecekleri
+PROTOCOL.md §9’dadır. Bildirim (push)
 yoktur: aktarıcı cihaz belirteci tutmaz ve hiçbir üçüncü tarafla
 konuşmaz; telefonlar mesajları uygulama açıkken alır. Aynı süreç küçük web sitesini de (`/tr`, `/en`, gizlilik
-politikası, destek) sunar. Site başka hiçbir kaynaktan dosya yüklemez: yazı
+politikası, destek, “Neden yaptık”) sunar. Site başka hiçbir kaynaktan dosya yüklemez: yazı
 tipleri, ikonlar, betikler ve three.js us2us.app üzerinden gelir; JavaScript
 kapalıyken de tamamen okunur (bkz. [Website](#website)). Protokolün tamamı `docs/PROTOCOL.md` dosyasındadır.
 
 **Nasıl çalışır.** Nuxt 4 (Nitro v2), TypeScript ve MySQL (drizzle-orm). Ağır
 işlerin hepsi telefonlarda yapılır. Alıcının WebSocket bağlantısı açıksa zarf
 doğrudan bellekten iletilir; yalnızca `WS_ACK_TIMEOUT_MS` (10 sn) içinde
-onaylanmazsa, bağlantı kapanırsa ya da sunucu kapanırken MySQL'e yazılır.
+onaylanmazsa (alıcı yeniden bağlansa da en geç 40 sn sonra), bağlantı
+kapanırsa ya da sunucu kapanırken MySQL'e yazılır.
 Yani çevrimiçi iki kullanıcının yazışması veritabanına hiç yazmaz. Çevrimdışı
 alıcının zarfı da aynı yoldan, hemen ardından toplu olarak yazılır; bu yüzden
 gönderimin yanıt süresi alıcının çevrimiçi olup olmadığını belli etmez. Geçici
 trafik (yazıyor göstergesi, “aktif” durumu, canlı konum) hiç saklanmaz ve
 yanıtı da bunu belli etmez. Okumayan bir bağlantıya 1 MiB'tan fazla veri
-biriktirilmez; bir posta kutusu en fazla 10 000 zarf / 50 MiB tutar, disk
+biriktirilmez; bir posta kutusu, bellekte bekleyenler dahil en fazla
+10 000 zarf / 50 MiB tutar, disk
 dolmak üzereyken yükleme kabul edilmez. Hatalı `X-Auth-Token` denemeleri IP
 başına dakikada 30 ile sınırlıdır. Tek süreç
 olarak çalışır (cluster kullanmayın). SIGTERM ile kapanırken bağlantıları
@@ -430,6 +625,14 @@ komutta çalıştırır.
 sonra `pnpm db:generate --name aciklama` ile SQL üretin, şemayla birlikte
 commit edin ve `pnpm db:migrate` ile uygulayın (`us2us_migrate` kullanıcısıyla).
 
+**Bağımlılıklar.** `pnpm run audit` kilit dosyasını bilinen güvenlik
+uyarılarına karşı denetler. Şu anki uyarıların hiçbiri çalışan relay'de
+yoktur; hepsi derleme ve geliştirme araçlarındadır. Düzeltmesi olanlar
+`package.json` içindeki `pnpm.overrides` ile kapatılır. Düzeltilmiş sürümü
+henüz çıkmamış ve bizim kullanımımızda tetiklenemeyen iki uyarı (node-forge,
+braces) `pnpm.auditConfig.ignoreGhsas` listesindedir. Gerekçeler ve ne zaman
+kaldırılacakları İngilizce *Dependencies* bölümündedir.
+
 **Canlı sunucuya güncelleme (pm2).** `relay.us2us.app` başka sitelerle aynı
 sunucuda, kendi kullanıcısıyla (nvm ile Node 24) pm2 altında çalışır. Güncelleme
 depo kökünden tek komuttur:
@@ -438,6 +641,15 @@ yeni bir sürüm klasörüne yükler, orada `pnpm install`, `pnpm build` ve
 migration'ları çalıştırır, `us2us-relay` sembolik linkini yeni sürüme çevirir,
 pm2'yi yeniden yükler ve `/v1/health` kontrolü yapar; kontrol başarısızsa önceki
 sürüme geri döner. Ayarlar ve gizli bilgiler `~/us2us.env` dosyasındadır (izin 600).
+Betik, yüklemeden önce yerelde `pnpm run audit` çalıştırır; kayıtlı olmayan
+bir uyarı varsa güncelleme durur (`US2US_SKIP_AUDIT=1` bu adımı atlar).
+pm2 uygulamasının şablonu `deploy/ecosystem.config.cjs` dosyasıdır: tek
+süreç, derlenmiş `.output/server/index.mjs`, `NODE_ENV=production`,
+`kill_timeout` 35 sn, 512 MB bellek sınırı. Sunucudaki kopyayı betik hiçbir
+zaman değiştirmez, yalnızca şablondan farklıysa not düşer; kopyalamak elle
+yapılır. Sunucuda derleme yapmamak, migration'lar için ayrı bir veritabanı
+kullanıcısı ve nginx'te `server_tokens off` önerileri İngilizce *Hardening
+still to do* bölümündedir.
 
 **Ubuntu 24.04 kurulumu.** Node.js 24, pnpm, nginx, certbot ve MySQL kurun.
 `deploy/mysql/us2us.cnf` ile binary log'u kapatın (silinen zarfların

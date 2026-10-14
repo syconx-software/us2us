@@ -45,9 +45,10 @@ enum UsernameFieldStatus: Equatable, Sendable {
 /// status glyph (`ph:check-circle` fill `online` / `ph:x-circle` fill `danger`
 /// / a softly spinning `ph:circle-notch`), or a clear button.
 ///
-/// Input is ASCII lower-case only: no autocorrect, no auto-capitalisation, no
-/// smart punctuation; anything outside `[a-z0-9._]` is filtered while typing
-/// (`UsernameRules.sanitize`).
+/// No autocorrect, no auto-capitalisation, no smart punctuation, ASCII
+/// keyboard. What is typed is shown in lower case (`UsernameRules.displayForm`)
+/// and otherwise kept as it is — nothing is dropped, converted or cut, so a
+/// name that breaks a rule stays visible and the screen says which.
 struct UsernameField: View {
     @Binding var text: String
     var status: UsernameFieldStatus = .none
@@ -64,8 +65,16 @@ struct UsernameField: View {
     /// the design's caret is drawn and the system one hidden. Anywhere else
     /// (the user moved it, or selected text) the system caret shows.
     @State private var caretAtEnd = true
+    /// The name's width and the input's. Nothing typed is cut, so a long
+    /// name (24 characters nearly fill the field) can be wider than the
+    /// input: it scrolls, and the system caret shows where it ends.
+    @State private var textWidth: CGFloat = 0
+    @State private var inputWidth: CGFloat = .infinity
 
     private let style = U2TextStyle.monoInputL
+
+    /// The design's caret: focused, at the end of a name that fits.
+    private var drawsCaret: Bool { isFocused && caretAtEnd && textWidth + 5 <= inputWidth }
 
     var body: some View {
         HStack(spacing: 2) {
@@ -78,8 +87,13 @@ struct UsernameField: View {
                 .accessibilityHidden(true)
             UsernameTextInput(text: $text, prompt: prompt, caretAtEnd: $caretAtEnd)
             .u2Font(style, matchLineBox: false)
+            .background(alignment: .leading) {
+                Text(verbatim: text).u2Font(style, matchLineBox: false).fixedSize().hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { inputWidth = $0 }
             .foregroundStyle(Color.u2.text)
-            .tint(isFocused && caretAtEnd ? Color.clear : Color.u2.accent400)
+            .tint(drawsCaret ? Color.clear : Color.u2.accent400)
             .offset(y: -1)
             .keyboardType(.asciiCapable)
             .textInputAutocapitalization(.never)
@@ -88,14 +102,19 @@ struct UsernameField: View {
             .submitLabel(.continue)
             .focused($isFocused)
             .onSubmit(onSubmit)
-            .onChange(of: text) { _, new in
-                let clean = UsernameRules.sanitize(new)
-                if clean != new { text = clean }
+            .onChange(of: text) {
+                // After the keystroke's own update: a change made inside it
+                // is not always drawn (a lone “K” stayed “K”). Read when it
+                // runs, so a key typed meanwhile is kept.
+                Task { @MainActor in
+                    let shown = UsernameRules.displayForm(text)
+                    if shown != text { text = shown }
+                }
             }
             trailing
         }
         .overlay(alignment: .leading) {
-            if isFocused && caretAtEnd {
+            if drawsCaret {
                 // The design's caret (2 × 24, r1, `accent400`): value end +
                 // gap 2 + margin 1, centred in the field.
                 HStack(spacing: 0) {
@@ -236,7 +255,9 @@ enum PasswordFieldFocus: Hashable {
 /// With an external focus binding, submit label/action, a trailing status,
 /// the ring without focus (the reference state), `.privacySensitive()` and
 /// the eye exactly where it is drawn (x 350). A `SecureField` holds the
-/// text; the dots are drawn over it.
+/// text; the dots are drawn over it. A shown password is hidden again when
+/// the app leaves the foreground, and cannot be shown while `revealAllowed`
+/// is off (the screen is recorded or mirrored).
 struct PasswordField: View {
     enum Trailing: Equatable {
         /// `ph:eye` / `ph:eye-slash` 20 `text·68%` — reveal.
@@ -258,17 +279,22 @@ struct PasswordField: View {
     var isDisabled = false
     var submitLabel: SubmitLabel = .done
     var contentType: UITextContentType = .password
+    /// Off while the screen is recorded or mirrored: the eye does nothing
+    /// and the text stays dots.
+    var revealAllowed = true
     var onSubmit: () -> Void = {}
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isRevealed = false
 
     private var isFocused: Bool { focus.wrappedValue == field }
+    private var showsText: Bool { isRevealed && revealAllowed }
 
     var body: some View {
         let ringVisible = isError || isFocused || isHighlighted
         HStack(spacing: 10) {
             ZStack(alignment: .leading) {
-                if isRevealed {
+                if showsText {
                     TextField(text: $text, prompt: prompt?.foregroundStyle(Color.u2.textPlaceholder)) { Text("a11y.password") }
                         .u2Font(.rowTitle, matchLineBox: false)
                         .foregroundStyle(Color.u2.text)
@@ -315,6 +341,14 @@ struct PasswordField: View {
         .contentShape(Rectangle())
         .onTapGesture { if !isDisabled { focus.wrappedValue = field } }
         .disabled(isDisabled)
+        // Hidden again before the app-switcher snapshot and the lock, and
+        // as soon as a recording or mirroring starts.
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { isRevealed = false }
+        }
+        .onChange(of: revealAllowed) { _, allowed in
+            if !allowed { isRevealed = false }
+        }
     }
 
     @ViewBuilder private var trailingView: some View {
@@ -322,15 +356,17 @@ struct PasswordField: View {
             switch trailing {
             case .reveal:
                 Button {
+                    guard revealAllowed else { return }
                     isRevealed.toggle()
                     focus.wrappedValue = field
                 } label: {
-                    PhosphorIcon(isRevealed ? .eyeSlash : .eye, size: 20)
+                    PhosphorIcon(showsText ? .eyeSlash : .eye, size: 20)
                         .foregroundStyle(Color.u2.textSecondary)
                         .contentShape(Rectangle().inset(by: -12))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isRevealed ? Text("a11y.password.hide") : Text("a11y.password.show"))
+                .disabled(!revealAllowed)
+                .accessibilityLabel(showsText ? Text("a11y.password.hide") : Text("a11y.password.show"))
                 .transition(.u2Fade)
             case .accepted:
                 PhosphorIcon(.checkCircle, weight: .fill, size: 20)
@@ -356,8 +392,8 @@ struct PasswordField: View {
 /// Unlike `UsernameField` (2.1, the user's *own* name) the keyboard may offer
 /// nothing here: no `.username` content type (that would put the user's *own* saved
 /// logins in the QuickType bar), no suggestions, no autocorrection, no
-/// auto-capitalisation, ASCII keyboard, “Ara” return key. Input is filtered to
-/// `[a-z0-9._]` while typing.
+/// auto-capitalisation, ASCII keyboard, “Ara” return key. The text is never
+/// rewritten: the lookup normalizes it (`UsernameRules.normalize`).
 struct UsernameSearchField: View {
     @Binding var text: String
     var isSearching = false
@@ -403,10 +439,6 @@ struct UsernameSearchField: View {
                 .submitLabel(.search)
                 .focused($isFocused)
                 .onSubmit(onSubmit)
-                .onChange(of: text) { _, new in
-                    let clean = UsernameRules.sanitize(new)
-                    if clean != new { text = clean }
-                }
                 .accessibilityIdentifier("newChat.field")
             }
             #if DEBUG
@@ -513,7 +545,7 @@ struct BlinkingCaret: View {
 
 #Preview("Text fields") {
     struct Demo: View {
-        @State private var username = "selin.n"
+        @State private var username = "selin_n"
         @State private var search = "deniz"
         @State private var password = "correct horse"
         @FocusState private var focus: PasswordFieldFocus?

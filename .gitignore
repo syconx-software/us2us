@@ -83,3 +83,7 @@ ios/design/source/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Android Studio signed bundles
+android/app/release/
+*.aab

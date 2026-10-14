@@ -50,8 +50,15 @@ struct UsernameHashBody: Codable, Sendable {
     let usernameHash: Data
 }
 
+/// What a relay that predates client-chosen tokens answers to a rotation
+/// (`200`, the deprecated form of §4.3).
 struct AuthTokenResponse: Codable, Sendable {
     let authToken: Data
+}
+
+/// `POST /v1/accounts/me/token`: the token the client chose and stored (§4.3).
+struct AuthTokenRotationBody: Codable, Sendable {
+    let newAuthToken: Data
 }
 
 /// `PUT /v1/accounts/me/access-key`; `null` disables access-key delivery, so

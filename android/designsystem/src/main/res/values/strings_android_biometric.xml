@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy: biometric unlock. Android never names Face ID or Touch ID; a phone may have a
+     fingerprint sensor, face unlock or both, so the wording is platform-neutral. Used in place of the
+     catalogues' lock.faceID.*, lock.touchID.*, a11y.keypad.faceID, onboarding.noWayBack.faceID/touchID
+     and settings.faceID.* texts. -->
+<resources>
+    <!-- 3.1 disc, the keypad's biometric key, 2.3 card, 7.1 row. -->
+    <string name="android_biometric_unlock">Unlock with biometrics</string>
+    <!-- 3.1 status line while the system prompt is up. -->
+    <string name="android_biometric_unlocking">Unlocking with biometrics</string>
+    <!-- The system prompt's subtitle on the lock. -->
+    <string name="android_biometric_reason">Uses your fingerprint or face to unlock us2us.</string>
+    <!-- 7.1 › the switch turned on: the system prompt's subtitle. -->
+    <string name="android_biometric_confirm_reason">Confirm it\'s you to unlock us2us with biometrics.</string>
+    <!-- 7.1 › the switch could not be turned on. -->
+    <string name="android_biometric_unavailable">Couldn\'t turn on biometrics.</string>
+    <!-- 7.1 › the switch turned on while the vault key needs the code once: the page's title. -->
+    <string name="android_biometric_enable_title">Enter your code for biometrics</string>
+    <!-- …and the toast on 7.1 afterwards. -->
+    <string name="android_biometric_enabled_toast">Biometric unlock is on.</string>
+</resources>

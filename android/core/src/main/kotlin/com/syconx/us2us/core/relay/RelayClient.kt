@@ -101,10 +101,37 @@ class RelayClient private constructor(
     suspend fun changeUsername(usernameHash: ByteArray) =
         executeNoContent(put(url("v1", "accounts", "me", "username"), json(UsernameChangeRequest(usernameHash))))
 
-    /** Rotates the auth token; the current one stops working immediately. */
-    suspend fun rotateAuthToken(): AuthToken {
-        val response: TokenResponse = execute(post(url("v1", "accounts", "me", "token"), EMPTY_BODY))
-        return AuthToken.parse(response.authToken)
+    /**
+     * One `POST /v1/accounts/me/token` with `{"newAuthToken"}` (§4.3), authenticated with
+     * [authenticatingWith] instead of this client's token: the caller has stored [newToken] before and decides from the
+     * answer which token the account has (§5.5 step 3). Never the deprecated empty body, whose lost
+     * answer loses the account.
+     *
+     * @return the account's token now: [newToken] on `204`. A relay that predates client-chosen
+     *   tokens ignores the body and answers `200` with a token it chose; that one is returned then,
+     *   since it is the only one that works.
+     * @throws RelayException `401` when [authenticatingWith] is not (or no longer) the account's token, `400`
+     *   when the relay refused [newToken] and changed nothing.
+     */
+    suspend fun rotateAuthToken(newToken: AuthToken, authenticatingWith: AuthToken): AuthToken {
+        val request = Request.Builder()
+            .url(url("v1", "accounts", "me", "token"))
+            .header(AUTH_HEADER, authenticatingWith.headerValue)
+            .post(json(TokenRotationRequest(newToken.toBytes())))
+            .build()
+        return http.newCall(request).await().use { response ->
+            response.throwIfError()
+            if (response.code == HTTP_NO_CONTENT) return@use newToken
+            val text = withContext(Dispatchers.IO) { response.body.readUtf8(MAX_JSON_RESPONSE_BYTES) }
+                ?: throw IOException("relay response exceeds $MAX_JSON_RESPONSE_BYTES bytes")
+            try {
+                AuthToken.parse(RelayJson.decodeFromString<TokenResponse>(text).authToken)
+            } catch (e: SerializationException) {
+                throw IOException("malformed relay response", e)
+            } catch (e: IllegalArgumentException) {
+                throw IOException("malformed relay response", e)
+            }
+        }
     }
 
     /** Publishes `SHA-256(accessKey)`, or disables access-key delivery with `null`. */
@@ -230,9 +257,18 @@ class RelayClient private constructor(
      *
      * @param maxBytes the most this download may write; a longer response is cut off with an
      *   [IOException] instead of filling the disk. Recipients know the exact blob size (§7).
+     * @param progress hears how many bytes of the blob are here so far ([offset] included): after
+     *   every 64 KiB and once at the end, never backwards. Called on a background thread; keep it
+     *   cheap.
      * @return the number of bytes written to [sink].
      */
-    suspend fun downloadMedia(mediaId: ByteArray, sink: OutputStream, offset: Long = 0, maxBytes: Long = Long.MAX_VALUE): Long {
+    suspend fun downloadMedia(
+        mediaId: ByteArray,
+        sink: OutputStream,
+        offset: Long = 0,
+        maxBytes: Long = Long.MAX_VALUE,
+        progress: ((Long) -> Unit)? = null,
+    ): Long {
         require(offset >= 0) { "offset must not be negative" }
         require(maxBytes >= 0) { "maxBytes must not be negative" }
         val builder = Request.Builder().url(url("v1", "media", Base64Url.encode(mediaId))).get()
@@ -247,6 +283,7 @@ class RelayClient private constructor(
             withContext(Dispatchers.IO) {
                 val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
                 var written = 0L
+                var nextReport = DOWNLOAD_PROGRESS_STEP
                 response.body.byteStream().use { input ->
                     while (true) {
                         ensureActive()
@@ -255,8 +292,13 @@ class RelayClient private constructor(
                         if (written + n > maxBytes) throw IOException("media is larger than expected")
                         sink.write(buffer, 0, n)
                         written += n
+                        if (progress != null && written >= nextReport) {
+                            progress(offset + written)
+                            nextReport = (written / DOWNLOAD_PROGRESS_STEP + 1) * DOWNLOAD_PROGRESS_STEP
+                        }
                     }
                 }
+                progress?.invoke(offset + written)
                 written
             }
         }
@@ -270,6 +312,55 @@ class RelayClient private constructor(
             .delete()
             .build()
         executeNoContent(request, anonymous = true)
+    }
+
+    // §4.12. Never through an HTTP cache: a picture from search stays in memory or the encrypted
+    // store only (§8.10), so these requests use a client without one, whatever [http] has.
+
+    /**
+     * Stores the account's avatar record (built by `AvatarRecord.seal`); its header carries the
+     * version, which must be above the account's highest.
+     *
+     * @throws RelayException `409` [RelayErrorCode.STALE_VERSION] with [RelayException.avatarVersion]
+     *   when the version is not above the highest; `404` or `405` from a relay without avatars.
+     */
+    suspend fun putAvatar(record: ByteArray) =
+        executeNoContent(put(url("v1", "accounts", "me", "avatar"), record.toRequestBody(OCTET_STREAM)), uncached = true)
+
+    /**
+     * Deletes the account's avatar record with [version] (1..2^63 − 1, above the highest); also
+     * succeeds when nothing is stored.
+     *
+     * @throws RelayException as [putAvatar].
+     */
+    suspend fun deleteAvatar(version: Long) {
+        require(version >= 1) { "avatar versions are 1..2^63 - 1" }
+        val request = request(url("v1", "accounts", "me", "avatar")).header(AVATAR_VERSION_HEADER, version.toString()).delete().build()
+        executeNoContent(request, uncached = true)
+    }
+
+    /**
+     * Fetches [accountId]'s avatar record. With [ifNoneMatch], the version of a cached copy, an
+     * unchanged record is answered [AvatarFetch.NotModified]. No record, no such account and a relay
+     * without avatars are all [AvatarFetch.None]. The body is not interpreted here.
+     *
+     * @throws IOException if the relay sends more than a record's 48 KiB.
+     */
+    suspend fun fetchAvatar(accountId: AccountId, ifNoneMatch: Long? = null): AvatarFetch {
+        val builder = request(url("v1", "accounts", accountId.toString(), "avatar")).get()
+        if (ifNoneMatch != null) builder.header("If-None-Match", "\"$ifNoneMatch\"")
+        return uncachedHttp.newCall(builder.build()).await().use { response ->
+            when (response.code) {
+                HTTP_NOT_MODIFIED -> AvatarFetch.NotModified
+                HTTP_NOT_FOUND -> AvatarFetch.None
+                else -> {
+                    response.throwIfError()
+                    val record = withContext(Dispatchers.IO) { response.body.readBytes(MAX_AVATAR_RECORD_BYTES) }
+                        ?: throw IOException("avatar record exceeds $MAX_AVATAR_RECORD_BYTES bytes")
+                    AvatarFetch.Found(record)
+                }
+            }
+        }
     }
 
     // Plumbing
@@ -297,6 +388,9 @@ class RelayClient private constructor(
 
     private fun client(anonymous: Boolean): OkHttpClient = if (anonymous) anonymousHttp else http
 
+    /** [http] without an HTTP cache, for the avatar requests; shares its connections. */
+    private val uncachedHttp: OkHttpClient by lazy { if (http.cache == null) http else http.newBuilder().cache(null).build() }
+
     private suspend inline fun <reified T> execute(
         request: Request,
         anonymous: Boolean = false,
@@ -314,8 +408,8 @@ class RelayClient private constructor(
         }
     }
 
-    private suspend fun executeNoContent(request: Request, anonymous: Boolean = false) {
-        client(anonymous).newCall(request).await().use { it.throwIfError() }
+    private suspend fun executeNoContent(request: Request, anonymous: Boolean = false, uncached: Boolean = false) {
+        (if (uncached) uncachedHttp else client(anonymous)).newCall(request).await().use { it.throwIfError() }
     }
 
     companion object {
@@ -337,12 +431,23 @@ class RelayClient private constructor(
 
         /** WebSocket-level pings: OkHttp fails a socket whose pong is missing, so dead connections end quickly. */
         private const val SOCKET_PING_SECONDS = 25L
+        private const val HTTP_NO_CONTENT = 204
         private const val HTTP_PARTIAL_CONTENT = 206
+        private const val HTTP_NOT_MODIFIED = 304
+        private const val HTTP_NOT_FOUND = 404
         private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024
+
+        /** A download reports its progress after every this many bytes, as the iOS client does. */
+        private const val DOWNLOAD_PROGRESS_STEP = 64L * 1024
+
+        /** `X-Avatar-Version`: the version of an avatar delete, and the highest version in a `409` (§4.12). */
+        const val AVATAR_VERSION_HEADER = "X-Avatar-Version"
+
+        /** The longest avatar record (§4.12). */
+        private const val MAX_AVATAR_RECORD_BYTES = 49_152L
 
         private val JSON = "application/json".toMediaType()
         private val OCTET_STREAM = "application/octet-stream".toMediaType()
-        private val EMPTY_BODY = ByteArray(0).toRequestBody(null)
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -378,6 +483,17 @@ private fun ResponseBody.readUtf8(limit: Long): String? {
     return null
 }
 
+/** Reads the body, or returns `null` if it is longer than [limit] bytes. */
+private fun ResponseBody.readBytes(limit: Long): ByteArray? {
+    if (contentLength() > limit) return null
+    val source = source()
+    val buffer = Buffer()
+    while (buffer.size <= limit) {
+        if (source.read(buffer, 8192) == -1L) return buffer.readByteArray()
+    }
+    return null
+}
+
 internal fun Response.throwIfError() {
     if (isSuccessful) return
     val bodyText = runCatching { body.readUtf8(MAX_ERROR_BODY_BYTES) }.getOrNull().orEmpty()
@@ -387,6 +503,7 @@ internal fun Response.throwIfError() {
         code = detail?.let { RelayErrorCode.fromWire(it.code) } ?: RelayErrorCode.UNKNOWN,
         relayMessage = detail?.message ?: message,
         retryAfterSeconds = header("Retry-After")?.trim()?.toLongOrNull(),
+        avatarVersion = header(RelayClient.AVATAR_VERSION_HEADER)?.trim()?.toLongOrNull()?.takeIf { it >= 1 },
     )
 }
 

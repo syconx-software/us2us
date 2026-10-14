@@ -2,7 +2,8 @@ import SwiftUI
 
 /// 5.4 · Mesaj bilgisi — the message's journey, step by step (there are no
 /// notifications, so this is where “with you / on its way / with them” is
-/// spelled out). Full-height sheet (C18, from design y 58), pad 8 16 0, gap 16:
+/// spelled out; a photo, video or file the other side saved ends in
+/// “Kaydedildi”, proposed). Full-height sheet (C18, from design y 58), pad 8 16 0, gap 16:
 /// centred title + close (36), the message bubble right-aligned, the timeline
 /// card (`bg` r20, pad 18 16) and the “İletilemedi ne demek?” note.
 struct MessageInfoSheet: View {
@@ -31,11 +32,13 @@ struct MessageInfoSheet: View {
         .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    /// The bubble as a plain, round bubble (the design drops the reply quote and reactions here).
+    /// The bubble as a plain, round bubble (the design drops the reply quote
+    /// and the chips under it here).
     private func bubble(_ message: Message) -> some View {
         var plain = message
         plain.replyTo = nil
         plain.reactions = []
+        plain.savedByPeer = false
         return MessageBubbleView(message: plain, isTail: false)
             .allowsHitTesting(false)
             .frame(maxWidth: .infinity, alignment: message.isOutgoing ? .trailing : .leading)
@@ -48,6 +51,9 @@ struct MessageInfoSheet: View {
 struct InfoStep: Identifiable, Equatable {
     enum Kind: Equatable {
         case sent, delivered, read, failed
+        /// The other side saved the photo, video or file (their SAVED
+        /// receipt — told whatever the read-receipt setting).
+        case saved
     }
 
     let kind: Kind
@@ -56,8 +62,9 @@ struct InfoStep: Identifiable, Equatable {
 
     var id: Kind { kind }
 
-    /// Gönderildi → İletildi → Okundu; a failed message ends in İletilemedi.
-    /// “Okundu” is hidden when read receipts are off (they are mutual).
+    /// Gönderildi → İletildi → Okundu (→ Kaydedildi); a failed message ends
+    /// in İletilemedi. “Okundu” is hidden when read receipts are off (they
+    /// are mutual); “Kaydedildi” shows only once it happened.
     static func steps(for message: Message, showsRead: Bool) -> [InfoStep] {
         let status = message.status ?? .sending
         let sent = InfoStep(kind: .sent, isReached: status != .sending, time: status == .sending ? nil : message.sentAt)
@@ -68,6 +75,9 @@ struct InfoStep: Identifiable, Equatable {
         var steps = [sent, InfoStep(kind: .delivered, isReached: delivered, time: delivered ? message.deliveredAt : nil)]
         if showsRead {
             steps.append(InfoStep(kind: .read, isReached: status == .read, time: status == .read ? message.readAt : nil))
+        }
+        if SavedMediaChip.isShown(for: message) {
+            steps.append(InfoStep(kind: .saved, isReached: true, time: message.savedByPeerAt))
         }
         return steps
     }
@@ -158,6 +168,8 @@ private struct InfoTimelineRow: View {
             PhosphorIcon(.checks, weight: .fill, size: 17).foregroundStyle(step.isReached ? Color.u2.accent300 : pending)
         case .failed:
             PhosphorIcon(.warningCircle, size: 17).foregroundStyle(Color.u2.danger)
+        case .saved:
+            MediaGlyphIcon(.download, size: 17).foregroundStyle(Color.u2.accent300)
         }
     }
 
@@ -183,6 +195,7 @@ private struct InfoTimelineRow: View {
         case .delivered: Text(MessageStatus.delivered.titleKey)
         case .read: Text(MessageStatus.read.titleKey)
         case .failed: Text(MessageStatus.failed.titleKey)
+        case .saved: Text("info.saved", table: .conversation)
         }
     }
 
@@ -192,6 +205,7 @@ private struct InfoTimelineRow: View {
         case .delivered: Text("info.delivered.detail \(peer)", table: .conversation)
         case .read: Text("info.read.detail \(peer)", table: .conversation)
         case .failed: Text("info.failed.detail", table: .conversation)
+        case .saved: Text("info.saved.detail \(peer)", table: .conversation)
         }
     }
 }

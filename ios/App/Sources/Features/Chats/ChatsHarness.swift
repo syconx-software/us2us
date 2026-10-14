@@ -21,7 +21,9 @@
     /// | `4.2-empty` · `4.2-searching` · `4.2-notfound` · `4.2-existing` · `4.2-self` | the other lookup states |
     /// | `4.2-mycode` | “Kodumu göster” pushed inside the sheet |
     /// | `4.3` · `4.3-empty` · `4.3-block` | requests · none left · the block confirmation |
-    /// | `4.4` · `4.4-media` · `4.4-link` | preview of kuzey.dev · n.aksoy (photo) · hediye_kazan (link) |
+    /// | `4.4` · `4.4-media` · `4.4-link` | preview of kuzey_dev · n_aksoy (photo) · hediye_kazan (link) |
+    /// | `4.4-report` | the report sheet over hediye_kazan's preview (proposed) |
+    /// | `4.1-blocked` | the list with bora blocked: “Engellendi” in the preview's place (proposed) |
     ///
     /// `-U2Route newChat` or `newChat:<username>` opens the 4.2 sheet (sheets
     /// are not stack routes); `-U2Route requests` / `request:<id>` open 4.3 /
@@ -34,6 +36,7 @@
             case listEmpty = "4.1-empty"
             case listQR = "4.1-qr"
             case listMyCode = "4.1-mycode"
+            case listBlocked = "4.1-blocked"
             case newChat = "4.2"
             case newChatKeyboard = "4.2-keyboard"
             case newChatEmpty = "4.2-empty"
@@ -48,6 +51,7 @@
             case preview = "4.4"
             case previewMedia = "4.4-media"
             case previewLink = "4.4-link"
+            case previewReport = "4.4-report"
         }
 
         /// `-U2Route chats:<id>` (e.g. `chats:4.2-notfound`), or `-U2ChatsScreen <id>`.
@@ -66,9 +70,9 @@
             case accept
             /// 4.4: “Sil” → back to 4.3, the card collapses.
             case deletePreview = "delete-preview"
-            /// 4.3: “Sil” on n.aksoy → the card fades and collapses.
+            /// 4.3: “Sil” on n_aksoy → the card fades and collapses.
             case delete
-            /// 4.3: “Kabul et” on kuzey.dev → 5.1 replaces 4.3.
+            /// 4.3: “Kabul et” on kuzey_dev → 5.1 replaces 4.3.
             case acceptCard = "accept-card"
             /// 4.3: open the first card → 4.4 pushed.
             case openCard = "open-card"
@@ -356,6 +360,8 @@
                 state.showsQRMenu = true
             case .listMyCode:
                 state.showsMyCode = true
+            case .listBlocked:
+                fixtures?.setBlocked("bora")
             case .newChat:
                 newChat("deniz")
             case .newChatKeyboard:
@@ -365,9 +371,9 @@
             case .newChatSearching:
                 newChat("deniz", searching: true)
             case .newChatNotFound:
-                newChat("deniz.yilmaz")
+                newChat("deniz_yilmaz")
             case .newChatExisting:
-                newChat("mert.k")
+                newChat("mert_k")
             case .newChatSelf:
                 newChat(messenger.account?.username ?? DesignFixtures.ownUsername)
             case .newChatMyCode:
@@ -378,10 +384,10 @@
                 push([.requests])
                 removeAllRequests()
             case .preview:
-                push([.requests, .requestPreview("kuzey.dev")])
+                push([.requests, .requestPreview("kuzey_dev")])
             case .previewMedia:
-                push([.requests, .requestPreview("n.aksoy")])
-            case .previewLink:
+                push([.requests, .requestPreview("n_aksoy")])
+            case .previewLink, .previewReport:
                 push([.requests, .requestPreview("hediye_kazan")])
             }
         }

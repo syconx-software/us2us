@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Api, b64u, register, registerWithAccessKey, send, sendEphemeral, solvedPow, type TestAccount } from '../support/client'
+import { Api, b64u, eventually, register, registerWithAccessKey, send, sendEphemeral, solvedPow, type TestAccount } from '../support/client'
 import { TestDb, uuidBytes } from '../support/db'
 import { startRelay, type RelayProcess } from '../support/relay'
+import { TestSocket } from '../support/ws'
 
 let relay: RelayProcess
 let api: Api
@@ -219,6 +220,61 @@ describe('storage limits', () => {
       expect((await send(limitedApi, account, randomBytes(4096))).status).toBe(429)
     } finally {
       await limited.stop()
+    }
+  })
+
+  it('counts envelopes held for a connected recipient that does not acknowledge, and refuses it like an offline one', async () => {
+    // A long ack timeout: without the count, the connected recipient would take envelopes without limit.
+    const limited = await startRelay({ ENVELOPE_MAX_BYTES: '4096', MAILBOX_MAX_BYTES: '65536', WS_ACK_TIMEOUT_MS: '60000' })
+    try {
+      const limitedApi = new Api(limited.url)
+      const online = await registerWithAccessKey(limitedApi)
+      const offline = await registerWithAccessKey(limitedApi)
+      const socket = await TestSocket.synced(limited.wsUrl, online.authToken)
+      for (let i = 0; i < 16; i++) {
+        expect((await send(limitedApi, online, randomBytes(4096))).status).toBe(202)
+        expect((await send(limitedApi, offline, randomBytes(4096))).status).toBe(202)
+      }
+      await socket.waitForMessages(16)
+      const toOnline = await send(limitedApi, online, randomBytes(4096))
+      const toOffline = await send(limitedApi, offline, randomBytes(4096))
+      expect(toOnline.status).toBe(429)
+      expect(toOffline.status).toBe(429)
+      expect(toOnline.body).toEqual(toOffline.body)
+      expect(toOnline.headers.get('retry-after')).toBe(toOffline.headers.get('retry-after'))
+
+      // Closing the socket stores them; the mailbox stays full.
+      await socket.close()
+      await eventually(async () => await db.count('envelopes WHERE recipient = ?', [uuidBytes(online.accountId)]) === 16)
+      expect((await send(limitedApi, online, randomBytes(4096))).status).toBe(429)
+    } finally {
+      await limited.stop()
+    }
+  })
+
+  it('counts envelopes stored before a restart', async () => {
+    const limits = { ENVELOPE_MAX_BYTES: '4096', MAILBOX_MAX_BYTES: '65536' }
+    const before = await startRelay(limits)
+    const beforeApi = new Api(before.url)
+    const account = await registerWithAccessKey(beforeApi)
+    try {
+      for (let i = 0; i < 16; i++) expect((await send(beforeApi, account, randomBytes(4096))).status).toBe(202)
+    } finally {
+      await before.stop()
+    }
+
+    const after = await startRelay(limits)
+    try {
+      const afterApi = new Api(after.url)
+      expect((await send(afterApi, account, randomBytes(4096))).status).toBe(429)
+      const stored = await afterApi.get('/v1/messages', { token: account.authToken })
+      expect(stored.body.messages).toHaveLength(16)
+      const ids = stored.body.messages.map((m: { id: string }) => m.id)
+      expect((await afterApi.post('/v1/messages/ack', { token: account.authToken, json: { ids: ids.slice(0, 4) } })).status).toBe(204)
+      for (let i = 0; i < 4; i++) expect((await send(afterApi, account, randomBytes(4096))).status).toBe(202)
+      expect((await send(afterApi, account, randomBytes(4096))).status).toBe(429)
+    } finally {
+      await after.stop()
     }
   })
 

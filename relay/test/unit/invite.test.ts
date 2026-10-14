@@ -9,8 +9,8 @@ import { APP_SITE_ASSOCIATION, APP_SITE_ASSOCIATION_JSON, IOS_APP_ID } from '../
 const textOf = (page: string) => page.replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ')
 
 describe('invite paths', () => {
-  it('accepts exactly the names a us2us username can be', () => {
-    for (const name of ['deniz', 'selin.n', 'ayla_', 'kaan2', 'abc', 'a'.repeat(24), 'mert.k', '_x_', '1ab']) {
+  it('accepts exactly the names a us2us username can be (PROTOCOL.md §3.1)', () => {
+    for (const name of ['deniz', 'selin_n', 'ayla_', 'kaan2', 'abc', 'a'.repeat(24), `z${'9'.repeat(23)}`, 'mert_k', 'a__']) {
       expect(inviteUsername(`/u/${name}`), name).toBe(name)
       expect(inviteUsername(`/u/${name}/`), `${name}/`).toBe(name)
     }
@@ -18,8 +18,10 @@ describe('invite paths', () => {
 
   it('refuses everything else, without decoding, folding or trimming it', () => {
     const refused = [
-      '/u/', '/u/ab', `/u/${'a'.repeat(25)}`, '/u/Deniz', '/u/DENIZ', '/u/deniz%20', '/u/%64eniz', '/u/de niz',
-      '/u/deniz/x', '/u/../tr', '/u/...', '/u/__.', '/u/deniz<script>', '/u/de"niz', '/u/deni\'z', '/u/şeyma', '/u/ırmak',
+      '/u/', '/u/ab', `/u/${'a'.repeat(25)}`, `/u/z${'9'.repeat(24)}`, '/u/Deniz', '/u/DENIZ', '/u/deNiz',
+      '/u/deniz%20', '/u/%64eniz', '/u/de niz', '/u/selin.n', '/u/mert.k', '/u/deniz.', '/u/.deniz',
+      '/u/1ab', '/u/9deniz', '/u/_x_', '/u/_deniz', '/u/___', '/u/...', '/u/__.', '/u/._.',
+      '/u/deniz/x', '/u/../tr', '/u/deniz<script>', '/u/de"niz', '/u/deni\'z', '/u/şeyma', '/u/ırmak',
       '/u/deniz;', '/u/deniz&x', '/u/d-niz', '/u/@deniz', '/U/deniz', '/u//deniz', '/x/deniz', '/u/deniz//',
     ]
     for (const path of refused) expect(inviteUsername(path), path).toBeNull()
@@ -38,15 +40,15 @@ describe('invite paths', () => {
 
 describe('invite page', () => {
   it('says who wants to talk, in Turkish and in English', () => {
-    const tr = invitePage('selin.n', 'tr', 'v123')
-    const en = invitePage('selin.n', 'en', 'v123')
+    const tr = invitePage('selin_n', 'tr', 'v123')
+    const en = invitePage('selin_n', 'en', 'v123')
     expect(tr).toContain('<html lang="tr">')
     expect(en).toContain('<html lang="en">')
-    expect(textOf(tr.match(/<h1\b[\s\S]*?<\/h1>/)![0])).toBe('us2us’ta @selin.n seninle konuşmak istiyor')
-    expect(textOf(en.match(/<h1\b[\s\S]*?<\/h1>/)![0])).toBe('@selin.n wants to talk to you on us2us')
+    expect(textOf(tr.match(/<h1\b[\s\S]*?<\/h1>/)![0])).toBe('us2us’ta @selin_n seninle konuşmak istiyor')
+    expect(textOf(en.match(/<h1\b[\s\S]*?<\/h1>/)![0])).toBe('@selin_n wants to talk to you on us2us')
     // How to add them: open us2us → New chat → @username.
-    expect(textOf(tr)).toContain('us2us’u aç. “Yeni sohbet”e dokun. @selin.n yaz ve mesaj isteği gönder.')
-    expect(textOf(en)).toContain('Open us2us. Tap “New chat”. Type @selin.n and send a message request.')
+    expect(textOf(tr)).toContain('us2us’u aç. “Yeni sohbet”e dokun. @selin_n yaz ve mesaj isteği gönder.')
+    expect(textOf(en)).toContain('Open us2us. Tap “New chat”. Type @selin_n and send a message request.')
     // The stores are "coming soon", as on the landing page: no links.
     for (const [page, soon] of [[tr, 'Yakında'], [en, 'Coming soon']] as const) {
       const stores = [...page.matchAll(/<a class="btn btn-(?:primary|secondary) store"([^>]*)>([\s\S]*?)<\/a>/g)]
@@ -57,9 +59,14 @@ describe('invite page', () => {
         expect(textOf(content!)).toContain(soon)
       }
     }
+    // Under them, as on the landing page: a closed beta on iOS. The footer says the page tracks nobody.
+    expect(tr).toContain('<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>Şu an iOS’ta kapalı betada (TestFlight, davetle).')
+    expect(en).toContain('<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>Now in closed beta on iOS (TestFlight, by invitation).')
+    expect(textOf(tr.split('<footer')[1]!)).toContain('Bu site çerez ve izleyici kullanmaz')
+    expect(textOf(en.split('<footer')[1]!)).toContain('This site uses no cookies or trackers')
     // It says that it checks nothing.
-    expect(textOf(tr)).toContain('@selin.n adında bir hesap olup olmadığına bakmaz')
-    expect(textOf(en)).toContain('does not check whether an account named @selin.n exists')
+    expect(textOf(tr)).toContain('@selin_n adında bir hesap olup olmadığına bakmaz')
+    expect(textOf(en)).toContain('does not check whether an account named @selin_n exists')
   })
 
   it('links to the same invite in the other language, and to the site in its own', () => {
@@ -105,7 +112,7 @@ describe('invite page', () => {
 
   it('looks the same for every well-formed name: nothing about the account is looked up', () => {
     const page = (name: string) => invitePage(name, 'en', 'v').replaceAll(name, 'NAME')
-    expect(page('selin.n')).toBe(page('zz_nobody_42'))
+    expect(page('selin_n')).toBe(page('zz_nobody_42'))
   })
 
   it('reaches no database, relay state or network from the page or its middleware', () => {

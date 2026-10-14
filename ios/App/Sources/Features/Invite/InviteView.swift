@@ -326,7 +326,7 @@ struct InviteSheet: View {
 /// app's Phosphor set does not bundle (WhatsApp, envelope).
 struct InviteChannelRow: View {
     enum Subtitle {
-        /// “us2us.app/u/selin.n” in mono.
+        /// “us2us.app/u/selin_n” in mono.
         case link(String)
         /// “Kopyalandı …” / “Gönderildi”.
         case status(Text)
@@ -464,7 +464,7 @@ extension InviteChannel {
     let model = AppModel.preview()
     return Color.u2.bg
         .u2Sheet(isPresented: .constant(true)) {
-            InviteSheet(username: "selin.n", onClose: {})
+            InviteSheet(username: "selin_n", onClose: {})
         }
         .environment(model)
         .environment(\.locale, model.locale)

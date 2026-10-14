@@ -17,24 +17,46 @@
     /// | `deniz` | `5.1-failed` | newest message not delivered: “İletilemedi” + “Tekrar gönder” |
     /// | `deniz` | `5.1-reply` | composer with the reply quote (after “Yanıtla”) |
     /// | `deniz` | `5.1-attach` | the “+” menu (proposed) |
-    /// | `mert.k` | — / `5.2` | 5.2 media and location (Ghost off) |
-    /// | `mert.k` | `5.2-ended` | live location stopped (proposed ended state) |
-    /// | `mert.k` | `5.2-opened` | the view-once bubble after viewing (“Açıldı”) |
+    /// | `deniz` | `5.1-stickers` | the sticker picker (proposed), with the recents |
+    /// | `deniz` | `5.1-blocked` | deniz blocked (proposed): “Engellendi” in the header, the bar with “Engeli kaldır” in the composer's place |
+    /// | `mert_k` | — / `5.2` | 5.2 media and location (Ghost off) |
+    /// | `mert_k` | `5.2-ended` | live location stopped (proposed ended state) |
+    /// | `mert_k` | `5.2-opened` | the view-once bubble after viewing (“Açıldı”) |
+    /// | `mert_k` | `5.2-place` | a tap on “Moda İskelesi”: the “Haritada aç” chooser (proposed) |
+    /// | `mert_k` | `5.2-map` · `5.2-map-peer` | the live-location map (proposed): mert_k's demo share and selin_n's · mert_k's only, selin_n's phone shown on this device only |
+    /// | `mert_k` | `5.2-map-ask` · `5.2-map-denied` | mert_k's share only, the gentle hint: location not asked yet (“İzin ver”) · refused (“Ayarları aç”) |
     /// | `deniz` | `5.3` | actions on “Kapı kodu 4471” (own, disappearing) |
     /// | `deniz` | `5.3-incoming` | actions on deniz's photo (incoming, with reaction) |
     /// | `deniz` | `5.3-confirm` | the “Herkesten sil” confirmation (floating sheet) |
-    /// | `deniz` | `5.1-viewer` | the photo viewer (tap a photo; proposed) |
+    /// | `deniz` | `5.1-viewer` · `5.1-viewer-zoomed` | the photo viewer (tap a photo; proposed) · zoomed in 2.5× |
+    /// | `mert_k` | `5.2-player` · `5.2-player-loading` | the video player paused at 0:07 · while the clip loads |
+    /// | `mert_k` | `5.2-file` · `5.2-file-actions` | Quick Look on “kira-sozlesmesi.pdf” · 5.3 with “Dosyalara kaydet” |
+    /// | `mert_k` | `5.2-remote` · `5.2-downloading` · `5.2-unavailable` | the video and an incoming file still on the relay · downloading (40 % / 62 %) · gone |
+    /// | `mert_k` | `5.2-preparing` · `5.2-prepare-failed` | a video sent from “+” while it is prepared (“0:18 · Hazırlanıyor”) · preparing it failed (“Tekrar gönder”) |
+    /// | `mert_k` | `5.2-file-disappearing` | the PDF as a disappearing message: Quick Look in the app's screen, without sharing (proposed) |
+    /// | `mert_k` | `5.2-saved` · `5.4-saved` | mert_k saved selin_n's PDF: the “Kaydetti” chip under it · its info, ending in “Kaydedildi” (proposed) |
+    /// | `deniz` | `5.1-save-notice` | the photo viewer with the one-time “deniz fotoğrafı kaydettiğini görecek” sheet (proposed) |
     /// | `deniz` | `5.4` | info of “Çok güzelmiş! 8 gibi olur mu?” (read) |
     /// | `deniz` | `5.4-pending` · `5.4-failed` | info of “Kapı kodu 4471” sent only · not delivered |
-    /// | `deniz` | `5.5` | Ghost sheet (on, 24 sa) — `conversation:mert.k` for Ghost off |
+    /// | `deniz` | `5.5` | Ghost sheet (on, 24 sa) — `conversation:mert_k` for Ghost off |
     /// | `deniz` | `5.6` | view-once viewer after a screenshot (warning shown) |
     /// | `deniz` | `5.6-clean` · `5.6-captured` | viewer without warning · while recording |
+    /// | `deniz` | `5.1-voice-hold` · `5.1-voice-locked` · `5.1-voice-review` | recording a voice message (proposed, no microphone): held at 0:07, sliding left · locked, hands-free · stopped, to listen to, delete or send |
+    /// | `deniz` | `5.1-voice-hint` · `5.1-voice-permission` · `5.1-voice-unplayed` | the mic tapped (“Kaydetmek için basılı tut”) · the microphone refused (“Ayarları aç”) · an incoming voice message not played yet |
     ///
     /// `-U2ConversationDemo <action>` performs one interaction by itself ~1.5 s
     /// after the screen appears, so transitions can be recorded and checked
-    /// with screenshots at intervals: `send`, `status`, `react`, `reply`,
+    /// with screenshots at intervals: `send`, `sticker` (words.hearYou leaves
+    /// and settles in), `status`, `react`, `reply`,
     /// `deleteEveryone`, `deleteMe`, `ghostSave`, `stopLive`, `actions`,
-    /// `viewOnce`, `attach`, `type`; and for the column's motion: `typing`
+    /// `viewOnce`, `attach`, `type`; media: `openPhoto` (the 5.1 photo),
+    /// `playVideo` (the 5.2 video), `openFile` (Quick Look), `downloadFile`
+    /// (an incoming file downloads, then opens), `sendVideo` (a video from “+”
+    /// is prepared, then sent, in one bubble), `sendPhotos` (three photos
+    /// picked at once, the composer's text on the first: every bubble at
+    /// once, then sent one after another), `playVoice` (deniz's voice
+    /// message plays); location: `openPlace` (the
+    /// chooser), `openMap` (the live-location map); and for the column's motion: `typing`
     /// (deniz writes, then her message arrives), `incoming`, `sendLong` (a
     /// three-line message), `prepend` (200 older messages load above).
     /// `-U2ConversationDemoDelay <seconds>` changes the wait;
@@ -46,12 +68,33 @@
             case chatFailed = "5.1-failed"
             case chatReply = "5.1-reply"
             case chatAttach = "5.1-attach"
+            case chatStickers = "5.1-stickers"
+            case chatBlocked = "5.1-blocked"
             case media = "5.2"
             case mediaEnded = "5.2-ended"
             case mediaOpened = "5.2-opened"
+            case place = "5.2-place"
+            case liveMap = "5.2-map"
+            case liveMapPeer = "5.2-map-peer"
+            case liveMapAsk = "5.2-map-ask"
+            case liveMapDenied = "5.2-map-denied"
             case actions = "5.3"
             case actionsConfirm = "5.3-confirm"
             case viewer = "5.1-viewer"
+            case viewerZoomed = "5.1-viewer-zoomed"
+            case player = "5.2-player"
+            case playerLoading = "5.2-player-loading"
+            case file = "5.2-file"
+            case fileActions = "5.2-file-actions"
+            case mediaRemote = "5.2-remote"
+            case mediaDownloading = "5.2-downloading"
+            case mediaUnavailable = "5.2-unavailable"
+            case videoPreparing = "5.2-preparing"
+            case videoPrepareFailed = "5.2-prepare-failed"
+            case fileDisappearing = "5.2-file-disappearing"
+            case mediaSaved = "5.2-saved"
+            case infoSaved = "5.4-saved"
+            case saveNotice = "5.1-save-notice"
             case actionsIncoming = "5.3-incoming"
             case info = "5.4"
             case infoPending = "5.4-pending"
@@ -60,10 +103,19 @@
             case viewOnce = "5.6"
             case viewOnceClean = "5.6-clean"
             case viewOnceCaptured = "5.6-captured"
+            case voiceHold = "5.1-voice-hold"
+            case voiceLocked = "5.1-voice-locked"
+            case voiceReview = "5.1-voice-review"
+            case voiceHint = "5.1-voice-hint"
+            case voicePermission = "5.1-voice-permission"
+            case voiceUnplayed = "5.1-voice-unplayed"
         }
 
         enum Demo: String, Sendable {
-            case send, status, react, reply, deleteEveryone, deleteMe, ghostSave, stopLive, actions, viewOnce, attach
+            case send, sticker, status, react, reply, deleteEveryone, deleteMe, ghostSave, stopLive, actions, viewOnce
+            case attach
+            case openPhoto, playVideo, openFile, downloadFile, sendVideo, sendPhotos, playVoice
+            case openPlace, openMap
             /// Focuses the composer (keyboard up) and types a draft.
             case type
             case typing, incoming, sendLong, prepend
@@ -124,10 +176,27 @@
             case .chatAttach:
                 try? await Task.sleep(for: .milliseconds(300))
                 withTransaction(noAnimation) { viewModel.showsAttachMenu = true }
+            case .chatStickers:
+                try? await Task.sleep(for: .milliseconds(300))
+                viewModel.openStickerPicker()
+            case .chatBlocked:
+                fixtures?.setBlocked(viewModel.chatID)
             case .mediaEnded:
                 await fixtures?.stopLiveLocation("m4", in: viewModel.chatID)
             case .mediaOpened:
                 await fixtures?.markViewOnceOpened("m6", in: viewModel.chatID)
+            case .place:
+                try? await Task.sleep(for: .milliseconds(300))
+                if let place = viewModel.message("m3") { viewModel.openLocation(place) }
+            case .liveMap, .liveMapPeer, .liveMapAsk, .liveMapDenied:
+                guard let fixtures else { return }
+                if screen == .liveMapAsk { fixtures.ownPositionOverride = .needsPermission }
+                if screen == .liveMapDenied { fixtures.ownPositionOverride = .denied }
+                let peerShare = fixtures.startDemoLiveLocation(in: viewModel.chatID)
+                // Only mert_k shares: selin_n's own share has ended.
+                if screen != .liveMap { await fixtures.stopLiveLocation("m4", in: viewModel.chatID) }
+                try? await Task.sleep(for: .milliseconds(300))
+                if let share = viewModel.message(screen == .liveMap ? "m4" : peerShare) { viewModel.openLiveMap(share) }
             case .actions:
                 viewModel.openActionsWhenReady(for: "d6")
             case .actionsIncoming:
@@ -137,6 +206,54 @@
                 viewModel.deleteForEveryoneCandidate = "d6"
             case .viewer:
                 if let photo = viewModel.message("d2") { viewModel.openMedia(photo) }
+            case .viewerZoomed:
+                if let photo = viewModel.message("d2"), case .photo(let source, let caption) = photo.content {
+                    viewModel.viewer = ConversationViewModel.ViewerItem(
+                        kind: .photo, messageID: photo.id, sender: viewModel.peerUsername, sentAt: photo.sentAt,
+                        media: source, isVideo: false, caption: caption, startsZoomed: true)
+                }
+            case .player:
+                // Paused at 0:07, the controls shown.
+                if let video = viewModel.message("m2"), case .video(let poster, let duration, _) = video.content {
+                    viewModel.viewer = ConversationViewModel.ViewerItem(
+                        kind: .video, messageID: video.id, sender: viewModel.peerUsername, sentAt: video.sentAt,
+                        media: poster, isVideo: true, duration: duration, startTime: 7)
+                }
+            case .playerLoading:
+                fixtures?.holdsMediaPayloads = true
+                if let video = viewModel.message("m2") { viewModel.openMedia(video) }
+            case .file:
+                try? await Task.sleep(for: .milliseconds(400))
+                if let file = viewModel.message("m1") { viewModel.openMedia(file) }
+            case .fileActions:
+                viewModel.openActionsWhenReady(for: "m1")
+            case .mediaRemote, .mediaDownloading, .mediaUnavailable:
+                let video: MediaAvailability
+                let file: MediaAvailability
+                switch screen {
+                case .mediaRemote: (video, file) = (.remote, .remote)
+                case .mediaDownloading: (video, file) = (.downloading(0.4), .downloading(0.62))
+                default: (video, file) = (.unavailable, .unavailable)
+                }
+                fixtures?.setMediaAvailability(video, of: "m2", in: viewModel.chatID)
+                fixtures?.addIncomingFile(in: viewModel.chatID, availability: file)
+            case .videoPreparing, .videoPrepareFailed:
+                fixtures?.addOutgoingVideo(in: viewModel.chatID, failed: screen == .videoPrepareFailed)
+            case .fileDisappearing:
+                fixtures?.setDisappearing(.fiveMinutes, of: "m1", in: viewModel.chatID)
+                try? await Task.sleep(for: .milliseconds(400))
+                if let file = viewModel.message("m1") { viewModel.openMedia(file) }
+            case .mediaSaved:
+                fixtures?.setSavedByPeer("m1", in: viewModel.chatID)
+            case .infoSaved:
+                fixtures?.setSavedByPeer("m1", in: viewModel.chatID)
+                viewModel.info = .init(id: "m1")
+            case .saveNotice:
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let photo = viewModel.message("d2") else { return }
+                viewModel.openMedia(photo)
+                try? await Task.sleep(for: .milliseconds(700))
+                _ = await viewModel.mediaSaver.askNotice(viewModel.peerUsername, .photo, viewModel.presentationLocale)
             case .info:
                 viewModel.info = .init(id: "d3")
             case .infoPending:
@@ -152,6 +269,20 @@
                     kind: .viewOnce, messageID: nil, sender: "deniz", sentAt: DesignFixtures.date(day: 8, 18, 40),
                     media: .designArtwork(.nightPier), isVideo: false,
                     showsScreenshotWarning: screen == .viewOnce, simulatesCapture: screen == .viewOnceCaptured)
+            case .voiceHold:
+                viewModel.voice.showDemo(.holding, elapsed: 7, slide: CGSize(width: -34, height: -18))
+            case .voiceLocked:
+                viewModel.voice.showDemo(.locked, elapsed: 12)
+            case .voiceReview:
+                viewModel.voice.showDemo(.review, elapsed: 12)
+            case .voiceHint:
+                try? await Task.sleep(for: .milliseconds(300))
+                viewModel.voice.showDemoHint()
+            case .voicePermission:
+                try? await Task.sleep(for: .milliseconds(300))
+                viewModel.voice.showsPermissionNotice = true
+            case .voiceUnplayed:
+                fixtures?.addIncomingVoice(in: viewModel.chatID)
             }
         }
 
@@ -162,6 +293,10 @@
             case .send:
                 viewModel.draft = "Görüşürüz 👋"
                 viewModel.sendDraft()
+            case .sticker:
+                guard let sticker = BrandStickerCatalog.sticker(id: 103) else { return }
+                viewModel.send(
+                    sticker: BrandStickerSelection(sticker, language: BrandStickerLanguage(locale: viewModel.presentationLocale)))
             case .status:
                 guard let id = ConversationViewModel.lastOutgoingID(in: viewModel.messages) else { return }
                 fixtures?.setStatus(.delivered, of: id, in: chat)
@@ -187,6 +322,28 @@
                 viewModel.openActionsWhenReady(for: viewModel.messages.last { !$0.isSystem }?.id ?? "")
             case .viewOnce:
                 if let message = viewModel.message("m6") { viewModel.openViewOnce(message) }
+            case .openPhoto:
+                if let photo = viewModel.message("d2") { viewModel.openMedia(photo) }
+            case .openPlace:
+                if let place = viewModel.message("m3") { viewModel.openLocation(place) }
+            case .openMap:
+                if let share = viewModel.message("m4") { viewModel.openLiveMap(share) }
+            case .playVideo:
+                if let video = viewModel.message("m2") { viewModel.openMedia(video) }
+            case .openFile:
+                if let file = viewModel.message("m1") { viewModel.openMedia(file) }
+            case .downloadFile:
+                guard let fixtures else { return }
+                let id = fixtures.addIncomingFile(in: chat, availability: .remote)
+                try? await Task.sleep(for: .seconds(1))
+                if let file = viewModel.message(id) { viewModel.openMedia(file) }
+            case .sendVideo:
+                fixtures?.simulateVideoSend(in: chat)
+            case .sendPhotos:
+                viewModel.draft = "Dünkü yürüyüşten"
+                viewModel.sendDemoAttachment(.photo)
+            case .playVoice:
+                viewModel.toggleVoice("d4")
             case .attach:
                 viewModel.toggleAttachMenu()
             case .type:

@@ -4,6 +4,7 @@ import { site, type Locale } from '~/content/site'
 // The apps are not in the stores yet: the buttons keep the design's look but
 // are not links (no href, aria-disabled) and say "coming soon". The hidden
 // comma keeps the name readable ("App Store, Yakında") for screen readers.
+// The line under them says where the app is today: a closed iOS beta.
 const props = defineProps<{ locale: Locale }>()
 const text = computed(() => site[props.locale].home.stores)
 </script>
@@ -21,4 +22,5 @@ const text = computed(() => site[props.locale].home.stores)
       </a>
     </li>
   </ul>
+  <p class="stores-note"><span class="beta-dot" aria-hidden="true" />{{ text.beta }}</p>
 </template>

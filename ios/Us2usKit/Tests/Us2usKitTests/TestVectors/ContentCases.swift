@@ -86,6 +86,16 @@ enum ContentCases {
                     }
                 }),
             Case(
+                name: "sticker_lang",
+                content: data(13, sentAt: 1_760_000_000_008) {
+                    $0.sticker = BRPSticker.with {
+                        $0.packID = "us2us.words"
+                        $0.stickerID = 101
+                        $0.emoji = "👋"
+                        $0.lang = "tr"
+                    }
+                }),
+            Case(
                 name: "reaction",
                 content: data(12, sentAt: 1_760_000_000_006) {
                     $0.reaction = BRPReaction.with {
@@ -94,6 +104,7 @@ enum ContentCases {
                     }
                 }),
             Case(name: "receipt", content: BRPContent(receipt: .read, messageIds: [.id(1), .id(2)])),
+            Case(name: "receipt_saved", content: BRPContent(receipt: .saved, messageIds: [.id(3)])),
             Case(name: "typing", content: BRPContent(typingStarted: true)),
             Case(
                 name: "presence",
@@ -135,8 +146,38 @@ enum ContentCases {
                             $0.username = "kagan_y"
                             $0.presenceSharing = true
                         }))),
+            Case(
+                name: "profile_avatar_preset",
+                content: BRPContent(
+                    control: .profile(
+                        BRPProfileUpdate.with {
+                            $0.displayName = "Kağan"
+                            $0.updatedAt = 1_760_000_000_010
+                            $0.username = "kagan_y"
+                            $0.presenceSharing = true
+                            $0.profileAvatar = BRPProfileAvatar.with { $0.presetID = 1 }
+                        }))),
+            Case(
+                name: "profile_avatar_photo",
+                content: BRPContent(
+                    control: .profile(
+                        BRPProfileUpdate.with {
+                            $0.updatedAt = 1_760_000_000_011
+                            $0.username = "kagan_y"
+                            $0.profileAvatar = BRPProfileAvatar.with {
+                                $0.photo = BRPAvatarPhoto.with {
+                                    $0.contentType = "image/jpeg"
+                                    $0.data = Data([0xFF, 0xD8, 0xFF, 0xD9])
+                                }
+                            }
+                        }))),
         ]
     }
+
+    /// Cases tolerated as missing in the other implementation's file until it
+    /// writes them. Empty: both implementations write every case
+    /// (`profile_avatar_*` since profile pictures, `receipt_saved` since SAVED).
+    static let newestCases: Set<String> = []
 
     /// The `sealed_content` case, which is a `SealedContent`, not a `Content`.
     static var sealedContent: BRPSealedContent {

@@ -4,9 +4,20 @@ import Us2usStorage
 
 /// What to send as a bubble.
 public enum OutgoingContent: Sendable {
+    /// The longest `Sticker.lang` sent: a BCP-47 tag is at most 35 characters (§8.8).
+    public static let maxStickerLangLength = 35
+    /// The pack of the plain text stickers of builds up to 1.0.5 (§8.8):
+    /// still read, never sent.
+    public static let legacyTextStickerPack = "us2us.text"
+    /// What a resend of such a sticker sends: `words.ok` of the catalog
+    /// (“Tamam!” / “OK!”), without a language.
+    public static let legacyTextStickerSuccessor = (packId: "us2us.words", stickerId: UInt32(109), emoji: "👌")
+
     case text(String)
     case location(LocationInfo)
-    case sticker(packId: String, stickerId: UInt32, emoji: String)
+    /// A built-in sticker (PROTOCOL.md §8.8). `lang` is the language its
+    /// words were shown in (“tr”, “en”); empty for a wordless sticker.
+    case sticker(packId: String, stickerId: UInt32, emoji: String, lang: String = "")
     /// A prepared (compressed, metadata-stripped) file from ``MediaPreparation``;
     /// it is moved into encrypted storage.
     case media(PreparedMedia)
@@ -17,6 +28,10 @@ extension MessagingEngine {
 
     /// Finds `username` (exact match, §4.4) and opens a conversation as an
     /// outgoing request. Nothing is sent until the first message.
+    ///
+    /// Someone blocked gets their read-only chat back (Ghost may have erased
+    /// it, and with it the only place that offers “Engeli kaldır”); nothing
+    /// is sent to them until they are unblocked.
     public func startConversation(username: NormalizedUsername) async throws -> AccountId {
         guard let account = try await backend.findAccount(username: username) else {
             throw EngineError.usernameNotFound
@@ -26,7 +41,7 @@ extension MessagingEngine {
         try write { tx in
             switch try tx.contacts.requestState(of: account) {
             case nil: try tx.contacts.create(account, state: .outgoingRequest, now: now)
-            case .blocked?: throw EngineError.notAllowed
+            case .blocked?: try tx.contacts.unblockAsOutgoingRequest(account)
             default: break
             }
             // Our own lookup proves the username belongs to this account (§3.3).
@@ -87,13 +102,18 @@ extension MessagingEngine {
     }
 
     /// Blocks a contact (§6.4): its messages are dropped locally from now on,
-    /// pending sends to it are cancelled, and our access key is rotated —
-    /// the new one goes to every other accepted contact, so the blocked
-    /// account cannot use the old one.
+    /// pending sends to it are cancelled (their messages become *Failed*,
+    /// to be sent again by hand after an unblock), and our access key is
+    /// rotated — the new one goes to every other accepted contact, so the
+    /// blocked account cannot use the old one.
     public func block(_ peer: AccountId) async throws {
+        let now = clock.now()
         try write { tx in
-            try tx.contacts.block(peer, now: clock.now())
+            try tx.contacts.block(peer, now: now)
             for entry in try tx.outbox.all() where entry.recipient == peer {
+                if let messageId = entry.messageId, let conversationId = entry.conversationId {
+                    try tx.messages.markFailed(messageId, in: conversationId, at: now)
+                }
                 try tx.outbox.remove(entry.id)
             }
         }
@@ -103,6 +123,7 @@ extension MessagingEngine {
         runtime.pendingAccessKeyRotation = true
         saveRuntime()
         emit(.conversations)
+        emit(.messages(peer))
         emit(.presence)
         await rotateAccessKeyIfPending()
     }
@@ -111,11 +132,17 @@ extension MessagingEngine {
     /// accepted contact gets our *current* access key (the block rotated
     /// it, and the new one went to everyone else) and our profile again, so
     /// it can deliver with `X-Access-Key` instead of proof-of-work (§6.4).
+    /// Nothing happens for a contact that is not blocked (a second tap on
+    /// “Engeli kaldır” sends nothing twice). One with nothing to go back to
+    /// — no conversation, and no contact before the block (7.1 ›
+    /// Engellenenler lists bare blocks “leave no trace” kept) — is
+    /// forgotten: a stranger again, not an empty request.
     public func unblock(_ peer: AccountId) throws {
         let now = clock.now()
-        try write { tx in
-            try tx.contacts.unblock(peer)
-            guard let contact = try tx.contacts.get(peer), contact.requestState == .accepted else { return }
+        let unblocked = try write { tx -> Bool in
+            if try tx.contacts.unblockLeavingNothing(peer) { return true }
+            guard try tx.contacts.unblock(peer) else { return false }
+            guard let contact = try tx.contacts.get(peer), contact.requestState == .accepted else { return true }
             try enqueueOurAccessKey(to: peer, tx: tx, now: now)
             if contact.profileSentAt != nil {
                 try tx.outbox.enqueue(try ownProfile(tx, now: now), to: peer, now: now)
@@ -123,7 +150,9 @@ extension MessagingEngine {
             } else {
                 try sendProfileIfExchanged(peer, tx: tx, now: now)
             }
+            return true
         }
+        guard unblocked else { return }
         outboxWake.signal()
         emit(.conversations)
     }
@@ -168,12 +197,19 @@ extension MessagingEngine {
     /// Stores a bubble (status *Sending*) and queues it; the outbox sends it
     /// when it can, so it survives no network, locking and restarts. Media
     /// is moved into encrypted storage and uploaded first.
+    ///
+    /// `messageId`: an id the app made with ``RandomId/make()`` beforehand —
+    /// a video's bubble is on screen while it is still being prepared, and
+    /// keeps its place when it is stored under that id. It must be new to
+    /// the conversation (``EngineError/invalidMessage`` otherwise).
     @discardableResult
-    public func send(_ content: OutgoingContent, to peer: AccountId, quote: QuoteInfo? = nil, viewOnce: Bool = false)
-        throws -> MessageId
-    {
+    public func send(
+        _ content: OutgoingContent, to peer: AccountId, quote: QuoteInfo? = nil, viewOnce: Bool = false,
+        messageId: MessageId? = nil
+    ) throws -> MessageId {
         let now = clock.now()
-        let id = RandomId.make()
+        if let messageId, messageId.count != RandomId.byteCount { throw EngineError.invalidMessage }
+        let id = messageId ?? RandomId.make()
         let payload: BRPDataMessage.OneOf_Payload
         var media: PreparedMedia?
         switch content {
@@ -190,11 +226,13 @@ extension MessagingEngine {
             proto.name = location.name ?? ""
             proto.address = location.address ?? ""
             payload = .location(proto)
-        case .sticker(let packId, let stickerId, let emoji):
+        case .sticker(let packId, let stickerId, let emoji, let lang):
+            guard lang.count <= OutgoingContent.maxStickerLangLength else { throw EngineError.tooLarge }
             var proto = BRPSticker()
             proto.packID = packId
             proto.stickerID = stickerId
             proto.emoji = emoji
+            proto.lang = lang
             payload = .sticker(proto)
         case .media(let prepared):
             guard (prepared.caption?.utf8.count ?? 0) <= ContentLimits.maxCaptionBytes,
@@ -227,7 +265,10 @@ extension MessagingEngine {
                 expireTimerSeconds: conversation.settings.defaultExpireTimerSeconds,
                 viewOnce: viewOnce && media != nil, quote: quoteProto
             ).strippingViewOncePreview()
-            _ = try tx.messages.storeOutgoing(data, in: conversation.id, at: now)
+            // A chosen id that is already taken stores nothing: refused, not queued twice.
+            guard try tx.messages.storeOutgoing(data, in: conversation.id, at: now) != .duplicate else {
+                throw EngineError.invalidMessage
+            }
             if let media {
                 for attachment in try tx.attachments.forMessage(id, in: conversation.id) {
                     try tx.attachments.setState(.pendingUpload, of: attachment.id, now: now)
@@ -273,8 +314,16 @@ extension MessagingEngine {
                     LocationInfo(
                         latitude: location.latitude, longitude: location.longitude,
                         accuracyMeters: location.accuracyMeters)), to: peer)
+        case .sticker(let sticker) where !sticker.hasCustom && sticker.packID == OutgoingContent.legacyTextStickerPack:
+            // The plain text sticker of builds up to 1.0.5 is not sent any
+            // more (§8.8): its catalog successor “Tamam!” / “OK!” goes
+            // instead, in the reader's language.
+            let ok = OutgoingContent.legacyTextStickerSuccessor
+            return try send(.sticker(packId: ok.packId, stickerId: ok.stickerId, emoji: ok.emoji), to: peer)
         case .sticker(let sticker) where !sticker.hasCustom:
-            return try send(.sticker(packId: sticker.packID, stickerId: sticker.stickerID, emoji: sticker.emoji), to: peer)
+            return try send(
+                .sticker(packId: sticker.packID, stickerId: sticker.stickerID, emoji: sticker.emoji, lang: sticker.lang),
+                to: peer)
         default:
             throw EngineError.invalidMessage
         }
@@ -415,6 +464,58 @@ extension MessagingEngine {
     }
 
     // MARK: Media
+
+    /// A received voice note was played for the first time (§8.4): its
+    /// `viewedAt` is set once, and VIEWED goes to the sender only where a
+    /// read receipt would (an accepted contact, read receipts on). Anything
+    /// else — not a voice note, view-once, deleted, played before — changes
+    /// nothing.
+    public func markVoiceNotePlayed(_ messageId: MessageId, peer: AccountId) throws {
+        let now = clock.now()
+        let changed = try write { tx -> Bool in
+            guard let conversation = try tx.conversations.forContact(peer),
+                let message = try tx.messages.get(messageId, in: conversation.id, now: now),
+                !message.isOutgoing, !message.isViewOnce, !message.isDeleted,
+                case .attachment(let attachment)? = message.content?.payload, attachment.kind == .voice
+            else { return false }
+            guard try tx.messages.markPlayed(messageId, in: conversation.id, at: now) else { return false }
+            let state = try tx.contacts.requestState(of: peer)
+            if MessageRequestPolicy.maySendReadReceipts(state: state ?? .blocked, userEnabled: settings.readReceipts) {
+                try tx.outbox.enqueue(BRPContent(receipt: .viewed, messageIds: [messageId]), to: peer, now: now)
+            }
+            return true
+        }
+        guard changed else { return }
+        outboxWake.signal()
+        emit(.messages(peer))
+    }
+
+    /// A photo, video or file was saved outside the app (§8.4): `savedByMeAt`
+    /// is set once and, for a received one from an accepted contact, SAVED
+    /// goes to the sender in the same transaction — whatever the read-receipt
+    /// setting, because saving is an explicit act the user is told about
+    /// first. Saving again sends nothing more; our own messages are only
+    /// marked here. View-once, disappearing and deleted items cannot be
+    /// saved: `invalidMessage`.
+    public func markMediaSaved(_ messageId: MessageId, peer: AccountId) throws {
+        let now = clock.now()
+        let changed = try write { tx -> Bool in
+            guard let conversation = try tx.conversations.forContact(peer),
+                let message = try tx.messages.get(messageId, in: conversation.id, now: now), !message.isDeleted,
+                !message.isViewOnce, message.expireTimerSeconds == 0,
+                let content = message.content, ReceiptPolicy.isSavable(content)
+            else { throw EngineError.invalidMessage }
+            guard try tx.messages.markSavedByMe(messageId, in: conversation.id, at: now) else { return false }
+            let state = try tx.contacts.requestState(of: peer)
+            if !message.isOutgoing, MessageRequestPolicy.maySendSavedReceipts(state: state ?? .blocked) {
+                try tx.outbox.enqueue(BRPContent(receipt: .saved, messageIds: [messageId]), to: peer, now: now)
+            }
+            return true
+        }
+        guard changed else { return }
+        outboxWake.signal()
+        emit(.messages(peer))
+    }
 
     /// Opens a received view-once item **once**: in one transaction its
     /// bytes are read into memory, the item is destroyed here (body, file,
@@ -597,10 +698,79 @@ extension MessagingEngine {
 
     // MARK: Safety numbers (§5)
 
-    public func acceptSafetyNumberChange(_ peer: AccountId) async throws {
-        try await backend.approveIdentityChange(for: peer)
+    /// Accepts a changed safety number without verifying it: sending
+    /// resumes, the contact stays unverified. Bound to the key whose number
+    /// the user was shown (`shownNumber`, the `SafetyNumber.scannable`):
+    /// `false`, and nothing changes — no line, no wake — when the key
+    /// changed since or no change was pending.
+    @discardableResult
+    public func acceptSafetyNumberChange(_ peer: AccountId, shownNumber: Data) async throws -> Bool {
+        guard try await backend.approveIdentityChange(for: peer, shownNumber: shownNumber) else { return false }
         held.remove(peer)
-        addNotice(.safetyNumberAccepted, peer: peer, at: clock.now())
+        addNotice(.safetyNumberAcceptedUnverified, peer: peer, at: clock.now())
+        outboxWake.signal()
+        emit(.conversations)
+        return true
+    }
+
+    /// “Doğrulandı olarak işaretle”: verifies the contact's key if its safety
+    /// number is still `comparedNumber`, the one the user compared (a
+    /// pending change of that key is accepted with it). `false`, and
+    /// nothing changes, when the key changed meanwhile.
+    public func markVerified(_ peer: AccountId, comparedNumber: Data) async throws -> Bool {
+        let verification = IdentityVerification(method: .manual, verifiedAt: clock.now())
+        let wasVerified = await isIdentityVerified(peer)
+        guard try await backend.markVerified(contact: peer, comparedNumber: comparedNumber, verification: verification)
+        else { return false }
+        didVerify(peer, wasVerified: wasVerified)
+        return true
+    }
+
+    /// 6.2: compares a safety-number QR payload scanned from the contact's
+    /// phone and, on a match, verifies the key it matched — one step.
+    public func verifySafetyNumber(_ peer: AccountId, scanned: Data) async throws -> Bool {
+        let verification = IdentityVerification(method: .qrCode, verifiedAt: clock.now())
+        let wasVerified = await isIdentityVerified(peer)
+        guard try await backend.verifySafetyNumber(contact: peer, scanned: scanned, verification: verification)
+        else { return false }
+        didVerify(peer, wasVerified: wasVerified)
+        return true
+    }
+
+    /// “QR kodla ekle”: pins the key a contact code scanned side by side
+    /// committed to (`identityKey`, served by the directory and found equal
+    /// to the code's fingerprint). Call it once the contact exists. `false`
+    /// when another key is stored for the contact: nothing is verified.
+    public func verifyContactCode(_ peer: AccountId, identityKey: Data) async throws -> Bool {
+        let verification = IdentityVerification(method: .qrCode, verifiedAt: clock.now())
+        let wasVerified = await isIdentityVerified(peer)
+        guard try await backend.pinVerifiedIdentity(identityKey, for: peer, verification: verification) else {
+            return false
+        }
+        didVerify(peer, wasVerified: wasVerified)
+        return true
+    }
+
+    /// “Doğrulamayı kaldır”: the seal goes; the key stays accepted.
+    public func clearVerification(_ peer: AccountId) async throws {
+        try await backend.clearVerification(contact: peer)
+        emit(.conversations)
+    }
+
+    public func identityVerification(for peer: AccountId) async throws -> IdentityVerification? {
+        try await backend.identityVerification(for: peer)
+    }
+
+    private func isIdentityVerified(_ peer: AccountId) async -> Bool {
+        guard case .trusted(_, verified: true)? = try? await backend.identityTrust(for: peer) else { return false }
+        return true
+    }
+
+    /// A verification was stored: a held queue goes out, and a line says so
+    /// (once — verifying a verified key again adds none).
+    private func didVerify(_ peer: AccountId, wasVerified: Bool) {
+        held.remove(peer)
+        if !wasVerified { addNotice(.safetyNumberVerified, peer: peer, at: clock.now()) }
         outboxWake.signal()
         emit(.conversations)
     }
@@ -665,5 +835,58 @@ extension MessagingEngine {
     public func makeBackup() async throws -> BRPAccountBackup {
         let contacts = try read { try AccountBackupService.backupContacts($0) }
         return try await backend.makeBackup(displayName: settings.displayName, contacts: contacts)
+    }
+
+    /// When an exported backup was last saved; `nil` before the first one.
+    public func lastBackupAt() -> Date? { runtime.lastBackupAt }
+
+    // MARK: Sticker recents (§8.8)
+
+    /// The most recents the runtime state keeps, and the longest id.
+    public static let maxRecentStickers = 12
+    public static let maxRecentStickerIdLength = 32
+
+    /// The picker's recents, newest first, as the app stored them.
+    public func recentStickers() -> [String] { runtime.recentStickers }
+
+    /// Replaces the recents in the encrypted runtime state: empty and
+    /// over-long ids are dropped, repeats kept once, at most
+    /// ``maxRecentStickers``. When the state cannot be written nothing
+    /// changes.
+    public func setRecentStickers(_ ids: [String]) throws {
+        var seen = Set<String>()
+        let kept = ids.filter { id in
+            !id.isEmpty && id.count <= Self.maxRecentStickerIdLength && seen.insert(id).inserted
+        }
+        let previous = runtime.recentStickers
+        runtime.recentStickers = Array(kept.prefix(Self.maxRecentStickers))
+        guard runtime.recentStickers != previous else { return }
+        do {
+            try stateFile.save(runtime)
+        } catch {
+            runtime.recentStickers = previous
+            throw error
+        }
+    }
+
+    /// Puts `id` at the front of the recents in one step: a repeat moves to
+    /// the front, the list keeps at most ``maxRecentStickers``. Two sends in
+    /// a row never lose an entry, since the actor runs this whole.
+    public func noteRecentSticker(_ id: String) throws {
+        try setRecentStickers([id] + runtime.recentStickers)
+    }
+
+    /// Records that an exported backup was saved, in the encrypted runtime
+    /// state. When the state cannot be written (the vault is locking)
+    /// nothing changes, neither the file nor what ``lastBackupAt()`` says.
+    public func recordBackupSaved(at date: Date) throws {
+        let previous = runtime.lastBackupAt
+        runtime.lastBackupAt = date
+        do {
+            try stateFile.save(runtime)
+        } catch {
+            runtime.lastBackupAt = previous
+            throw error
+        }
     }
 }

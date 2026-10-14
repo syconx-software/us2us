@@ -27,6 +27,7 @@ type BytesConfig = { data: Buffer, driverData: Buffer, config: { length: number 
 const binary = customType<BytesConfig>({ dataType: ({ length }) => `binary(${length})` })
 const varbinary = customType<BytesConfig>({ dataType: ({ length }) => `varbinary(${length})` })
 const mediumblob = customType<{ data: Buffer, driverData: Buffer }>({ dataType: () => 'mediumblob' })
+const blob = customType<{ data: Buffer, driverData: Buffer }>({ dataType: () => 'blob' })
 
 export const accounts = mysqlTable('accounts', {
   id: binary('id', { length: 16 }).primaryKey(),
@@ -105,6 +106,21 @@ export const media = mysqlTable('media', {
   index('media_uploader').on(table.uploader),
   index('media_expires_at').on(table.expiresAt),
 ])
+
+/**
+ * Avatar records for search (PROTOCOL.md §4.12): at most one per account, an
+ * opaque, padded ciphertext of at most 48 KiB (BLOB holds 64 KiB) whose
+ * version is in its own header. `highestVersion` is the largest version the
+ * account has written, stored or deleted; it stays while no record is
+ * stored (after a delete or a username change), so that a late retry of an
+ * older write is refused. Every write locks the account row first, and the
+ * row is deleted with the account.
+ */
+export const avatars = mysqlTable('avatars', {
+  accountId: binary('account_id', { length: 16 }).primaryKey(),
+  highestVersion: bigint('highest_version', { mode: 'bigint', unsigned: true }).notNull(),
+  record: blob('record'),
+})
 
 /** SHA-256 of proof-of-work tokens already redeemed, kept until they expire. */
 export const usedPowTokens = mysqlTable('used_pow_tokens', {

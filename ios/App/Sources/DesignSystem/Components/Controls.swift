@@ -109,9 +109,12 @@ extension ToggleStyle where Self == U2CheckboxStyle {
 /// C22 — a row of equal chips, gap 6, 40 high, r12, `chip` (Inter 400 14).
 /// Unselected: inner 1 pt `divider`, `text`; selected: fill `accent900`,
 /// inner 1.5 pt `accent`, `accent300`. Selection cross-fades over 0.24 s.
+/// Also the contact screen's tabs (proposed).
 struct SegmentedChips<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
+    /// Each chip's accessibility identifier is `<prefix>.<option>` (UI tests).
+    var identifierPrefix: String? = nil
     let title: (Value) -> Text
 
     @Environment(\.isEnabled) private var isEnabled
@@ -140,10 +143,25 @@ struct SegmentedChips<Value: Hashable>: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .modifier(OptionalAccessibilityIdentifier(identifier: identifierPrefix.map { "\($0).\(option)" }))
             }
         }
         .opacity(isEnabled ? 1 : U2Opacity.disabled)
         .u2Animation(U2Motion.micro, value: selection)
+    }
+}
+
+/// An identifier only when there is one: chips without a prefix keep none
+/// (never an empty one).
+private struct OptionalAccessibilityIdentifier: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 

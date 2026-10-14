@@ -1,7 +1,9 @@
 // us2us — end-to-end encrypted content schema.
 //
 // Everything in this file travels ONLY inside end-to-end encryption.
-// The relay never sees any of these messages in plaintext.
+// The relay never sees any of these messages in plaintext. (ProfileAvatar
+// is also the plaintext of the avatar record for search, encrypted under a
+// key derived from the username: docs/PROTOCOL.md §8.10.)
 //
 // Compatibility rules:
 //   * Never reuse or renumber a field. Add new fields with new numbers.
@@ -117,10 +119,11 @@ message LiveLocation {
 }
 
 message Sticker {
-  string pack_id = 1;                // built-in pack identifier, e.g. "cb.basic"
-  uint32 sticker_id = 2;
-  string emoji = 3;                  // associated emoji (accessibility / fallback)
+  string pack_id = 1;                // built-in pack identifier, e.g. "us2us.cups" (docs/PROTOCOL.md §8.8)
+  uint32 sticker_id = 2;             // unique across all built-in packs, never reused
+  string emoji = 3;                  // associated emoji (accessibility / fallback); always set
   Attachment custom = 4;             // set for custom (user-made) stickers instead of pack_id/sticker_id
+  string lang = 5;                   // built-in sticker with words: BCP-47 language they were shown in ("tr", "en"); else empty
 }
 
 message Reaction {
@@ -139,6 +142,12 @@ message ReceiptMessage {
     DELIVERY = 1;
     READ = 2;
     VIEWED = 3;                      // view-once / voice note opened
+    // The recipient saved this photo, video or file outside the app (to the
+    // phone's photos or files). Sent only by the recipient, only for a
+    // permanent IMAGE / VIDEO / FILE attachment (never view-once, never with
+    // a disappearing timer), whatever the read-receipt setting; receivers
+    // ignore it for anything else (docs/PROTOCOL.md §8.4).
+    SAVED = 4;
   }
   Type type = 1;
   repeated bytes message_ids = 2;           // at most 1000 (docs/PROTOCOL.md §8.4)
@@ -226,10 +235,30 @@ message ScreenshotNotice {
 // fields are set and replace the stored profile (docs/PROTOCOL.md §8.7).
 message ProfileUpdate {
   string display_name = 1;                  // max 64 UTF-8 bytes
-  Attachment avatar = 2;                    // optional
+  Attachment avatar = 2;                    // DEPRECATED, never sent: senders MUST NOT set it, receivers ignore it (§8.7)
   uint64 updated_at = 3;
   string username = 4;                      // current normalized username; a claim until checked (§3.3)
   bool presence_sharing = 5;                // user shares "active now" status (reciprocal, §8.6)
+  ProfileAvatar profile_avatar = 6;         // profile picture; absent = the initial letter (§8.9)
+}
+
+// A profile picture (docs/PROTOCOL.md §8.9): a built-in preset or a photo.
+// No ProfileAvatar at all means the initial letter of the username.
+// Travels to accepted contacts in ProfileUpdate.profile_avatar and, while
+// "Show in search" is on, as the plaintext of the account's avatar record
+// on the relay (§8.10). Serialized size at most 49110 bytes. Anything
+// malformed is shown as the initial letter, never a reason to drop the
+// message or record around it.
+message ProfileAvatar {
+  oneof kind {
+    uint32 preset_id = 1;                   // built-in preset (§8.9 catalog); unique, never reused; 0 is invalid
+    AvatarPhoto photo = 2;
+  }
+}
+
+message AvatarPhoto {
+  string content_type = 1;                  // "image/jpeg" or "image/heic"
+  bytes data = 2;                           // one still image, square, <= 256x256 px, no EXIF/GPS/XMP metadata (§8.9)
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +277,8 @@ message AccountBackup {
   bytes access_key = 8;                     // 16 bytes, current access key
   repeated BackupContact contacts = 9;
   uint64 created_at = 10;
+  ProfileAvatar avatar = 11;                // own profile picture; absent = the initial letter (§8.9)
+  bool avatar_search_off = 12;              // "Show in search" is off (§8.10); false = on, the default
 }
 
 message BackupContact {
@@ -259,6 +290,8 @@ message BackupContact {
   bool blocked = 6;
   bytes their_access_key = 7;               // 16 bytes, lets us keep sending without PoW
   bool presence_sharing = 8;                // the contact's last ProfileUpdate.presence_sharing (§8.6)
-  bool identity_unaccepted = 9;             // identity_key is a change the user has not accepted yet:
-                                            // restore it as changed, sending blocked (§5.5, §6.3)
+  // identity_key is a change the user has not accepted yet: restore it as
+  // changed, sending blocked (§5.5, §6.3)
+  bool identity_unaccepted = 9;
+  ProfileAvatar avatar = 10;                // the contact's last ProfileUpdate.profile_avatar (§8.9); absent = none
 }

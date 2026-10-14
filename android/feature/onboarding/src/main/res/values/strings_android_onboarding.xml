@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy of onboarding: where the iOS catalogue names Apple's services. On Android,
+     notifications pass through Google's servers; the rest of 1.2's sentence is the catalogue's. -->
+<resources>
+    <string name="onboarding_android_notifications_body">Notifications pass through Google\'s servers and leave a trace of who wrote when. In us2us, messages only arrive while the app is open; you can always see exactly where they are:</string>
+</resources>

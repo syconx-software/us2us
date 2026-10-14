@@ -50,6 +50,56 @@ extension MessagingEngine {
             .sorted { $0.storedAt < $1.storedAt }
     }
 
+    /// The conversation's photos and videos (`.visual`) or files
+    /// (`.documents`), **newest first**: up to `limit` (at most a page)
+    /// older than the message `before` (`nil` = from the newest). Never
+    /// view-once, disappearing, deleted or expired items (§8.1: a list kept
+    /// outside the conversation never shows one after its deadline). An
+    /// empty page when `before` is no longer here
+    /// (it disappeared or was deleted meanwhile): load again from the newest.
+    public func mediaMessages(with peer: AccountId, kind: MediaKind, before: MessageId?, limit: Int) throws
+        -> [MessageItem]
+    {
+        let now = clock.now()
+        return try read { tx -> [MessageItem] in
+            guard limit > 0, let conversation = try tx.conversations.forContact(peer) else { return [] }
+            var cursor: Int64?
+            if let before {
+                guard let localId = try tx.messages.localId(of: before, in: conversation.id) else { return [] }
+                cursor = localId
+            }
+            let accepted = try tx.contacts.requestState(of: peer) == .accepted
+            let page = try tx.messages.mediaPage(
+                in: conversation.id, kinds: Self.attachmentKinds(of: kind), before: cursor,
+                limit: min(limit, configuration.pageSize), now: now)
+            let reactions = try tx.messages.reactions(on: page.map(\.messageId), in: conversation.id)
+            return try page.map { message in
+                try item(from: message, tx: tx, accepted: accepted, reactions: reactions[message.messageId] ?? [])
+            }
+        }
+    }
+
+    /// One message of the conversation as it is now (e.g. an item of the
+    /// media list while its download runs); `nil` once it is gone or expired.
+    public func messageItem(_ messageId: MessageId, peer: AccountId) throws -> MessageItem? {
+        let now = clock.now()
+        return try read { tx -> MessageItem? in
+            guard let conversation = try tx.conversations.forContact(peer),
+                let message = try tx.messages.get(messageId, in: conversation.id, now: now)
+            else { return nil }
+            let accepted = try tx.contacts.requestState(of: peer) == .accepted
+            let reactions = try tx.messages.reactions(on: [messageId], in: conversation.id)
+            return try item(from: message, tx: tx, accepted: accepted, reactions: reactions[messageId] ?? [])
+        }
+    }
+
+    /// Everyone blocked, also those without a conversation (a ghost wipe or
+    /// a deleted conversation keeps the block): the only place they can be
+    /// unblocked from without finding them by username again.
+    public func blockedContacts() throws -> [ContactInfo] {
+        try read { try $0.contacts.blocked().map(ContactInfo.init) }
+    }
+
     public func contactInfo(_ peer: AccountId) throws -> ContactInfo? {
         try read { try $0.contacts.get(peer).map(ContactInfo.init) }
     }
@@ -66,6 +116,13 @@ extension MessagingEngine {
     }
 
     // MARK: Mapping
+
+    static func attachmentKinds(of kind: MediaKind) -> Set<BRPAttachment.Kind> {
+        switch kind {
+        case .visual: return [.image, .video]
+        case .documents: return [.file]
+        }
+    }
 
     func item(from message: StoredMessage, tx: StorageTransaction, accepted: Bool, reactions: [StoredReaction]) throws
         -> MessageItem
@@ -100,7 +157,9 @@ extension MessagingEngine {
             reactions: Dictionary(reactions.map { ($0.reactor, $0.emoji) }, uniquingKeysWith: { _, last in last }),
             status: message.isOutgoing ? OutgoingStatus(message.status) : nil,
             deliveredAt: message.timestamps.deliveredAt, readAt: message.timestamps.readAt,
-            displayedAt: message.timestamps.displayedAt)
+            displayedAt: message.timestamps.displayedAt, viewedAt: message.timestamps.viewedAt,
+            savedByPeerAt: message.isOutgoing ? message.timestamps.savedByPeerAt : nil,
+            savedByMeAt: message.timestamps.savedByMeAt)
     }
 
     static func body(
@@ -124,7 +183,7 @@ extension MessagingEngine {
         case .sticker(let sticker):
             return .sticker(
                 StickerInfo(
-                    packId: sticker.packID, stickerId: sticker.stickerID, emoji: sticker.emoji,
+                    packId: sticker.packID, stickerId: sticker.stickerID, emoji: sticker.emoji, lang: sticker.lang,
                     custom: sticker.hasCustom
                         ? attachmentItem(sticker.custom, stored: attachments.first, incoming: incoming, accepted: accepted)
                         : nil))

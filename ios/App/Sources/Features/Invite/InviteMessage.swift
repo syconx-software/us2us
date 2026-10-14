@@ -30,7 +30,7 @@ struct InviteMessage: Equatable, Sendable {
             subject: StringTable.invite.string("invite.subject", locale: locale))
     }
 
-    /// The template: “Merhaba! Seninle us2us’ta konuşmak istiyorum: … Kullanıcı adım: @selin.n” and the link on its own line.
+    /// The template: “Merhaba! Seninle us2us’ta konuşmak istiyorum: … Kullanıcı adım: @selin_n” and the link on its own line.
     static func defaultText(username: String, link: URL, locale: Locale) -> String {
         StringTable.invite.string("invite.message \(username) \(link.absoluteString)", locale: locale)
     }

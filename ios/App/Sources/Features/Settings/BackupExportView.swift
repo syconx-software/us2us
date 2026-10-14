@@ -1,12 +1,21 @@
 import SwiftUI
+import Us2usKit
+import Us2usRuntime
 
 /// State of 7.2 · Yedeği dışa aktar.
 ///
 /// The backup password is separate from the secret code (owner decision) and
-/// asked twice: the first entry is checked (strength at least “Orta”, not the
-/// secret code), then a confirmation field rises under it; only a matching
-/// confirmation exports. The passwords live only in this model, which goes
-/// away with the screen.
+/// asked twice: the first entry is checked (the PROTOCOL.md §5.5 rules, then
+/// the local strength estimate at least “Orta”), then a confirmation field
+/// rises under it; only a matching confirmation exports. Every problem is
+/// shown under its field. “Güçlü parola oluştur” fills in a random password
+/// (`BackupPassword.generate()`) and shows its card, so that it can be saved
+/// in a password manager: hidden until “Göster” (and always hidden while the
+/// screen is recorded or mirrored, and again when the app leaves the
+/// foreground), “Kopyala” hands it over on this device only for a minute
+/// (`SecurePasteboard` `.handOff`), and “Kopyalandı · 1 dk sonra panodan
+/// silinir” says so until the minute is over. The passwords live only in
+/// this model, which goes away with the screen; nothing logs or stores them.
 @Observable
 @MainActor
 final class BackupExportModel {
@@ -19,37 +28,59 @@ final class BackupExportModel {
     }
 
     enum Problem: Equatable {
-        /// Strength below “Orta”.
+        /// The strength estimate is below “Orta”.
         case weak
-        /// Equal to the secret code (owner rule).
-        case sameAsSecretCode
+        /// Fewer than 10 characters (§5.5).
+        case tooShort
+        /// In `spec/common-backup-passwords.txt` (§5.5).
+        case tooCommon
+        /// One character repeated (§5.5).
+        case repeatedCharacter
+        /// A run or a keyboard row (§5.5).
+        case sequence
         /// The confirmation differs.
         case mismatch
+        /// Encrypting or writing the file failed; nothing was exported.
+        case exportFailed
+
+        init(_ error: BackupPasswordError) {
+            switch error {
+            case .tooShort: self = .tooShort
+            case .tooCommon: self = .tooCommon
+            case .repeatedCharacter: self = .repeatedCharacter
+            case .simpleSequence: self = .sequence
+            case .mismatch: self = .mismatch
+            }
+        }
+
+        /// Shown under the first field, which then draws its error ring.
+        var concernsPassword: Bool {
+            switch self {
+            case .weak, .tooShort, .tooCommon, .repeatedCharacter, .sequence: true
+            case .mismatch, .exportFailed: false
+            }
+        }
     }
 
-    /// The switches. Media only ever goes with messages: with “Mesajlar” off
-    /// the media switch shows off and is disabled, but keeps the user's choice
-    /// for when messages are switched back on (`BackupContents.includesMedia`).
-    var contents = BackupContents()
-
-    /// The “Fotoğraf ve videolar” switch as shown.
-    var includesMedia: Bool {
-        get { contents.includesMedia }
-        set { contents.media = newValue }
-    }
+    /// What every backup holds (PROTOCOL.md §5.5): the account, its identity
+    /// key and the contacts. Messages and media are never part of it, so
+    /// there is nothing to choose.
+    static let contents = BackupContents(messages: false, media: false, settingsAndContacts: true)
 
     var password = "" {
         didSet {
             guard password != oldValue else { return }
-            strength = PasswordStrength.estimate(password)
-            if problem == .weak || problem == .sameAsSecretCode { problem = nil }
+            strength = password == generatedPassword ? .generated : PasswordStrength.estimate(password)
             if isConfirming, !confirmation.isEmpty { confirmation = "" }
-            if problem == .mismatch { problem = nil }
+            problem = nil
+            endCopyConfirmation()
         }
     }
 
     var confirmation = "" {
-        didSet { if problem == .mismatch, confirmation != oldValue { problem = nil } }
+        didSet {
+            if confirmation != oldValue, problem == .mismatch || problem == .exportFailed { problem = nil }
+        }
     }
 
     private(set) var strength = PasswordStrength.empty
@@ -57,52 +88,117 @@ final class BackupExportModel {
     private(set) var isConfirming = false
     private(set) var problem: Problem?
     private(set) var phase: Phase = .editing
-    private(set) var estimate: BackupEstimate?
+    /// The last password “Güçlü parola oluştur” made; shown while the field
+    /// still holds it.
+    private(set) var generatedPassword: String?
+    /// “Kopyala” copied the shown password, and the copy has not expired
+    /// yet: “Kopyalandı · yalnızca bu cihazda, 1 dk sonra silinir” stays under the button.
+    private(set) var didCopy = false
+    /// “Göster”: the generated password is shown in the clear. Off at first,
+    /// and again whenever the app leaves the foreground.
+    private(set) var isRevealed = false
+    /// The screen is being recorded or mirrored: the password stays hidden
+    /// whatever “Göster” says.
+    var isScreenCaptured = false
     /// The reference state draws the ring on the password field without the keyboard.
     var highlightsPassword = false
 
     private let messenger: any MessengerService
+    private let pasteboard: SecurePasteboard
+    /// How long the confirmation stays: as long as the copy lives.
+    private let copyLifetime: Duration
+    @ObservationIgnored private var copyExpiry: Task<Void, Never>?
 
-    init(messenger: any MessengerService) {
+    init(
+        messenger: any MessengerService, pasteboard: SecurePasteboard,
+        copyLifetime: Duration = .seconds(SecurePasteboard.sensitiveLifetime)
+    ) {
         self.messenger = messenger
+        self.pasteboard = pasteboard
+        self.copyLifetime = copyLifetime
+    }
+
+    /// The app's pasteboard, shared with the runtime (which clears what is
+    /// still ours when the app locks).
+    convenience init(messenger: any MessengerService) {
+        self.init(messenger: messenger, pasteboard: .shared)
+    }
+
+    /// The generated password is in the field (and its card below it).
+    var showsGeneratedPassword: Bool { generatedPassword != nil && password == generatedPassword }
+
+    /// The card shows the password in the clear (not just its shape).
+    var revealsGeneratedPassword: Bool { isRevealed && !isScreenCaptured }
+
+    /// “Göster” / “Gizle”.
+    func toggleReveal() {
+        guard showsGeneratedPassword, !isScreenCaptured else { return }
+        withU2Animation(U2Motion.micro) { isRevealed.toggle() }
+    }
+
+    /// The app leaves the foreground (or the screen gets recorded): hidden
+    /// again. The copy itself stays: that is when it is pasted elsewhere.
+    func hidePassword() {
+        isRevealed = false
     }
 
     var confirmationMatches: Bool { isConfirming && !confirmation.isEmpty && confirmation == password }
 
     var canSubmit: Bool {
-        guard phase == .editing, !contents.isEmpty else { return false }
+        guard phase == .editing else { return false }
         return isConfirming ? !confirmation.isEmpty : !password.isEmpty
     }
 
-    func load() async {
-        guard estimate == nil else { return }
-        let value = await messenger.backupEstimate()
-        withU2Animation(U2Motion.state) { estimate = value }
+    /// “Güçlü parola oluştur”: a new random password in the field, counted at
+    /// its exact strength and shown below it. A confirmation typed so far is
+    /// cleared.
+    func generatePassword(using generate: () -> String = BackupPassword.generate) {
+        let value = generate()
+        generatedPassword = value
+        withU2Animation(U2Motion.state) { password = value }
     }
 
-    /// Bytes the chosen contents take (the design's estimate: all on = 184 MB).
-    var estimatedBytes: Int64? {
-        guard let estimate else { return nil }
-        var bytes: Int64 = 0
-        if contents.messages { bytes += estimate.totalBytes - estimate.mediaBytes }
-        if contents.includesMedia { bytes += estimate.mediaBytes }
-        return bytes
+    /// “Kopyala”: the generated password to the pasteboard, on this device
+    /// only (no Universal Clipboard) and for one minute
+    /// (`SecurePasteboard.sensitiveLifetime`). The confirmation stays until
+    /// the minute is over; copying again starts it over.
+    @discardableResult
+    func copyGeneratedPassword() -> Bool {
+        guard showsGeneratedPassword, let generatedPassword,
+            // Pasted into a password manager, i.e. after leaving the app:
+            // it stays on this device and expires after a minute.
+            pasteboard.copy(generatedPassword, sensitivity: .handOff)
+        else { return false }
+        U2Haptics.success()
+        withU2Animation(U2Motion.state) { didCopy = true }
+        copyExpiry?.cancel()
+        let lifetime = copyLifetime
+        copyExpiry = Task { [weak self] in
+            try? await Task.sleep(for: lifetime)
+            guard !Task.isCancelled, let self else { return }
+            // The pasteboard has dropped it by now: say no more than is true.
+            withU2Animation(U2Motion.state) { self.didCopy = false }
+            self.copyExpiry = nil
+        }
+        return true
+    }
+
+    private func endCopyConfirmation() {
+        copyExpiry?.cancel()
+        copyExpiry = nil
+        didCopy = false
     }
 
     /// “Dışa aktar” / return key. Returns the exported file when it is ready to share.
     func submit(fileName: String) async -> URL? {
         guard canSubmit else { return nil }
-        if !isConfirming {
-            guard strength.isAcceptable else {
-                fail(.weak)
-                return nil
-            }
-            if password.count == 6, password.allSatisfy(\.isASCII), password.allSatisfy(\.isNumber),
-                await messenger.backupPasswordIsSecretCode(password)
-            {
-                fail(.sameAsSecretCode)
-                return nil
-            }
+        // Checked at both steps: the password may have changed since the
+        // confirmation field appeared.
+        if let found = passwordProblem() {
+            fail(found)
+            return nil
+        }
+        guard isConfirming else {
             withU2Animation(U2Motion.state) {
                 problem = nil
                 isConfirming = true
@@ -113,15 +209,24 @@ final class BackupExportModel {
             fail(.mismatch)
             return nil
         }
-        withU2Animation(U2Motion.state) { phase = .exporting(0) }
+        withU2Animation(U2Motion.state) {
+            problem = nil
+            phase = .exporting(0)
+        }
         do {
-            let url = try await messenger.exportBackup(contents, password: password, fileName: fileName) { [weak self] value in
+            let url = try await messenger.exportBackup(Self.contents, password: password, fileName: fileName) {
+                [weak self] value in
                 self?.phase = .exporting(value)
             }
             phase = .sharing
             return url
+        } catch let error as BackupPasswordError {
+            withU2Animation(U2Motion.state) { phase = .editing }
+            fail(Problem(error))
+            return nil
         } catch {
             withU2Animation(U2Motion.state) { phase = .editing }
+            fail(.exportFailed)
             return nil
         }
     }
@@ -132,8 +237,22 @@ final class BackupExportModel {
         if saved {
             password = ""
             confirmation = ""
+            generatedPassword = nil
+            isRevealed = false
         }
         withU2Animation(U2Motion.state) { phase = .editing }
+    }
+
+    /// The first problem of the password itself: the §5.5 rules (the same
+    /// the export checks again), then the strength estimate. At least 10
+    /// characters also keep it apart from the six-digit secret code.
+    private func passwordProblem() -> Problem? {
+        do throws(BackupPasswordError) {
+            try BackupPassword.validate(password)
+        } catch {
+            return Problem(error)
+        }
+        return strength.isAcceptable ? nil : .weak
     }
 
     private func fail(_ problem: Problem) {
@@ -144,15 +263,26 @@ final class BackupExportModel {
     #if DEBUG
         /// DEBUG harness states (`-U2Route settings:7.2…`).
         func applyHarness(_ state: String) {
-            let demo = DesignFixturesService.demoBackupPassword
+            let demo = DesignFixturesService.demoExportPassword
             switch state {
             case "7.2":
                 password = demo
                 highlightsPassword = true
             case "7.2-weak":
-                password = "kedi2026"
+                // Long enough for the §5.5 rules, weak by the estimate: the
+                // state the live check produces.
+                password = "Ahmet1985!"
                 problem = .weak
                 highlightsPassword = true
+            case "7.2-generated":
+                generatePassword { "k7mq-x2pd-9tfa-wn3h-b8ze" }
+            case "7.2-revealed":
+                generatePassword { "k7mq-x2pd-9tfa-wn3h-b8ze" }
+                isRevealed = true
+            case "7.2-copied":
+                generatePassword { "k7mq-x2pd-9tfa-wn3h-b8ze" }
+                isRevealed = true
+                didCopy = true
             case "7.2-confirm":
                 password = demo
                 isConfirming = true
@@ -178,8 +308,12 @@ final class BackupExportModel {
 struct BackupExportView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.u2Clock) private var clock
     @State private var viewModel: BackupExportModel?
+    /// The screen is recorded or mirrored (kept here too: the probe may
+    /// report before the model exists).
+    @State private var isCaptured = false
     @FocusState private var focus: PasswordFieldFocus?
 
     var body: some View {
@@ -202,13 +336,27 @@ struct BackupExportView: View {
                 }
             }
         }
+        .background {
+            // Recorded or mirrored: the generated password stays hidden.
+            ScreenCaptureProbe { captured in
+                isCaptured = captured
+                viewModel?.isScreenCaptured = captured
+                if captured { viewModel?.hidePassword() }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Hidden again before the app-switcher snapshot and the lock.
+            if phase != .active { viewModel?.hidePassword() }
+        }
         .onAppear(perform: makeModel)
-        .task { await viewModel?.load() }
     }
 
     private func makeModel() {
         guard viewModel == nil else { return }
         let created = BackupExportModel(messenger: SettingsFlow.of(model).messenger)
+        created.isScreenCaptured = isCaptured
         #if DEBUG
             if let state = SettingsHarness.take(prefix: "7.2") { created.applyHarness(state) }
         #endif
@@ -220,49 +368,29 @@ struct BackupExportView: View {
     @ViewBuilder private func content(_ vm: BackupExportModel) -> some View {
         @Bindable var vm = vm
         VStack(alignment: .leading, spacing: 18) {
-            BackupFileCard(name: Text(verbatim: fileName), caption: estimateCaption(vm))
+            BackupFileCard(name: Text(verbatim: fileName), caption: Text("backup.file.caption", table: .settings))
 
-            VStack(alignment: .leading, spacing: U2Spacing.sectionLabelGap) {
-                SectionLabel(Text("backup.contents", table: .settings))
-                GroupedCard {
-                    GroupedToggleRow(
-                        tile: IconTile(content: .glyph(.chatCircleDots)), title: Text("backup.contents.messages", table: .settings),
-                        subtitle: messagesSubtitle(vm), isOn: $vm.contents.messages)
-                        .accessibilityIdentifier("backup.contents.messages")
-                    GroupedSeparator()
-                    GroupedToggleRow(
-                        tile: IconTile(content: .glyph(.image)), title: Text("backup.contents.media", table: .settings),
-                        subtitle: vm.estimate.map { Text(verbatim: U2Format.byteCount($0.mediaBytes, locale: locale)) },
-                        isOn: $vm.includesMedia)
-                        .disabled(!vm.contents.messages)
-                        .accessibilityIdentifier("backup.contents.media")
-                    GroupedSeparator()
-                    GroupedToggleRow(
-                        tile: IconTile(content: .glyph(.gearSix)), title: Text("backup.contents.settings", table: .settings),
-                        isOn: $vm.contents.settingsAndContacts)
-                        .accessibilityIdentifier("backup.contents.settings")
-                }
-                Text("backup.contents.footnote", table: .settings)
-                    .u2Font(.footnote)
-                    .foregroundStyle(Color.u2.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 16)
-            }
+            contentsSection
 
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(Text("backup.password", table: .settings))
                 PasswordField(
                     text: $vm.password, focus: $focus, field: .password,
-                    isError: vm.problem == .weak || vm.problem == .sameAsSecretCode,
+                    isError: vm.problem?.concernsPassword == true,
                     isHighlighted: vm.highlightsPassword && focus == nil,
                     isDisabled: vm.phase != .editing,
                     submitLabel: .next, contentType: .newPassword,
+                    revealAllowed: !isCaptured,
                     onSubmit: { submit(vm) }
                 )
                 .accessibilityIdentifier("backup.password")
                 strengthRow(vm)
-                if let problem = vm.problem, problem != .mismatch {
+                if let problem = vm.problem, problem.concernsPassword {
                     problemCaption(problem)
+                }
+                generateButton(vm)
+                if vm.showsGeneratedPassword, let generated = vm.generatedPassword {
+                    generatedCard(vm, password: generated)
                 }
                 if vm.isConfirming {
                     PasswordField(
@@ -272,6 +400,7 @@ struct BackupExportView: View {
                         isError: vm.problem == .mismatch,
                         isDisabled: vm.phase != .editing,
                         submitLabel: .done, contentType: .newPassword,
+                        revealAllowed: !isCaptured,
                         onSubmit: { submit(vm) }
                     )
                     .accessibilityIdentifier("backup.password.confirm")
@@ -279,6 +408,9 @@ struct BackupExportView: View {
                     if vm.problem == .mismatch {
                         problemCaption(.mismatch)
                     }
+                }
+                if vm.problem == .exportFailed {
+                    problemCaption(.exportFailed)
                 }
             }
 
@@ -297,9 +429,48 @@ struct BackupExportView: View {
         }
         .u2Animation(U2Motion.state, value: vm.isConfirming)
         .u2Animation(U2Motion.state, value: vm.problem)
+        .u2Animation(U2Motion.state, value: vm.showsGeneratedPassword)
         .onChange(of: vm.isConfirming) { _, confirming in
             if confirming { focus = .confirmation }
         }
+    }
+
+    /// “Yedeğe girecekler”: what the file holds, and (footnote) what it never
+    /// holds. Nothing to switch: a backup is always the account (§5.5).
+    private var contentsSection: some View {
+        VStack(alignment: .leading, spacing: U2Spacing.sectionLabelGap) {
+            SectionLabel(Text("backup.contents", table: .settings))
+            GroupedCard {
+                contentsRow(.password, title: "backup.contents.account", detail: "backup.contents.account.detail")
+                GroupedSeparator()
+                contentsRow(.shieldCheck, title: "backup.contents.identity", detail: "backup.contents.identity.detail")
+                GroupedSeparator()
+                contentsRow(
+                    .sealCheck, weight: .fill, title: "backup.contents.contacts",
+                    detail: "backup.contents.contacts.detail")
+            }
+            Text("backup.contents.footnote", table: .settings)
+                .u2Font(.footnote)
+                .foregroundStyle(Color.u2.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 16)
+                .accessibilityIdentifier("backup.contents.footnote")
+        }
+    }
+
+    private func contentsRow(
+        _ glyph: PhosphorGlyph, weight: PhosphorWeight = .regular, title: LocalizedStringKey,
+        detail: LocalizedStringKey
+    ) -> some View {
+        GroupedRow(
+            tile: IconTile(content: .glyph(glyph), glyphWeight: weight), title: Text(title, table: .settings),
+            subtitle: Text(detail, table: .settings)
+        ) {
+            PhosphorIcon(.check, size: 18)
+                .foregroundStyle(Color.u2.online)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func strengthRow(_ vm: BackupExportModel) -> some View {
@@ -342,12 +513,111 @@ struct BackupExportView: View {
         }
     }
 
+    /// “Güçlü parola oluştur” (C3, `accent300`, under the meter).
+    private func generateButton(_ vm: BackupExportModel) -> some View {
+        Button {
+            focus = nil
+            vm.generatePassword()
+        } label: {
+            U2ButtonLabel(Text("backup.password.generate", table: .settings), glyph: .password, glyphSize: 18)
+        }
+        .buttonStyle(U2TextButtonStyle(tone: .accent, height: 40, fillsWidth: false))
+        .disabled(vm.phase != .editing)
+        .padding(.horizontal, 6)
+        .accessibilityIdentifier("backup.password.generate")
+    }
+
+    /// The generated password card — a `surface` card, r18: the password
+    /// in groups (`monoUsernameL`), hidden as `••••-••••-…` until the eye
+    /// (the password field's 20 pt `ph:eye` in `text·68%`) shows it; the
+    /// reminder to save it in a password manager; “Kopyala” and, after it,
+    /// “Kopyalandı · yalnızca bu cihazda, 1 dk sonra silinir” (the 7.4 invite's status
+    /// line: `ph:check` in `online`, `captionTight`) until the copy expires.
+    private func generatedCard(_ vm: BackupExportModel, password: String) -> some View {
+        let revealed = vm.revealsGeneratedPassword
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text(verbatim: revealed ? password : Self.masked(password))
+                    .u2Font(.monoUsernameL)
+                    .foregroundStyle(revealed ? Color.u2.text : Color.u2.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .contentTransition(.opacity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .privacySensitive()
+                    .accessibilityLabel(Text("a11y.backup.generated", table: .settings))
+                    .accessibilityValue(
+                        revealed
+                            ? Text(verbatim: password).speechSpellsOutCharacters()
+                            : Text("a11y.backup.generated.hidden", table: .settings))
+                    .accessibilityIdentifier("backup.password.generated")
+                Button { vm.toggleReveal() } label: {
+                    PhosphorIcon(revealed ? .eyeSlash : .eye, size: 20)
+                        .foregroundStyle(Color.u2.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle().inset(by: -12))
+                }
+                .buttonStyle(.plain)
+                .disabled(vm.isScreenCaptured)
+                .accessibilityLabel(revealed ? Text("a11y.password.hide") : Text("a11y.password.show"))
+                .accessibilityIdentifier("backup.password.reveal")
+            }
+            Text("backup.password.generated.hint", table: .settings)
+                .u2Font(.captionTight)
+                .foregroundStyle(Color.u2.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button { copy(vm) } label: {
+                U2ButtonLabel(Text("backup.password.copy", table: .settings), glyph: .copy, glyphSize: 18)
+            }
+            .buttonStyle(U2TextButtonStyle(tone: .accent, height: 40, fillsWidth: false))
+            .disabled(vm.phase != .editing)
+            .accessibilityHint(Text("a11y.backup.copy.hint", table: .settings))
+            .accessibilityIdentifier("backup.password.copy")
+            if vm.didCopy {
+                HStack(alignment: .top, spacing: 8) {
+                    PhosphorIcon(.check, size: 16)
+                        .foregroundStyle(Color.u2.online)
+                        .frame(height: U2TextStyle.captionTight.lineHeight)
+                        .accessibilityHidden(true)
+                    Text("backup.password.copied", table: .settings)
+                        .u2Font(.captionTight)
+                        .foregroundStyle(Color.u2.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.bottom, 10)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("backup.password.copied")
+                .transition(.u2Fade)
+            }
+        }
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 4, trailing: 16))
+        .background(RoundedRectangle(cornerRadius: U2Radius.group, style: .continuous).fill(Color.u2.surface))
+        .u2Animation(U2Motion.state, value: vm.didCopy)
+        .transition(.u2Rise)
+    }
+
+    /// `k7mq-x2pd-…` → `••••-••••-…`: the shape (and the dashes that are
+    /// part of it) without the password.
+    static func masked(_ password: String) -> String {
+        String(password.map { $0 == "-" ? "-" : "•" })
+    }
+
+    private func copy(_ vm: BackupExportModel) {
+        guard vm.copyGeneratedPassword() else { return }
+        AccessibilityNotification.Announcement(StringTable.settings.string("backup.password.copied", locale: locale))
+            .post()
+    }
+
     private func problemCaption(_ problem: BackupExportModel.Problem) -> some View {
         Group {
             switch problem {
             case .weak: Text("backup.problem.weak", table: .settings)
-            case .sameAsSecretCode: Text("backup.problem.secretCode", table: .settings)
+            case .tooShort: Text("backup.problem.tooShort", table: .settings)
+            case .tooCommon: Text("backup.problem.tooCommon", table: .settings)
+            case .repeatedCharacter: Text("backup.problem.repeated", table: .settings)
+            case .sequence: Text("backup.problem.sequence", table: .settings)
             case .mismatch: Text("backup.problem.mismatch", table: .settings)
+            case .exportFailed: Text("backup.problem.exportFailed", table: .settings)
             }
         }
         .u2Font(.caption)
@@ -412,23 +682,6 @@ struct BackupExportView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         let date = formatter.string(from: clock.now)
         return StringTable.settings.string("backup.fileName \(date)", locale: locale)
-    }
-
-    private func estimateCaption(_ vm: BackupExportModel) -> Text {
-        guard let estimate = vm.estimate, let bytes = vm.estimatedBytes else { return Text(verbatim: " ") }
-        if !vm.contents.messages {
-            return vm.contents.settingsAndContacts ? Text("backup.estimate.settingsOnly", table: .settings) : Text("backup.estimate.nothing", table: .settings)
-        }
-        let size = U2Format.byteCount(bytes, locale: locale)
-        let messages = SettingsCount.messages(estimate.messageCount, locale: locale)
-        return Text("backup.estimate \(size) \(messages)", table: .settings)
-    }
-
-    private func messagesSubtitle(_ vm: BackupExportModel) -> Text? {
-        guard let estimate = vm.estimate else { return nil }
-        let chats = SettingsCount.chats(estimate.chatCount, locale: locale)
-        let messages = SettingsCount.messages(estimate.messageCount, locale: locale)
-        return Text(verbatim: "\(chats) · \(messages)")
     }
 }
 

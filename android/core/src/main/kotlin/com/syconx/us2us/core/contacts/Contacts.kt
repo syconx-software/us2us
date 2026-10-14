@@ -3,6 +3,7 @@ package com.syconx.us2us.core.contacts
 import com.google.protobuf.kotlin.toByteString
 import com.syconx.us2us.core.AccessKey
 import com.syconx.us2us.core.AccountId
+import com.syconx.us2us.core.profile.ProfilePicture
 import com.syconx.us2us.core.proto.Content
 import com.syconx.us2us.core.proto.MessageRequestResponse
 import com.syconx.us2us.core.proto.accessKeyUpdate
@@ -57,10 +58,28 @@ data class Contact(
      * access keys; until then nothing is sent.
      */
     val presenceSharing: Boolean = false,
-    /** Whether the peer has our current profile (username, display name, presence sharing). */
+    /** Whether the peer has our current profile (username, display name, presence sharing, picture). */
     val profileShared: Boolean = false,
     /** Whether [username] was checked against the directory, and with what result (§3.3). */
     val usernameStatus: UsernameStatus = UsernameStatus.UNCHECKED,
+    /**
+     * The peer's profile picture from its last `ProfileUpdate.profile_avatar` (PROTOCOL.md §8.9),
+     * already checked; `null` is the initial letter. Persist it only in the encrypted store, as
+     * `picture.toProto().toByteArray()` (read back with `ProfilePicture.parse`); it goes with the
+     * contact.
+     */
+    val picture: ProfilePicture? = null,
+    /**
+     * Whether a `ProfileUpdate` of the peer has arrived (or was restored from a backup). From then
+     * on [picture] is the peer's own choice, and its avatar record is not fetched (§8.9, §8.10).
+     */
+    val profileReceived: Boolean = false,
+    /**
+     * While [ContactState.BLOCKED]: the state the block interrupted, which unblocking returns to.
+     * `null` for an account blocked as a stranger or restored blocked from a backup (which holds
+     * only the flag, §5.5); unblocking makes it an incoming request.
+     */
+    val stateBeforeBlock: ContactState? = null,
 )
 
 /** Persistence for contacts. The app implements it on its encrypted database. */

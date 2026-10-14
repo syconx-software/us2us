@@ -10,24 +10,25 @@ import UIKit
 @Suite("Invite links")
 struct InviteLinkTests {
     @Test func buildsTheCanonicalLink() {
-        #expect(InviteLink.url(for: "selin.n")?.absoluteString == "https://us2us.app/u/selin.n")
+        #expect(InviteLink.url(for: "selin_n")?.absoluteString == "https://us2us.app/u/selin_n")
         #expect(InviteLink.url(for: "ayla_")?.absoluteString == "https://us2us.app/u/ayla_")
         // Normalized: white space, one “@”, case (without Turkish İ/ı mapping).
         #expect(InviteLink.url(for: " @Deniz\n")?.absoluteString == "https://us2us.app/u/deniz")
         #expect(InviteLink.url(for: "KAAN2")?.absoluteString == "https://us2us.app/u/kaan2")
-        #expect(InviteLink.displayString(for: "selin.n") == "us2us.app/u/selin.n")
+        #expect(InviteLink.displayString(for: "selin_n") == "us2us.app/u/selin_n")
     }
 
     @Test(arguments: [
-        "", "ab", String(repeating: "a", count: 21), "şeyma", "ırmak", "İsmail", "de niz", "de/niz", "de%20niz", "deniz?x",
-        "deniz#x", "@@deniz", "de-niz", "de+niz", "...", "_._", "deniz\u{0}", "dеniz",  // the last one has a Cyrillic “е”
+        "", "ab", String(repeating: "a", count: 25), "şeyma", "ırmak", "İsmail", "de niz", "de/niz", "de%20niz", "deniz?x",
+        "deniz#x", "@@deniz", "de-niz", "de+niz", "...", "_._", "selin.n", "1abc", "_abc", "deniz\u{0}",
+        "dеniz",  // a Cyrillic “е”
     ])
     func refusesWhatIsNotAUsername(_ name: String) {
         #expect(InviteLink.url(for: name) == nil)
         #expect(InviteLink.normalizedUsername(name) == nil)
     }
 
-    @Test(arguments: ["deniz", "selin.n", "mert.k", "ayla_", "kaan2", "abc", "a_b.c", String(repeating: "z", count: 20)])
+    @Test(arguments: ["deniz", "selin_n", "mert_k", "ayla_", "kaan2", "abc", "a_b_c", String(repeating: "z", count: 24)])
     func roundTrips(_ name: String) throws {
         let url = try #require(InviteLink.url(for: name))
         #expect(InviteLink.username(from: url) == name)
@@ -51,6 +52,8 @@ struct InviteLinkTests {
         "https://us2us.app/u//deniz",
         "https://us2us.app/u/",
         "https://us2us.app/u/ab",
+        "https://us2us.app/u/selin.n",  // a dot is not a username character
+        "https://us2us.app/u/1abc",
         "https://us2us.app/U/deniz",
         "https://us2us.app/tr",
         "https://us2us.app/user/deniz",
@@ -71,11 +74,11 @@ struct InviteMessageTests {
     private let en = Locale(identifier: "en_US")
 
     @Test func turkishTemplate() throws {
-        let message = try #require(InviteMessage.make(username: "selin.n", locale: tr))
-        #expect(message.link.absoluteString == "https://us2us.app/u/selin.n")
+        let message = try #require(InviteMessage.make(username: "selin_n", locale: tr))
+        #expect(message.link.absoluteString == "https://us2us.app/u/selin_n")
         #expect(message.text.hasPrefix("Merhaba! Seninle us2us’ta konuşmak istiyorum"))
-        #expect(message.text.contains("Kullanıcı adım: @selin.n"))
-        #expect(message.text.hasSuffix("\nhttps://us2us.app/u/selin.n"))
+        #expect(message.text.contains("Kullanıcı adım: @selin_n"))
+        #expect(message.text.hasSuffix("\nhttps://us2us.app/u/selin_n"))
         #expect(message.subject == "us2us’ta konuşalım mı?")
         #expect(!message.text.contains("%"))
     }
@@ -104,11 +107,11 @@ struct InviteMessageTests {
 @Suite("Invite channel URLs")
 struct InviteChannelURLTests {
     @Test func whatsAppEncodesEverythingButUnreserved() throws {
-        let text = "Merhaba! us2us’ta: @selin.n & #1 + 2?=ş\nhttps://us2us.app/u/selin.n"
+        let text = "Merhaba! us2us’ta: @selin_n & #1 + 2?=ş\nhttps://us2us.app/u/selin_n"
         let url = try #require(InviteChannelURL.whatsApp(text: text))
         #expect(
             url.absoluteString
-                == "https://wa.me/?text=Merhaba%21%20us2us%E2%80%99ta%3A%20%40selin.n%20%26%20%231%20%2B%202%3F%3D%C5%9F%0Ahttps%3A%2F%2Fus2us.app%2Fu%2Fselin.n"
+                == "https://wa.me/?text=Merhaba%21%20us2us%E2%80%99ta%3A%20%40selin_n%20%26%20%231%20%2B%202%3F%3D%C5%9F%0Ahttps%3A%2F%2Fus2us.app%2Fu%2Fselin_n"
         )
         // Nothing the query could misread survives unencoded.
         let query = try #require(url.query(percentEncoded: true))
@@ -120,11 +123,11 @@ struct InviteChannelURLTests {
     }
 
     @Test func whatsAppCarriesTheWholeTurkishTemplate() throws {
-        let message = try #require(InviteMessage.make(username: "selin.n", locale: Locale(identifier: "tr")))
+        let message = try #require(InviteMessage.make(username: "selin_n", locale: Locale(identifier: "tr")))
         let url = try #require(InviteChannelURL.whatsApp(text: message.text))
         let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         #expect(components.queryItems?.first?.value == message.text)
-        #expect(url.absoluteString.contains("Kullan%C4%B1c%C4%B1%20ad%C4%B1m%3A%20%40selin.n%0Ahttps%3A%2F%2Fus2us.app%2Fu%2Fselin.n"))
+        #expect(url.absoluteString.contains("Kullan%C4%B1c%C4%B1%20ad%C4%B1m%3A%20%40selin_n%0Ahttps%3A%2F%2Fus2us.app%2Fu%2Fselin_n"))
     }
 
     @Test func mailtoHasSubjectBodyAndCRLF() throws {
@@ -149,7 +152,7 @@ struct InviteChannelURLTests {
 @MainActor
 struct InvitePasteboardAndInboxTests {
     @Test func copiesOnlyTheLinkLocallyForTwoMinutes() throws {
-        let link = try #require(InviteLink.url(for: "selin.n"))
+        let link = try #require(InviteLink.url(for: "selin_n"))
         let now = Date(timeIntervalSince1970: 1_000_000)
         let options = InvitePasteboard.options(now: now)
         #expect(options[.localOnly] as? Bool == true)
@@ -158,12 +161,12 @@ struct InvitePasteboardAndInboxTests {
         let items = InvitePasteboard.items(for: link)
         #expect(items.count == 1)
         #expect(items[0]["public.url"] as? URL == link)
-        #expect(items[0]["public.plain-text"] as? String == "https://us2us.app/u/selin.n")
+        #expect(items[0]["public.plain-text"] as? String == "https://us2us.app/u/selin_n")
 
         let pasteboard = try #require(UIPasteboard(name: UIPasteboard.Name("us2us.tests.invite"), create: true))
         defer { UIPasteboard.remove(withName: pasteboard.name) }
         InvitePasteboard.copy(link, to: pasteboard)
-        #expect(pasteboard.string == "https://us2us.app/u/selin.n")
+        #expect(pasteboard.string == "https://us2us.app/u/selin_n")
     }
 
     @Test func inboxKeepsTheLatestInviteLinkOnce() throws {
@@ -172,7 +175,7 @@ struct InvitePasteboardAndInboxTests {
         #expect(!inbox.receive(try #require(URL(string: "https://example.com/u/deniz")), now: now))
         #expect(!inbox.receive(try #require(URL(string: "us2us://u/deniz")), now: now))
         #expect(inbox.pending == nil)
-        #expect(inbox.receive(try #require(URL(string: "https://us2us.app/u/mert.k")), now: now))
+        #expect(inbox.receive(try #require(URL(string: "https://us2us.app/u/mert_k")), now: now))
         #expect(inbox.receive(try #require(URL(string: "https://us2us.app/u/deniz?lang=tr")), now: now))
         #expect(inbox.pending?.username == "deniz")
         #expect(inbox.take(now: now.addingTimeInterval(5)) == "deniz")

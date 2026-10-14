@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 7.1 › Dil and its picker: each language in its own name, the same in every UI language. -->
+    <string name="settings_android_language_turkish" translatable="false">Türkçe</string>
+    <string name="settings_android_language_english" translatable="false">English</string>
+</resources>

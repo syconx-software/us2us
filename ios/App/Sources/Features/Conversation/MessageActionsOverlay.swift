@@ -29,7 +29,8 @@ struct MessageActionsOverlay: View {
     /// The glide of the lifted bubble, on its own curve (not the lift's spring).
     @State private var isGlided = false
     private var isOutgoing: Bool { message.isOutgoing }
-    private var showsReactions: Bool { !message.isDeleted }
+    /// Nothing reaches a blocked person: no reaction bar for them.
+    private var showsReactions: Bool { !message.isDeleted && !message.isPendingMedia && !viewModel.isBlocked }
 
     var body: some View {
         GeometryReader { proxy in
@@ -47,7 +48,7 @@ struct MessageActionsOverlay: View {
                 // later in the design's column and cover it)…
                 liftedLayer(layout) { size, shape in
                     Color.clear
-                        .frame(width: size.width, height: size.height - (message.reactions.isEmpty ? 0 : 14))
+                        .frame(width: size.width, height: size.height - (message.showsBubbleChips ? 14 : 0))
                         .u2BoxShadow(.bubbleLifted, in: shape)
                         .frame(width: size.width, height: size.height, alignment: .top)
                         .opacity(isVisible ? 1 : 0)
@@ -173,14 +174,27 @@ struct MessageActionsOverlay: View {
     /// Own messages: Yanıtla · Bilgi · Kopyala ‖ Herkesten sil · Benden sil.
     /// Incoming: Yanıtla · Kopyala ‖ Benden sil. A deleted trace: Benden sil.
     /// Kopyala exists only for text and is off for disappearing messages.
+    /// A photo or video still being prepared (or that failed to be) is only
+    /// on this phone: Benden sil, nothing else. With a blocked person
+    /// neither Yanıtla nor Herkesten sil (nothing reaches them).
     private var menuItems: [FloatingMenuItem] {
         let id = message.id
+        if message.isPendingMedia {
+            return [
+                FloatingMenuItem(id: "deleteMe", title: Text("actions.deleteMe", table: .conversation), glyph: .trashSimple, tone: .destructive) {
+                    viewModel.deleteForMe(id)
+                }
+            ]
+        }
         var items: [FloatingMenuItem] = []
+        let isBlocked = viewModel.isBlocked
         if !message.isDeleted {
-            items.append(
-                FloatingMenuItem(id: "reply", title: Text("actions.reply", table: .conversation), glyph: .arrowBendUpLeft) {
-                    viewModel.reply(to: id, locale: locale)
-                })
+            if !isBlocked {
+                items.append(
+                    FloatingMenuItem(id: "reply", title: Text("actions.reply", table: .conversation), glyph: .arrowBendUpLeft) {
+                        viewModel.reply(to: id, locale: locale)
+                    })
+            }
             if message.isOutgoing {
                 items.append(
                     FloatingMenuItem(id: "info", title: Text("actions.info", table: .conversation), glyph: .info) {
@@ -197,8 +211,26 @@ struct MessageActionsOverlay: View {
                         viewModel.copy(id)
                     })
             }
+            // A file that is here: “Dosyalara kaydet” (proposed). Like copying,
+            // off for disappearing messages — a saved copy would outlive them.
+            // On something received its second line says that the sender
+            // will see it (SAVED, PROTOCOL §8.4), every time.
+            if case .file = message.content, message.mediaAvailability.isReady {
+                let saveHint: Text? =
+                    message.isDisappearing
+                    ? Text("actions.copy.disabled", table: .conversation)
+                    : message.isOutgoing ? nil : Text("viewer.save.hint", table: .conversation)
+                items.append(
+                    FloatingMenuItem(
+                        id: "saveToFiles", title: Text("file.saveToFiles", table: .conversation),
+                        hint: saveHint, glyph: .export,
+                        isEnabled: !message.isDisappearing
+                    ) {
+                        viewModel.saveToFiles(id)
+                    })
+            }
         }
-        if message.isOutgoing && !message.isDeleted {
+        if message.isOutgoing && !message.isDeleted && !isBlocked {
             items.append(
                 FloatingMenuItem(
                     id: "deleteEveryone", title: Text("actions.deleteEveryone", table: .conversation), glyph: .trash, tone: .destructive,

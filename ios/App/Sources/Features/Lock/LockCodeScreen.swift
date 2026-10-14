@@ -101,6 +101,10 @@ struct LockCodeScreen: View {
                 sentence(StringTable.lock.text("lock.code.throttled \(U2Format.minutesSeconds(remaining))", locale: locale))
                     .accessibilityAddTraits(.updatesFrequently)
             }
+        case .unavailable:
+            sentence(StringTable.lock.text("lock.code.unavailable", locale: locale))
+        case .unusable:
+            sentence(StringTable.lock.text("lock.code.unusable", locale: locale))
         }
     }
 
@@ -128,6 +132,10 @@ struct LockCodeScreen: View {
         case .throttled(let until):
             text = StringTable.lock.string(
                 "lock.code.throttled \(U2Format.minutesSeconds(until.timeIntervalSinceNow))", locale: locale)
+        case .unavailable:
+            text = StringTable.lock.string("lock.code.unavailable", locale: locale)
+        case .unusable:
+            text = StringTable.lock.string("lock.code.unusable", locale: locale)
         }
         UIAccessibility.post(notification: .announcement, argument: text)
     }

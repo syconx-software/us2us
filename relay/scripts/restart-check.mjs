@@ -132,6 +132,8 @@ function connect(account) {
   // Keep-alive (§4.7): the relay drops sockets silent for WS_IDLE_TIMEOUT_MS.
   const ping = setInterval(() => socket.readyState === WebSocket.OPEN && socket.send('{"type":"ping"}'), 20_000)
   socket.addEventListener('close', () => clearInterval(ping))
+  // A socket whose handshake failed may never report 'close' (undici); its timer must not keep the check running.
+  ping.unref()
   return client
 }
 

@@ -9,6 +9,10 @@ import SwiftUI
 /// No swipe dismissal: only the content's own close button (or the
 /// VoiceOver escape gesture, when `onEscape` is given) ends it — 5.6 and 6.2
 /// must not close by accident.
+///
+/// As with `u2Sheet`, what the cover shows reaches `content` live (an
+/// `@Observable` model) or as the item of `u2FadeCover(item:)` — never as
+/// the presenting view's `@State` that its body does not read.
 extension View {
     func u2FadeCover<CoverContent: View>(
         isPresented: Binding<Bool>, fadeOut: @escaping () -> Double = { U2Motion.Duration.state },

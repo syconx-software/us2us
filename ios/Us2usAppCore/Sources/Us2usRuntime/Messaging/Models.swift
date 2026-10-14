@@ -24,6 +24,14 @@ public struct ContactInfo: Sendable, Equatable, Identifiable {
     public let safetyNumberChanged: Bool
     /// The safety number was verified in person.
     public let verified: Bool
+    /// The contact's current identity key (serialized public key), `nil`
+    /// before one is known — there is no safety number to compare yet.
+    public let identityKey: Data?
+    /// The picture from the contact's last `ProfileUpdate` (§8.9): the
+    /// initial letter until one arrives, and always for message requests
+    /// and blocked contacts (an incoming request's picture is fetched only
+    /// when the user taps for it: ``AppRuntime/requestAvatar(of:userConfirmed:)``).
+    public let avatar: ProfilePicture
 
     init(_ contact: Contact) {
         account = contact.accountId
@@ -34,6 +42,8 @@ public struct ContactInfo: Sendable, Equatable, Identifiable {
         presenceSharing = contact.profile.presenceSharing
         safetyNumberChanged = contact.identityChanged
         verified = contact.isVerified
+        identityKey = contact.identityKey?.serialize()
+        avatar = contact.requestState == .accepted ? contact.profile.avatar : .initials
     }
 
     /// The name to show: the display name, else the username (the UI marks
@@ -194,6 +204,10 @@ public struct StickerInfo: Sendable, Equatable {
     public let packId: String
     public let stickerId: UInt32
     public let emoji: String
+    /// A built-in sticker with words: the language they were shown in on the
+    /// sender's side (“tr”, “en”, PROTOCOL.md §8.8), as received. Empty for a
+    /// wordless sticker and from older senders.
+    public let lang: String
     /// A custom sticker travels as an attachment.
     public let custom: AttachmentItem?
 }
@@ -205,7 +219,14 @@ public enum SystemNotice: Sendable, Equatable, Codable {
     case screenRecordingByMe
     case screenshotByContact
     case safetyNumberChanged
+    /// Written by TestFlight builds 4–6 when the user verified a safety
+    /// number (their only way to accept a change was to verify it), so it
+    /// reads as a verification. Never written any more.
     case safetyNumberAccepted
+    /// A changed safety number was accepted without verifying it.
+    case safetyNumberAcceptedUnverified
+    /// The safety number was verified (compared, scanned or pinned by a contact code).
+    case safetyNumberVerified
     case requestAccepted
     /// Ghost / disappearing settings changed.
     case settingsChanged(SettingsChange)
@@ -224,7 +245,8 @@ public enum SystemNotice: Sendable, Equatable, Codable {
         case .screenRecordingByMe: return strings.string(.screenRecordingByMe)
         case .screenshotByContact: return localizer.string(.screenshotTaken, contactName)
         case .safetyNumberChanged: return localizer.string(.safetyNumberChanged, contactName)
-        case .safetyNumberAccepted: return strings.string(.safetyNumberAcceptedLine)
+        case .safetyNumberAccepted, .safetyNumberVerified: return strings.string(.safetyNumberVerifiedLine)
+        case .safetyNumberAcceptedUnverified: return strings.string(.safetyNumberAcceptedLine)
         case .requestAccepted: return strings.string(.requestAcceptedLine)
         case .settingsChanged(let change):
             var current = BRPConversationSettings()
@@ -287,6 +309,15 @@ public struct MessageItem: Sendable, Equatable, Identifiable {
     public let readAt: Date?
     /// Incoming: first displayed (starts the disappearing timer).
     public let displayedAt: Date?
+    /// A voice note played — outgoing: by the contact (their VIEWED);
+    /// incoming: on this phone. A view-once item: when it was opened.
+    public let viewedAt: Date?
+    /// Outgoing photo, video or file: when the contact said it saved it
+    /// outside the app (their SAVED receipt, §8.4).
+    public let savedByPeerAt: Date?
+    /// When it was first saved outside the app on this phone
+    /// (``AppRuntime/markMediaSaved(_:peer:)``).
+    public let savedByMeAt: Date?
 
     /// Text that may be copied: never from disappearing or view-once messages.
     public var isCopyable: Bool {
@@ -298,8 +329,18 @@ public struct MessageItem: Sendable, Equatable, Identifiable {
         MessageItem(
             messageId: record.id, direction: .system, body: .notice(record.notice), sentAt: record.at,
             storedAt: record.at, quote: nil, expireTimerSeconds: 0, expiresAt: nil, viewOnce: false, reactions: [:],
-            status: nil, deliveredAt: nil, readAt: nil, displayedAt: nil)
+            status: nil, deliveredAt: nil, readAt: nil, displayedAt: nil, viewedAt: nil, savedByPeerAt: nil,
+            savedByMeAt: nil)
     }
+}
+
+/// Which media of a conversation to list
+/// (``AppRuntime/mediaMessages(with:kind:before:limit:)``).
+public enum MediaKind: Sendable, Equatable, CaseIterable {
+    /// Photos and videos.
+    case visual
+    /// Files.
+    case documents
 }
 
 public struct QuoteInfo: Sendable, Equatable {
@@ -351,5 +392,32 @@ public struct UserSettings: Sendable, Equatable, Codable {
         self.defaultGhost = defaultGhost
         self.defaultExpireTimerSeconds = defaultExpireTimerSeconds
         self.autoDownloadMedia = autoDownloadMedia
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case displayName, presenceSharing, readReceipts, typingIndicators, defaultGhost, defaultExpireTimerSeconds
+        case autoDownloadMedia
+    }
+}
+
+// Tolerant decoding, like `RuntimeStateData`: a missing or unreadable field
+// takes its default instead of failing the whole runtime state file, which
+// would reset every setting at once.
+extension UserSettings {
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = UserSettings()
+        displayName = (try? container.decodeIfPresent(String.self, forKey: .displayName)) ?? defaults.displayName
+        presenceSharing =
+            (try? container.decodeIfPresent(Bool.self, forKey: .presenceSharing)) ?? defaults.presenceSharing
+        readReceipts = (try? container.decodeIfPresent(Bool.self, forKey: .readReceipts)) ?? defaults.readReceipts
+        typingIndicators =
+            (try? container.decodeIfPresent(Bool.self, forKey: .typingIndicators)) ?? defaults.typingIndicators
+        defaultGhost = (try? container.decodeIfPresent(GhostSettings.self, forKey: .defaultGhost)) ?? defaults.defaultGhost
+        defaultExpireTimerSeconds =
+            (try? container.decodeIfPresent(UInt32.self, forKey: .defaultExpireTimerSeconds))
+            ?? defaults.defaultExpireTimerSeconds
+        autoDownloadMedia =
+            (try? container.decodeIfPresent(Bool.self, forKey: .autoDownloadMedia)) ?? defaults.autoDownloadMedia
     }
 }

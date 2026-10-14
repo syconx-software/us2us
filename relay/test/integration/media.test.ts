@@ -152,6 +152,34 @@ describe('deletion', () => {
     expect((await api.get(`/v1/media/${body.mediaId}`)).status).toBe(404)
     expect((await remove(body.deleteToken)).status).toBe(404)
   })
+
+  it('keeps nothing of an upload whose account is deleted meanwhile', async () => {
+    const account = await register(api)
+    const accountId = uuidBytes(account.accountId)
+    let finish!: () => void
+    const status = new Promise<number | undefined>((resolve, reject) => {
+      const req = request(`${relay.url}/v1/media`, {
+        method: 'POST',
+        headers: { 'x-auth-token': account.authToken, 'content-length': '50000', 'content-type': 'application/octet-stream' },
+      }, (res) => {
+        res.resume()
+        resolve(res.statusCode)
+      })
+      req.on('error', reject)
+      req.write(randomBytes(20_000))
+      finish = () => req.end(randomBytes(30_000))
+    })
+    const row = await eventually(async () => (await db.query<{ id: Buffer }>('SELECT id FROM media WHERE uploader = ?', [accountId]))[0])
+    const file = mediaFile(b64u(row!.id))
+    await eventually(() => existsSync(`${file}.part`))
+
+    expect((await api.delete('/v1/accounts/me', { token: account.authToken })).status).toBe(204)
+    finish()
+    expect(await status).toBe(401)
+    expect(existsSync(file)).toBe(false)
+    expect(existsSync(`${file}.part`)).toBe(false)
+    expect(await db.count('media WHERE uploader = ?', [accountId])).toBe(0)
+  })
 })
 
 describe('quota', () => {

@@ -266,8 +266,27 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
         var rotations = 0
         var identity: [AccountId: IdentityTrust] = [:]
         var approved: [AccountId] = []
+        /// Stand-ins for the contacts' current safety numbers (`scannable`):
+        /// a key-bound call succeeds only with the value set here.
+        var safetyNumbers: [AccountId: Data] = [:]
+        var verifications: [AccountId: IdentityVerification] = [:]
         var needsAnnouncement = false
         var announced: [AccountId] = []
+        /// A restore's token rotation whose answer was lost (§5.5 step 3.4).
+        var pendingTokenRotation = false
+        /// What the relay answers while one is pending: `nil` settles it;
+        /// an error leaves it unknown; `.backupNoLongerValid` refuses both tokens.
+        var rotationAnswer: Result<TokenRotationResult, RelayError> = .success(.ready)
+        var rotationProbes = 0
+        /// The relay refused both tokens: every later request is a `401`.
+        var tokensRefused = false
+        /// Profile pictures (§8.9, §8.10).
+        var ownPicture: ProfilePicture = .initials
+        var showInSearch = true
+        var avatarSyncs = 0
+        /// What the relay's avatar records hold, by account.
+        var searchPictures: [AccountId: ProfilePicture] = [:]
+        var avatarSearches: [(username: String, account: AccountId)] = []
     }
 
     let accountId: AccountId
@@ -303,8 +322,14 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
     func username() async -> NormalizedUsername { state.withLock { $0.username } }
     func currentAccessKey() async -> Data { state.withLock { $0.accessKey } }
 
+    /// Like `MessengerBackend`: a pending rotation is settled before the
+    /// socket opens, and a refusal of both tokens ends it like a revoked token.
     func openStream() async throws -> any RelayStream {
-        try state.withLock { state -> FakeStream in
+        if try await finishPendingTokenRotation() == .backupNoLongerValid {
+            throw RelayError.server(status: 401, code: .unauthorized, message: nil)
+        }
+        return try state.withLock { state -> FakeStream in
+            if state.tokensRefused { throw RelayError.server(status: 401, code: .unauthorized, message: nil) }
             if !state.openFailures.isEmpty { throw state.openFailures.removeFirst() }
             let stream = FakeStream()
             state.streams.append(stream)
@@ -395,6 +420,15 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
         try outcome.get().write(to: destination)
     }
 
+    /// Reports half, then all of the blob received.
+    func downloadAttachment(
+        _ attachment: BRPAttachment, to destination: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        progress(0.5)
+        try await downloadAttachment(attachment, to: destination)
+        progress(1)
+    }
+
     func setDownload(_ bytes: Data, for mediaId: Data) { state.withLock { $0.downloads[mediaId] = bytes } }
     func failDownload(_ mediaId: Data, with error: Error) { state.withLock { $0.downloadFailures[mediaId] = error } }
     var deletedMedia: [Data] { state.withLock { $0.deletedMedia } }
@@ -419,11 +453,78 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
         state.withLock { $0.identity[contact] ?? .unknown }
     }
 
-    func approveIdentityChange(for contact: AccountId) async throws {
-        state.withLock { $0.approved.append(contact) }
+    /// Gives `contact` a stored key and the safety number the key-bound calls compare with.
+    func setIdentity(_ trust: IdentityTrust, number: Data, for contact: AccountId) {
+        state.withLock {
+            $0.identity[contact] = trust
+            $0.safetyNumbers[contact] = number
+            $0.verifications[contact] = nil
+        }
     }
 
-    func markVerified(_ verified: Bool, contact: AccountId) async throws {}
+    private static func currentKey(_ trust: IdentityTrust?) -> IdentityKey? {
+        switch trust {
+        case .trusted(let key, _)?: return key
+        case .changed(_, let current)?: return current
+        case .unknown?, nil: return nil
+        }
+    }
+
+    func approveIdentityChange(for contact: AccountId, shownNumber: Data) async throws -> Bool {
+        state.withLock { state -> Bool in
+            guard case .changed(_, let current)? = state.identity[contact], state.safetyNumbers[contact] == shownNumber
+            else { return false }
+            state.identity[contact] = .trusted(current, verified: false)
+            state.approved.append(contact)
+            return true
+        }
+    }
+
+    func markVerified(contact: AccountId, comparedNumber: Data, verification: IdentityVerification) async throws
+        -> Bool
+    {
+        state.withLock { state -> Bool in
+            guard let key = Self.currentKey(state.identity[contact]), state.safetyNumbers[contact] == comparedNumber
+            else { return false }
+            state.identity[contact] = .trusted(key, verified: true)
+            state.verifications[contact] = verification
+            return true
+        }
+    }
+
+    func verifySafetyNumber(contact: AccountId, scanned: Data, verification: IdentityVerification) async throws
+        -> Bool
+    {
+        try await markVerified(contact: contact, comparedNumber: scanned, verification: verification)
+    }
+
+    func pinVerifiedIdentity(_ identityKey: Data, for contact: AccountId, verification: IdentityVerification)
+        async throws -> Bool
+    {
+        guard let key = try? IdentityKey(bytes: identityKey) else { return false }
+        return state.withLock { state -> Bool in
+            if let stored = Self.currentKey(state.identity[contact]), stored != key { return false }
+            // A pending change of the approved key is not pinned (§5).
+            if case .changed(.some, _)? = state.identity[contact] { return false }
+            state.identity[contact] = .trusted(key, verified: true)
+            state.verifications[contact] = verification
+            return true
+        }
+    }
+
+    func clearVerification(contact: AccountId) async throws {
+        state.withLock { state in
+            if case .trusted(let key, _)? = state.identity[contact] {
+                state.identity[contact] = .trusted(key, verified: false)
+            }
+            state.verifications[contact] = nil
+        }
+    }
+
+    func identityVerification(for contact: AccountId) async throws -> IdentityVerification? {
+        state.withLock { $0.verifications[contact] }
+    }
+
     func forgetContact(_ contact: AccountId) async throws {}
 
     func makeBackup(displayName: String, contacts: [BRPBackupContact]) async throws -> BRPAccountBackup {
@@ -436,6 +537,66 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
     }
 
     func deleteAccount() async throws {}
+
+    func hasPendingTokenRotation() async -> Bool { state.withLock { $0.pendingTokenRotation } }
+
+    func finishPendingTokenRotation() async throws -> TokenRotationResult {
+        try state.withLock { state -> TokenRotationResult in
+            // Like `Messenger`: a refusal in this process keeps being reported.
+            guard state.pendingTokenRotation else { return state.tokensRefused ? .backupNoLongerValid : .ready }
+            state.rotationProbes += 1
+            let result = try state.rotationAnswer.get()
+            // Known either way: nothing is pending any more.
+            state.pendingTokenRotation = false
+            if result == .backupNoLongerValid { state.tokensRefused = true }
+            return result
+        }
+    }
+
+    /// The relay's answer to the next rotation probes.
+    func answerTokenRotation(_ answer: Result<TokenRotationResult, RelayError>) {
+        state.withLock { $0.rotationAnswer = answer }
+    }
+
+    var rotationProbes: Int { state.withLock { $0.rotationProbes } }
+
+    // Profile pictures: kept in the stored account like `Messenger` does.
+
+    func ownAvatar() async -> OwnProfilePicture {
+        state.withLock { OwnProfilePicture(picture: $0.ownPicture, showInSearch: $0.showInSearch, searchRecord: .inSync) }
+    }
+
+    func setOwnAvatar(_ picture: ProfilePicture, showInSearch: Bool) async throws {
+        state.withLock {
+            $0.ownPicture = picture
+            $0.showInSearch = showInSearch
+        }
+        if let saver = accountSaver, var account = savedAccount {
+            account.profileAvatar = picture.serializedProfileAvatar
+            account.avatarSearchOff = !showInSearch
+            try saver(account)
+            savedAccount = account
+        }
+    }
+
+    func syncAvatarRecord() async -> AvatarRecordStatus {
+        state.withLock { $0.avatarSyncs += 1 }
+        return .inSync
+    }
+
+    func searchAvatar(username: NormalizedUsername, account: AccountId) async -> ProfilePicture {
+        state.withLock { state in
+            state.avatarSearches.append((username.value, account))
+            return state.searchPictures[account] ?? .initials
+        }
+    }
+
+    var avatarSyncs: Int { state.withLock { $0.avatarSyncs } }
+    var avatarSearches: [(username: String, account: AccountId)] { state.withLock { $0.avatarSearches } }
+
+    func publishSearchPicture(_ picture: ProfilePicture, for account: AccountId) {
+        state.withLock { $0.searchPictures[account] = picture }
+    }
 }
 
 // MARK: Engine fixture

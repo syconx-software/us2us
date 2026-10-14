@@ -2,7 +2,8 @@ import Foundation
 import Security
 import Us2usKit
 
-/// Small secrets kept outside the vault (the device secret of §5.2).
+/// Small secrets kept outside the vault (the device secret of §5.2 and the
+/// blob of the vault's Secure Enclave key, format v2).
 public protocol SecureItemStore: Sendable {
     func read(_ name: String) throws -> Data?
     /// Stores `data`, replacing any previous value.
@@ -128,9 +129,10 @@ public final class InMemorySecureItemStore: SecureItemStore {
 }
 
 /// The vault's device secret (§5.2) as a Keychain item of ``SecureItemStore``:
-/// `WhenUnlockedThisDeviceOnly`, never synchronized, never exported. (Us2usKit's
-/// own `KeychainDeviceSecretProvider` uses "after first unlock"; the app only
-/// opens the vault in the foreground, so the stricter class costs nothing.)
+/// `WhenUnlockedThisDeviceOnly`, never synchronized, never exported, the same
+/// attributes as Us2usKit's own `KeychainDeviceSecretProvider`. The vault's
+/// Secure Enclave key of format v2 is an item of the same store
+/// (``SecureEnclaveVaultKey``).
 public struct DeviceSecretItem: DeviceSecretProvider {
     static let itemName = "device-secret"
     public let store: any SecureItemStore

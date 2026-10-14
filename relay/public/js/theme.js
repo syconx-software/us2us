@@ -39,9 +39,15 @@
     if (!target || !target.closest) return
     if (!target.closest('[data-theme-toggle]')) return
     var theme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'
-    setTheme(theme)
     write(THEME, theme)
-    sync()
+    function apply() {
+      setTheme(theme)
+      root.classList.add('theme-switched')
+      sync()
+    }
+    // A short cross-fade (view transitions) unless motion is unwelcome.
+    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(apply)
+    else apply()
   })
   // Another tab changed the theme.
   addEventListener('storage', function (event) {

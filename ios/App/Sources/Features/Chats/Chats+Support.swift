@@ -4,6 +4,48 @@ import SwiftUI
 // QR card, flex rows, CSS text layouts, the collapse transition) live in the
 // DesignSystem.
 
+// MARK: - Restore access card (4.1)
+
+/// 4.1 after a restore whose token rotation is unanswered (PROTOCOL §5.5
+/// step 3.4): the old phone may still have access. A card in the requests
+/// card's place and shape (`surface` r18, pad 13 14, gap 13; 42 pt round
+/// tile — here `dangerTint` with `ph:warning-circle` in `danger`; title
+/// `rowTitleEmphasis`, subtitle `caption`; chevron), shown only in that
+/// state; it opens 7.1, where the notice explains it and checks again.
+/// No design reference (proposed).
+struct RestoreAccessCard: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                PhosphorIcon(.warningCircle, size: 21)
+                    .foregroundStyle(Color.u2.danger)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(Color.u2.dangerTint))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("access.card.title", table: .chats)
+                        .u2Font(.rowTitleEmphasis)
+                        .foregroundStyle(Color.u2.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("access.card.subtitle", table: .chats)
+                        .u2Font(.caption)
+                        .foregroundStyle(Color.u2.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                PhosphorIcon(.caretRight, size: 15)
+                    .foregroundStyle(Color.u2.textTertiary)
+            }
+            .padding(EdgeInsets(top: 13, leading: 14, bottom: 13, trailing: 14))
+            .background(RoundedRectangle(cornerRadius: U2Radius.card, style: .continuous).fill(Color.u2.surface))
+            .contentShape(RoundedRectangle(cornerRadius: U2Radius.card, style: .continuous))
+        }
+        .buttonStyle(CardButtonStyle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Request content (4.3, 4.4)
 
 /// How a stranger's message is shown before it is accepted: links never
@@ -32,7 +74,7 @@ enum RequestContent {
     /// Whether a request's thread carries media (shown as a placeholder only).
     static func isMedia(_ content: MessageContent) -> Bool {
         switch content {
-        case .photo, .video, .voice, .file, .location, .liveLocation, .viewOnce, .textSticker: true
+        case .photo, .video, .voice, .file, .location, .liveLocation, .viewOnce, .textSticker, .sticker: true
         case .text, .deleted, .system: false
         }
     }

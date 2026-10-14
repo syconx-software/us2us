@@ -12,8 +12,14 @@ import SwiftUI
 /// | state | screen |
 /// |---|---|
 /// | `safety` (or none) | 6.1 as drawn (unverified) |
+/// | `photos` · `documents` | the contact screen's Fotoğraflar · Belgeler tab (proposed) |
+/// | `menu` | the contact screen's “…” menu: share · Bildir · Engelle (proposed) |
+/// | `block` | the block confirmation (“deniz engellensin mi?” · Engelle · Bildir · Vazgeç) |
+/// | `blocked` | deniz blocked: the mark by the name, the note with “Engeli kaldır”, the menu offering it |
+/// | `report` · `report-address` | the report sheet, “Taciz veya zorbalık” chosen · after “E-postayla gönder” on a phone without e-mail: the address to copy, deniz blocked |
 /// | `safety-verified` | 6.1 already verified: seal on the line, pill, “Doğrulamayı kaldır” |
-/// | `changed` | 6.1 with “Güvenlik numarası değişti” |
+/// | `changed` | 6.1 with “Güvenlik numarası değişti” and “Doğrulamadan devam et” |
+/// | `confirm-accept` | `changed` with the “Doğrulamadan devam et” confirmation |
 /// | `confirm` | 6.1 with the “Doğrulandı olarak işaretle” confirmation |
 /// | `confirm-remove` | 6.1 verified, with the removal confirmation |
 /// | `scan` | 6.2 scanning (design placeholder on the simulator) |
@@ -39,8 +45,16 @@ import SwiftUI
 enum VerificationHarness {
     enum State: String {
         case safety
+        case photos
+        case documents
+        case menu
+        case block
+        case blocked
+        case report
+        case reportAddress = "report-address"
         case safetyVerified = "safety-verified"
         case changed
+        case confirmAccept = "confirm-accept"
         case confirm
         case confirmRemove = "confirm-remove"
         case scan
@@ -82,11 +96,26 @@ enum VerificationHarness {
     /// 6.2 › camera access denied.
     static var forcesCameraDenied: Bool { state == .denied }
 
+    /// The contact screen's tab the route opens on (`photos`, `documents`).
+    static var initialTab: ContactMediaModel.Tab? {
+        switch state {
+        case .photos?: .photos
+        case .documents?: .documents
+        default: nil
+        }
+    }
+
     @MainActor private static var applied = false
 
     /// One step of a scripted flow (screenshots are taken in between).
     private static func step() async {
         try? await Task.sleep(for: .seconds(4))
+    }
+
+    /// The design's data, which the scripted states set up directly (a
+    /// verified or changed number without scanning); `nil` in the live app.
+    @MainActor private static func fixtures(_ model: VerificationModel) -> DesignFixturesService? {
+        model.messenger as? DesignFixturesService
     }
 
     // MARK: 6.1 → 6.2 → 6.3
@@ -98,18 +127,19 @@ enum VerificationHarness {
             applied = true
             let scanner = model.scanner
             switch state {
-            case .safety:
+            case .safety, .photos, .documents, .menu, .block, .blocked, .report, .reportAddress:
                 break
-            case .changed:
-                await (model.messenger as? DesignFixturesService)?.setSafetyNumberChanged(model.chatID)
+            case .changed, .confirmAccept:
+                await fixtures(model)?.setSafetyNumberChanged(model.chatID)
                 await model.load()
+                if state == .confirmAccept { model.requestAccept() }
             case .safetyVerified:
-                await model.messenger.markVerified(model.chatID, method: .faceToFace)
+                await fixtures(model)?.markVerified(model.chatID, method: .faceToFace)
                 await model.load()
             case .confirm:
                 model.requestMarkVerified()
             case .confirmRemove:
-                await model.messenger.markVerified(model.chatID, method: .faceToFace)
+                await fixtures(model)?.markVerified(model.chatID, method: .faceToFace)
                 await model.load()
                 model.requestRemoval()
             case .scan, .denied:
@@ -125,7 +155,7 @@ enum VerificationHarness {
                 try? await Task.sleep(for: .milliseconds(600))
                 await scanner.handle(scanner.simulatedCodes().mismatch)
             case .verified, .verifiedManual:
-                await model.messenger.markVerified(model.chatID, method: state == .verified ? .faceToFace : .manual)
+                await fixtures(model)?.markVerified(model.chatID, method: state == .verified ? .faceToFace : .manual)
                 await model.load()
                 model.verifiedEntrance = true
                 model.showsVerified = true
@@ -156,7 +186,7 @@ enum VerificationHarness {
                 await step()
                 model.exitToChat?()
             case .flowRemove:
-                await model.messenger.markVerified(model.chatID, method: .faceToFace)
+                await fixtures(model)?.markVerified(model.chatID, method: .faceToFace)
                 await model.load()
                 await step()
                 model.requestRemoval()
@@ -164,6 +194,43 @@ enum VerificationHarness {
                 model.confirmsRemoval = false
                 await model.removeVerification()
             case .contactScan, .contactUnknown, .contactOwn, .contactMyCode, .contactVerified, .flowContact:
+                break
+            }
+        #endif
+    }
+
+    // MARK: The contact screen's “…” (block, report)
+
+    @MainActor private static var appliedActions = false
+
+    @MainActor
+    static func apply(to actions: ContactActionsModel) async {
+        #if DEBUG
+            guard !appliedActions, let state else { return }
+            appliedActions = true
+            let fixtures = actions.messenger as? DesignFixturesService
+            switch state {
+            case .menu:
+                try? await Task.sleep(for: .milliseconds(300))
+                actions.showsMenu = true
+            case .block:
+                try? await Task.sleep(for: .milliseconds(600))
+                actions.requestBlock()
+            case .blocked:
+                fixtures?.setBlocked(actions.chatID)
+            case .report:
+                try? await Task.sleep(for: .milliseconds(300))
+                actions.openReport()
+                actions.report?.reason = .harassment
+            case .reportAddress:
+                try? await Task.sleep(for: .milliseconds(300))
+                actions.mailer = ReportAddressOnlyMailer()
+                actions.openReport()
+                guard let report = actions.report else { return }
+                report.reason = .harassment
+                try? await Task.sleep(for: .milliseconds(900))
+                await report.send(locale: actions.locale)
+            default:
                 break
             }
         #endif

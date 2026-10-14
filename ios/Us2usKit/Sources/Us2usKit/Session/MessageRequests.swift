@@ -60,6 +60,13 @@ public enum MessageRequestPolicy {
         state == .accepted && userEnabled
     }
 
+    /// SAVED receipts (§8.4): to accepted contacts only, but whatever the
+    /// read-receipt setting — saving is an explicit act, and the user is told
+    /// before it that the sender will know.
+    public static func maySendSavedReceipts(state: ConversationRequestState) -> Bool {
+        state == .accepted
+    }
+
     public static func maySendTypingIndicators(state: ConversationRequestState, userEnabled: Bool) -> Bool {
         state == .accepted && userEnabled
     }

@@ -119,7 +119,10 @@ struct MessengerTests {
         let alice = try await register("alice_01")
         let bob = try await register("bob_02")
         let bobId = await bob.account.accountId
-        let contents = ContentCases.all.map(\.content)
+        // `profile_avatar_photo` carries a 4-byte stand-in JPEG for the
+        // cross-implementation byte check only: a sender refuses it (§8.9),
+        // and real photos go end to end in AvatarMessengerTests.
+        let contents = ContentCases.all.filter { $0.name != "profile_avatar_photo" }.map(\.content)
         for content in contents {
             try await alice.send(content, to: bobId, authorization: .proofOfWork)
         }
@@ -147,9 +150,16 @@ struct MessengerTests {
         let message = try #require(try await bob.receiveAll().first)
         let received = message.content.data.attachment
         #expect(received.size == 150_000)
-        try await bob.downloadAttachment(received, to: directory.file("received.jpg"))
+        let fractions = Locked<[Double]>([])
+        try await bob.downloadAttachment(received, to: directory.file("received.jpg")) { fraction in
+            fractions.withLock { $0.append(fraction) }
+        }
         #expect(try Data(contentsOf: directory.file("received.jpg")) == photo)
         #expect(relay.mediaCount() == 0)
+        // The progress of the blob, ending with all of it.
+        let progress = fractions.withLock { $0 }
+        #expect(progress.last == 1)
+        #expect(progress == progress.sorted())
 
         // A tampered digest is caught before anything is written.
         var forged = received
@@ -354,7 +364,11 @@ struct MessengerTests {
         _ = try await bob.receiveAll()
 
         // The app supplies its contact fields; the identity fields come from the store.
-        try await bob.markVerified(true, contact: aliceId)
+        let number = try #require(try await bob.safetyNumber(with: aliceId))
+        #expect(
+            try await bob.markVerified(
+                contact: aliceId, comparedNumber: number.scannable,
+                verification: IdentityVerification(method: .manual, verifiedAt: Date())))
         var contact = BRPBackupContact()
         contact.accountID = aliceId.bytes
         contact.username = "alice_01"
@@ -455,12 +469,24 @@ struct MessengerTests {
                 let uploads = relay.requests.filter { $0.method == "PUT" && $0.path == "/v1/keys" }.count
                 saves.withLock { $0.append((account, uploads)) }
             })
-        let first = try #require(saves.withLock { $0.first })
+        let all = saves.withLock { $0 }
+        #expect(all.count >= 2)
+        // Step 3.1: the new token is stored next to the backup's before the relay hears of it.
+        let first = try #require(all.first)
         #expect(first.uploadsBefore == 0)
-        #expect(relay.requests.filter { $0.method == "PUT" && $0.path == "/v1/keys" }.count == 1)
-        #expect(first.account.authToken != backup.authToken)
+        #expect(first.account.authToken == backup.authToken)
+        let chosen = try #require(first.account.pendingAuthToken)
+        #expect(chosen.count == 32 && chosen != backup.authToken)
         #expect(first.account.pendingSetup == [.replacePreKeys, .announceProfile])
+        #expect(relay.tokenRotations == [backup.authToken])
+        // Step 3.3: committed in one save, before the key upload.
+        let committed = all[1]
+        #expect(committed.uploadsBefore == 0)
+        #expect(committed.account.authToken == chosen)
+        #expect(committed.account.pendingAuthToken == nil)
+        #expect(relay.requests.filter { $0.method == "PUT" && $0.path == "/v1/keys" }.count == 1)
         #expect(saves.withLock { $0.last?.account } == (await restored.account))
+        #expect(restored.relay.credentials?.authToken == chosen)
     }
 
     @Test("an unaccepted safety-number change survives backup and restore (§5.5)")

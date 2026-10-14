@@ -1,0 +1,636 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "a11y.report.note": {
+      "comment": "VoiceOver label of the report sheet's note field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note, optional"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not, isteğe bağlı"
+          }
+        }
+      }
+    },
+    "report.address.copied": {
+      "comment": "Report sheet: the support address was copied (also announced).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalandı"
+          }
+        }
+      }
+    },
+    "report.address.copy": {
+      "comment": "Report sheet: copies the support address (this device only, 2 minutes).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyala"
+          }
+        }
+      }
+    },
+    "report.address.message": {
+      "comment": "Report sheet, when nothing on the phone can write an e-mail: above the support address.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send your report to this address by e-mail: write the username and what happened, and attach screenshots if you like."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimini bu adrese e-postayla gönder: kullanıcı adını ve ne olduğunu yaz, istersen ekran görüntüsü ekle."
+          }
+        }
+      }
+    },
+    "report.address.title": {
+      "comment": "Report sheet, when nothing on the phone can write an e-mail: the title above the support address.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No e-mail is set up on this phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefonda e-posta ayarlı değil"
+          }
+        }
+      }
+    },
+    "report.block": {
+      "comment": "Report sheet: the toggle (on by default).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also block this person"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kişiyi de engelle"
+          }
+        }
+      }
+    },
+    "report.block.subtitle": {
+      "comment": "Report sheet: under the block toggle — the block follows only a report that was sent or handed to a mail app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked when you send the report; not if you cancel."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimi gönderince engellenir; vazgeçersen engellenmez."
+          }
+        }
+      }
+    },
+    "report.blocked %@": {
+      "comment": "Report sheet / announcement: the report blocked the person. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellendi."
+          }
+        }
+      }
+    },
+    "report.done": {
+      "comment": "Report sheet, after the support address was shown: closes the sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamam"
+          }
+        }
+      }
+    },
+    "report.failed": {
+      "comment": "Report sheet: Mail failed to send.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The e-mail couldn't be sent. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta gönderilemedi. Tekrar dene."
+          }
+        }
+      }
+    },
+    "report.handedOff": {
+      "comment": "VoiceOver announcement: the report was handed to another mail app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your report is in your mail app."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimin e-posta uygulamanda."
+          }
+        }
+      }
+    },
+    "report.intro %@": {
+      "comment": "Report sheet: the first line. %@ = the reported person's username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your report about %@ goes to the us2us team by e-mail. Choose what happened and add a short note if you like."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hakkındaki bildirimin e-postayla us2us ekibine gider. Ne olduğunu seç; istersen kısa bir not ekle."
+          }
+        }
+      }
+    },
+    "report.mail.app %@": {
+      "comment": "Report e-mail body. %@ = version (build), e.g. 1.0.8 (11).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App: us2us iOS %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama: us2us iOS %@"
+          }
+        }
+      }
+    },
+    "report.mail.encrypted": {
+      "comment": "Report e-mail body, the last line.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages are end-to-end encrypted, so no message content was added to this report. You may attach screenshots."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar uçtan uca şifreli olduğu için bu bildirime hiçbir mesaj içeriği eklenmedi. İstersen ekran görüntüsü ekleyebilirsin."
+          }
+        }
+      }
+    },
+    "report.mail.note %@": {
+      "comment": "Report e-mail body. %@ = the user's note, or “—”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not: %@"
+          }
+        }
+      }
+    },
+    "report.mail.reason %@": {
+      "comment": "Report e-mail body. %@ = the chosen reason.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reason: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neden: %@"
+          }
+        }
+      }
+    },
+    "report.mail.subject %@": {
+      "comment": "Report e-mail subject. %@ = the reported username (no other identifier).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us report: @%@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us bildirimi: @%@"
+          }
+        }
+      }
+    },
+    "report.mail.subject.unknown": {
+      "comment": "Report e-mail subject when the phone knows no username for the person.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us report"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us bildirimi"
+          }
+        }
+      }
+    },
+    "report.mail.time %@": {
+      "comment": "Report e-mail body. %@ = the time in UTC, e.g. 2026-10-12 14:03 UTC.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaman: %@"
+          }
+        }
+      }
+    },
+    "report.mail.user %@": {
+      "comment": "Report e-mail body, first line. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported user: @%@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirilen kullanıcı: @%@"
+          }
+        }
+      }
+    },
+    "report.mail.user.unknown": {
+      "comment": "Report e-mail body, first line, when the phone knows no username for the person.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported user: username unknown"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirilen kullanıcı: kullanıcı adı bilinmiyor"
+          }
+        }
+      }
+    },
+    "report.mail.user.unverified %@": {
+      "comment": "Report e-mail body, first line, when the directory did not confirm the sender's claimed username. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported user: @%@ (username not confirmed)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirilen kullanıcı: @%@ (kullanıcı adı doğrulanmadı)"
+          }
+        }
+      }
+    },
+    "report.note.label": {
+      "comment": "Report sheet: section label above the note field (upper-cased in the UI).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note · optional"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not · isteğe bağlı"
+          }
+        }
+      }
+    },
+    "report.note.placeholder": {
+      "comment": "Report sheet: the empty note field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What happened? A few words are enough."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne oldu? Birkaç kelime yeter."
+          }
+        }
+      }
+    },
+    "report.privacy": {
+      "comment": "Report sheet: the privacy line above the send button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages are end-to-end encrypted: no message content is added to the report, only the username, the reason you chose, your note, the app version and the time. You can attach screenshots to the e-mail if you like."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar uçtan uca şifreli: bildirime hiçbir mesaj içeriği eklenmez, yalnızca kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider. İstersen e-postaya ekran görüntüsü ekleyebilirsin."
+          }
+        }
+      }
+    },
+    "report.reason.harassment": {
+      "comment": "Report reason (also written into the e-mail).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harassment or bullying"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taciz veya zorbalık"
+          }
+        }
+      }
+    },
+    "report.reason.impersonation": {
+      "comment": "Report reason (also written into the e-mail).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impersonation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimliğe bürünme"
+          }
+        }
+      }
+    },
+    "report.reason.inappropriate": {
+      "comment": "Report reason (also written into the e-mail).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inappropriate content"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygunsuz içerik"
+          }
+        }
+      }
+    },
+    "report.reason.label": {
+      "comment": "Report sheet: section label above the reasons (upper-cased in the UI).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reason"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neden"
+          }
+        }
+      }
+    },
+    "report.reason.other": {
+      "comment": "Report reason (also written into the e-mail).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
+    "report.reason.spam": {
+      "comment": "Report reason (also written into the e-mail).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spam"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spam"
+          }
+        }
+      }
+    },
+    "report.send": {
+      "comment": "Report sheet: the primary button (Mail, another mail app, or the address to copy).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send by e-mail"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-postayla gönder"
+          }
+        }
+      }
+    },
+    "report.send.hint": {
+      "comment": "VoiceOver hint of the report sheet's send button while no reason is chosen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a reason first"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önce bir neden seç"
+          }
+        }
+      }
+    },
+    "report.sent": {
+      "comment": "VoiceOver announcement: Mail sent the report.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your report was sent."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimin gönderildi."
+          }
+        }
+      }
+    },
+    "report.title": {
+      "comment": "Report sheet: the sheet bar's title (proposed).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildir"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -133,7 +133,14 @@ extension MessagingEngine {
             }
         case let error as SessionError:
             if case .identityChanged = error {
-                held.insert(contact.accountId)
+                // Found while sending (the bundle carried another key than
+                // the trusted one): the same warning as on receive (§5) —
+                // once, not again for every message that waits behind it.
+                if held.insert(contact.accountId).inserted {
+                    addNotice(.safetyNumberChanged, peer: contact.accountId, at: clock.now())
+                    emit(.safetyNumberChanged(contact.accountId))
+                    emit(.conversations)
+                }
                 return .hold
             }
             return .retry(code: "session", retryAfter: nil)
@@ -321,9 +328,15 @@ extension MessagingEngine {
         }
         let staging = storage.makeStagingURL()
         defer { try? FileManager.default.removeItem(at: staging) }
+        let messageId = attachment.messageId
+        let progress = DownloadProgressThrottle { [weak self] fraction in
+            Task { await self?.emit(.downloadProgress(messageId, peer, fraction)) }
+        }
         do {
             try write { try $0.attachments.setState(.downloading, of: attachment.id) }
-            try await backend.downloadAttachment(descriptor, to: staging)
+            // The bubble shows the transfer while it runs, not only its end.
+            emit(.messages(peer))
+            try await backend.downloadAttachment(descriptor, to: staging) { progress.update($0) }
             try write { try $0.attachments.importFile(at: staging, for: attachment.id, now: clock.now()) }
             requestedDownloads.remove(attachment.id)
             emit(.messages(peer))
@@ -351,6 +364,27 @@ extension MessagingEngine {
             }
         }
         startDownloads(force: true)
+    }
+}
+
+/// Passes a download's progress on at most every 2 % (and at the end), so
+/// the conversation is not refreshed for every 64 KiB chunk.
+final class DownloadProgressThrottle: Sendable {
+    private let last = LockedState<Double>(-1)
+    private let report: @Sendable (Double) -> Void
+
+    init(report: @escaping @Sendable (Double) -> Void) {
+        self.report = report
+    }
+
+    func update(_ fraction: Double) {
+        let value = min(1, max(0, fraction))
+        let due = last.withLock { last -> Bool in
+            guard value - last >= 0.02 || (value >= 1 && last < 1) else { return false }
+            last = value
+            return true
+        }
+        if due { report(value) }
     }
 }
 

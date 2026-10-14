@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Api, b64u, ecKey, register, registerWithAccessKey, registrationBody, send, sha256, solvedPow, type TestAccount } from '../support/client'
 import { TestDb, uuidBytes } from '../support/db'
@@ -184,6 +186,41 @@ describe('tokens and access keys', () => {
     expect((await api.get('/v1/accounts/me', { token: body.authToken })).status).toBe(200)
   })
 
+  it('rotates to a token the client chose, idempotently and only from the current token', async () => {
+    const account = await register(api)
+    const next = b64u(randomBytes(32))
+    const rotated = await api.post('/v1/accounts/me/token', { token: account.authToken, json: { newAuthToken: next } })
+    expect(rotated.status).toBe(204)
+    expect(rotated.body).toHaveLength(0)
+    expect((await api.get('/v1/accounts/me', { token: account.authToken })).status).toBe(401)
+    expect((await api.get('/v1/accounts/me', { token: next })).status).toBe(200)
+    const [row] = await db.query('SELECT auth_token_hash FROM accounts WHERE id = ?', [uuidBytes(account.accountId)])
+    expect(Buffer.from(row!.auth_token_hash)).toEqual(sha256(Buffer.from(next, 'base64url')))
+
+    // The response was lost: asking again with the new token changes nothing.
+    expect((await api.post('/v1/accounts/me/token', { token: next, json: { newAuthToken: next } })).status).toBe(204)
+    expect((await api.get('/v1/accounts/me', { token: next })).status).toBe(200)
+    // The old token cannot rotate any more.
+    expect((await api.post('/v1/accounts/me/token', { token: account.authToken, json: { newAuthToken: b64u(randomBytes(32)) } })).status).toBe(401)
+
+    // Another account's token cannot be taken over, and a body without a token is not the old form.
+    const other = await register(api)
+    expect((await api.post('/v1/accounts/me/token', { token: next, json: { newAuthToken: other.authToken } })).status).toBe(400)
+    expect((await api.post('/v1/accounts/me/token', { token: next, json: {} })).status).toBe(400)
+    expect((await api.get('/v1/accounts/me', { token: next })).status).toBe(200)
+    expect((await api.get('/v1/accounts/me', { token: other.authToken })).status).toBe(200)
+  })
+
+  it('lets exactly one of two concurrent rotations with the same token win', async () => {
+    const account = await register(api)
+    const tokens = [b64u(randomBytes(32)), b64u(randomBytes(32))]
+    const statuses = await Promise.all(tokens.map(newAuthToken =>
+      api.post('/v1/accounts/me/token', { token: account.authToken, json: { newAuthToken } }).then(r => r.status)))
+    expect([...statuses].sort()).toEqual([204, 401])
+    expect((await api.get('/v1/accounts/me', { token: tokens[statuses.indexOf(204)]! })).status).toBe(200)
+    expect((await api.get('/v1/accounts/me', { token: tokens[statuses.indexOf(401)]! })).status).toBe(401)
+  })
+
   it('sets and clears the access key', async () => {
     const recipient = await registerWithAccessKey(api)
     expect((await send(api, recipient, randomBytes(100))).status).toBe(202)
@@ -234,9 +271,14 @@ describe('account deletion', () => {
     await send(api, account, randomBytes(64))
     const upload = await api.post('/v1/media', { token: account.authToken, body: randomBytes(1000) })
     expect(upload.status).toBe(201)
+    const mediaHex = Buffer.from(upload.body.mediaId, 'base64url').toString('hex')
+    const blob = join(relay.mediaDir, mediaHex.slice(0, 2), mediaHex)
+    expect(existsSync(blob)).toBe(true)
 
     expect((await api.delete('/v1/accounts/me', { token: account.authToken })).status).toBe(204)
 
+    expect(existsSync(blob)).toBe(false)
+    expect(existsSync(`${blob}.part`)).toBe(false)
     expect((await api.get('/v1/accounts/me', { token: account.authToken })).status).toBe(401)
     expect((await api.get(`/v1/directory/${account.usernameHash}`, { token: other.authToken })).status).toBe(404)
     expect((await api.get(`/v1/keys/${account.accountId}`, { token: other.authToken })).status).toBe(404)

@@ -88,7 +88,7 @@ public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
             let lockedOut = (error.map { LAError.Code(rawValue: $0.code) == .biometryLockout }) ?? false
             return BiometricAvailability(kind: kind, enrollmentState: nil, lockedOut: lockedOut)
         }
-        guard Self.hasSecureEnclave else { return BiometricAvailability(kind: .none, enrollmentState: nil) }
+        guard Self.offersQuickUnlock else { return BiometricAvailability(kind: .none, enrollmentState: nil) }
         let state: Data?
         if #available(iOS 18.0, *) {
             state = context.domainState.biometry.stateHash
@@ -98,8 +98,17 @@ public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
         return BiometricAvailability(kind: kind, enrollmentState: state)
     }
 
-    /// The Simulator has no Secure Enclave.
-    static var hasSecureEnclave: Bool {
+    /// Quick unlock is offered only on a device, never in a Simulator
+    /// build, on purpose. Recent Simulators do report a Secure Enclave
+    /// (`SecureEnclave.isAvailable` is true there, and the vault's v2
+    /// hardware step uses it), but a Simulator is not a phone: that enclave
+    /// is the host Mac's, and the Simulator's Face ID is a menu switch, so
+    /// quick unlock there would protect nothing and would only put system
+    /// biometric prompts in the way of the UI tests and the design harness.
+    /// Every iPhone the app runs on has a Secure Enclave, so device builds
+    /// always pass this check, and creating the key still fails cleanly
+    /// (`.keyFailure`) if it cannot be made.
+    static var offersQuickUnlock: Bool {
         #if targetEnvironment(simulator)
             return false
         #else
