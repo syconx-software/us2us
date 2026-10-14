@@ -42,7 +42,8 @@ class SecureItemException(message: String, cause: Throwable? = null) : IOExcepti
  * Keychain items `WhenUnlockedThisDeviceOnly`:
  *
  * * AES-256-GCM, `setUnlockedDeviceRequired(true)`: the key works only while the phone is
- *   unlocked; StrongBox where the phone has it, else the TEE.
+ *   unlocked (a phone without a screen lock gets the key without that condition); StrongBox
+ *   where the phone has it, else the TEE.
  * * Each item is a file in `noBackupFilesDir` (never in a backup, never moved to another phone):
  *   `nonce(12) ‖ AES-256-GCM(K, nonce, aad = "us2us/item/v1" ‖ UTF-8(name), data) ‖ tag(16)`,
  *   with the nonce chosen by the Keystore.
@@ -118,16 +119,26 @@ class KeystoreItemStore(
 
     private fun key(): SecretKey {
         (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
-        return KeystoreKeys.generatePreferringStrongBox { strongBox ->
-            val spec = KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setKeySize(256)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setUnlockedDeviceRequired(true)
-                .setIsStrongBoxBacked(strongBox)
-                .build()
-            KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).apply { init(spec) }.generateKey()
+        return try {
+            generateKey(unlockedDeviceRequired = true)
+        } catch (_: ProviderException) {
+            // Without a screen lock, Keystore 2 (Android 12–13) cannot create an unlocked-device
+            // key ("User ECDH key missing"); the condition protects nothing on such a phone, as
+            // `WhenUnlocked` on an iPhone without a passcode.
+            if (keyStore.containsAlias(keyAlias)) keyStore.deleteEntry(keyAlias)
+            generateKey(unlockedDeviceRequired = false)
         }
+    }
+
+    private fun generateKey(unlockedDeviceRequired: Boolean): SecretKey = KeystoreKeys.generatePreferringStrongBox { strongBox ->
+        val spec = KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setKeySize(256)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setUnlockedDeviceRequired(unlockedDeviceRequired)
+            .setIsStrongBoxBacked(strongBox)
+            .build()
+        KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).apply { init(spec) }.generateKey()
     }
 
     private fun file(name: String): File {

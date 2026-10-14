@@ -17,7 +17,7 @@ object DesignAvatars {
      * In memory only.
      */
     val photoAvatar: AvatarPicture by lazy {
-        val stream = DesignAvatars::class.java.getResourceAsStream("photo-avatar.jpg")
+        val stream = DesignAvatars::class.java.getResourceAsStream("/com/syconx/us2us/domain/design/photo-avatar.jpg") // absolute: R8 renames the package
         val bytes = stream?.use { it.readBytes() }
         if (bytes == null || bytes.isEmpty()) AvatarPicture.Initials else AvatarPicture.photo(AvatarPhotoData(Bytes.wrap(bytes), "image/jpeg"))
     }

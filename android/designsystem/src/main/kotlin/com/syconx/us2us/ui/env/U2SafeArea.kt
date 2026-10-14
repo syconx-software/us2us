@@ -36,12 +36,17 @@ import com.syconx.us2us.ui.tokens.U2Size
  * icon buttons at y 56); a component sits at `top + (designY − 62)` on any phone.
  */
 @Immutable
-data class U2SafeArea(val top: Dp, val bottom: Dp) {
+data class U2SafeArea(val top: Dp, val bottom: Dp, val statusBarReference: Dp = U2Size.designStatusBar) {
     /**
      * Maps a design y (from the physical top) to this device. Never negative: a phone's status bar
      * is shorter than the design's 62, and before the first insets arrive it is 0.
+     *
+     * The design's headers sit inside its 62 dp status-bar band, below the iPhone's clock and
+     * island. An Android status bar is a thin strip with nothing below it, so on a phone the band
+     * is taken as [ANDROID_STATUS_BAR_REFERENCE]: headers keep a gap under the status bar instead
+     * of touching it.
      */
-    fun top(designY: Dp): Dp = (top + (designY - U2Size.designStatusBar)).coerceAtLeast(0.dp)
+    fun top(designY: Dp): Dp = (top + (designY - statusBarReference)).coerceAtLeast(0.dp)
 
     /** Maps a design bottom padding (from the physical bottom) to this device; never negative. */
     fun bottom(designPadding: Dp): Dp = (bottom + (designPadding - U2Size.designHomeIndicator)).coerceAtLeast(0.dp)
@@ -49,6 +54,9 @@ data class U2SafeArea(val top: Dp, val bottom: Dp) {
     companion object {
         /** The design's own insets: 62 at the top, 34 at the bottom. */
         val Design = U2SafeArea(top = U2Size.designStatusBar, bottom = U2Size.designHomeIndicator)
+
+        /** The part of the design's status-bar band a phone's status bar stands for (see [top]). */
+        val ANDROID_STATUS_BAR_REFERENCE: Dp = 50.dp
     }
 }
 
@@ -71,7 +79,9 @@ fun windowSafeArea(): U2SafeArea {
     val density = LocalDensity.current
     val top = WindowInsets.statusBars.union(WindowInsets.displayCutout).getTop(density)
     val bottom = WindowInsets.navigationBars.getBottom(density)
-    return with(density) { U2SafeArea(top = top.toDp(), bottom = bottom.toDp()) }
+    return with(density) {
+        U2SafeArea(top = top.toDp(), bottom = bottom.toDp(), statusBarReference = U2SafeArea.ANDROID_STATUS_BAR_REFERENCE)
+    }
 }
 
 /** The safe area components place themselves with (iOS `\.u2SafeArea`). */
