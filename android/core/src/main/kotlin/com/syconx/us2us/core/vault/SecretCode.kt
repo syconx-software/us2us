@@ -70,8 +70,10 @@ object SecretCodePolicy {
 
 /** Line lists bundled from `spec/` into this package (one entry per line, `#` comments). */
 internal object BundledList {
+    // Absolute path: R8 renames this class and its package in release builds, which would move a
+    // name resolved relative to the class away from where the build packs the lists.
     fun load(name: String): List<String> {
-        val stream = checkNotNull(BundledList::class.java.getResourceAsStream(name)) {
+        val stream = checkNotNull(BundledList::class.java.getResourceAsStream("/com/syconx/us2us/core/vault/$name")) {
             "$name is missing from the library resources"
         }
         return stream.bufferedReader(Charsets.UTF_8).useLines { lines -> parse(lines.toList()) }
