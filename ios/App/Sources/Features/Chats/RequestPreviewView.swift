@@ -7,7 +7,7 @@ import UIKit
 /// Until accepted no read receipt is sent, links are inert (no tap, no preview
 /// fetch, no data detectors) and media is never decoded — a placeholder says
 /// what it is. “Kabul et” turns this screen into 5.1: the decision bar slides
-/// down (0.4 s) while the composer fades in and the header settles into the
+/// down (screen duration) while the composer fades in and the header settles into the
 /// chat's, then the conversation takes over. Engelle (after a confirmation)
 /// and Sil go back to 4.3, where the card collapses. “Bildir” (the “…” menu,
 /// or beside Engelle in its confirmation) opens the report sheet; when the
@@ -394,11 +394,11 @@ struct RequestPreviewView: View {
     private func accept(_ request: MessageRequest) {
         Task {
             guard let chat = await triage.accept(request, in: model.messenger) else { return }
-            // The whole morph happens here (0.4 s): bar → composer, header →
+            // The whole morph happens here (screen duration): bar → composer, header →
             // the chat's, thread → 5.1's column. Then 5.1 replaces this screen
             // without any animation: it is drawn identically.
             await withCheckedContinuation { continuation in
-                withU2Animation(U2Motion.soft(0.4)) {
+                withU2Animation(U2Motion.screen) {
                     acceptedChat = chat
                 } completion: {
                     continuation.resume()
@@ -441,7 +441,7 @@ struct RequestPreviewView: View {
     private func leave(then decision: @escaping @MainActor () async -> Void) {
         model.router.pop()
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .seconds(U2Motion.Duration.screen))
             await decision()
         }
     }

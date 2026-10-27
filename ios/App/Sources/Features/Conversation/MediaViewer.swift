@@ -14,13 +14,18 @@ import UIKit
 /// shows at once; the full photo is decrypted (downloaded first if needed)
 /// and cross-fades in (0.24 s). Everything stays in memory.
 ///
-/// Opened from the conversation (one photo) or from the contact screen's
-/// grid (`MediaGalleryViewer`, swiping between its items).
+/// `ConversationPhotoViewer` supplies conversation navigation; contact media
+/// uses `MediaGalleryViewer`. Only the visible conversation photo loads fully.
 struct MediaViewer: View {
     let item: ConversationViewModel.ViewerItem
     let viewModel: any MediaViewerContext
     var themeScheme: ColorScheme = .dark
     let onClose: () -> Void
+
+    var photoPosition = 0
+    var photoCount = 1
+    var onPrevious: (() -> Void)? = nil
+    var onNext: (() -> Void)? = nil
 
     @State private var image: UIImage?
     @State private var isLoadingFull = true
@@ -97,7 +102,10 @@ struct MediaViewer: View {
                     dismissProgress = progress
                 }
             },
-            onDismiss: onClose
+            onDismiss: onClose,
+            onNavigate: photoCount > 1 ? { forward in
+                if forward { onNext?() } else { onPrevious?() }
+            } : nil
         )
     }
 
@@ -121,6 +129,21 @@ struct MediaViewer: View {
                 }
                 Spacer(minLength: 0)
                 VStack(spacing: 10) {
+                    if photoCount > 1 {
+                        HStack(spacing: 20) {
+                            U2GlassIconButton(.caretLeft, glyphSize: 21, surface: .media,
+                                label: Text("viewer.previous", table: .conversation), action: { onPrevious?() })
+                                .disabled(onPrevious == nil).opacity(onPrevious == nil ? 0.35 : 1)
+                                .accessibilityIdentifier("mediaViewer.previous")
+                            Text("album.photo \(photoPosition + 1) \(photoCount)", table: .conversation)
+                                .u2Font(.label15Emphasis).foregroundStyle(Color.u2.onMedia)
+                                .accessibilityIdentifier("mediaViewer.position")
+                            U2GlassIconButton(.caretRight, glyphSize: 21, surface: .media,
+                                label: Text("viewer.next", table: .conversation), action: { onNext?() })
+                                .disabled(onNext == nil).opacity(onNext == nil ? 0.35 : 1)
+                                .accessibilityIdentifier("mediaViewer.next")
+                        }
+                    }
                     if failed {
                         HStack(spacing: 8) {
                             PhosphorIcon(.warningCircle, size: 18)
@@ -280,6 +303,7 @@ struct ZoomableImageView: UIViewRepresentable {
     /// The swipe's progress (0…1); `true`: animate to it (the settle).
     let onDismissProgress: (CGFloat, Bool) -> Void
     let onDismiss: () -> Void
+    var onNavigate: ((Bool) -> Void)? = nil
 
     func makeUIView(context: Context) -> ZoomingImageView {
         let view = ZoomingImageView()
@@ -296,6 +320,7 @@ struct ZoomableImageView: UIViewRepresentable {
         view.onZoomChange = onZoomChange
         view.onDismissProgress = onDismissProgress
         view.onDismiss = onDismiss
+        view.onNavigate = onNavigate
         view.accessibilityLabel = accessibilityLabel
         view.accessibilityHint = accessibilityHint
         view.startsZoomed = startsZoomed
@@ -309,6 +334,7 @@ final class ZoomingImageView: UIView, UIScrollViewDelegate, UIGestureRecognizerD
     var onZoomChange: (Bool) -> Void = { _ in }
     var onDismissProgress: (CGFloat, Bool) -> Void = { _, _ in }
     var onDismiss: () -> Void = {}
+    var onNavigate: ((Bool) -> Void)?
     var startsZoomed = false
     /// The UI language, for VoiceOver's zoom value (“%250” / “250%”).
     var locale: Locale = .current
@@ -316,6 +342,7 @@ final class ZoomingImageView: UIView, UIScrollViewDelegate, UIGestureRecognizerD
     private let scrollView = UIScrollView()
     private let imageView = UIImageView()
     private let dismissPan = UIPanGestureRecognizer()
+    private let navigationPan = UIPanGestureRecognizer()
     private var laidOutBounds: CGSize = .zero
     private var reportedZoomed = false
     private var didApplyStartZoom = false
@@ -349,6 +376,11 @@ final class ZoomingImageView: UIView, UIScrollViewDelegate, UIGestureRecognizerD
         dismissPan.maximumNumberOfTouches = 1
         dismissPan.delegate = self
         addGestureRecognizer(dismissPan)
+        navigationPan.addTarget(self, action: #selector(handleNavigationPan(_:)))
+        navigationPan.maximumNumberOfTouches = 1
+        navigationPan.delegate = self
+        addGestureRecognizer(navigationPan)
+        scrollView.panGestureRecognizer.require(toFail: navigationPan)
         // At 1× a vertical drag belongs to the swipe away; zoomed, to panning.
         scrollView.panGestureRecognizer.require(toFail: dismissPan)
 
@@ -462,10 +494,21 @@ final class ZoomingImageView: UIView, UIScrollViewDelegate, UIGestureRecognizerD
     // MARK: Swipe away
 
     override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        if recognizer === navigationPan {
+            guard onNavigate != nil, !isZoomedIn, !isDismissing else { return false }
+            let velocity = navigationPan.velocity(in: self)
+            return abs(velocity.x) > abs(velocity.y) * 1.2
+        }
         guard recognizer === dismissPan else { return super.gestureRecognizerShouldBegin(recognizer) }
         guard !isZoomedIn, !isDismissing, imageView.image != nil else { return false }
         let velocity = dismissPan.velocity(in: self)
         return abs(velocity.y) > abs(velocity.x) * 1.2
+    }
+
+    @objc private func handleNavigationPan(_ recognizer: UIPanGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        let distance = recognizer.translation(in: self).x
+        if abs(distance) >= 48 { onNavigate?(distance < 0) }
     }
 
     @objc private func handleDismissPan(_ recognizer: UIPanGestureRecognizer) {

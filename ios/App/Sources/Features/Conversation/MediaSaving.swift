@@ -109,9 +109,10 @@ enum MediaExportPolicy {
     }
 
     /// The sender is told (SAVED): something received. The user's own
-    /// photo saved again is only noted here, so it never asks first.
+    /// photo saved again is only noted here, so it never asks first. A
+    /// community has no SAVED receipt: saving there is not reported.
     static func tellsSender(_ message: Message) -> Bool {
-        !message.isOutgoing
+        !message.isOutgoing && message.community == nil
     }
 
     /// What the explanation names (“fotoğrafı / videoyu / dosyayı”).

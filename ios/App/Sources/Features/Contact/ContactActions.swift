@@ -4,8 +4,11 @@ import SwiftUI
 /// number to share (on Doğrulama), “Bildir” (the report sheet) and
 /// “Engelle” after the request block's own confirmation (“{kişi}
 /// engellensin mi?” · Engelle · Bildir · Vazgeç) — “Engeli kaldır” once
-/// blocked, in the same place. The blocked state itself comes from the
-/// messenger (`Peer.isBlocked`), so 4.1 and 5.1 follow on their own.
+/// blocked, in the same place — and, in a group of their own, “Sohbeti sil”
+/// and “Kişiyi sil” after their confirmation (`ChatDeletion`; on this phone
+/// only). The blocked state itself comes from the messenger
+/// (`Peer.isBlocked`), so 4.1 and 5.1 follow on their own; a deleted chat
+/// takes this screen and 5.1 with it (back to 4.1).
 @Observable
 @MainActor
 final class ContactActionsModel {
@@ -15,6 +18,8 @@ final class ContactActionsModel {
     var showsMenu = false
     /// “{kişi} engellensin mi?”
     var confirmsBlock = false
+    /// “Sohbeti sil” / “Kişiyi sil”, waiting for its confirmation.
+    var deletion: ChatDeletion?
     /// The report sheet.
     var report: ReportModel?
     /// The UI language for announcements; the screen keeps it current.
@@ -67,6 +72,13 @@ final class ContactActionsModel {
         let name = peerName
         guard await messenger.unblock(chat: chatID) else { return }
         announce(StringTable.contact.string("a11y.unblocked \(name)", locale: locale))
+    }
+
+    // MARK: Deleting
+
+    /// “Sohbeti sil” / “Kişiyi sil”: the confirmation first.
+    func requestDeletion(_ kind: ChatDeletion.Kind) {
+        deletion = ChatDeletion(kind, chat: chatID, peer: peer)
     }
 
     // MARK: Report

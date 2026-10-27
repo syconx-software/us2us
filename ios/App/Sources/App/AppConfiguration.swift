@@ -175,7 +175,7 @@ struct LaunchRoute: Equatable, Sendable {
 }
 
 /// Device-level preferences that must be readable before unlocking (the lock
-/// screen is themed and localized too): theme and language. Not sensitive,
+/// screen is themed and localized too): theme, language and screen-awake opt-in. Not sensitive,
 /// so they live in UserDefaults; everything else is in the vault.
 @Observable
 @MainActor
@@ -183,6 +183,11 @@ final class AppPreferences {
     fileprivate let defaults: UserDefaults
     private static let themeKey = "u2.theme"
     private static let languageKey = "u2.language"
+    private static let keepScreenOnKey = "u2.keepScreenOn"
+
+    var keepScreenOn: Bool {
+        didSet { defaults.set(keepScreenOn, forKey: Self.keepScreenOnKey) }
+    }
 
     var theme: ThemePreference {
         didSet { defaults.set(theme.rawValue, forKey: Self.themeKey) }
@@ -194,6 +199,7 @@ final class AppPreferences {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        keepScreenOn = defaults.bool(forKey: Self.keepScreenOnKey)
         theme = defaults.string(forKey: Self.themeKey).flatMap(ThemePreference.init(rawValue:)) ?? .system
         language = defaults.string(forKey: Self.languageKey).flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
@@ -201,9 +207,11 @@ final class AppPreferences {
     func reset() {
         defaults.removeObject(forKey: Self.themeKey)
         defaults.removeObject(forKey: Self.languageKey)
+        defaults.removeObject(forKey: Self.keepScreenOnKey)
         defaults.removeObject(forKey: SaveNoticePreference.key)
         theme = .system
         language = .system
+        keepScreenOn = false
     }
 }
 

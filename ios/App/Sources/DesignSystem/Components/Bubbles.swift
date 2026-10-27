@@ -220,7 +220,7 @@ struct TextBubble: View {
 
     var body: some View {
         MessageBubble(direction: message.direction, isTail: isTail) {
-            Text(verbatim: text)
+            MessageLinkText(text: text)
                 .u2Font(.bubble)
                 .foregroundStyle(message.isOutgoing ? Color.u2.onBubbleOutgoing : Color.u2.text)
                 .fixedSize(horizontal: false, vertical: true)
@@ -245,7 +245,7 @@ struct ReplyBubble: View {
         ) {
             ReplyQuote(quote: quote)
                 .u2BubbleFill()
-            Text(verbatim: text)
+            MessageLinkText(text: text)
                 .u2Font(.bubble)
                 .foregroundStyle(message.isOutgoing ? Color.u2.onBubbleOutgoing : Color.u2.text)
                 .fixedSize(horizontal: false, vertical: true)
@@ -342,15 +342,26 @@ struct PhotoBubble: View {
                 .accessibilityLabel(Text("media.photo"))
                 .accessibilityValue(MediaAccessibility.state(message.mediaAvailability))
             if let caption {
-                Text(verbatim: caption)
-                    .u2Font(.bubble)
-                    .foregroundStyle(message.isOutgoing ? Color.u2.onBubbleOutgoing : Color.u2.text)
+                BubbleCaption(text: caption, isOutgoing: message.isOutgoing)
                     .padding(EdgeInsets(top: 2, leading: 8, bottom: 0, trailing: 8))
             }
             BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
                 .padding(.trailing, 8)
                 .u2BubbleTrailing()
         }
+    }
+}
+
+/// The caption row under a photo, and under a community video or file
+/// (``CommunityMessageMarks/caption``): the bubble's text style.
+struct BubbleCaption: View {
+    let text: String
+    let isOutgoing: Bool
+
+    var body: some View {
+        MessageLinkText(text: text)
+            .u2Font(.bubble)
+            .foregroundStyle(isOutgoing ? Color.u2.onBubbleOutgoing : Color.u2.text)
     }
 }
 
@@ -397,6 +408,10 @@ struct VideoBubble: View {
                 .accessibilityElement()
                 .accessibilityLabel(spokenLabel)
                 .accessibilityValue(MediaAccessibility.state(message.mediaAvailability))
+            if let caption = message.community?.caption {
+                BubbleCaption(text: caption, isOutgoing: message.isOutgoing)
+                    .padding(EdgeInsets(top: 2, leading: 8, bottom: 0, trailing: 8))
+            }
             BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
                 .padding(.trailing, 8)
                 .u2BubbleTrailing()
@@ -617,17 +632,19 @@ private struct VoiceBubbleWaveform: View {
     let fallback: Double
     let isActive: Bool
     let playback: VoicePlayback?
-    @GestureState private var isDragging = false
 
     var body: some View {
         let fraction = playback?.shownFraction(of: id, fallback: fallback) ?? fallback
         Waveform(bars: bars, playedFraction: fraction)
             .contentShape(Rectangle())
-            .gesture(scrub.exclusively(before: tapToSeek), including: isActive ? .all : .subviews)
-            // A drag the system takes away (the column scrolls) never ends:
-            // the scrub ends here instead, so the player is not left paused.
-            .onChange(of: isDragging) { _, dragging in
-                if !dragging, let playback, playback.isScrubbing { playback.endScrub(id) }
+            .overlay {
+                if isActive {
+                    VoiceWaveformTouchTarget(
+                        begin: { playback?.beginScrub(id) },
+                        seek: { playback?.scrub(id, to: $0) },
+                        end: { playback?.endScrub(id) })
+                        .accessibilityHidden(true)
+                }
             }
             .accessibilityElement()
             .accessibilityHidden(!isActive)
@@ -642,35 +659,82 @@ private struct VoiceBubbleWaveform: View {
             }
     }
 
-    /// Starts after a few points, and only sideways: a scroll that begins on
-    /// the waveform never seeks.
-    private var scrub: some Gesture {
-        DragGesture(minimumDistance: 6)
-            .updating($isDragging) { _, dragging, _ in dragging = true }
-            .onChanged { value in
-                guard let playback else { return }
-                if !playback.isScrubbing {
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    playback.beginScrub(id)
-                }
-                playback.scrub(id, to: Self.fraction(at: value.location))
-            }
-            .onEnded { value in
-                guard let playback, playback.isScrubbing else { return }
-                playback.scrub(id, to: Self.fraction(at: value.location))
-                playback.endScrub(id)
-            }
-    }
+}
 
-    private var tapToSeek: some Gesture {
-        SpatialTapGesture()
-            .onEnded { value in
-                playback?.scrub(id, to: Self.fraction(at: value.location))
-            }
-    }
+/// Reject vertical movement before recognition so the conversation's pan can start.
+/// Checking direction inside a SwiftUI DragGesture is too late: it already owns the touch.
+private struct VoiceWaveformTouchTarget: UIViewRepresentable {
+    let begin: () -> Void
+    let seek: (Double) -> Void
+    let end: () -> Void
 
-    private static func fraction(at location: CGPoint) -> Double {
-        Double(location.x / VoiceBubble.waveformSize.width)
+    func makeUIView(context: Context) -> VoiceWaveformTouchView { VoiceWaveformTouchView() }
+    func updateUIView(_ view: VoiceWaveformTouchView, context: Context) {
+        view.begin = begin
+        view.seek = seek
+        view.end = end
+    }
+    static func dismantleUIView(_ view: VoiceWaveformTouchView, coordinator: ()) { view.finishScrub() }
+}
+
+private final class VoiceWaveformTouchView: UIView, UIGestureRecognizerDelegate {
+    var begin: () -> Void = {}
+    var seek: (Double) -> Void = { _ in }
+    var end: () -> Void = {}
+    private var scrubbing = false
+    private var tapStarted: TimeInterval = 0
+    private lazy var pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+    private lazy var tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+
+    init() {
+        super.init(frame: .zero)
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = self
+        tap.delegate = self
+        tap.require(toFail: pan)
+        addGestureRecognizer(pan)
+        addGestureRecognizer(tap)
+    }
+    required init?(coder: NSCoder) { nil }
+
+    override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        // UIView also receives this hook for ancestor recognizers. Never veto the
+        // conversation's scroll or long press when deciding our own seek gestures.
+        guard recognizer === pan || recognizer === tap else { return super.gestureRecognizerShouldBegin(recognizer) }
+        if recognizer === pan {
+            let movement = pan.translation(in: self)
+            return abs(movement.x) > abs(movement.y)
+        }
+        // A held finger belongs to the message's long press, never tap-to-seek.
+        return ProcessInfo.processInfo.systemUptime - tapStarted < 0.4
+    }
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard window != nil, bounds.contains(touch.location(in: self)) else { return false }
+        if recognizer is UITapGestureRecognizer { tapStarted = touch.timestamp }
+        return true
+    }
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) { seek(fraction(recognizer)) }
+    @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            scrubbing = true
+            begin()
+            seek(fraction(recognizer))
+        case .changed: seek(fraction(recognizer))
+        case .ended:
+            seek(fraction(recognizer))
+            finishScrub()
+        case .cancelled, .failed: finishScrub()
+        default: break
+        }
+    }
+    private func fraction(_ recognizer: UIGestureRecognizer) -> Double {
+        Double(recognizer.location(in: self).x / max(1, bounds.width))
+    }
+    func finishScrub() {
+        guard scrubbing else { return }
+        scrubbing = false
+        end()
     }
 }
 
@@ -772,6 +836,10 @@ struct FileBubble: View {
                         .foregroundStyle(Color.u2.textSecondary)
                         .lineLimit(1)
                 }
+            }
+            if let caption = message.community?.caption {
+                BubbleCaption(text: caption, isOutgoing: message.isOutgoing)
+                    .padding(.top, 6)
             }
             BubbleMeta(time: message.sentAt, status: message.status, disappearing: message.disappearing)
                 .u2BubbleTrailing()
@@ -1037,6 +1105,14 @@ struct TombstoneBubble: View {
     let message: Message
     var isTail = false
 
+    /// A community message says who took it back: its sender (“Bu mesaj
+    /// silindi”) or the owner (“Yönetici tarafından kaldırıldı”).
+    private var label: Text {
+        guard let marks = message.community else { return Text("message.deleted") }
+        return marks.removedByOwner
+            ? Text("message.removedByOwner", table: .communities) : Text("message.deleted", table: .communities)
+    }
+
     var body: some View {
         // The synthetic oblique overhangs the text frame: 4 pt of room on
         // the trailing side (taken from the bubble's padding, so the bubble
@@ -1047,7 +1123,7 @@ struct TombstoneBubble: View {
         ) {
             HStack(spacing: 8) {
                 PhosphorIcon(.prohibit, size: 16)
-                Text("message.deleted").u2Font(.bubbleTombstone)
+                label.u2Font(.bubbleTombstone)
                     .padding(.trailing, 4)
             }
             .foregroundStyle(Color.u2.textSecondary)

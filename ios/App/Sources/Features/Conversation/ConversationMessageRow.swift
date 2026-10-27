@@ -66,10 +66,22 @@ struct ConversationMessageRow: View, Equatable {
             if message.isSystem {
                 MessageBubbleView(message: message)
             } else {
+                if row.showsSender, let sender = message.community?.sender {
+                    // Communities: who wrote the run of bubbles below.
+                    Text(verbatim: CommunityNames.member(username: sender.username, shortID: sender.shortID, locale: locale))
+                        .u2Font(sender.username == nil ? .captionCompact : .monoMeta)
+                        .foregroundStyle(Color.u2.textSecondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 6)
+                        .padding(.bottom, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("message.sender")
+                }
                 bubble
                     .frame(maxWidth: .infinity, alignment: message.isOutgoing ? .trailing : .leading)
             }
-            if let status = message.status {
+            if let status = row.album.isEmpty ? message.status : ConversationPhotos.status(row.album) {
                 if reduceMotion {
                     if row.showsStatusSentence {
                         statusSentence(status)
@@ -94,7 +106,15 @@ struct ConversationMessageRow: View, Equatable {
         .u2Animation(U2Motion.state, value: row.showsStatusSentence)
     }
 
-    private var bubble: some View {
+    @ViewBuilder private var bubble: some View {
+        if row.album.count > 1, let viewModel {
+            ConversationPhotoAlbum(row: row, viewModel: viewModel)
+        } else {
+            singleBubble
+        }
+    }
+
+    private var singleBubble: some View {
         let id = message.id
         let viewModel = viewModel
         return MessageBubbleView(
@@ -108,20 +128,19 @@ struct ConversationMessageRow: View, Equatable {
             onToggleVoice: { viewModel?.toggleVoice(id) }
         )
         .background {
+            MessagePressObserver(enabled: viewModel != nil && !isLifted,
+                onPressing: { isPressing = $0 }, onLongPress: { frame in
+                    viewModel?.frames.set(frame, for: id)
+                    longPress()
+                })
             if let frames = viewModel?.frames, isPressing || capturesFrame {
                 BubbleFrameReporter(id: id, store: frames)
             }
         }
         // The bubble rises a touch while the finger rests on it (C15 lift, 5.3).
         .scaleEffect(isPressing && !reduceMotion ? 1.02 : 1, anchor: message.isOutgoing ? .trailing : .leading)
-        .u2Animation(U2Motion.soft(0.3), value: isPressing)
+        .u2Animation(U2Motion.press, value: isPressing)
         .opacity(isLifted ? 0 : 1)
-        .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) {
-            isPressing = false
-            longPress()
-        } onPressingChanged: { pressing in
-            isPressing = pressing
-        }
         .accessibilityAction(named: Text("a11y.message.actions", table: .conversation), longPress)
         .accessibilityIdentifier("message.\(id)")
     }
@@ -135,9 +154,11 @@ struct ConversationMessageRow: View, Equatable {
         let id = message.id
         let viewModel = viewModel
         let resend: () -> Void = { viewModel?.resend(id) }
+        let offersResend = viewModel?.offersResend(message) ?? (message.community == nil)
         let line = StatusLine(status: status, detail: Self.detail(for: message, locale: locale))
         return StateCrossFade(value: line, alignment: .trailing) { line in
-            MessageStatusSentence(status: line.status, detail: line.detail, onResend: line.status == .failed ? resend : nil)
+            MessageStatusSentence(
+                status: line.status, detail: line.detail, onResend: line.status == .failed && offersResend ? resend : nil)
         }
         .allowsHitTesting(row.showsStatusSentence)
     }
@@ -162,7 +183,14 @@ struct ConversationMessageRow: View, Equatable {
                 ? StringTable.conversation.string("photo.preparationFailed.detail", locale: locale)
                 : StringTable.conversation.string("video.preparationFailed.detail", locale: locale)
         case .ready, .remote, .downloading, .held, .unavailable:
-            return nil
+            // A community message is on its way to every member, not to one person.
+            guard message.community != nil else { return nil }
+            switch message.status {
+            case .sent?: return StringTable.communities.string("status.sent.sentence", locale: locale)
+            case .delivered?: return StringTable.communities.string("status.delivered.sentence", locale: locale)
+            case .failed?: return StringTable.communities.string("status.failed.sentence", locale: locale)
+            case .read?, .sending?, nil: return nil
+            }
         }
     }
 

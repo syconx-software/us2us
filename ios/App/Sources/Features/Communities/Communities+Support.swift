@@ -3,49 +3,21 @@ import Us2usKit
 
 // Pieces shared by the communities screens (Features/Communities).
 
-// MARK: - Entry card (4.1)
+// MARK: - Avatar
 
-/// 4.1 › Topluluklar (proposed): a card in the requests card's shape
-/// (`surface` r18, pad 13 14, gap 13; 42 pt round `accent900` tile with
-/// `ph:chat-circle-dots`; title `rowTitleEmphasis`, subtitle `caption`;
-/// chevron). It opens the communities screen.
-struct CommunitiesCard: View {
-    let count: Int
-    let action: () -> Void
+/// A community's picture in the chats list (proposed): the communities
+/// tile at avatar size — a round `accent900` disc, a 1 pt `accent800` ring
+/// and `ph:chat-circle-dots` in `accent300`.
+struct CommunityAvatar: View {
+    let diameter: CGFloat
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 13) {
-                PhosphorIcon(.chatCircleDots, size: 21)
-                    .foregroundStyle(Color.u2.accent300)
-                    .frame(width: 42, height: 42)
-                    .background(Circle().fill(Color.u2.accent900))
-                    .overlay(Circle().strokeBorder(Color.u2.accent800, lineWidth: 1))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("card.title", table: .communities)
-                        .u2Font(.rowTitleEmphasis)
-                        .foregroundStyle(Color.u2.text)
-                    Group {
-                        if count == 0 {
-                            Text("card.subtitle.empty", table: .communities)
-                        } else {
-                            LocalizedText("card.subtitle \(count)", table: .communities)
-                        }
-                    }
-                    .u2Font(.caption)
-                    .foregroundStyle(Color.u2.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                PhosphorIcon(.caretRight, size: 15)
-                    .foregroundStyle(Color.u2.textTertiary)
-            }
-            .padding(EdgeInsets(top: 13, leading: 14, bottom: 13, trailing: 14))
-            .background(RoundedRectangle(cornerRadius: U2Radius.card, style: .continuous).fill(Color.u2.surface))
-            .contentShape(RoundedRectangle(cornerRadius: U2Radius.card, style: .continuous))
-        }
-        .buttonStyle(CardButtonStyle())
-        .accessibilityElement(children: .combine)
+        PhosphorIcon(.chatCircleDots, size: (diameter * 0.46).rounded())
+            .foregroundStyle(Color.u2.accent300)
+            .frame(width: diameter, height: diameter)
+            .background(Circle().fill(Color.u2.accent900))
+            .overlay(Circle().strokeBorder(Color.u2.accent800, lineWidth: 1))
+            .accessibilityHidden(true)
     }
 }
 

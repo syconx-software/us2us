@@ -24,7 +24,7 @@ final class RealMessengerService: MessengerService {
     var communities: (any CommunitiesService)? {
         guard let service = runtime.communities else { return nil }
         if let bridge = communitiesBridge, bridge.service === service { return bridge }
-        let bridge = RealCommunitiesService(service: service)
+        let bridge = RealCommunitiesService(service: service, preparation: .live(runtime))
         communitiesBridge = bridge
         return bridge
     }
@@ -248,6 +248,8 @@ final class RealMessengerService: MessengerService {
         ProtectedPreviewFiles.removeAll()
         VoiceRecordingFiles.removeAll()
         outgoingMedia.removeAll()
+        communitiesBridge?.removeAll()
+        communitiesBridge = nil
         liveSessions = [:]
         clearCaches()
         forgetExportedBackups()
@@ -359,6 +361,8 @@ final class RealMessengerService: MessengerService {
         ProtectedPreviewFiles.removeAll()
         VoiceRecordingFiles.removeAll()
         outgoingMedia.removeAll()
+        communitiesBridge?.removeAll()
+        communitiesBridge = nil
         SystemPickers.removeAllPicked()
         liveSessions = [:]
         dropPendingRestore()
@@ -378,11 +382,13 @@ final class RealMessengerService: MessengerService {
         case .active:
             runtime.scenePhaseChanged(.active)
             outgoingMedia.didBecomeActive()
+            communitiesBridge?.didBecomeActive()
         case .inactive: runtime.scenePhaseChanged(.inactive)
         case .background:
             runtime.scenePhaseChanged(.background)
             clearCaches()
             outgoingMedia.didEnterBackground()
+            communitiesBridge?.didEnterBackground()
         }
     }
 
@@ -438,8 +444,10 @@ final class RealMessengerService: MessengerService {
             var record = LiveChatRecord(summary, ownAccount: own)
             if changed.contains(summary.id) { record.safetyNumberChanged = true }
             if record.requestState == .outgoingRequest, let copy = searched[record.peer] { record.avatar = copy }
-            return LiveMapping.chatSummary(
+            var row = LiveMapping.chatSummary(
                 record, presence: presence[summary.id].map(LivePresence.init), now: date, ownSharing: sharing)
+            row.lastMessageActivity = summary.lastMessage?.storedAt
+            return row
         }
         chatCache = (source, presence, sharing, changed, searched, value)
         return value
@@ -460,11 +468,12 @@ final class RealMessengerService: MessengerService {
         guard let entry = try? await runtime.lookupAccount(username: username) else { return .notFound }
         let id = entry.account.string
         rememberLookup(username, account: entry.account)
-        if let existing = chat(id) { return .found(existing.peer, isExistingChat: true) }
+        // By account, never by the name a chat shows (§3.3).
+        if let existing = chat(id) { return .found(existing.peer, existingChat: existing.id) }
         return .found(
             Peer(
                 username: NormalizedUsername.normalize(username), palette: .forUsername(username), isVerified: false,
-                isAcceptedContact: false, presence: .hidden), isExistingChat: false)
+                isAcceptedContact: false, presence: .hidden), existingChat: nil)
     }
 
     func accept(_ request: MessageRequest) async -> ChatID? {
@@ -549,6 +558,51 @@ final class RealMessengerService: MessengerService {
         try? await runtime.startConversation(username: username).string
     }
 
+    // MARK: Deleting
+
+    func deleteChat(_ chat: ChatID) async -> Bool {
+        guard let peer = AccountId(string: chat) else { return false }
+        prepareDeletion(of: chat, peer: peer)
+        do {
+            try await runtime.deleteConversation(peer, forBoth: false)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func deleteContact(_ chat: ChatID) async -> Bool {
+        guard let peer = AccountId(string: chat) else { return false }
+        prepareDeletion(of: chat, peer: peer)
+        do {
+            try await runtime.deleteContact(peer)
+        } catch {
+            return false
+        }
+        searchedAvatars[chat] = nil
+        revealedAvatars[chat] = nil
+        avatarAccounts = avatarAccounts.filter { $0.value != peer }
+        return true
+    }
+
+    /// Before a chat goes: a live location shared with the person ends here
+    /// (the runtime queues its stop outside the deleted chat), photos and
+    /// videos still being prepared for the chat are dropped, and what
+    /// memory holds of its media goes.
+    private func prepareDeletion(of chat: ChatID, peer: AccountId) {
+        let shared = liveSessions.filter { $0.value.peer == peer }.map(\.key)
+        for sessionId in shared { liveSessions[sessionId] = nil }
+        if !shared.isEmpty, liveSessions.isEmpty { location.stopLiveUpdates() }
+        for item in outgoingMedia.items(in: chat) { outgoingMedia.remove(item.id) }
+        outgoingMedia.conversationClosed(chat)
+        listedMedia = listedMedia.filter { $0.value.peer != peer }
+        if runtime.openPeer == peer {
+            media = [:]
+            mediaLoading = []
+            downloads = [:]
+        }
+    }
+
     func ownContactCode() async -> String? {
         guard let username = runtime.ownUsername else { return nil }
         let key: Data? = (try? await runtime.ownIdentityKey()) ?? nil
@@ -559,6 +613,11 @@ final class RealMessengerService: MessengerService {
 
     func chat(_ id: ChatID) -> ChatSummary? {
         chats.first { $0.id == id }
+    }
+
+    func loadOlderMessages(in chat: ChatID) async throws -> Bool {
+        guard let peer = AccountId(string: chat) else { return false }
+        return try await runtime.loadOlderMessages(peer)
     }
 
     func conversationAppeared(_ chat: ChatID) async {

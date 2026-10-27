@@ -79,6 +79,10 @@ final class DesignFixturesService: MessengerService {
     @ObservationIgnored var restoreAccessAnswer: RestoreAccessCheck = .closed
     /// Blocked chats as they were before the block (“Engeli kaldır” restores them).
     @ObservationIgnored private var peersBeforeBlock: [ChatID: Peer] = [:]
+    /// Accounts the directory gives a username to, when they differ from the
+    /// fixtures' “chat id = name” (tests: a deleted account whose name
+    /// someone else registered, PROTOCOL §3.3).
+    @ObservationIgnored var directory: [String: ChatID] = [:]
     /// Requests blocked from 4.3 / 4.4: unblocking makes them requests again.
     @ObservationIgnored private var blockedRequests: [ChatID: MessageRequest] = [:]
     /// People blocked whose chat is gone (Ghost erased it): only 7.1 ›
@@ -272,13 +276,13 @@ final class DesignFixturesService: MessengerService {
         try? await Task.sleep(for: latency)
         if name == "deniz" {
             // 4.2 shows deniz as found and not yet a contact.
-            return .found(Peer(username: "deniz", palette: .a, isVerified: false, isAcceptedContact: false, presence: .hidden), isExistingChat: false)
+            return .found(Peer(username: "deniz", palette: .a, isVerified: false, isAcceptedContact: false, presence: .hidden), existingChat: nil)
         }
-        if let chat = chats.first(where: { $0.peer.username == name }) {
-            return .found(chat.peer, isExistingChat: true)
+        if let chat = existingChat(for: name) {
+            return .found(chat.peer, existingChat: chat.id)
         }
-        if DesignFixtures.takenUsernames.contains(name) {
-            return .found(Peer(username: name, palette: .forUsername(name), isVerified: false, isAcceptedContact: false, presence: .hidden), isExistingChat: false)
+        if directory[name] != nil || DesignFixtures.takenUsernames.contains(name) {
+            return .found(Peer(username: name, palette: .forUsername(name), isVerified: false, isAcceptedContact: false, presence: .hidden), existingChat: nil)
         }
         return .notFound
     }
@@ -408,7 +412,7 @@ final class DesignFixturesService: MessengerService {
     func startChat(username: String) async -> ChatID? {
         let name = UsernameRules.normalize(username)
         guard UsernameRules.isValid(name), name != account?.username else { return nil }
-        if let existing = chats.first(where: { $0.peer.username == name }) { return existing.id }
+        if let existing = existingChat(for: name) { return existing.id }
         // Someone blocked whose chat is gone gets it back, read only, with
         // “Engeli kaldır” (as in the live app).
         if let index = blockedWithoutChat.firstIndex(where: { $0.id == name }) {
@@ -428,9 +432,52 @@ final class DesignFixturesService: MessengerService {
         let peer = Peer(
             username: name, palette: .forUsername(name), isVerified: false, isAcceptedContact: false, presence: .hidden,
             avatar: DesignFixtures.searchAvatar(for: name))
-        chats.insert(ChatSummary(id: name, peer: peer, lastMessage: nil, unreadCount: 0, ghost: .off, disappearing: settings.defaultDisappearing), at: 0)
-        messagesByChat[name] = []
-        return name
+        let id = directory[name] ?? name
+        chats.insert(ChatSummary(id: id, peer: peer, lastMessage: nil, unreadCount: 0, ghost: .off, disappearing: settings.defaultDisappearing), at: 0)
+        messagesByChat[id] = []
+        return id
+    }
+
+    /// The chat of the account the directory gives `name` to. A fixture
+    /// chat's id is its name unless `directory` says otherwise (a name taken
+    /// over by another account, PROTOCOL §3.3).
+    private func existingChat(for name: String) -> ChatSummary? {
+        if let account = directory[name] { return chat(account) }
+        return chat(name) ?? chats.first { $0.peer.username == name && $0.community == nil }
+    }
+
+    // MARK: Deleting
+
+    /// “Sohbeti sil”: the chat and its messages go; the person stays (4.2
+    /// finds them as an existing contact without a chat). Someone blocked
+    /// stays blocked, in 7.1 › Engellenenler.
+    func deleteChat(_ chat: ChatID) async -> Bool {
+        guard let summary = self.chat(chat), summary.community == nil else { return false }
+        removeChat(summary)
+        return true
+    }
+
+    /// “Kişiyi sil”: as `deleteChat`, and the person is forgotten — except a
+    /// block, which stays.
+    func deleteContact(_ chat: ChatID) async -> Bool {
+        if let summary = self.chat(chat), summary.community == nil {
+            removeChat(summary)
+        } else if !blockedWithoutChat.contains(where: { $0.id == chat }) {
+            return false
+        }
+        if !blockedWithoutChat.contains(where: { $0.id == chat }) { peersBeforeBlock[chat] = nil }
+        blockedRequests[chat] = nil
+        return true
+    }
+
+    private func removeChat(_ summary: ChatSummary) {
+        chats.removeAll { $0.id == summary.id }
+        messagesByChat[summary.id] = nil
+        olderMessages[summary.id] = nil
+        if summary.peer.isBlocked, !blockedWithoutChat.contains(where: { $0.id == summary.id }) {
+            blockedWithoutChat.append(
+                BlockedPerson(id: summary.id, name: summary.peer.username, palette: summary.peer.palette))
+        }
     }
 
     func ownContactCode() async -> String? {
@@ -449,6 +496,21 @@ final class DesignFixturesService: MessengerService {
 
     func chat(_ id: ChatID) -> ChatSummary? {
         chats.first { $0.id == id }
+    }
+
+    @ObservationIgnored private var olderMessages: [ChatID: [Message]] = [:]
+
+    func installHistory(_ history: [Message], in chat: ChatID, initialCount: Int = 100) {
+        olderMessages[chat] = Array(history.dropLast(initialCount))
+        messagesByChat[chat] = Array(history.suffix(initialCount)) + (messagesByChat[chat] ?? [])
+    }
+
+    func loadOlderMessages(in chat: ChatID) async throws -> Bool {
+        guard let history = olderMessages[chat], !history.isEmpty else { return false }
+        let page = Array(history.suffix(100))
+        olderMessages[chat] = Array(history.dropLast(page.count))
+        messagesByChat[chat] = page + (messagesByChat[chat] ?? [])
+        return true
     }
 
     func messages(in chat: ChatID) -> [Message] {
@@ -1267,6 +1329,14 @@ final class DesignFixturesService: MessengerService {
             chats[index].peer.safetyNumberChanged = true
         }
     }
+
+    #if DEBUG
+        /// A real key replacement for model regression tests; normal fixture screens keep
+        /// the design's fixed safety number. No hook exists on the live messenger.
+        func replaceSafetyNumberForTesting(_ info: SafetyNumberInfo, in chat: ChatID) {
+            safetyNumbers[chat] = info
+        }
+    #endif
 }
 
 #if DEBUG

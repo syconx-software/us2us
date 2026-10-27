@@ -67,6 +67,7 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
 
     func sceneWillResignActive(_ scene: UIScene) {
         MainActor.assumeIsolated {
+            ScreenAwakeController.shared.setActive(false)
             let mainWindow = (scene as? UIWindowScene)?.windows.first { $0.windowLevel == .normal }
             AppEnvironment.shared.model.sceneWillResignActive {
                 PrivacySnapshot.capture(mainWindow)
@@ -75,7 +76,10 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {
-        MainActor.assumeIsolated { AppEnvironment.shared.model.sceneDidEnterBackground() }
+        MainActor.assumeIsolated {
+            ScreenAwakeController.shared.setActive(false)
+            AppEnvironment.shared.model.sceneDidEnterBackground()
+        }
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
@@ -83,6 +87,13 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        MainActor.assumeIsolated { AppEnvironment.shared.model.sceneDidBecomeActive() }
+        MainActor.assumeIsolated {
+            let model = AppEnvironment.shared.model
+            model.sceneDidBecomeActive()
+            ScreenAwakeController.shared.configure(
+                preference: model.preferences.keepScreenOn,
+                contentVisible: model.phase == .unlocked && model.overlay == .none)
+            ScreenAwakeController.shared.setActive(true)
+        }
     }
 }

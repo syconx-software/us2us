@@ -30,7 +30,10 @@ struct MessageActionsOverlay: View {
     @State private var isGlided = false
     private var isOutgoing: Bool { message.isOutgoing }
     /// Nothing reaches a blocked person: no reaction bar for them.
-    private var showsReactions: Bool { !message.isDeleted && !message.isPendingMedia && !viewModel.isBlocked }
+    /// Communities have no reactions.
+    private var showsReactions: Bool {
+        !message.isDeleted && !message.isPendingMedia && !viewModel.isBlocked && viewModel.community == nil
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -82,7 +85,7 @@ struct MessageActionsOverlay: View {
         // The glide runs in its own transaction: the design curve from rest
         // over 0.55 s (open), 0.24 s back (dismiss).
         .onChange(of: isVisible) { _, visible in
-            withAnimation(visible ? U2Motion.soft(0.55) : U2Motion.soft(0.24)) { isGlided = visible }
+            withAnimation(visible ? U2Motion.soft(U2Motion.Duration.sheet) : U2Motion.micro) { isGlided = visible }
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
@@ -186,6 +189,7 @@ struct MessageActionsOverlay: View {
                 }
             ]
         }
+        if viewModel.community != nil { return communityMenuItems }
         var items: [FloatingMenuItem] = []
         let isBlocked = viewModel.isBlocked
         if !message.isDeleted {
@@ -251,6 +255,55 @@ struct MessageActionsOverlay: View {
                     viewModel.deleteForMe(id)
                 })
         }
+        return items
+    }
+}
+
+extension MessageActionsOverlay {
+    /// A community message (no reactions or replies): own ones — Bilgi ·
+    /// Kopyala ‖ Herkesten sil · Benden sil; others' — Kopyala ‖ Benden sil,
+    /// and for the owner also Herkesten sil (moderation). A file that is here
+    /// can be saved to Files (saving is not reported in a community).
+    var communityMenuItems: [FloatingMenuItem] {
+        let id = message.id
+        var items: [FloatingMenuItem] = []
+        if !message.isDeleted {
+            if message.isOutgoing {
+                items.append(
+                    FloatingMenuItem(id: "info", title: Text("actions.info", table: .conversation), glyph: .info) {
+                        viewModel.showInfo(for: id)
+                    })
+            }
+            if message.copyableText != nil {
+                items.append(
+                    FloatingMenuItem(id: "copy", title: Text("actions.copy", table: .conversation), glyph: .copy) {
+                        viewModel.copy(id)
+                    })
+            }
+            if case .file = message.content, message.mediaAvailability.isReady {
+                items.append(
+                    FloatingMenuItem(id: "saveToFiles", title: Text("file.saveToFiles", table: .conversation), glyph: .export) {
+                        viewModel.saveToFiles(id)
+                    })
+            }
+        }
+        let deletesForEveryone = viewModel.canDeleteForEveryone(message)
+        if deletesForEveryone {
+            items.append(
+                FloatingMenuItem(
+                    id: "deleteEveryone", title: Text("actions.deleteEveryone", table: .conversation), glyph: .trash,
+                    tone: .destructive, startsGroup: !items.isEmpty
+                ) {
+                    viewModel.askDeleteForEveryone(id)
+                })
+        }
+        items.append(
+            FloatingMenuItem(
+                id: "deleteMe", title: Text("actions.deleteMe", table: .conversation), glyph: .trashSimple, tone: .destructive,
+                startsGroup: !deletesForEveryone && !items.isEmpty
+            ) {
+                viewModel.deleteForMe(id)
+            })
         return items
     }
 }

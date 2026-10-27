@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "tr",
   "strings": {
+    "messageInvite.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruba katılmak istiyor musunuz?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Would you like to join this group?"
+          }
+        }
+      }
+    },
+    "messageInvite.sent": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katılım isteği gönderildi. Yönetici onayı bekleniyor."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join request sent. Waiting for administrator approval."
+          }
+        }
+      }
+    },
+    "messageInvite.done": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamam"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
     "a11y.create": {
       "comment": "VoiceOver label of the header “+”.",
       "extractionState": "manual",
@@ -307,54 +358,6 @@
         }
       }
     },
-    "card.subtitle %lld": {
-      "comment": "4.1 card subtitle: number of communities on this phone.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld community"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld communities"
-                }
-              }
-            }
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld topluluk"
-          }
-        }
-      }
-    },
-    "card.subtitle.empty": {
-      "comment": "4.1 card subtitle without communities.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Group chats · encrypted to each member"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grup sohbetleri · her üyeye ayrı şifreli"
-          }
-        }
-      }
-    },
     "card.title": {
       "comment": "4.1 card title: opens the communities screen.",
       "extractionState": "manual",
@@ -495,6 +498,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Topluluk herkes için silinsin mi?"
+          }
+        }
+      }
+    },
+    "confirm.deleteEveryone.message": {
+      "comment": "Delete-for-everyone confirmation in a community.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The message is removed from every member's phone. Copies already downloaded or saved cannot be recalled, and the delete may not reach every member."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj tüm üyelerin telefonundan kaldırılır. İndirilmiş ya da kaydedilmiş kopyalar geri alınamaz ve silme her üyeye ulaşmayabilir."
           }
         }
       }
@@ -925,6 +946,222 @@
         }
       }
     },
+    "info.note.body": {
+      "comment": "Message info note body.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Members' phones send the delivered and read receipts; a modified app may not. Read shows only while read receipts are on. Other members never see who read what."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İletildi ve okundu bilgisini üyelerin telefonları gönderir; değiştirilmiş bir uygulama göndermeyebilir. Okundu yalnızca okundu bilgisi açıkken görünür. Diğer üyeler kimin neyi okuduğunu görmez."
+          }
+        }
+      }
+    },
+    "info.note.title": {
+      "comment": "Message info note title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receipts are a courtesy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgiler bir nezaket"
+          }
+        }
+      }
+    },
+    "info.recipient.delivered %@": {
+      "comment": "Message info row: delivered at a time.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delivered %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İletildi %@"
+          }
+        }
+      }
+    },
+    "info.recipient.failed": {
+      "comment": "Message info row: could not be sent to this member.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not be sent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderilemedi"
+          }
+        }
+      }
+    },
+    "info.recipient.left": {
+      "comment": "Message info row: the member has left since.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayrıldı"
+          }
+        }
+      }
+    },
+    "info.recipient.pending": {
+      "comment": "Message info row: not accepted by the relay yet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bekliyor"
+          }
+        }
+      }
+    },
+    "info.recipient.read %@": {
+      "comment": "Message info row: read at a time.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okundu %@"
+          }
+        }
+      }
+    },
+    "info.recipient.skipped": {
+      "comment": "Message info row: was no longer a member when it was sent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not sent · no longer a member"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderilmedi · artık üye değildi"
+          }
+        }
+      }
+    },
+    "info.recipient.waiting": {
+      "comment": "Message info row: sent, not delivered yet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent · pending"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderildi · bekliyor"
+          }
+        }
+      }
+    },
+    "info.recipients.none": {
+      "comment": "Message info: the message went to nobody (the only member).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This message was not sent to any other member."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu mesaj başka bir üyeye gönderilmedi."
+          }
+        }
+      }
+    },
+    "info.summary.delivered %lld %lld": {
+      "comment": "Message info summary: delivered to n of m recipients.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld delivered"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld / %2$lld iletildi"
+          }
+        }
+      }
+    },
+    "info.summary.read %lld %lld": {
+      "comment": "Message info summary: read by n of m recipients.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld read"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld / %2$lld okundu"
+          }
+        }
+      }
+    },
     "join.message": {
       "comment": "Join confirmation body.",
       "extractionState": "manual",
@@ -1159,38 +1396,56 @@
         }
       }
     },
-    "message.failed": {
-      "comment": "Outgoing message stopped.",
+    "message.deleted": {
+      "comment": "Placeholder of a community message its sender deleted for everyone.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Delivery stopped; some members may have it"
+            "value": "This message was deleted"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gönderim durdu; bazı üyeler almış olabilir"
+            "value": "Bu mesaj silindi"
           }
         }
       }
     },
-    "message.partial": {
-      "comment": "Outgoing message reached only some members.",
+    "message.removedByOwner": {
+      "comment": "Placeholder of a community message the owner removed.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Did not reach some members"
+            "value": "Removed by the owner"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bazı üyelere ulaşmadı"
+            "value": "Yönetici tarafından kaldırıldı"
+          }
+        }
+      }
+    },
+    "newChat.subtitle": {
+      "comment": "New chat sheet row: opens the communities screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create, join with an invitation or search"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oluştur, davetle katıl veya ara"
           }
         }
       }
@@ -1737,6 +1992,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toplulukların"
+          }
+        }
+      }
+    },
+    "status.delivered.sentence": {
+      "comment": "Status sentence: every recipient's phone has the community message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reached every member's device"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm üyelerin cihazına ulaştı"
+          }
+        }
+      }
+    },
+    "status.failed.sentence": {
+      "comment": "Status sentence: the community message could not be sent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not be sent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gönderilemedi"
+          }
+        }
+      }
+    },
+    "status.sent.sentence": {
+      "comment": "Status sentence under the newest own community message: accepted for every member.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delivered as members open the app"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üyeler uygulamayı açınca iletilecek"
+          }
+        }
+      }
+    },
+    "chats.requests.count %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld katılım isteği · Kabul / Ret"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld join requests · Approve / Reject"
           }
         }
       }

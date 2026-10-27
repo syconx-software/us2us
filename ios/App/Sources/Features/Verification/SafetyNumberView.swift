@@ -141,6 +141,7 @@ struct VerificationFlowView: View {
         }
         .alert(Text("safety.confirm.title", table: .verification), isPresented: $model.confirmsMarkVerified) {
             Button(role: .cancel) {
+                model.cancelMarkVerified()
             } label: {
                 Text("common.cancel")
             }
@@ -167,6 +168,7 @@ struct VerificationFlowView: View {
         }
         .alert(Text("safety.accept.title", table: .verification), isPresented: $model.confirmsAccept) {
             Button(role: .cancel) {
+                model.cancelAccept()
             } label: {
                 Text("common.cancel")
             }

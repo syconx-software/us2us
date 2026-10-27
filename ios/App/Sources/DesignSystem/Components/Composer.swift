@@ -28,6 +28,12 @@ struct Composer: View {
     /// The voice recorder behind the mic; `nil`: the mic is a plain button
     /// (`onRecord`) — previews, the inert 4.4 composer.
     var voice: VoiceComposer? = nil
+    /// The keys in the field; communities show the sticker key without a timer.
+    var showsFieldKeys = true
+    var showsTimer = true
+    /// Without voice messages (a preview) the key only sends: the paper
+    /// plane, off while the field is empty.
+    var sendsOnly = false
 
     @FocusState private var isFocused: Bool
     @Environment(\.u2SafeArea) private var safeArea
@@ -49,7 +55,7 @@ struct Composer: View {
             HStack(alignment: .bottom, spacing: 8) {
                 leadingButton
                 field
-                ComposerActionButton(hasText: hasText, voice: voice, onSend: onSend, onRecord: onRecord)
+                ComposerActionButton(hasText: hasText, voice: sendsOnly ? nil : voice, sendsOnly: sendsOnly, onSend: onSend, onRecord: onRecord)
             }
             // Behind the row, so the held mic slides over it; the hidden
             // field and “+” let its buttons through.
@@ -107,16 +113,20 @@ struct Composer: View {
             .focused($isFocused)
             .padding(.vertical, (U2Size.composer - 24.8) / 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 12) {
-                // 2/3 pt lower than centred, like the design's icon font.
-                Button(action: onTimer) { PhosphorIcon(.timer, size: 21).offset(y: 2.0 / 3.0) }
-                    .accessibilityLabel(Text("a11y.composer.timer"))
-                Button(action: onSticker) { PhosphorIcon(.sticker, size: 21).offset(y: 2.0 / 3.0) }
-                    .accessibilityLabel(Text("a11y.composer.sticker"))
+            if showsFieldKeys {
+                HStack(spacing: 12) {
+                    // 2/3 pt lower than centred, like the design's icon font.
+                    if showsTimer {
+                        Button(action: onTimer) { PhosphorIcon(.timer, size: 21).offset(y: 2.0 / 3.0) }
+                            .accessibilityLabel(Text("a11y.composer.timer"))
+                    }
+                    Button(action: onSticker) { PhosphorIcon(.sticker, size: 21).offset(y: 2.0 / 3.0) }
+                        .accessibilityLabel(Text("a11y.composer.sticker"))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.u2.textComposerIcon)
+                .frame(height: U2Size.composer)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.u2.textComposerIcon)
-            .frame(height: U2Size.composer)
         }
         .padding(.leading, 16)
         .padding(.trailing, 12)
@@ -138,6 +148,7 @@ struct Composer: View {
 private struct ComposerActionButton: View {
     let hasText: Bool
     let voice: VoiceComposer?
+    var sendsOnly = false
     let onSend: () -> Void
     let onRecord: () -> Void
 
@@ -157,13 +168,15 @@ private struct ComposerActionButton: View {
                 onRecord()
             }
         } label: {
-            ComposerMicLabel(sends: sends, isRecording: holding)
+            ComposerMicLabel(sends: sends || sendsOnly, isRecording: holding)
+                .opacity(sendsOnly && !hasText ? U2Opacity.disabled : 1)
         }
         .buttonStyle(CardButtonStyle())
+        .disabled(sendsOnly && !hasText)
         .accessibilityLabel(
             sendsRecording
                 ? Text("voice.send", table: .conversation)
-                : sends ? Text("a11y.composer.send") : Text("a11y.composer.record"))
+                : sends || sendsOnly ? Text("a11y.composer.send") : Text("a11y.composer.record"))
         // The hold area speaks for the mic.
         .accessibilityHidden(voice != nil && !sends)
         .overlay {

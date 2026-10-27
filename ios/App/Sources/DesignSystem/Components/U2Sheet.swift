@@ -162,7 +162,7 @@ private struct U2SheetContainer<SheetContent: View>: View {
             // first frame — presenting the cover, building the content (4.2
             // creates its model up front), measuring the sheet — is the
             // heaviest, and it is spent with the sheet parked just off screen
-            // behind a clear backdrop (nothing visible). The spring then
+            // behind a clear backdrop (nothing visible). The entrance then
             // plays from rest with every frame, from the sheet's measured
             // height, instead of jumping its first ~15 % while that frame was
             // being made.
@@ -179,11 +179,11 @@ private struct U2SheetContainer<SheetContent: View>: View {
 
     private func rise() {
         guard isPresented, !isShown else { return }
-        withAnimation(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.spring) { isBackdropShown = true }
-        // `.removed`: the spring has really come to rest (a spring is
-        // "logically complete" while it still creeps the last points).
+        withAnimation(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.sheet) { isBackdropShown = true }
+        // A finite entrance publishes readiness at the end of the sheet duration;
+        // keyboard focus never waits for a spring's settling tail.
         let end = U2Signposts.animation("sheetRise", category: .presentation)
-        withAnimation(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.spring, completionCriteria: .removed) {
+        withAnimation(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.sheet, completionCriteria: .removed) {
             isShown = true
         } completion: {
             end()
@@ -273,7 +273,7 @@ private struct U2SheetContainer<SheetContent: View>: View {
     }
 
     /// “Dismiss reverses”: the sheet travels down on the design curve over
-    /// the sheet duration (0.55 s) — from rest, gently, the whole way on
+    /// the sheet duration — from rest, the whole way on
     /// screen — while the backdrop fades over `U2Motion.state`. Dragged
     /// down and let go, it continues from the finger's speed instead (the
     /// critically damped spring, until it is really off screen).
@@ -294,7 +294,7 @@ private struct U2SheetContainer<SheetContent: View>: View {
             // descent then plays with every frame.
             releaseVelocity = nil
             DispatchQueue.main.async {
-                goDown(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.soft(U2Motion.Duration.sheet))
+                goDown(reduceMotion ? U2Motion.reducedCrossFade : U2Motion.sheet)
             }
         }
     }

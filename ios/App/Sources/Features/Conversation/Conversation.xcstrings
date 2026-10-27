@@ -1,6 +1,64 @@
 {
   "sourceLanguage": "tr",
   "strings": {
+    "scroll.latest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Jump to latest message" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Son mesaja dön" } }
+      }
+    },
+    "album.photo %lld %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo %1$lld of %2$lld"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "viewer.previous": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önceki fotoğraf"
+          }
+        }
+      }
+    },
+    "viewer.next": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki fotoğraf"
+          }
+        }
+      }
+    },
     "a11y.header.peer.hint": {
       "comment": "VoiceOver hint of the person in the chat header (opens the contact screen).",
       "extractionState": "manual",
