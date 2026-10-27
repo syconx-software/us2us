@@ -44,12 +44,22 @@ extension MessagingEngine {
             case .blocked?: try tx.contacts.unblockAsOutgoingRequest(account)
             default: break
             }
-            // Our own lookup proves the username belongs to this account (§3.3).
+            // Our own lookup proves the username belongs to this account (§3.3)
+            // — and no longer to anyone else this phone knows by it.
             try tx.contacts.confirmUsername(username, for: account)
+            try tx.contacts.noteUsernameOwner(username, owner: account)
             _ = try tx.conversations.ensure(for: account, now: now)
         }
         emit(.conversations)
         return account
+    }
+
+    /// A directory lookup (4.2) found `username` at `owner`: other contacts
+    /// still claiming it lose it (§3.3), so a chat with a deleted account
+    /// never shows the name of the account that has it now.
+    public func noteUsernameOwner(_ username: NormalizedUsername, owner: AccountId) {
+        guard (try? write({ try $0.contacts.noteUsernameOwner(username, owner: owner) })) != nil else { return }
+        emit(.conversations)
     }
 
     /// Accepts an incoming request (§6.4): `ACCEPT` is sent directly, and the
@@ -778,9 +788,12 @@ extension MessagingEngine {
     // MARK: Username claims (§3.3)
 
     /// Checks a contact's username claim against the directory, once, when
-    /// the conversation is opened (a contact cannot use up our quota).
+    /// the conversation is opened (a contact cannot use up our quota). An
+    /// incoming request is checked too: its claim is either verified already
+    /// (`sender_username`) or the former name of a deleted contact.
     public func verifyUsernameIfNeeded(_ peer: AccountId) async {
-        guard let contact = try? read({ try $0.contacts.get(peer) }), contact.requestState == .accepted,
+        guard let contact = try? read({ try $0.contacts.get(peer) }),
+            [.accepted, .incomingRequest].contains(contact.requestState),
             contact.profile.needsUsernameCheck, let username = contact.profile.username,
             let owner = try? await backend.usernameOwner(username)
         else { return }

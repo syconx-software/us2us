@@ -19,6 +19,33 @@ struct AvatarMessengerTests {
         return try AvatarRecord.openPicture(record, key: key).picture
     }
 
+    @Test("new accounts keep search off; persisted and legacy settings keep their values")
+    func privateByDefault() async throws {
+        let alice = try await register("alice_01")
+        let account = await alice.account
+        #expect(account.avatarSearchOff)
+        try await alice.setProfilePicture(.preset(5), showInSearch: !account.avatarSearchOff)
+        #expect(await alice.syncAvatarRecord() == .inSync)
+        #expect(relay.avatar(account.accountId)?.record == nil)
+        #expect(await alice.ownProfilePicture.picture == .preset(5))
+        let backup = try await alice.makeBackup(displayName: "Alice", contacts: [])
+        #expect(backup.avatarSearchOff)
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let saved = await alice.account
+        #expect(try decoder.decode(LocalAccount.self, from: encoder.encode(saved)).avatarSearchOff)
+        var legacy = try #require(JSONSerialization.jsonObject(with: encoder.encode(saved)) as? [String: Any])
+        legacy.removeValue(forKey: "avatarSearchOff")
+        #expect(try !decoder.decode(LocalAccount.self, from: JSONSerialization.data(withJSONObject: legacy)).avatarSearchOff)
+
+        try await alice.setProfilePicture(.preset(5), showInSearch: true)
+        #expect(await alice.syncAvatarRecord() == .inSync)
+        let optedIn = await alice.account
+        #expect(try !decoder.decode(LocalAccount.self, from: encoder.encode(optedIn)).avatarSearchOff)
+        #expect(try open(relay.avatar(account.accountId)?.record, as: "alice_01", account: account.accountId) == .preset(5))
+    }
+
     /// A JPEG header whose `ProfileAvatar` serializes to exactly 49110 bytes,
     /// without metadata (so it may be sent).
     static let largestPhoto: AvatarPhoto = {

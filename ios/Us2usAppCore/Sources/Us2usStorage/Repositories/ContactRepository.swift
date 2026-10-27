@@ -247,6 +247,21 @@ public struct ContactRepository {
             ])
     }
 
+    /// Our own directory lookup found `username` at `owner` (§3.3): every
+    /// other contact still claiming it no longer owns it — its account was
+    /// deleted, or it changed the name and someone else took it. Their
+    /// claim becomes a mismatch, so two chats never show the same name for
+    /// two accounts.
+    public func noteUsernameOwner(_ username: NormalizedUsername, owner: AccountId) throws {
+        try tx.requireWritable()
+        try tx.connection.run(
+            "UPDATE contacts SET username_status = ? WHERE username = ? AND account != ? AND username_status != ?",
+            [ContactProfile.UsernameStatus.mismatch.rawValue, username.value, owner.bytes,
+             ContactProfile.UsernameStatus.mismatch.rawValue])
+        try tx.connection.run(
+            "DELETE FROM former_contacts WHERE username = ? AND account != ?", [username.value, owner.bytes])
+    }
+
     public func recordUsernameCheck(_ username: NormalizedUsername, owner: AccountId?, for account: AccountId) throws {
         guard let contact = try get(account) else { throw StorageError.notFound }
         try setProfile(contact.profile.recordingUsernameCheck(username, owner: owner, contact: account), for: account)
@@ -287,12 +302,46 @@ public struct ContactRepository {
         }
         try tx.connection.run("DELETE FROM outbox WHERE recipient = ?", [account.bytes])
         try tx.connection.run("DELETE FROM contacts WHERE account = ?", [account.bytes])
+        try forgetFormerName(of: account)
         try tx.storage.protocolStore?.deleteProtocolState(of: account, tx.connection)
+    }
+
+    /// “Kişiyi sil” (§6.4): deletes the contact, its conversation
+    /// (crypto-shredded first) and pending sends to it, but keeps its session
+    /// and identity — so a message it still sends on that session decrypts
+    /// and opens a new request, and a changed identity key is still flagged —
+    /// and the username it was shown under (not a mismatch, §3.3) as its
+    /// former name. Nothing else of it stays: no state, profile, picture or
+    /// access keys.
+    public func removeKeepingSession(_ account: AccountId) throws {
+        try tx.requireWritable()
+        guard let contact = try get(account) else { throw StorageError.notFound }
+        if let conversation = try tx.conversations.forContact(account) {
+            try WipeService.wipe(conversation, reason: .requested, in: tx)
+        }
+        try tx.connection.run("DELETE FROM outbox WHERE recipient = ?", [account.bytes])
+        try tx.connection.run("DELETE FROM contacts WHERE account = ?", [account.bytes])
+        try forgetFormerName(of: account)
+        if let username = contact.profile.username, contact.profile.usernameStatus != .mismatch {
+            try tx.connection.run(
+                "INSERT INTO former_contacts (account, username) VALUES (?, ?)", [account.bytes, username.value])
+        }
+    }
+
+    /// The name a deleted contact was shown under, while it is not a contact.
+    public func formerName(of account: AccountId) throws -> NormalizedUsername? {
+        try tx.connection.queryOne("SELECT username FROM former_contacts WHERE account = ?", [account.bytes])?
+            .text("username").flatMap { try? NormalizedUsername($0) }
+    }
+
+    private func forgetFormerName(of account: AccountId) throws {
+        try tx.connection.run("DELETE FROM former_contacts WHERE account = ?", [account.bytes])
     }
 
     /// Removes everything about a blocked contact except the block: profile,
     /// access keys, pending sends, session and identity.
-    func stripToBlock(_ account: AccountId) throws {
+    public func stripToBlock(_ account: AccountId) throws {
+        try tx.requireWritable()
         try update(
             account,
             """
@@ -301,6 +350,7 @@ public struct ContactRepository {
             profile_sent_at = NULL, state_before_block = NULL
             """, [])
         try tx.connection.run("DELETE FROM outbox WHERE recipient = ?", [account.bytes])
+        try forgetFormerName(of: account)
         try tx.storage.protocolStore?.deleteProtocolState(of: account, tx.connection)
     }
 
@@ -310,10 +360,16 @@ public struct ContactRepository {
 
     // MARK: Rows
 
+    /// A new contact row. An account deleted with “Kişiyi sil” takes its
+    /// former name back as an unchecked claim (§3.3): it is shown, and the
+    /// directory is asked again when the chat is opened.
     private func insert(_ account: AccountId, state: ConversationRequestState, now: Date) throws {
+        let former = try formerName(of: account)
         try tx.connection.run(
-            "INSERT INTO contacts (account, request_state, created_at) VALUES (?, ?, ?)",
-            [account.bytes, state.rawValue, now.storageMilliseconds])
+            "INSERT INTO contacts (account, request_state, username, username_status, created_at) VALUES (?, ?, ?, ?, ?)",
+            [account.bytes, state.rawValue, former?.value, ContactProfile.UsernameStatus.unchecked.rawValue,
+             now.storageMilliseconds])
+        if former != nil { try forgetFormerName(of: account) }
     }
 
     private func setState(_ state: ConversationRequestState, of account: AccountId) throws {

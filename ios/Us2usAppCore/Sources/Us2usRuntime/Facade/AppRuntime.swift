@@ -56,6 +56,9 @@ public final class AppRuntime {
     /// The conversation on screen and its messages (oldest first).
     public internal(set) var openPeer: AccountId?
     public internal(set) var openMessages: [MessageItem] = []
+    @ObservationIgnored private var openHistoryOldest: Int64?
+    @ObservationIgnored private var openHistoryHasOlder = true
+    @ObservationIgnored private var openHistoryVersion = 0
     /// Attachments of the open conversation downloading right now: the
     /// fraction received (0…1) by message id. Memory only.
     public internal(set) var downloadProgress: [MessageId: Double] = [:]
@@ -547,7 +550,8 @@ public final class AppRuntime {
             let engine = session.engine
             let service = CommunityService(
                 backend: backend, storage: session.storage,
-                onIdentityChange: { peer in await engine.noteIdentityChange(of: peer) })
+                onIdentityChange: { peer in await engine.noteIdentityChange(of: peer) },
+                readReceipts: { [weak self] in self?.settings.readReceipts ?? false })
             communities = service
             service.start()
         }
@@ -579,6 +583,7 @@ public final class AppRuntime {
         chats = []
         requests = []
         blockedContacts = []
+        openHistoryOldest = nil; openHistoryHasOlder = true; openHistoryVersion += 1
         openPeer = nil
         openMessages = []
         downloadProgress = [:]
@@ -976,7 +981,10 @@ public final class AppRuntime {
             if peer != openPeer { pendingRefresh.bannerPeer = peer }
         case .wiped(let peer):
             pendingRefresh.chats = true
-            if peer == openPeer { pendingRefresh.messages = true }
+            if peer == openPeer {
+                openHistoryOldest = nil; openHistoryHasOlder = true; openHistoryVersion += 1
+                pendingRefresh.messages = true
+            }
         case .safetyNumberChanged(let peer):
             safetyNumberChanges.insert(peer)
         case .downloadProgress(let message, let peer, let fraction):
@@ -1062,9 +1070,14 @@ public final class AppRuntime {
             lastBackupAt = lastBackup
         }
         if work.messages || work.all, let peer = openPeer {
-            let messages = (try? await engine.messages(of: peer)) ?? []
+            let version = openHistoryVersion
+            let history = try? await engine.history(of: peer, through: openHistoryOldest)
             guard isCurrent(session), openPeer == peer else { return }
-            openMessages = messages
+            if version == openHistoryVersion, let history {
+                openMessages = history.items
+                openHistoryOldest = history.oldest
+                openHistoryHasOlder = history.hasOlder
+            }
             pruneDownloadProgress()
             try? await engine.markDisplayed(peer)
         }
@@ -1143,11 +1156,19 @@ public final class AppRuntime {
     public func openConversation(_ peer: AccountId) async {
         guard lockState == .unlocked, let session else { return }
         let engine = session.engine
+        if openPeer != peer {
+            openHistoryOldest = nil; openHistoryHasOlder = true; openHistoryVersion += 1
+        }
         openPeer = peer
+        let version = openHistoryVersion
         if banner?.peer == peer { banner = nil }
-        let messages = (try? await engine.messages(of: peer)) ?? []
-        guard isCurrent(session), openPeer == peer else { return }
-        openMessages = messages
+        let history = try? await engine.history(of: peer, through: openHistoryOldest)
+        guard isCurrent(session), openPeer == peer, version == openHistoryVersion else { return }
+        if let history {
+            openMessages = history.items
+            openHistoryOldest = history.oldest
+            openHistoryHasOlder = history.hasOlder
+        }
         pruneDownloadProgress()
         try? await engine.markDisplayed(peer)
         notifyRecordingIfNeeded()
@@ -1157,7 +1178,27 @@ public final class AppRuntime {
         if case .changed? = trust { safetyNumberChanges.insert(peer) } else { safetyNumberChanges.remove(peer) }
     }
 
+    /// Fetches a local older page, then refreshes its full window so edits,
+    /// expiry and arrivals that happened during the read cannot leave stale rows.
+    public func loadOlderMessages(_ peer: AccountId) async throws -> Bool {
+        guard lockState == .unlocked, let session, openPeer == peer,
+            openHistoryHasOlder, let before = openHistoryOldest else { return false }
+        let version = openHistoryVersion
+        let page = try await session.engine.history(of: peer, before: before)
+        guard isCurrent(session), openPeer == peer, version == openHistoryVersion else { return false }
+        guard let oldest = page.oldest else { openHistoryHasOlder = false; return false }
+        let window = try await session.engine.history(of: peer, through: oldest)
+        guard isCurrent(session), openPeer == peer, version == openHistoryVersion else { return false }
+        openHistoryVersion += 1
+        openHistoryOldest = oldest
+        openHistoryHasOlder = window.hasOlder
+        openMessages = window.items
+        try? await session.engine.markDisplayed(peer)
+        return true
+    }
+
     public func closeConversation() {
+        openHistoryOldest = nil; openHistoryHasOlder = true; openHistoryVersion += 1
         openPeer = nil
         openMessages = []
         downloadProgress = [:]

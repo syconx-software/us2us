@@ -144,23 +144,146 @@ public nonisolated struct BRPContent: Sendable {
 }
 
 /// Additive extension. Never delivered through the legacy 1:1 mailbox.
-public nonisolated struct BRPCommunityMessage: Sendable {
+/// Exactly one kind per message (docs/COMMUNITIES.md, "Extension v2"):
+///   text      text only (fields 6..10 absent)
+///   media     attachment, text optional as its caption
+///   receipt   receipt only, text empty
+///   delete    delete_target_message_id and delete_target_sender_id only, text empty
+///   sticker   v3 built-in sticker with text equal to its emoji fallback
+/// Any other combination is dropped and acknowledged.
+public nonisolated struct BRPCommunityMessage: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var communityID: Data = Data()
+  public var communityID: Data {
+    get {_storage._communityID}
+    set {_uniqueStorage()._communityID = newValue}
+  }
 
-  public var revision: UInt64 = 0
+  public var revision: UInt64 {
+    get {_storage._revision}
+    set {_uniqueStorage()._revision = newValue}
+  }
 
-  public var messageID: Data = Data()
+  /// 16 bytes; for a receipt or delete it names that event itself
+  public var messageID: Data {
+    get {_storage._messageID}
+    set {_uniqueStorage()._messageID = newValue}
+  }
 
-  public var sentAt: UInt64 = 0
+  public var sentAt: UInt64 {
+    get {_storage._sentAt}
+    set {_uniqueStorage()._sentAt = newValue}
+  }
 
-  /// 1..8192 UTF-8 bytes
-  public var text: String = String()
+  /// 1..8192 UTF-8 bytes; 0..8192 with an attachment (the caption)
+  public var text: String {
+    get {_storage._text}
+    set {_uniqueStorage()._text = newValue}
+  }
+
+  /// v2: IMAGE, VIDEO or FILE; v3 also VOICE with bounded waveform; delete_token and caption empty, thumbnail <= 10 KiB.
+  /// One blob uploaded once (POST /v1/media) and shared by every member.
+  public var attachment: BRPAttachment {
+    get {_storage._attachment ?? BRPAttachment()}
+    set {_uniqueStorage()._attachment = newValue}
+  }
+  /// Returns true if `attachment` has been explicitly set.
+  public var hasAttachment: Bool {_storage._attachment != nil}
+  /// Clears the value of `attachment`. Subsequent reads from it will return its default value.
+  public mutating func clearAttachment() {_uniqueStorage()._attachment = nil}
+
+  /// v2: sent only to the original sender of message_ids
+  public var receipt: BRPCommunityReceipt {
+    get {_storage._receipt ?? BRPCommunityReceipt()}
+    set {_uniqueStorage()._receipt = newValue}
+  }
+  /// Returns true if `receipt` has been explicitly set.
+  public var hasReceipt: Bool {_storage._receipt != nil}
+  /// Clears the value of `receipt`. Subsequent reads from it will return its default value.
+  public mutating func clearReceipt() {_uniqueStorage()._receipt = nil}
+
+  /// v2: 16 bytes, delete-for-everyone
+  public var deleteTargetMessageID: Data {
+    get {_storage._deleteTargetMessageID}
+    set {_uniqueStorage()._deleteTargetMessageID = newValue}
+  }
+
+  /// v2: 16 bytes, account id of the target's original sender
+  public var deleteTargetSenderID: Data {
+    get {_storage._deleteTargetSenderID}
+    set {_uniqueStorage()._deleteTargetSenderID = newValue}
+  }
+
+  /// v3: built-in only; text = emoji fallback (docs/COMMUNITIES.md)
+  public var sticker: BRPSticker {
+    get {_storage._sticker ?? BRPSticker()}
+    set {_uniqueStorage()._sticker = newValue}
+  }
+  /// Returns true if `sticker` has been explicitly set.
+  public var hasSticker: Bool {_storage._sticker != nil}
+  /// Clears the value of `sticker`. Subsequent reads from it will return its default value.
+  public mutating func clearSticker() {_uniqueStorage()._sticker = nil}
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// Delivery and read state of the recipient's copies of messages that the
+/// receiver of this receipt sent in the same community.
+public nonisolated struct BRPCommunityReceipt: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var type: BRPCommunityReceipt.TypeEnum = .unspecified
+
+  /// 1..1000, 16 bytes each
+  public var messageIds: [Data] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public nonisolated enum TypeEnum: SwiftProtobuf.Enum, Swift.CaseIterable {
+    public typealias RawValue = Int
+    case unspecified // = 0
+    case delivery // = 1
+    case read // = 2
+    case UNRECOGNIZED(Int)
+
+    public init() {
+      self = .unspecified
+    }
+
+    public init?(rawValue: Int) {
+      switch rawValue {
+      case 0: self = .unspecified
+      case 1: self = .delivery
+      case 2: self = .read
+      default: self = .UNRECOGNIZED(rawValue)
+      }
+    }
+
+    public var rawValue: Int {
+      switch self {
+      case .unspecified: return 0
+      case .delivery: return 1
+      case .read: return 2
+      case .UNRECOGNIZED(let i): return i
+      }
+    }
+
+    // The compiler won't synthesize support with the UNRECOGNIZED case.
+    public static let allCases: [BRPCommunityReceipt.TypeEnum] = [
+      .unspecified,
+      .delivery,
+      .read,
+    ]
+
+  }
 
   public init() {}
 }
@@ -1352,7 +1475,140 @@ nonisolated extension BRPContent: SwiftProtobuf.Message, SwiftProtobuf._MessageI
 
 nonisolated extension BRPCommunityMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CommunityMessage"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}community_id\0\u{1}revision\0\u{3}message_id\0\u{3}sent_at\0\u{1}text\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}community_id\0\u{1}revision\0\u{3}message_id\0\u{3}sent_at\0\u{1}text\0\u{1}attachment\0\u{1}receipt\0\u{3}delete_target_message_id\0\u{3}delete_target_sender_id\0\u{1}sticker\0")
+
+  fileprivate class _StorageClass {
+    var _communityID: Data = Data()
+    var _revision: UInt64 = 0
+    var _messageID: Data = Data()
+    var _sentAt: UInt64 = 0
+    var _text: String = String()
+    var _attachment: BRPAttachment? = nil
+    var _receipt: BRPCommunityReceipt? = nil
+    var _deleteTargetMessageID: Data = Data()
+    var _deleteTargetSenderID: Data = Data()
+    var _sticker: BRPSticker? = nil
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _communityID = source._communityID
+      _revision = source._revision
+      _messageID = source._messageID
+      _sentAt = source._sentAt
+      _text = source._text
+      _attachment = source._attachment
+      _receipt = source._receipt
+      _deleteTargetMessageID = source._deleteTargetMessageID
+      _deleteTargetSenderID = source._deleteTargetSenderID
+      _sticker = source._sticker
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularBytesField(value: &_storage._communityID) }()
+        case 2: try { try decoder.decodeSingularUInt64Field(value: &_storage._revision) }()
+        case 3: try { try decoder.decodeSingularBytesField(value: &_storage._messageID) }()
+        case 4: try { try decoder.decodeSingularUInt64Field(value: &_storage._sentAt) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._text) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._attachment) }()
+        case 7: try { try decoder.decodeSingularMessageField(value: &_storage._receipt) }()
+        case 8: try { try decoder.decodeSingularBytesField(value: &_storage._deleteTargetMessageID) }()
+        case 9: try { try decoder.decodeSingularBytesField(value: &_storage._deleteTargetSenderID) }()
+        case 10: try { try decoder.decodeSingularMessageField(value: &_storage._sticker) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._communityID.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._communityID, fieldNumber: 1)
+      }
+      if _storage._revision != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._revision, fieldNumber: 2)
+      }
+      if !_storage._messageID.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._messageID, fieldNumber: 3)
+      }
+      if _storage._sentAt != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._sentAt, fieldNumber: 4)
+      }
+      if !_storage._text.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._text, fieldNumber: 5)
+      }
+      try { if let v = _storage._attachment {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
+      try { if let v = _storage._receipt {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
+      } }()
+      if !_storage._deleteTargetMessageID.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._deleteTargetMessageID, fieldNumber: 8)
+      }
+      if !_storage._deleteTargetSenderID.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._deleteTargetSenderID, fieldNumber: 9)
+      }
+      try { if let v = _storage._sticker {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+      } }()
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: BRPCommunityMessage, rhs: BRPCommunityMessage) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._communityID != rhs_storage._communityID {return false}
+        if _storage._revision != rhs_storage._revision {return false}
+        if _storage._messageID != rhs_storage._messageID {return false}
+        if _storage._sentAt != rhs_storage._sentAt {return false}
+        if _storage._text != rhs_storage._text {return false}
+        if _storage._attachment != rhs_storage._attachment {return false}
+        if _storage._receipt != rhs_storage._receipt {return false}
+        if _storage._deleteTargetMessageID != rhs_storage._deleteTargetMessageID {return false}
+        if _storage._deleteTargetSenderID != rhs_storage._deleteTargetSenderID {return false}
+        if _storage._sticker != rhs_storage._sticker {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension BRPCommunityReceipt: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".CommunityReceipt"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}type\0\u{3}message_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1360,44 +1616,33 @@ nonisolated extension BRPCommunityMessage: SwiftProtobuf.Message, SwiftProtobuf.
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularBytesField(value: &self.communityID) }()
-      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.revision) }()
-      case 3: try { try decoder.decodeSingularBytesField(value: &self.messageID) }()
-      case 4: try { try decoder.decodeSingularUInt64Field(value: &self.sentAt) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.text) }()
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.type) }()
+      case 2: try { try decoder.decodeRepeatedBytesField(value: &self.messageIds) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.communityID.isEmpty {
-      try visitor.visitSingularBytesField(value: self.communityID, fieldNumber: 1)
+    if self.type != .unspecified {
+      try visitor.visitSingularEnumField(value: self.type, fieldNumber: 1)
     }
-    if self.revision != 0 {
-      try visitor.visitSingularUInt64Field(value: self.revision, fieldNumber: 2)
-    }
-    if !self.messageID.isEmpty {
-      try visitor.visitSingularBytesField(value: self.messageID, fieldNumber: 3)
-    }
-    if self.sentAt != 0 {
-      try visitor.visitSingularUInt64Field(value: self.sentAt, fieldNumber: 4)
-    }
-    if !self.text.isEmpty {
-      try visitor.visitSingularStringField(value: self.text, fieldNumber: 5)
+    if !self.messageIds.isEmpty {
+      try visitor.visitRepeatedBytesField(value: self.messageIds, fieldNumber: 2)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BRPCommunityMessage, rhs: BRPCommunityMessage) -> Bool {
-    if lhs.communityID != rhs.communityID {return false}
-    if lhs.revision != rhs.revision {return false}
-    if lhs.messageID != rhs.messageID {return false}
-    if lhs.sentAt != rhs.sentAt {return false}
-    if lhs.text != rhs.text {return false}
+  public static func ==(lhs: BRPCommunityReceipt, rhs: BRPCommunityReceipt) -> Bool {
+    if lhs.type != rhs.type {return false}
+    if lhs.messageIds != rhs.messageIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
+}
+
+nonisolated extension BRPCommunityReceipt.TypeEnum: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0TYPE_UNSPECIFIED\0\u{1}DELIVERY\0\u{1}READ\0")
 }
 
 nonisolated extension BRPDataMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {

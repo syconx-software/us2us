@@ -125,7 +125,7 @@ public actor Messenger {
 
         let account = LocalAccount(
             accountId: credentials.accountId, authToken: credentials.authToken, username: username,
-            accessKey: AccessKey.generate(), pendingSetup: [.publishAccessKey])
+            accessKey: AccessKey.generate(), pendingSetup: [.publishAccessKey], avatarSearchOff: true)
         // The account exists from here on: save the credentials before anything else can fail.
         try saveAccount(account)
         let messenger = Messenger(
