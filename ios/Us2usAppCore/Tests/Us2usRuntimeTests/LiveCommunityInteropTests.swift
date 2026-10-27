@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import LibSignalClient
 import Testing
@@ -23,6 +24,12 @@ import Us2usStorage
 ///    them, S approves both (revision 3); K3 also joins the public one.
 ///    Messages go both ways; nobody became anybody's personal contact.
 /// 3. K1 and S start a one-to-one conversation (request, acceptance, reply).
+/// 3v. Extension v2 (`extensionV2`): a photo with a caption and a file from
+///    each platform, downloaded and compared by every recipient; DELIVERY
+///    and READ per member (K3 keeps read receipts off, S reads one text with
+///    them off); delete for everyone by the sender and by the owner on each
+///    platform, blobs gone from the relay; a forged delete dropped; a delete
+///    ahead of its message; one-to-one in between.
 /// 4. S removes K3 from its private community: K3 can no longer send or
 ///    fetch there (its queued copy is gone), S and K1 go on writing.
 /// 5. K3 leaves the public community (`DELETE …/members/me`, 204); S's next
@@ -143,6 +150,11 @@ struct LiveCommunityInteropTests {
         try await s.party.engine.send(.text(directReply), to: owner.accountId)
         try s.meeting.post("ios-direct", ["text": directReply])
 
+        // 3v. Extension v2: media, receipts and delete for everyone, the one-to-one path alongside.
+        let (directAfterMedia, v2Reply) = try await extensionV2(s, owner: owner, third: third, publicId: publicId, privateId: privateId)
+
+        try await extensionV3(s, owner: owner, privateId: privateId)
+
         // 4. Removal: K3 leaves the private roster by the owner's signed state.
         let before = try await s.meeting.wait("kotlin-before-remove")
         try await s.awaitText(try #require(before["public"]), from: owner.accountId, in: publicId)
@@ -180,13 +192,177 @@ struct LiveCommunityInteropTests {
             if case .text(let text) = item.body { return text }
             return nil
         })
-        #expect(directTexts == [direct, directReply, lastDirect])
+        #expect(directTexts == [direct, directReply, directAfterMedia, v2Reply, lastDirect])
         var communityTexts = Set<String>()
         for id in [publicId, privateId] { for item in try await s.communities.messages(id) { communityTexts.insert(item.text) } }
         #expect(communityTexts.isDisjoint(with: directTexts))
         #expect(communityTexts.isSuperset(of: [hello, reply, welcome, fromThird, stillHere, afterLeave]))
         try await s.communities.delete(privateId)
     }
+
+    static func extensionV2(
+        _ s: Side, owner: CommunityMember, third: CommunityMember, publicId: AccountId, privateId: AccountId
+    ) async throws -> (String, String) {
+        let own = s.backend.accountId
+        let k1 = owner.accountId
+        let k3 = third.accountId
+
+        // A text read with read receipts off: DELIVERY goes, READ never.
+        let keep = try await s.meeting.wait("kotlin-v2-text")
+        let keepId = try #require(keep["messageId"].flatMap(AccountId.init(string:)))
+        try await s.awaitText(try #require(keep["text"]), from: k1, in: privateId)
+        try await s.display(privateId, readReceipts: false)
+        try s.meeting.post("ios-v2-text-seen")
+
+        // K1's photo and file: downloaded, compared, displayed with read receipts on (READ for both).
+        let sent = try await s.meeting.wait("kotlin-v2-sent")
+        let kImage = try #require(sent["imageId"].flatMap(AccountId.init(string:)))
+        let kFile = try #require(sent["fileId"].flatMap(AccountId.init(string:)))
+        let kImageFacts = try #require(MediaFacts(sent, prefix: "image"))
+        let kFileFacts = try #require(MediaFacts(sent, prefix: "file"))
+        #expect(kImageFacts.kind == .image && kFileFacts.kind == .file && kFileFacts.fileName == "plan.pdf")
+        try await s.receiveMedia(kImageFacts, from: k1, messageId: kImage, in: privateId)
+        try await s.receiveMedia(kFileFacts, from: k1, messageId: kFile, in: privateId)
+        try await s.display(privateId, readReceipts: true)
+        let publicThirdId = try #require(sent["publicThirdId"].flatMap(AccountId.init(string:)))
+        try await s.awaitText(try #require(sent["publicThirdText"]), from: k3, in: publicId)
+
+        // This phone's photo with a caption and file, and a text K1 will remove as the owner.
+        let photo = Data((0..<4000).map { UInt8($0 % 241) })
+        let file = Data((0..<1200).map { UInt8($0 % 17) })
+        let caption = "Gün batımı, iOS'tan 🌇"
+        let imageId = try await s.sendMedia(photo, kind: .image, contentType: "image/jpeg", caption: caption, to: privateId)
+        let fileId = try await s.sendMedia(file, kind: .file, contentType: "text/plain", fileName: "notlar.txt", to: privateId)
+        let imageFacts = try await s.facts(imageId, in: privateId)
+        let fileFacts = try await s.facts(fileId, in: privateId)
+        #expect(imageFacts.caption == caption && fileFacts.fileName == "notlar.txt" && fileFacts.caption.isEmpty)
+        let moderated = "Sahip bunu silecek"
+        try await s.send(moderated, to: publicId)
+        let moderatedId = try #require(try await s.communities.messages(publicId).first { $0.outgoing && $0.text == moderated }?.messageId)
+        var values = [
+            "imageId": imageId.string, "fileId": fileId.string, "publicModeratedText": moderated, "publicModeratedId": moderatedId.string,
+        ]
+        values.merge(imageFacts.values(prefix: "image")) { _, new in new }
+        values.merge(fileFacts.values(prefix: "file")) { _, new in new }
+        try s.meeting.post("ios-v2-sent", values)
+        // K1 (read receipts on) delivered and read both; K3 (off) delivered only.
+        for id in [imageId, fileId] {
+            try await s.awaitReceipt(id, in: privateId, from: k1, read: true)
+            try await s.awaitReceipt(id, in: privateId, from: k3, read: false)
+            #expect(try await s.recipient(id, in: privateId, member: k3).readAt == nil, "K3 keeps read receipts off")
+        }
+
+        // K1 deleted its photo: the placeholder here, the blob gone from the relay.
+        _ = try await s.meeting.wait("kotlin-v2-deleted")
+        try await s.awaitPlaceholder(from: k1, messageId: kImage, in: privateId, by: .bySender)
+        #expect(try await s.mediaStatus(kImageFacts.mediaId) == 404)
+
+        // The same from here: this phone's photo, K1's file as the owner, a forged delete in K1's
+        // community (K3's text, neither this phone's nor its community), a delete ahead of its text.
+        try await s.communities.deleteForEveryone(sender: own, messageId: imageId, in: privateId)
+        #expect(await s.communities.flushNow() == nil)
+        try await s.assertPlaceholder(from: own, messageId: imageId, in: privateId, by: .bySender)
+        try await eventually(timeout: 60, "this phone's blob deleted") { try await s.mediaStatus(imageFacts.mediaId) == 404 }
+        try await s.communities.deleteForEveryone(sender: k1, messageId: kFile, in: privateId)
+        #expect(await s.communities.flushNow() == nil)
+        try await s.assertPlaceholder(from: k1, messageId: kFile, in: privateId, by: .byOwner)
+        let publicState = try await s.state(publicId, revision: 3)
+        try await s.sendRaw(
+            .delete(target: publicThirdId.bytes, sender: k3, community: publicId, revision: publicState.revision), to: k1, in: publicState)
+        let afterForged = "iOS: sahte silmeden sonra"
+        try await s.send(afterForged, to: publicId)
+        let privateState = try await s.state(privateId, revision: 3)
+        let earlyId = try #require(AccountId(bytes: RandomId.make()))
+        try await s.sendRaw(.delete(target: earlyId.bytes, sender: own, community: privateId, revision: privateState.revision), to: k1, in: privateState)
+        try await s.sendRaw(.text("Silme önce geldi (iOS)", community: privateId, revision: privateState.revision, messageId: earlyId.bytes), to: k1, in: privateState)
+        try s.meeting.post("ios-v2-deleted", ["imageId": imageId.string, "fileId": kFile.string, "afterForgedText": afterForged, "earlyId": earlyId.string])
+
+        // K1 removed this phone's public text as the owner, K3 forged a delete, K1 sent one early.
+        let events = try await s.meeting.wait("kotlin-v2-events")
+        try await s.awaitPlaceholder(from: own, messageId: moderatedId, in: publicId, by: .byOwner)
+        try await s.awaitText(try #require(events["afterForgedText"]), from: k3, in: privateId)
+        let kept = try #require(try await s.communities.messages(privateId).first { $0.sender == k1 && $0.messageId == keepId })
+        #expect(kept.deletion == nil && kept.text == keep["text"], "K3's forged delete of K1's text was dropped")
+        let kEarly = try #require(events["earlyId"].flatMap(AccountId.init(string:)))
+        try await s.awaitPlaceholder(from: k1, messageId: kEarly, in: privateId, by: .bySender)
+        // K1's file (removed by this owner) is gone from the relay; this phone's file stays.
+        #expect(try await s.mediaStatus(kFileFacts.mediaId) == 404)
+        #expect(try await s.communities.mediaData(sender: own, messageId: fileId, in: privateId) == file)
+
+        // One-to-one between the same accounts still works.
+        let direct = try #require(try await s.meeting.wait("kotlin-v2-direct")["text"])
+        try await eventually(timeout: 60, "K1's one-to-one text after media") {
+            try await s.party.messages(with: k1).contains { $0.body == .text(direct) }
+        }
+        let reply = "Birebir: iOS'ta da medyadan sonra"
+        try await s.party.engine.send(.text(reply), to: k1)
+        try s.meeting.post("ios-v2-direct", ["text": reply])
+        return (direct, reply)
+    }
+
+    static func extensionV3(_ s: Side, owner: CommunityMember, privateId: AccountId) async throws {
+        let sent = try await s.meeting.wait("kotlin-v3-sent")
+        let stickerId = try #require(sent["stickerId"].flatMap(AccountId.init(string:)))
+        let voiceId = try #require(sent["voiceId"].flatMap(AccountId.init(string:)))
+        let facts = try #require(MediaFacts(sent, prefix: "voice"))
+        try await s.receiveMedia(facts, from: owner.accountId, messageId: voiceId, in: privateId)
+        let items = try await s.communities.messages(privateId)
+        let sticker = try #require(items.first { $0.sender == owner.accountId && $0.messageId == stickerId }?.sticker)
+        #expect(sticker.packID == "us2us.cups" && sticker.stickerID == 1 && sticker.emoji == "👋")
+        let pointer = try #require(items.first { $0.messageId == voiceId }?.attachment?.descriptor)
+        #expect(pointer.waveform == Data([0, 128, 255]) && pointer.durationMs == 2000)
+        _ = try await s.communities.sendSticker(sticker, to: privateId)
+        _ = await s.communities.flushNow()
+        let ownSticker = try #require(try await s.communities.messages(privateId).last { $0.outgoing && $0.sticker != nil })
+        let audio = Data((0..<4000).map { UInt8($0 % 239) })
+        let voice = try await s.sendMedia(audio, kind: .voice, contentType: "audio/mp4", to: privateId)
+        var values = try await s.facts(voice, in: privateId).values(prefix: "voice")
+        values["stickerId"] = ownSticker.messageId.string
+        values["voiceId"] = voice.string
+        try s.meeting.post("ios-v3-sent", values)
+        _ = try await s.meeting.wait("kotlin-v3-seen")
+    }
+
+    /// What both platforms compare about one media message: the pointer every member got and the plaintext.
+    struct MediaFacts: Sendable {
+        let kind: BRPAttachment.Kind
+        let mediaId: String
+        let digest: String
+        let size: UInt64
+        let sha256: Data
+        let caption: String
+        let fileName: String
+
+        init(kind: BRPAttachment.Kind, mediaId: String, digest: String, size: UInt64, sha256: Data, caption: String, fileName: String) {
+            self.kind = kind
+            self.mediaId = mediaId
+            self.digest = digest
+            self.size = size
+            self.sha256 = sha256
+            self.caption = caption
+            self.fileName = fileName
+        }
+
+        /// The Kotlin side's names: `IMAGE`, `VIDEO`, `FILE`.
+        init?(_ values: [String: String], prefix: String) {
+            let kinds: [String: BRPAttachment.Kind] = ["IMAGE": .image, "VIDEO": .video, "FILE": .file, "VOICE": .voice]
+            guard let kind = values[prefix + "Kind"].flatMap({ kinds[$0] }), let mediaId = values[prefix + "MediaId"],
+                  let digest = values[prefix + "Digest"], let size = values[prefix + "Size"].flatMap(UInt64.init),
+                  let sha256 = values[prefix + "Sha256"].flatMap(Data.init(base64URLEncoded:)), sha256.count == 32,
+                  let caption = values[prefix + "Caption"], let fileName = values[prefix + "FileName"] else { return nil }
+            self.init(kind: kind, mediaId: mediaId, digest: digest, size: size, sha256: sha256, caption: caption, fileName: fileName)
+        }
+
+        func values(prefix: String) -> [String: String] {
+            let names: [BRPAttachment.Kind: String] = [.image: "IMAGE", .video: "VIDEO", .file: "FILE", .voice: "VOICE"]
+            return [
+                prefix + "Kind": names[kind] ?? "", prefix + "MediaId": mediaId, prefix + "Digest": digest, prefix + "Size": String(size),
+                prefix + "Sha256": sha256.base64URLEncodedString(), prefix + "Caption": caption, prefix + "FileName": fileName,
+            ]
+        }
+    }
+
+    static func sha256(_ data: Data) -> Data { Data(SHA256.hash(data: data)) }
 
     /// One account of the script with its community engine and the meeting place.
     struct Side: Sendable {
@@ -231,6 +407,122 @@ struct LiveCommunityInteropTests {
                 let status = try await communities.messages(id).first { $0.outgoing && $0.text == text }?.status
                 return status.map(settled.contains) ?? false
             }
+        }
+
+        /// Stores and delivers a photo or file (uploaded once) and waits until the outbox has settled it.
+        func sendMedia(
+            _ bytes: Data, kind: AttachmentItem.Kind, contentType: String, fileName: String? = nil, caption: String = "", to id: AccountId
+        ) async throws -> AccountId {
+            let staged = party.storage.makeStagingURL()
+            try bytes.write(to: staged)
+            let prepared = PreparedMedia(
+                file: staged, kind: kind, contentType: contentType, fileName: fileName, size: UInt64(bytes.count),
+                width: kind == .image ? 40 : 0, height: kind == .image ? 30 : 0,
+                durationMs: kind == .voice ? 2000 : 0,
+                thumbnail: kind == .image ? Data([0xFF, 0xD8, 0xFF, 0xD9]) : nil,
+                waveform: kind == .voice ? Data([0, 128, 255]) : nil)
+            let messageId = try await communities.storeMedia(prepared, caption: caption, messageId: nil, to: id)
+            #expect(await communities.deliverMedia(messageId, in: id) == nil)
+            try await eventually(timeout: 60, "media \(messageId) delivered") {
+                if let issue = await communities.flushNow() { Issue.record("flush: \(issue)") }
+                return try await communities.messages(id).first { $0.outgoing && $0.messageId == messageId }?.status == .sent
+            }
+            let item = try #require(try await communities.messages(id).first { $0.outgoing && $0.messageId == messageId })
+            #expect(item.attachment?.state == .uploaded && item.attachment?.hasFile == true)
+            #expect(item.attachment?.descriptor.deleteToken.isEmpty == true, "the token never enters the pointer")
+            return messageId
+        }
+
+        /// The pointer and plaintext of an own media message, for the other side to compare.
+        func facts(_ messageId: AccountId, in id: AccountId) async throws -> MediaFacts {
+            let item = try #require(try await communities.messages(id).first { $0.outgoing && $0.messageId == messageId })
+            let pointer = try #require(item.attachment?.descriptor)
+            let bytes = try await communities.mediaData(sender: backend.accountId, messageId: messageId, in: id)
+            return MediaFacts(
+                kind: pointer.kind, mediaId: pointer.mediaID.base64URLEncodedString(), digest: pointer.digest.base64URLEncodedString(),
+                size: pointer.size, sha256: LiveCommunityInteropTests.sha256(bytes), caption: item.text, fileName: pointer.fileName)
+        }
+
+        /// Syncs until the media message is here, checks its pointer against `facts`, downloads and checks the bytes.
+        func receiveMedia(_ facts: MediaFacts, from sender: AccountId, messageId: AccountId, in id: AccountId) async throws {
+            func item() async throws -> CommunityTextItem? {
+                try await communities.messages(id).first { !$0.outgoing && $0.sender == sender && $0.messageId == messageId }
+            }
+            try await eventually(timeout: 90, "media \(messageId) from \(sender) in \(id)") {
+                _ = try await communities.sync()
+                if try await item() != nil { return true }
+                try await Task.sleep(for: .milliseconds(300))
+                return false
+            }
+            let received = try #require(try await item())
+            let attachment = try #require(received.attachment)
+            #expect(received.kind == .media && received.status == .received && !received.isDisplayed)
+            #expect(attachment.kind == facts.kind && attachment.state == .remote && !attachment.hasFile)
+            #expect(attachment.descriptor.mediaID.base64URLEncodedString() == facts.mediaId)
+            #expect(attachment.descriptor.digest.base64URLEncodedString() == facts.digest)
+            #expect(attachment.size == facts.size && received.text == facts.caption && attachment.descriptor.fileName == facts.fileName)
+            #expect(attachment.descriptor.deleteToken.isEmpty && attachment.descriptor.caption.isEmpty)
+            try await communities.download(sender: sender, messageId: messageId, in: id) { _ in }
+            let bytes = try await communities.mediaData(sender: sender, messageId: messageId, in: id)
+            #expect(UInt64(bytes.count) == facts.size && LiveCommunityInteropTests.sha256(bytes) == facts.sha256)
+            #expect(try await item()?.attachment?.state == .downloaded)
+        }
+
+        /// The conversation is on screen: READ is queued (while read receipts are on) and sent.
+        func display(_ id: AccountId, readReceipts: Bool) async throws {
+            communities.readReceipts.withLock { $0 = readReceipts }
+            #expect(try await communities.markDisplayed(id, readReceipts: readReceipts) > 0)
+            if let issue = await communities.sendReads() { Issue.record("reads: \(issue)") }
+        }
+
+        func recipient(_ messageId: AccountId, in id: AccountId, member: AccountId) async throws -> CommunityRecipientItem {
+            try #require(try await communities.recipients(of: messageId, in: id).first { $0.recipient == member })
+        }
+
+        /// Syncs until `member` has delivered (and, if `read`, read) this own message.
+        func awaitReceipt(_ messageId: AccountId, in id: AccountId, from member: AccountId, read: Bool) async throws {
+            try await eventually(timeout: 90, "\(read ? "READ" : "DELIVERY") from \(member) for \(messageId)") {
+                _ = try await communities.sync()
+                let recipient = try await recipient(messageId, in: id, member: member)
+                if recipient.state == .accepted && recipient.deliveredAt != nil && (!read || recipient.readAt != nil) { return true }
+                try await Task.sleep(for: .milliseconds(300))
+                return false
+            }
+        }
+
+        /// The message is the placeholder: nothing of it but who deleted it.
+        func assertPlaceholder(from sender: AccountId, messageId: AccountId, in id: AccountId, by: CommunityDeletion) async throws {
+            let placeholder = try #require(try await communities.messages(id).first { $0.sender == sender && $0.messageId == messageId })
+            #expect(placeholder.deletion == by && placeholder.text.isEmpty && placeholder.attachment == nil)
+            await #expect(throws: (any Error).self) { try await communities.mediaData(sender: sender, messageId: messageId, in: id) }
+        }
+
+        func awaitPlaceholder(from sender: AccountId, messageId: AccountId, in id: AccountId, by: CommunityDeletion) async throws {
+            try await eventually(timeout: 90, "placeholder of \(messageId) in \(id)") {
+                _ = try await communities.sync()
+                if try await communities.messages(id).contains(where: { $0.sender == sender && $0.messageId == messageId && $0.deletion == by }) {
+                    return true
+                }
+                try await Task.sleep(for: .milliseconds(300))
+                return false
+            }
+            try await assertPlaceholder(from: sender, messageId: messageId, in: id, by: by)
+        }
+
+        /// One envelope straight to `recipient`, as a client would that bypasses the engine.
+        func sendRaw(_ message: BRPCommunityMessage, to recipient: AccountId, in state: CommunityState) async throws {
+            let member = try #require(state.member(recipient))
+            let envelope = try await backend.messenger.sealCommunity(message, to: member)
+            _ = try await backend.messenger.relay.sendCommunityEnvelope(
+                envelope, community: state.id, recipient: recipient, messageId: try #require(AccountId(bytes: message.messageID)),
+                revision: state.revision)
+        }
+
+        /// `GET /v1/media/{id}` (anonymous, like a recipient's download), answered with its bare status.
+        func mediaStatus(_ mediaId: String) async throws -> Int {
+            let url = try #require(LiveRelay.url).appendingPathComponent("v1/media/" + mediaId)
+            let (_, response) = try await URLSession.shared.data(from: url)
+            return try #require(response as? HTTPURLResponse).statusCode
         }
 
         /// Syncs until `text` from `sender` is stored in the community.

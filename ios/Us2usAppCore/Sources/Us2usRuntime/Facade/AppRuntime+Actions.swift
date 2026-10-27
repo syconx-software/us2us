@@ -266,6 +266,15 @@ extension AppRuntime {
         if openPeer == peer { closeConversation() }
     }
 
+    /// Deletes the contact on this phone only: its conversation
+    /// (crypto-shredded), pending sends, the contact and its session and
+    /// identity; looking the username up again starts a new chat. A blocked
+    /// contact keeps only the block. Nothing is sent.
+    public func deleteContact(_ peer: AccountId) async throws {
+        try await engine().deleteContact(peer)
+        if openPeer == peer { closeConversation() }
+    }
+
     // MARK: Ghost mode and disappearing messages (§8.1, §8.2)
 
     public func setConversationSettings(_ peer: AccountId, ghost: GhostSettings?, defaultExpireTimerSeconds: UInt32)

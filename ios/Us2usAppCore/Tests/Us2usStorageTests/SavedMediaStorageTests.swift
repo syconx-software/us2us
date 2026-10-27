@@ -202,6 +202,12 @@ struct SavedMediaStorageTests {
             }
             // Back to what a v5 database looks like.
             try storage.database.write { connection in
+                for table in [
+                    "former_contacts", "community_media_deletes", "community_tombstones", "community_recipients",
+                    "community_attachments",
+                ] {
+                    try connection.execute("DROP TABLE \(table)")
+                }
                 try connection.execute("DROP TABLE community_outbox")
                 try connection.execute("DROP TABLE community_messages")
                 try connection.execute("DROP TABLE community_envelopes")
