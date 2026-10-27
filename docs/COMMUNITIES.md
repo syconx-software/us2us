@@ -1,9 +1,11 @@
-# Communities extension v1 — threat model and wire contract
+# Communities extension v1 and v2 — threat model and wire contract
 
 Status: implementation contract, 2026-10-14. This is an additive extension
 to BRP v1, not a replacement for its one-to-one protocol. First release:
 text conversations, one owner/administrator, at most 100 members including
 the owner. Public discovery and private invitations both require approval.
+Extension v2 (below) adds photos, videos and files, delivery and read
+receipts, and delete for everyone, without changing anything else here.
 
 ## Security and privacy boundary
 
@@ -75,7 +77,9 @@ uint64, message_id bytes(16), sent_at uint64 milliseconds, text UTF-8 <=8192
 bytes. Field numbers are respectively 1..5. No media, typing, presence,
 receipts, timers, ghost mode, reactions, or history transfer in this first
 extension. In particular, legacy media delete tokens cannot safely be shared
-by 100 recipients. New members receive no earlier messages.
+by 100 recipients. New members receive no earlier messages. Extension v2
+adds media without delete tokens, receipts and delete for everyone; the rest
+of this list still applies.
 
 ## Signed state (identical bytes on Swift, Kotlin and relay)
 
@@ -272,16 +276,299 @@ Besides the PROTOCOL.md §2.1 codes, community routes answer:
 Every other failure uses its §2.1 code. A client that does not know a code
 handles it by HTTP status.
 
+## Extension v2: media, receipts, delete for everyone
+
+Additive to v1: same mailbox, routes, signed state, revisions, limits and
+relay. The relay is unchanged and cannot tell v2 content from v1 content
+except by the metadata described below. Section numbers (§) refer to
+PROTOCOL.md.
+
+### Wire
+
+`CommunityMessage` gains four fields; fields 1..5 keep their meaning:
+
+| # | Field | Type |
+|---|---|---|
+| 6 | `attachment` | `Attachment` (the 1:1 message, community rules below) |
+| 7 | `receipt` | `CommunityReceipt{type = 1, message_ids = 2}`, type `DELIVERY = 1`, `READ = 2` |
+| 8 | `delete_target_message_id` | bytes(16) |
+| 9 | `delete_target_sender_id` | bytes(16), account ID of the target's original sender |
+
+Every `CommunityMessage` is exactly one of four kinds. `message_id` is always
+fresh and random; for a receipt or a delete it names that event itself (it
+is the `{messageId}` of the delivery route), never the target.
+
+* **text**: `text` only.
+* **media**: `attachment`, with `text` as its optional caption.
+* **receipt**: `receipt` only; sent to one member, the original sender.
+* **delete**: `delete_target_message_id` and `delete_target_sender_id` only;
+  sent to every current member.
+
+### Validation
+
+A receiver first applies the v1 checks unchanged (sender is a current member
+other than itself, identity matches the signed roster, `community_id` is the
+community, `revision` is the current accepted revision, `message_id` is 16
+bytes). Then, with A = `attachment` present, R = `receipt` present, D =
+field 8 or field 9 non-empty, T = `text` non-empty (presence of a message
+field is presence on the wire, also when it is empty):
+
+1. `sent_at` > 0.
+2. Kind: R → receipt, requires not A, not D, not T. Otherwise D → delete,
+   requires not A, not T. Otherwise A → media. Otherwise → text.
+3. **text**: `text` is 1..8192 UTF-8 bytes and contains at least one code
+   point that is not Unicode `White_Space` (that property includes TAB, LF
+   and CR). An empty message (no text, attachment, receipt or delete) is
+   therefore invalid.
+4. **media**: `text` 0..8192 UTF-8 bytes, taken as-is (senders trim a
+   caption and send whitespace-only as empty). `attachment.kind` is `IMAGE`,
+   `VIDEO` or `FILE` (`KIND_UNSPECIFIED`, `VOICE`, `STICKER_IMAGE` and
+   unknown values are invalid); `media_id` 16 bytes; `key` 64 bytes;
+   `digest` 32 bytes; `delete_token`, `caption` and `waveform` empty;
+   `thumbnail` 0..10240 bytes; `content_type` and `file_name` at most 255
+   UTF-8 bytes each. `file_name` is read only for `FILE`; it is a display
+   name, never a path. `size`, `width`, `height`, `duration_ms` as in 1:1
+   (§7).
+5. **receipt**: `type` is `DELIVERY` or `READ` (`TYPE_UNSPECIFIED` and
+   unknown values are invalid); 1..1000 `message_ids`, each exactly 16
+   bytes. A repeated id counts once.
+6. **delete**: both fields exactly 16 bytes.
+
+A message failing any step is dropped: the ratchet state is committed, no
+message is stored, the envelope is acknowledged, nothing is sent back. The
+1:1 `Attachment` checks (32-byte `delete_token`, 2048-byte caption) do NOT
+apply here. The v1 dedupe key (community, sender, `message_id`) covers every
+kind; receipts and deletes are idempotent, so remembering their ids is
+optional. `spec/test-vectors/communities-content.json` holds valid and
+invalid encodings of every kind.
+
+### Media
+
+The sender strips metadata and encrypts the file once as in §7
+(fresh key and IV), uploads the blob ONCE with `POST /v1/media` (§4.9) and
+puts the same `media_id`, `key`, `digest`, `size` and optional thumbnail
+(inline JPEG, ≤ 10 KiB) in the separately sealed envelope of every
+recipient. The upload counts toward the sender's media quota (§4.11:
+64 MiB per blob, 60 uploads/hour, 2 GiB/day), once, whatever the member
+count. The upload finishes before any envelope is sent; a failed upload
+fails the message. A fanout repeated after a `409` reuses the blob.
+
+The `deleteToken` from the upload stays on the sender's phone and never
+enters a `CommunityMessage`. Recipients download with `GET /v1/media/{id}`,
+verify `digest` and the HMAC and truncate to `size` (§7), stop at
+`blobSize(size)`, and never send `DELETE`. Clients MAY download
+automatically or on demand. A `404` is shown as "no longer available".
+
+The blob lives until the sender deletes it or the relay's 14-day TTL
+(§4.10). The sender deletes it ONLY with delete for everyone (its own, or
+the owner's on its message, below); "delete for me" never deletes the blob,
+on any side.
+
+### Receipts
+
+* **DELIVERY** is always sent, whatever the read-receipt setting, for every
+  text and media message stored (not for drops, duplicates, receipts or
+  deletes). At the end of each sync pass (fetching the inbox until `more` is
+  false), the receiver sends, per community and original sender, one
+  receipt with the ids stored in that pass; more than 1000 ids are split.
+* **READ** follows the user's global read-receipt setting with the 1:1 rule
+  (§8.4, and the apps' message info, which shows no Read step
+  while it is off): a user with read receipts off sends no READ and is
+  shown no READ state for its own messages; incoming READ MAY be stored
+  but is not displayed while the setting is off. READ is sent once per
+  message, when the message is displayed in the open community
+  conversation, only for others' text and media messages that are not
+  deleted; nothing is sent later for messages read while the setting was
+  off. Clients coalesce READ per original sender for a few seconds.
+* A receipt goes ONLY to the original sender of its ids, as a
+  single-recipient community envelope (`PUT
+  /v1/communities/{id}/messages/{originalSenderId}/{messageId}`), under the
+  current revision, persisted before sending, retried and refreshed on
+  `409` exactly like a text. If the original sender is no longer a member
+  (`404`), the receipt is dropped. A `429` delays it; it never blocks
+  receiving.
+* **Applying.** The receiver of a receipt applies each id only if it names
+  a text or media message that the receiver itself sent in that community,
+  that is not deleted, and whose recorded recipient set contains the
+  receipt's sender (who passed the current-member check). Every other id is
+  ignored. DELIVERY sets the member's delivered time; READ sets the read
+  time and, if unset, the delivered time. Times are the local time the
+  receipt was applied (as in 1:1); they are set once and never move back.
+* Other members never learn who received or read what: there is no
+  receipt fanout and no aggregate on the wire.
+
+### Delete for everyone
+
+A delete is valid when its sender D is the target's original sender
+(`delete_target_sender_id` = D), OR D is the owner of the current signed
+roster (moderation; the owner is immutable). Anything else is dropped. The
+deleter fans it out to every current member except itself, recomputed on
+`409` like a text; members that joined after the target simply remember it
+(below). The deleter replaces its own copy at once, and no longer sends
+envelopes of the target that the relay has not accepted yet.
+
+A receiver looks up (community, `delete_target_sender_id`,
+`delete_target_message_id`):
+
+* a text or media message: replaced by a placeholder that keeps only sender,
+  `message_id`, `sent_at` and who deleted it (sender or owner). Text,
+  attachment descriptor (key, digest, `media_id`), thumbnail, downloaded and
+  decrypted files and running downloads are removed. Receipts for it are
+  ignored from then on.
+* already a placeholder: nothing.
+* not found: remembered as a pending delete (community, target sender,
+  target id, deleter role) for 30 days, at most 1000 per community (the
+  oldest goes first). A text or media message arriving later with that key
+  is stored directly as the placeholder (DELIVERY is still sent, READ never,
+  its blob never downloaded).
+
+Media: when the deleter is the original sender, it also sends `DELETE
+/v1/media/{id}` with its delete token (`204` or `404` are final; it retries
+after network failures, then forgets the token). When the owner deletes
+another member's media message, the author's own client, on receiving
+that delete, SHOULD delete the blob the same way. Otherwise the blob lives
+until its TTL. The UI distinguishes "This message was deleted" (by its
+sender) from "Removed by the owner".
+
+"Delete for me" is local only: the message, its files and receipt state are
+removed from this phone, the key (community, sender, `message_id`) is kept
+for 30 days so a retransmission is a duplicate (as §8.1), nothing is sent
+and no blob is deleted.
+
+### Security and privacy (in addition to the v1 threat model)
+
+* **Shared blob.** Every member that received the pointer, including one
+  removed or gone later, can download and decrypt the media until the
+  sender deletes it or 14 days pass; anyone given `media_id` and `key` can
+  too. Delete for everyone removes the blob and honest members' copies, but
+  cannot recall a copy already downloaded, saved or forwarded. Owner
+  moderation removes the blob only through the author's honest client.
+* **Relay metadata, media.** The relay learns the uploader account, the
+  padded blob size (§7), the time, and the IP and time of each download of
+  that blob (how many members fetched it and when), and can link the upload
+  to the community fanout that follows it.
+* **Relay metadata, receipts.** Each receipt is an authenticated
+  single-recipient envelope from a member to the original sender, about one
+  per member, original sender and kind per batch. Padded content (§5.1)
+  makes a small receipt as large as a short text, but its single recipient
+  tells it apart from a fanout. The relay can thus infer when a member
+  fetched (it already sees the fetch) and roughly when it read a given
+  member's messages. It never learns which messages.
+* **Integrity.** Encryption stays pairwise with no transcript consistency: a
+  malicious sender can show members different media, or delete for some
+  members only. Receipts are a courtesy, not proof: a malicious member can
+  claim READ or withhold it, but only for messages it was a recipient of.
+  A malicious client can ignore deletes. v2 has no SAVED receipt: saving
+  community media outside the app is not reported.
+* Like texts, receipts and deletes queued under an older revision are never
+  processed: a roster change can silently lose them. The UI must not
+  promise that a delete reached everyone.
+
+### Client storage
+
+Everything below is encrypted at rest like other community data (§5.3):
+
+* own text and media messages: the recipient set fixed at send time and,
+  per member, transport state (pending, accepted by the relay, skipped or
+  failed), delivered time and read time;
+* own media: the plaintext file (no re-download) and the delete token until
+  the blob is deleted or 14 days old;
+* received media: the descriptor and, once downloaded, the decrypted file;
+* placeholders, pending deletes and "delete for me" keys (30 days each);
+* the outgoing receipt queue (persisted before sending).
+
+Leaving, removal and community deletion remove all of it, files included.
+
+### UI
+
+* The chats list shows communities like conversations, ordered by last text
+  or media activity, with a community marker, unread count and a preview
+  ("Photo", "Video", "File" and the caption, or the deleted placeholder).
+  Receipts never reorder it; deletes only change the preview.
+* Own messages show an aggregate state: Sent (accepted for all recipients),
+  Delivered (all delivered), Read (all read, only while read receipts are
+  on). Long-press → Info lists every recipient with delivered and read
+  times (read only while read receipts are on), pending or failed sends,
+  and members who have left with their last state.
+* Long-press → "Delete for me" on every message; "Delete for everyone" on
+  own messages, and for the owner on every message. Delete for everyone
+  confirms first and says that copies already downloaded or saved cannot
+  be recalled.
+
+### Compatibility
+
+Fields 6..9 and `CommunityReceipt` are new; nothing is renumbered. v1 builds
+keep them as unknown fields and require a non-empty text, so they drop
+media without caption, receipts and deletes, and show media with a caption
+as its caption only. v1 builds were internal test builds and are superseded
+by v2: there is no negotiation, capability flag or placeholder text, and v2
+senders never add one. v2 clients drop a `CommunityMessage` with neither
+text nor attachment (nor receipt or delete). A later extension adding kinds
+v2 rejects (another attachment kind or receipt type) must accept that v2
+drops them. The largest v2 message (8192-byte caption, 10 KiB thumbnail;
+or 1000 receipt ids) fits the 65536-byte envelope limit.
+
 ## Required verification
 
 Shared canonical state/message vectors must decode identically: the signed
-state of `communities.json`, `communities-invalid.json` and the name rule
-vectors of `communities-names.json` (all in `spec/test-vectors/`). Tests cover
+state of `communities.json`, `communities-invalid.json`, the name rule
+vectors of `communities-names.json` and the v2 content kinds of
+`communities-content.json` (all in `spec/test-vectors/`). Tests cover
 tampered signatures, duplicate/unsorted members, owner substitution, rollback,
 same-revision different state, non-admin updates, concurrent admission at99,
 removed sender/recipient and stale revision, expired/revoked/reused invitations,
 private search non-disclosure, 99-recipient load, retry/duplicate handling,
 atomic receive, leaving and withdrawing, live-only inbox quotas, and absence
-of direct-contact side effects. Existing 1:1
+of direct-contact side effects. For v2: every invalid kind combination is
+dropped and acknowledged; receipts only from recipients and only for own
+messages; READ neither sent nor shown with read receipts off; deletes by a
+non-sender non-owner refused, owner deletes applied, deletes before their
+target remembered; the blob uploaded once and deleted only by its sender. Existing 1:1
 crypto, mailbox, request, storage, and UI suites must continue passing.
 Implementation tests do not replace independent cryptographic review.
+
+## Extension v3: built-in stickers and voice notes
+
+### Threat model (written before implementation)
+
+The relay and other members remain untrusted. A message must pass the existing
+signed-roster, revision, sender identity and membership checks before its content
+is accepted. Stickers and voice notes do not grant membership or use a 1:1 access
+key as group authority. Removed members receive no future fanout. Previously
+received audio keys and saved copies cannot be revoked. Voice size, duration and
+waveform are bounded before decoding; audio is never played automatically.
+Malformed or mixed content is dropped and acknowledged. Built-in stickers load
+no remote artwork, scripts or URLs. Custom sticker uploads are outside v3.
+
+### Wire contract and compatibility
+
+`CommunityMessage.sticker = 10` reuses `Sticker` from the 1:1 protocol. It is
+exclusive with attachment, receipt and delete. Its `text` MUST equal its nonblank
+emoji fallback (at most 64 UTF-8 bytes). `pack_id` is nonblank and at most 128
+UTF-8 bytes, sticker_id is positive, lang at most 35 UTF-8 bytes, custom absent.
+Unknown catalog ids render through the existing emoji fallback. v1/v2 readers
+ignore field 10 and display the fallback as ordinary text.
+
+`attachment.kind = VOICE` reuses the existing AAC/M4A recording, attachment cipher
+and upload/download pipeline. `content_type` MUST be `audio/mp4`, size 1..16 MiB,
+duration_ms 1000..300000, waveform at most 100 bytes; width, height, thumbnail,
+file_name and message text MUST be empty/zero. Non-VOICE attachments continue to
+reject waveform. The upload delete token never leaves the sender. A voice pointer
+retains its waveform; encryption/upload happens once, followed by one libsignal
+ciphertext per current recipient. No PLAYED/SAVED receipt is introduced: only the
+existing DELIVERY and optional READ apply. Playback state is local to the screen.
+
+Older v1/v2 community readers cannot play VOICE and drop it safely; upgrading is
+required for audio. This is additive protocol compatibility, not a promise that
+old clients render new media. Existing text/photo/video/file/receipt/delete fields,
+1:1 wire format, ratchets and mailboxes remain unchanged. Relay routes need no
+change because they carry opaque ciphertext and the existing encrypted media.
+Local schema v9 appends a nullable encrypted sticker column; old rows are unchanged.
+
+### Verification gates
+
+Test shared Swift/Kotlin vectors (including malformed mixed kinds and bounds),
+local persistence/reopen/delete/retry, real encrypted receive/fanout including
+100-member rosters and removed members, sticker and voice UI flows, and existing
+1:1 regressions. Report environment skips and device-only recording/playback
+checks separately; simulator fixture tests alone do not establish release readiness.
