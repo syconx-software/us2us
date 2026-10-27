@@ -123,6 +123,8 @@ internal object WipeService {
                     row.bytes("id")?.let(referencedItems::add)
                     row.bytes("thumbnail_id")?.let(referencedItems::add)
                 }
+                // Community files are items under their community's key (CommunityRepository).
+                referencedItems += CommunityRepository.fileIds(tx)
                 for (itemId in storage.files.allItemIds() - referencedItems) {
                     storage.files.remove(itemId)
                     orphanFiles += 1

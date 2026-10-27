@@ -67,6 +67,17 @@ class SqlContactStore internal constructor(
                 profileSentAt,
             )
             if (existing == null) {
+                // A contact deleted with "Kişiyi sil" gets back the name it was shown under, as a
+                // claim (ContactRepository.removeKeepingSession); the kept name is used up.
+                val former = connection.queryOne("SELECT username FROM former_contacts WHERE account = ?", contact.accountId.toBytes())
+                    ?.text("username")
+                if (former != null) {
+                    if (contact.username == null) {
+                        values[2] = former
+                        values[3] = UsernameStatus.UNCHECKED.raw
+                    }
+                    connection.run("DELETE FROM former_contacts WHERE account = ?", contact.accountId.toBytes())
+                }
                 connection.run(
                     """
                     INSERT INTO contacts (request_state, state_before_block, username, username_status, display_name,

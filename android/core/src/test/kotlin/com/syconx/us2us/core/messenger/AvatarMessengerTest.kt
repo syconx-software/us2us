@@ -61,9 +61,11 @@ class AvatarMessengerTest {
     private val photo = ProfilePicture.photo("image/jpeg", TestImages.jpeg(128, 128))
     private val otherPhoto = ProfilePicture.photo("image/heic", TestImages.heic(sizes = listOf(96 to 96)))
 
-    private suspend fun acceptedPair(scope: CoroutineScope, aliceName: String = "alice"): Pair<TestClient, TestClient> {
+    private suspend fun acceptedPair(scope: CoroutineScope, aliceName: String = "alice", searchable: Boolean = true): Pair<TestClient, TestClient> {
         val alice = TestClient.register(relayUrl, aliceName, scope)
         val bob = TestClient.register(relayUrl, "bob", scope)
+        // Publication scenarios opt in explicitly. The private-default case below does not.
+        if (searchable) alice.messenger.setShowPictureInSearch(true)
         alice.awaitUpToDate()
         bob.awaitUpToDate()
         alice.messenger.findByUsername("bob")
@@ -83,6 +85,26 @@ class AvatarMessengerTest {
      */
     private suspend fun TestClient.nextProfile(predicate: (ProfileUpdate) -> Boolean = { true }): ProfileUpdate =
         next { it.content.hasControl() && it.content.control.hasProfile() && predicate(it.content.control.profile) }.content.control.profile
+
+    @Test
+    fun `new accounts keep photos private until opting in and backup keeps the preference`() = runBlocking {
+        coroutineScope {
+            val (alice, bob) = acceptedPair(this, searchable = false)
+            assertFalse(alice.messenger.account.showPictureInSearch)
+            assertFalse(bob.messenger.account.showPictureInSearch)
+            alice.messenger.setProfilePicture(photo)
+            bob.nextProfile { it.hasProfileAvatar() }
+            assertNull(relay.avatarRecord(alice.accountId))
+            val backup = AccountBackup.parseFrom(BackupFile.open(alice.messenger.exportBackup("yedek parolam 7", iterations = 1000), "yedek parolam 7"))
+            assertTrue(backup.avatarSearchOff)
+            alice.messenger.setShowPictureInSearch(true)
+            assertTrue(alice.messenger.account.showPictureInSearch)
+            assertEquals(photo, ProfilePicture.fromProto(AvatarRecord.openAvatar(relay.avatarRecord(alice.accountId)!!, AvatarKey.derive(Username("alice"), alice.accountId))))
+            alice.messenger.setShowPictureInSearch(false)
+            assertNull(relay.avatarRecord(alice.accountId))
+            listOf(alice, bob).forEach { it.job.cancelAndJoin() }
+        }
+    }
 
     @Test
     fun `a photo reaches contacts end to end and searchers through the avatar record`() = runBlocking {
@@ -171,6 +193,7 @@ class AvatarMessengerTest {
     @Test
     fun `a username change publishes the record again under the new name`() = runBlocking {
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig)
         alice.setProfilePicture(photo)
         carol.findByUsername("alice")
@@ -237,6 +260,7 @@ class AvatarMessengerTest {
     @Test
     fun `a restore with show in search off deletes what the old phone published`() = runBlocking {
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         alice.setProfilePicture(photo)
         val file = alice.exportBackup("yedek parolam 7", iterations = 1000)
         val off = AccountBackup.parseFrom(BackupFile.open(file, "yedek parolam 7")).toBuilder().setAvatarSearchOff(true).build()
@@ -248,6 +272,7 @@ class AvatarMessengerTest {
 
         // A picture the restoring client may not send is the initial letter, not a refused backup.
         val erin = Messenger.register(Username("erin"), RelayClient(relayUrl), config = TestClient.testConfig)
+        erin.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val erinBackup = AccountBackup.parseFrom(BackupFile.open(erin.exportBackup("yedek parolam 7", iterations = 1000), "yedek parolam 7"))
         assertFalse(erinBackup.hasAvatar())
         val unknownPreset = erinBackup.toBuilder().setAvatar(profileAvatar { presetId = 77 }).build()
@@ -263,6 +288,7 @@ class AvatarMessengerTest {
         val contacts = InMemoryContactStore()
         val saved = mutableListOf<LocalAccount>()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), storage, contacts, TestClient.testConfig, accountStore = { saved += it })
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig)
 
         assertEquals(emptyList<Any>(), alice.setProfilePicture(photo), "no error for the user")
@@ -288,6 +314,7 @@ class AvatarMessengerTest {
     fun `a rate-limited write waits for Retry-After`() = runBlocking {
         val clock = MutableClock()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         relay.rateLimitNext("PUT", "/v1/accounts/me/avatar", 120)
         alice.setProfilePicture(photo)
         assertTrue(PendingSetup.SYNC_AVATAR in alice.account.pendingSetup)
@@ -305,6 +332,7 @@ class AvatarMessengerTest {
     fun `a rate-limited store never holds up taking the picture out of search`() = runBlocking {
         val clock = MutableClock()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         alice.setProfilePicture(photo)
         assertEquals(1L, relay.avatarHighestVersion(alice.accountId))
         relay.rateLimitNext("PUT", "/v1/accounts/me/avatar", 3600)
@@ -328,6 +356,7 @@ class AvatarMessengerTest {
     @Test
     fun `a replayed older record is ignored, also after a 404`() = runBlocking {
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig)
         alice.setProfilePicture(photo)
         val first = relay.avatarRecord(alice.accountId)!!
@@ -367,6 +396,7 @@ class AvatarMessengerTest {
             val alice = TestClient.register(relayUrl, "alice", this)
             alice.awaitUpToDate()
             val dave = Messenger.register(Username("dave"), RelayClient(relayUrl), config = TestClient.testConfig)
+            dave.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
             dave.setProfilePicture(photo)
             dave.findByUsername("alice")
             val fetches = relay.avatarFetches
@@ -467,6 +497,7 @@ class AvatarMessengerTest {
     fun `a search shows a stranger's picture without keeping a contact, and asks the relay at most once a minute`() = runBlocking {
         val clock = MutableClock()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         alice.setProfilePicture(photo)
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
         val name = Username("alice")
@@ -510,6 +541,7 @@ class AvatarMessengerTest {
     @Test
     fun `search copies go when the directory maps the name elsewhere, and records of another account or tampered ones open as nothing`() = runBlocking {
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val mallory = Messenger.register(Username("mallory"), RelayClient(relayUrl), config = TestClient.testConfig)
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig)
         val name = Username("alice")
@@ -539,6 +571,7 @@ class AvatarMessengerTest {
     fun `a replayed older record is ignored in search, also after a 404`() = runBlocking {
         val clock = MutableClock()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         val carol = Messenger.register(Username("carol"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
         val name = Username("alice")
         alice.setProfilePicture(photo)
@@ -572,6 +605,7 @@ class AvatarMessengerTest {
     fun `the record's status says whether it is in line, still owed, or impossible on this relay`() = runBlocking {
         val clock = MutableClock()
         val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig.copy(clock = clock))
+        alice.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         assertEquals(AvatarRecordStatus.IN_SYNC, alice.avatarRecordStatus.value)
 
         relay.failNext("PUT", "/v1/accounts/me/avatar")
@@ -595,6 +629,7 @@ class AvatarMessengerTest {
         val contacts = InMemoryContactStore()
         val saved = mutableListOf<LocalAccount>()
         val bob = Messenger.register(Username("bob"), RelayClient(relayUrl), storage, contacts, TestClient.testConfig, accountStore = { saved += it })
+        bob.setShowPictureInSearch(true) // Explicit opt-in for this publication scenario.
         bob.setProfilePicture(photo)
         assertEquals(AvatarRecordStatus.UNAVAILABLE, bob.avatarRecordStatus.value)
         val attempts = relay.avatarWrites

@@ -8,6 +8,7 @@ import com.syconx.us2us.core.proto.ControlMessage
 import com.syconx.us2us.core.proto.ConversationSettings
 import com.syconx.us2us.core.proto.ConversationWipe
 import com.syconx.us2us.core.proto.DataMessage
+import com.syconx.us2us.core.proto.MessageRequestResponse
 import com.syconx.us2us.core.proto.PresenceMessage
 import com.syconx.us2us.core.proto.ProfileAvatar
 import com.syconx.us2us.core.proto.ReceiptMessage
@@ -138,6 +139,19 @@ private fun MessagingEngine.applyInbound(message: InboundMessage, tx: StorageTra
         outcome.listChanged = true
         outcome.downloads = true
         outcome.wakeOutbox = true
+    } else if (previous == ContactState.ACCEPTED && username != null &&
+        content.hasData() && InboundRules.opensRequest(content.data)
+    ) {
+        // §6.4 a request from an accepted contact: only an OUTGOING_REQUEST carries
+        // `sender_username`, so the contact deleted us on its phone and wrote again as a stranger.
+        // Our ACCEPT ends its request at once (nothing here changes); our access key and profile
+        // go again, since it no longer holds them.
+        tx.contacts.setOurAccessKeySent(null, sender)
+        tx.contacts.setProfileSent(null, sender)
+        tx.outbox.enqueue(MessageRequests.acceptContent(), sender, now = now)
+        enqueueOurAccessKey(sender, tx, now)
+        sendProfileIfExchanged(sender, tx, now)
+        outcome.wakeOutbox = true
     }
     if (message.identityChanged) {
         outcome.notices += SystemNotice.SafetyNumberChanged
@@ -223,6 +237,10 @@ private fun MessagingEngine.receiveControl(
 ) {
     when (control.actionCase) {
         ControlMessage.ActionCase.REQUEST_RESPONSE -> {
+            if (previous == ContactState.ACCEPTED && control.requestResponse.type == MessageRequestResponse.Type.ACCEPT) {
+                resendOwnStateAfterReacceptance(sender, tx, now, outcome)
+                return
+            }
             // ACCEPT ended our outgoing request (the storage applied §6.4).
             if (previous != ContactState.OUTGOING_REQUEST || state != ContactState.ACCEPTED) return
             outcome.notices += SystemNotice.RequestAccepted
@@ -334,6 +352,23 @@ internal fun MessagingEngine.enqueueOurAccessKey(account: AccountId, tx: Storage
     if (contact.requestState != ContactState.ACCEPTED || contact.ourAccessKeySent == key) return
     tx.outbox.enqueue(MessageRequests.accessKeyUpdateContent(com.syconx.us2us.core.AccessKey(key.toByteArray())), account, now = now)
     tx.contacts.setOurAccessKeySent(key, account)
+}
+
+/**
+ * §6.4: `ACCEPT` from a contact we were already accepted with. It had deleted us on its phone (which
+ * keeps the session), we wrote again without `sender_username`, and it accepted that as a new
+ * request: it no longer holds our access key or profile, so both go again. Only after a completed
+ * exchange; while ours is still under way (crossing requests, a repeated `ACCEPT`) it finishes by
+ * itself. The state stays accepted and nothing is shown.
+ */
+private fun MessagingEngine.resendOwnStateAfterReacceptance(account: AccountId, tx: StorageTransaction, now: Instant, outcome: InboundOutcome) {
+    val contact = tx.contacts.get(account) ?: return
+    if (contact.requestState != ContactState.ACCEPTED || contact.ourAccessKeySent != ourAccessKey(tx) || contact.profileSentAt == null) return
+    tx.contacts.setOurAccessKeySent(null, account)
+    tx.contacts.setProfileSent(null, account)
+    enqueueOurAccessKey(account, tx, now)
+    sendProfileIfExchanged(account, tx, now)
+    outcome.wakeOutbox = true
 }
 
 /** The complete `ProfileUpdate`, once the access keys are exchanged. */

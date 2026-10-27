@@ -36,6 +36,29 @@ class CommunityRepositoryTest {
     }
     @After fun close() = storage.close()
 
+    @Test fun historyPagesReachAll5107MessagesWithEqualTimesAndDeletedBoundary() {
+        val inserted = (0..<5107).map { index -> StoredCommunityMessage(group, owner, newAccountId(),
+            (5107-index).toLong(), "history-$index", "received", receivedAt = 1234) }
+        storage.write { inserted.forEach(repository::add) }
+        var page = repository.history(group)
+        assertEquals(100, page.items.size)
+        val floor = page.oldest!!
+        val seen = mutableListOf<StoredCommunityMessage>()
+        while (true) {
+            seen.addAll(0, page.items)
+            if (!page.hasOlder) break
+            page = repository.history(group, before = page.oldest)
+        }
+        assertEquals(inserted.map { it.messageId }, seen.map { it.messageId })
+        repository.deleteForMe(group, owner, inserted[5007].messageId, 1234)
+        val older = repository.history(group, before = floor)
+        assertEquals(inserted[5006].messageId, older.items.last().messageId)
+        repository.add(StoredCommunityMessage(group, owner, newAccountId(), 1, "new arrival", "received", receivedAt = 1235))
+        val window = repository.history(group, through = older.oldest)
+        assertEquals(200, window.items.size)
+        assertEquals("new arrival", window.items.last().text)
+    }
+
     @Test fun pinMessagesOutboxAndDedupeSurviveReopenWithoutCreatingDirectContacts() {
         val message = StoredCommunityMessage(group, owner, newAccountId(), 1234, "Şifreli yerel mesaj", "pending")
         val delivery = CommunityDelivery(group, message.messageId, newAccountId(), 1, byteArrayOf(1, 2, 3))

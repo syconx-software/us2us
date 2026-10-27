@@ -38,8 +38,9 @@ data class LocalAccount(
     /** The user's profile picture (PROTOCOL.md §8.9); `null` is the initial letter. */
     val profilePicture: ProfilePicture? = null,
     /**
-     * "Aramada göster" / "Show in search" (PROTOCOL.md §8.10). On by default: anyone who types the
-     * exact username sees the picture. Off: only contacts do.
+     * "Aramada göster" / "Show in search" (PROTOCOL.md §8.10). Registration explicitly opts out;
+     * this raw initializer retains the legacy default for existing-account adapters. Persisted
+     * and restored preferences are always explicit. Off: only contacts receive the picture.
      */
     val showPictureInSearch: Boolean = true,
     /** The last avatar record version this account wrote with (§8.10); the next write uses this + 1. */

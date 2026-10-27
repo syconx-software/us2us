@@ -380,7 +380,7 @@ class VaultControllerTest {
     fun aCorruptVaultIsNotAWrongCode() = runBlocking {
         vault.create(CODE, CODE)
         val file = fixture.vaultFile
-        file.writeBytes(file.readBytes().also { it[4] = 0x02 })
+        file.writeBytes(file.readBytes().also { it[4] = 0x03 }) // v2 is now supported.
         expectUnlockError(UnlockError.Vault(VaultError.Corrupted)) { vault.unlock(CODE) }
         file.writeBytes(file.readBytes().copyOf(20))
         expectUnlockError(UnlockError.Vault(VaultError.Corrupted)) { vault.unlock(CODE) }

@@ -398,6 +398,14 @@ class MessagingEngine(
     /** Deletes the conversation on this phone only. */
     suspend fun deleteConversationLocally(peer: AccountId) = serialized { deleteConversationLocallyNow(peer) }
 
+    /** A directory lookup answered that [username] belongs to [owner]: other contacts showing it no longer own it (§3.3). */
+    suspend fun noteUsernameOwner(username: Username, owner: AccountId) = serialized {
+        if (write { it.contacts.noteUsernameOwner(username, owner) } > 0) emit(EngineChange.Conversations)
+    }
+
+    /** Deletes the contact on this phone only: conversation, contact, session and identity; a block stays. */
+    suspend fun deleteContact(peer: AccountId) = serialized { deleteContactNow(peer) }
+
     // MARK: Safety numbers (§5)
 
     suspend fun acceptSafetyNumberChange(peer: AccountId, shownNumber: ByteArray): Boolean =
@@ -484,6 +492,9 @@ class MessagingEngine(
 
     /** The newest messages of a conversation and its system lines, oldest first. */
     suspend fun messages(peer: AccountId): List<MessageItem> = serialized { messagesNow(peer) }
+
+    suspend fun history(peer: AccountId, before: Long? = null, through: Long? = null, limit: Int = 100): MessageHistory =
+        serialized { historyNow(peer, before, through, limit) }
 
     /** The conversation's photos and videos or files, **newest first**, [limit] older than [before]. */
     suspend fun mediaMessages(peer: AccountId, kind: MediaKind, before: MessageId?, limit: Int): List<MessageItem> =

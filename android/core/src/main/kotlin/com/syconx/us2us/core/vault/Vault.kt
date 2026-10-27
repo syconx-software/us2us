@@ -5,6 +5,7 @@ import com.syconx.us2us.core.crypto.Hkdf
 import com.syconx.us2us.core.crypto.Pbkdf2
 import com.syconx.us2us.core.crypto.Random
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import javax.crypto.AEADBadTagException
 
 /** The secret code (or the device secret) does not open this vault. */
@@ -55,14 +56,15 @@ class DataKey(bytes: ByteArray) {
 }
 
 /**
- * The vault file (PROTOCOL.md §5.2): the DEK wrapped under a key derived from the six-digit secret
- * code and the device secret.
+ * The vault file (PROTOCOL.md §5.2): the DEK wrapped under the six-digit code, device secret
+ * and, in v2, one non-exportable hardware-key evaluation per unlock attempt.
  *
  * ```
  * codeKey = PBKDF2-HMAC-SHA256(UTF-8(code), salt, iterations, 32)      // code = six ASCII digits
  * KEK     = HKDF-SHA256(ikm = codeKey ‖ deviceSecret, salt = salt, info = "BRP/vault/v1", 32)
  * vault   = header ‖ nonce(12) ‖ AES-256-GCM(KEK, nonce, aad = header, DEK) ‖ tag(16)
  * header  = "BRPV" ‖ 0x01 ‖ salt(16) ‖ uint32_be(iterations)
+ * v2 adds HWPRF(codeKey) to the HKDF input, uses "BRP/vault/v2" and header version 0x02.
  * ```
  *
  * Because the device secret never leaves the phone, a copied vault file cannot be brute-forced
@@ -71,17 +73,21 @@ class DataKey(bytes: ByteArray) {
 object Vault {
     const val ITERATIONS = 600_000
     const val DEVICE_SECRET_LENGTH = 32
-    private val format = PasswordFileFormat(magic = "BRPV")
+    private val format = PasswordFileFormat(magic = "BRPV", versions = setOf(1, 2))
     private val KEK_INFO = "BRP/vault/v1".toByteArray(Charsets.UTF_8)
+    private val KEK_INFO_V2 = "BRP/vault/v2".toByteArray(Charsets.UTF_8)
+
+    /** Validated format version; rejects malformed headers before any key derivation. */
+    fun version(vault: ByteArray): Int = format.parseHeader(vault).version
 
     /**
      * Creates a vault under a newly chosen [code].
      *
      * @throws InvalidSecretCodeException if [code] breaks a rule of §5.2.
      */
-    fun create(code: String, deviceSecret: ByteArray, dek: DataKey, iterations: Int = ITERATIONS): ByteArray {
+    fun create(code: String, deviceSecret: ByteArray, dek: DataKey, iterations: Int = ITERATIONS, hardwareKey: VaultHardwareKey? = null): ByteArray {
         SecretCodePolicy.requireValid(code)
-        return create(code, deviceSecret, Random.bytes(PasswordFileFormat.SALT_LENGTH), iterations, Random.bytes(AesGcm.NONCE_LENGTH), dek)
+        return create(code, deviceSecret, Random.bytes(PasswordFileFormat.SALT_LENGTH), iterations, Random.bytes(AesGcm.NONCE_LENGTH), dek, hardwareKey)
     }
 
     /**
@@ -89,12 +95,14 @@ object Vault {
      * @throws WrongSecretCodeException if [code] or [deviceSecret] is wrong (a GCM failure).
      * @throws InvalidVaultFileException if the file is malformed.
      */
-    fun open(vault: ByteArray, code: String, deviceSecret: ByteArray): DataKey {
+    fun open(vault: ByteArray, code: String, deviceSecret: ByteArray, hardwareKey: VaultHardwareKey? = null): DataKey {
         if (!SecretCodePolicy.isWellFormed(code)) throw MalformedSecretCodeException()
         val header = format.parseHeader(vault)
-        val kek = kek(code, deviceSecret, header.salt, header.iterations)
+        if (header.version == 2 && hardwareKey == null) throw VaultHardwareKeyMissingException()
+        val kek = kek(code, deviceSecret, header.salt, header.iterations, if (header.version == 2) hardwareKey else null)
         val dek = format.open(vault, kek, ::WrongSecretCodeException)
         try {
+            if (dek.size != DataKey.LENGTH) throw InvalidVaultFileException("invalid DEK length")
             return DataKey(dek)
         } finally {
             dek.fill(0)
@@ -106,37 +114,55 @@ object Vault {
      *
      * @throws InvalidSecretCodeException if [newCode] breaks a rule of §5.2.
      */
-    fun changeCode(vault: ByteArray, oldCode: String, newCode: String, deviceSecret: ByteArray, iterations: Int = ITERATIONS): ByteArray {
+    fun changeCode(vault: ByteArray, oldCode: String, newCode: String, deviceSecret: ByteArray, iterations: Int = ITERATIONS, hardwareKey: VaultHardwareKey? = null): ByteArray {
         SecretCodePolicy.requireValid(newCode)
-        val dek = open(vault, oldCode, deviceSecret)
+        val dek = open(vault, oldCode, deviceSecret, hardwareKey)
         try {
-            return create(newCode, deviceSecret, dek, iterations)
+            return create(newCode, deviceSecret, dek, iterations, if (version(vault) == 2) hardwareKey else null)
         } finally {
             dek.wipe()
         }
     }
 
     /** Deterministic variant for test vectors: any six-digit [code], the rules are not checked. */
-    internal fun create(code: String, deviceSecret: ByteArray, salt: ByteArray, iterations: Int, nonce: ByteArray, dek: DataKey): ByteArray {
+    internal fun create(code: String, deviceSecret: ByteArray, salt: ByteArray, iterations: Int, nonce: ByteArray, dek: DataKey, hardwareKey: VaultHardwareKey? = null): ByteArray {
         if (!SecretCodePolicy.isWellFormed(code)) throw MalformedSecretCodeException()
         PasswordFileFormat.requireIterations(iterations) // before the slow derivation
-        val kek = kek(code, deviceSecret, salt, iterations)
+        require(salt.size == PasswordFileFormat.SALT_LENGTH && nonce.size == AesGcm.NONCE_LENGTH)
+        val kek = kek(code, deviceSecret, salt, iterations, hardwareKey, verifyHardware = true)
         val plaintext = dek.toBytes()
         try {
-            return format.seal(salt, iterations, nonce, kek, plaintext)
+            return format.seal(salt, iterations, nonce, kek, plaintext, version = if (hardwareKey == null) 1 else 2)
         } finally {
             plaintext.fill(0)
         }
     }
 
-    private fun kek(code: String, deviceSecret: ByteArray, salt: ByteArray, iterations: Int): ByteArray {
+    private fun kek(code: String, deviceSecret: ByteArray, salt: ByteArray, iterations: Int, hardwareKey: VaultHardwareKey? = null, verifyHardware: Boolean = false): ByteArray {
         require(deviceSecret.size == DEVICE_SECRET_LENGTH) { "device secret must be $DEVICE_SECRET_LENGTH bytes" }
-        val codeKey = Pbkdf2.hmacSha256(SecretCodePolicy.keyMaterial(code), salt, iterations, 32)
-        val ikm = codeKey + deviceSecret
+        val password = SecretCodePolicy.keyMaterial(code)
+        val codeKey = try { Pbkdf2.hmacSha256(password, salt, iterations, 32) } finally { password.fill(0) }
+        var hardwareOutput = ByteArray(0)
+        var ikm = ByteArray(0)
         try {
-            return Hkdf.sha256(ikm, salt, KEK_INFO, 32)
+            if (hardwareKey != null) {
+                hardwareOutput = hardwareKey.evaluate(codeKey)
+                if (hardwareOutput.size != 32) throw VaultHardwareKeyException("hardware output length")
+                if (verifyHardware) {
+                    val check = hardwareKey.evaluate(codeKey)
+                    try {
+                        if (!MessageDigest.isEqual(hardwareOutput, check)) throw VaultHardwareKeyException("hardware output not reproducible")
+                    } finally { check.fill(0) }
+                }
+            }
+            ikm = ByteArray(codeKey.size + deviceSecret.size + hardwareOutput.size)
+            codeKey.copyInto(ikm)
+            deviceSecret.copyInto(ikm, codeKey.size)
+            hardwareOutput.copyInto(ikm, codeKey.size + deviceSecret.size)
+            return Hkdf.sha256(ikm, salt, if (hardwareKey == null) KEK_INFO else KEK_INFO_V2, 32)
         } finally {
             codeKey.fill(0)
+            hardwareOutput.fill(0)
             ikm.fill(0)
         }
     }
@@ -192,15 +218,16 @@ object BackupFile {
 }
 
 /** `magic(4) ‖ 0x01 ‖ salt(16) ‖ uint32_be(iterations) ‖ nonce(12) ‖ ciphertext ‖ tag(16)`, header as AAD. */
-private class PasswordFileFormat(magic: String) {
+private class PasswordFileFormat(magic: String, private val versions: Set<Int> = setOf(1)) {
     private val magicBytes = magic.toByteArray(Charsets.US_ASCII)
 
-    class Header(val salt: ByteArray, val iterations: Int)
+    class Header(val salt: ByteArray, val iterations: Int, val version: Int)
 
-    fun seal(salt: ByteArray, iterations: Int, nonce: ByteArray, key: ByteArray, plaintext: ByteArray): ByteArray {
+    fun seal(salt: ByteArray, iterations: Int, nonce: ByteArray, key: ByteArray, plaintext: ByteArray, version: Int = 1): ByteArray {
         require(salt.size == SALT_LENGTH) { "salt must be $SALT_LENGTH bytes" }
         requireIterations(iterations)
-        val header = ByteBuffer.allocate(HEADER_LENGTH).put(magicBytes).put(VERSION).put(salt).putInt(iterations).array()
+        require(version in versions)
+        val header = ByteBuffer.allocate(HEADER_LENGTH).put(magicBytes).put(version.toByte()).put(salt).putInt(iterations).array()
         try {
             return header + nonce + AesGcm.seal(key, nonce, header, plaintext)
         } finally {
@@ -211,11 +238,11 @@ private class PasswordFileFormat(magic: String) {
     fun parseHeader(file: ByteArray): Header {
         if (file.size < HEADER_LENGTH + AesGcm.NONCE_LENGTH + AesGcm.TAG_LENGTH) throw InvalidVaultFileException("file too short")
         if (!file.copyOfRange(0, 4).contentEquals(magicBytes)) throw InvalidVaultFileException("not a ${String(magicBytes)} file")
-        if (file[4] != VERSION) throw InvalidVaultFileException("unsupported version ${file[4]}")
+        if (file[4].toInt() !in versions) throw InvalidVaultFileException("unsupported version ${file[4]}")
         val iterations = ByteBuffer.wrap(file, 5 + SALT_LENGTH, 4).int
         // Bounded so that a hostile file cannot make the phone derive keys for hours.
         if (iterations !in MIN_ITERATIONS..MAX_ITERATIONS) throw InvalidVaultFileException("iterations out of range")
-        return Header(file.copyOfRange(5, 5 + SALT_LENGTH), iterations)
+        return Header(file.copyOfRange(5, 5 + SALT_LENGTH), iterations, file[4].toInt())
     }
 
     /** Opens with [key]; an authentication failure throws [wrongKey]'s exception. */
