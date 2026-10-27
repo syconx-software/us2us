@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -21,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.res.stringResource
@@ -150,7 +155,7 @@ private fun BubbleContent(message: Message, isTail: Boolean, handlers: BubbleHan
     val longPress = if (inert) null else handlers.onLongPress
     when (val content = message.content) {
         is MessageContent.Text -> {
-            val gestures = Modifier.bubbleGestures(null, null, longPress, handlers.onPressedChange)
+            val gestures = Modifier.textBubbleGestures(longPress, handlers.onPressedChange)
             val quote = message.replyTo
             if (quote != null) {
                 ReplyBubble(message, content.text, quote, gestures, isTail)
@@ -346,11 +351,48 @@ private fun KindMorphLayout(progress: () -> Float, alignsEnd: Boolean, content: 
     }
 }
 
-/**
- * The bubble's own tap ([onTap], read as [tapLabel]) and the conversation's long press in one
- * gesture, so a tap target never swallows the long press; the finger resting on the bubble is
- * reported through [onPressedChange].
- */
+/** Observe the initial pass so a child text link can handle taps without swallowing message long presses. */
+@Composable
+private fun Modifier.textBubbleGestures(onLongPress: (() -> Unit)?, onPressedChange: (Boolean) -> Unit): Modifier {
+    if (onLongPress == null) return this
+    val longPress by rememberUpdatedState(onLongPress)
+    val pressed by rememberUpdatedState(onPressedChange)
+    val label = stringResource(R.string.conversation_a11y_message_actions)
+    return semantics { onLongClick(label) { longPress?.invoke(); true } }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                pressed(true)
+                try {
+                    val finished = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        var tracking = true
+                        while (tracking) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                            tracking = event.changes.count { it.pressed } <= 1 && change != null && change.pressed &&
+                                (change.position - down.position).getDistance() <= viewConfiguration.touchSlop
+                            // A scroll or a child control can own the movement even while it is
+                            // within our slop. Observe after the Main pass before keeping the press.
+                            val settled = awaitPointerEvent(PointerEventPass.Final)
+                            if (settled.changes.any { it.isConsumed && it.positionChangeIgnoreConsumed() != Offset.Zero }) {
+                                tracking = false
+                            }
+                        }
+                        true
+                    }
+                    if (finished == null) {
+                        longPress?.invoke()
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            event.changes.forEach { it.consume() }
+                        } while (event.changes.any { it.pressed })
+                    }
+                } finally { pressed(false) }
+            }
+        }
+}
+
+/** The media bubble's own tap and message long press share one gesture. */
 @Composable
 private fun Modifier.bubbleGestures(
     onTap: (() -> Unit)?,
@@ -360,23 +402,15 @@ private fun Modifier.bubbleGestures(
 ): Modifier {
     if (onTap == null && onLongPress == null) return this
     val tap by rememberUpdatedState(onTap)
-    val long by rememberUpdatedState(onLongPress)
-    val pressed by rememberUpdatedState(onPressedChange)
-    val actions = stringResource(R.string.conversation_a11y_message_actions)
-    return this
+    val withLongPress = textBubbleGestures(onLongPress, onPressedChange)
+    if (onTap == null) return withLongPress
+    return withLongPress
         .semantics {
-            if (onTap != null) onClick(tapLabel) { tap?.invoke(); true }
-            if (onLongPress != null) onLongClick(actions) { long?.invoke(); true }
+            onClick(tapLabel) { tap?.invoke(); true }
         }
-        .pointerInput(onTap != null, onLongPress != null) {
+        .pointerInput(Unit) {
             detectTapGestures(
-                onPress = {
-                    if (long != null) pressed(true)
-                    tryAwaitRelease()
-                    if (long != null) pressed(false)
-                },
-                onTap = if (onTap != null) ({ tap?.invoke() }) else null,
-                onLongPress = if (onLongPress != null) ({ long?.invoke() }) else null,
+                onTap = { tap?.invoke() },
             )
         }
 }

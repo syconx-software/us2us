@@ -140,8 +140,8 @@ private struct InfoTimelineRow: View {
         .overlay(alignment: .topLeading) {
             if !isLast { connector }
         }
-        .u2Animation(U2Motion.soft(0.5), value: step.isReached)
-        .u2Animation(U2Motion.soft(0.5), value: nextIsReached)
+        .u2Animation(U2Motion.state, value: step.isReached)
+        .u2Animation(U2Motion.state, value: nextIsReached)
         .accessibilityElement(children: .combine)
     }
 

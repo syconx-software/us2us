@@ -4,6 +4,8 @@
 <resources>
     <!-- a11y.back -->
     <string name="common_a11y_back">Geri</string>
+    <!-- a11y.chatDeleted -->
+    <string name="common_a11y_chatdeleted">Sohbet silindi.</string>
     <!-- a11y.clear -->
     <string name="common_a11y_clear">Temizle</string>
     <!-- a11y.close -->
@@ -20,6 +22,8 @@
     <string name="common_a11y_composer_sticker">Sticker</string>
     <!-- a11y.composer.timer -->
     <string name="common_a11y_composer_timer">Süreli mesaj</string>
+    <!-- a11y.contactDeleted -->
+    <string name="common_a11y_contactdeleted">Kişi silindi.</string>
     <!-- a11y.ghost.hint -->
     <string name="common_a11y_ghost_hint">Ghost ayarlarını açar</string>
     <!-- a11y.ghost.off -->
@@ -114,6 +118,20 @@
     <string name="common_save">Kaydet</string>
     <!-- composer.placeholder -->
     <string name="common_composer_placeholder">Mesaj</string>
+    <!-- delete.chat -->
+    <string name="common_delete_chat">Sohbeti sil</string>
+    <!-- delete.chat.message -->
+    <string name="common_delete_chat_message">Mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Karşı tarafa bir şey gönderilmez; sohbet onun telefonunda kalır.</string>
+    <!-- delete.chat.title %@ -->
+    <string name="common_delete_chat_title">%s ile sohbet silinsin mi?</string>
+    <!-- delete.contact -->
+    <string name="common_delete_contact">Kişiyi sil</string>
+    <!-- delete.contact.message -->
+    <string name="common_delete_contact_message">Sohbet, mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Karşı tarafa bir şey gönderilmez ve engellenmez; yeniden yazarsa yeni bir istek olarak görünür.</string>
+    <!-- delete.contact.message.blocked -->
+    <string name="common_delete_contact_message_blocked">Sohbet, mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Engel kalır; Ayarlar › Engellenenler\'den kaldırabilirsin.</string>
+    <!-- delete.contact.title %@ -->
+    <string name="common_delete_contact_title">%s silinsin mi?</string>
     <!-- disappearing.1d -->
     <string name="common_disappearing_1d">1 gün</string>
     <!-- disappearing.1h -->

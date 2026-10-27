@@ -5,6 +5,7 @@ import com.syconx.us2us.domain.VerificationMethod
 import com.syconx.us2us.domain.design.DesignFixtures
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.ui.env.U2Haptic
+import com.syconx.us2us.ui.motion.U2Motion
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -131,7 +132,7 @@ class ScannerAndContactScanTest {
         val verification = model.verification!!
         assertTrue(verification.isVerified)
         assertEquals(VerificationMethod.FaceToFace, verification.info?.method)
-        assertEquals(0.5f, verification.verifiedEntranceDelay)
+        assertEquals(U2Motion.Duration.screen, verification.verifiedEntranceDelay)
         assertFalse(model.scanner.isActive)
         assertTrue("6.3 first; the chat opens from it", opened.chats.isEmpty())
         model.finish()

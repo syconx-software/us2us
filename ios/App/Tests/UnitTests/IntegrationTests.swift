@@ -291,7 +291,7 @@ struct NewChatModelTests {
             return
         }
         #expect(peer.username == "mert_k")
-        #expect(existing)
+        #expect(existing == "mert_k")
     }
 
     @Test func ownNameAndUnknownNames() async throws {

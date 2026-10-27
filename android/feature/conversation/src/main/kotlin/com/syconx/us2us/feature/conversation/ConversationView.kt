@@ -53,7 +53,6 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -64,6 +63,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.syconx.us2us.domain.AvatarPalette
+import com.syconx.us2us.domain.CommunityChat
 import com.syconx.us2us.domain.ConversationAttachment
 import com.syconx.us2us.domain.MessageContent
 import com.syconx.us2us.domain.PickedMediaItem
@@ -85,7 +86,11 @@ import com.syconx.us2us.feature.media.ViewOnceCover
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.brand.StickerPickerSheet
 import com.syconx.us2us.ui.bubbles.LocalVoicePlayback
+import com.syconx.us2us.ui.components.AvatarSize
+import com.syconx.us2us.ui.components.CommunityAvatar
 import com.syconx.us2us.ui.components.ConfirmationTags
+import com.syconx.us2us.ui.components.U2GlassIconButton
+import com.syconx.us2us.ui.components.communityName
 import com.syconx.us2us.ui.components.DestructiveConfirmation
 import com.syconx.us2us.ui.components.FloatingMenu
 import com.syconx.us2us.ui.components.FloatingMenuItem
@@ -111,17 +116,25 @@ import com.syconx.us2us.ui.motion.U2Motion
 import com.syconx.us2us.ui.motion.U2Transitions
 import com.syconx.us2us.ui.motion.u2TransitionBlur
 import com.syconx.us2us.ui.nav.LocalRouter
+import com.syconx.us2us.ui.nav.LocalIsLayerVisible
+import com.syconx.us2us.domain.CommunityChats
+import com.syconx.us2us.ui.bubbles.LocalMessageInviteAction
 import com.syconx.us2us.ui.screen.U2Screen
 import com.syconx.us2us.ui.sheet.U2FadeCover
 import com.syconx.us2us.ui.sheet.U2Sheet
 import com.syconx.us2us.ui.sheet.U2SheetStyle
 import com.syconx.us2us.ui.theme.U2BackdropSource
 import com.syconx.us2us.ui.theme.U2Theme
+import com.syconx.us2us.ui.theme.composerFade
 import com.syconx.us2us.ui.theme.rememberU2BackdropSource
 import com.syconx.us2us.ui.theme.u2BackdropSource
 import com.syconx.us2us.ui.tokens.U2Opacity
 import com.syconx.us2us.ui.tokens.U2Size
 import com.syconx.us2us.ui.tokens.U2Spacing
+import com.syconx.us2us.ui.tokens.U2TextStyles
+import com.syconx.us2us.ui.type.U2Text
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.style.TextAlign
 import java.net.URI
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -142,6 +155,7 @@ import kotlinx.coroutines.flow.filter
 @Composable
 internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) {
     val messenger = LocalMessenger.current
+    val isLayerVisible = LocalIsLayerVisible.current
     val router = LocalRouter.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -150,6 +164,7 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
     val viewModel = remember(chatId, messenger) {
         ConversationViewModel(chatId, messenger, scope, platform, device, MediaPlayerVoiceEngine())
     }
+    var messageInvite by remember(viewModel) { mutableStateOf<String?>(null) }
     viewModel.density = LocalDensity.current.density
     LaunchedEffect(viewModel) { viewModel.run() }
     LaunchedEffect(viewModel) {
@@ -165,6 +180,7 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
     // Ordinary media closes with the app (the lock follows) or when its message goes; a recording
     // and a voice message in memory go with the foreground too.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        messageInvite = null
         viewModel.closeMedia()
         viewModel.closeLocationScreens()
         viewModel.stopVoice()
@@ -185,8 +201,17 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
     }
     // The chat ended underneath (Ghost erased it on both ends, or it was removed elsewhere): leave
     // softly instead of showing an empty shell.
-    LaunchedEffect(viewModel) {
-        snapshotFlow { viewModel.chat == null && router.top == AppRoute.Conversation(chatId) }.filter { it }.collect { router.pop() }
+    LaunchedEffect(viewModel, isLayerVisible) {
+        // Locking clears community summaries. On return, allow the local
+        // roster to load before interpreting an absent row as a removal.
+        var listedWhileVisible = !CommunityChats.isCommunity(chatId)
+        snapshotFlow { viewModel.chat to router.top }.collect { (chat, top) ->
+            if (chat != null) listedWhileVisible = true
+            if (chat == null && top == AppRoute.Conversation(chatId) &&
+                (!CommunityChats.isCommunity(chatId) || (isLayerVisible && listedWhileVisible))) {
+                router.pop()
+            }
+        }
     }
     KeepsScreenAwake(viewModel.keepsScreenAwake)
     ConversationHarnessEffect(viewModel)
@@ -194,9 +219,13 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
     CompositionLocalProvider(
         LocalVoicePlayback provides viewModel.voicePlayer,
         LocalConversationMediaActivity provides viewModel.mediaActivity,
+        LocalMessageInviteAction provides { code -> if (isLayerVisible) messageInvite = code },
     ) {
         ConversationLayers(viewModel, modifier)
         ConversationSheets(viewModel)
+        U2Sheet(item = messageInvite, onDismissRequest = { messageInvite = null }, style = U2SheetStyle.Floating) { code ->
+            MessageInviteSheet(code, messenger.communities) { messageInvite = null }
+        }
     }
     FileExport(viewModel, context)
 }
@@ -240,11 +269,7 @@ private fun rememberConversationPlatform(): ConversationPlatform {
 /** The screen stays on while a voice message records or plays, and may sleep again when that ends or the chat closes. */
 @Composable
 private fun KeepsScreenAwake(awake: Boolean) {
-    val view = LocalView.current
-    DisposableEffect(view, awake) {
-        view.keepScreenOn = awake
-        onDispose { view.keepScreenOn = false }
-    }
+    com.syconx.us2us.ui.env.KeepScreenAwakeForMedia(awake)
 }
 
 @Composable
@@ -318,6 +343,10 @@ private fun ChatLayer(viewModel: ConversationViewModel, onComposerBottom: (Float
 private fun Header(viewModel: ConversationViewModel, backdrop: U2BackdropSource) {
     val router = LocalRouter.current
     val chat = viewModel.chat ?: return
+    chat.community?.let { community ->
+        CommunityHeader(community, onBack = { router.pop() }, onManage = viewModel::openCommunityManage, backdrop = backdrop)
+        return
+    }
     val peer = chat.peer
     ChatHeader(
         username = peer.username,
@@ -356,6 +385,45 @@ private fun Header(viewModel: ConversationViewModel, backdrop: U2BackdropSource)
 }
 
 /**
+ * A community's header: its mark and name over the member count (and whether you administer it),
+ * the whole of it and the trailing “…” opening its members and management.
+ */
+@Composable
+private fun CommunityHeader(community: CommunityChat, onBack: () -> Unit, onManage: () -> Unit, backdrop: U2BackdropSource) {
+    val name = communityName(community)
+    val manage = stringResource(R.string.community_manage)
+    ChatHeader(
+        username = name,
+        palette = AvatarPalette.C,
+        onBack = onBack,
+        onTapPeer = onManage,
+        peerHint = manage,
+        backdrop = backdrop,
+        avatarContent = { CommunityAvatar(name, size = AvatarSize.Header) },
+        status = {
+            val count = pluralStringResource(R.plurals.community_member_count, community.memberCount, community.memberCount)
+            HeaderStatusText(
+                when {
+                    !community.isActive -> stringResource(R.string.community_ended)
+                    community.isOwner -> stringResource(R.string.community_header_owner, count)
+                    else -> count
+                },
+                Modifier.testTag("conversation.communityStatus"),
+            )
+        },
+        trailing = {
+            U2GlassIconButton(
+                glyph = PhosphorGlyph.DotsThree,
+                contentDescription = manage,
+                onClick = onManage,
+                modifier = Modifier.testTag(CommunityManageTags.MANAGE),
+                diameter = U2Size.iconButtonChat,
+            )
+        },
+    )
+}
+
+/**
  * The composer and what floats above it: the changed-safety-number banner (in the column's inset,
  * so it never covers the newest messages) and the urgent banner in Ghost's last hour (6 dp above
  * the composer, 12 dp gutters; it rises in over 0.8 s when the hour starts).
@@ -386,6 +454,32 @@ private fun ComposerArea(viewModel: ConversationViewModel, modifier: Modifier) {
                     // Blocked (proposed): the bar takes the composer's place, as 4.4's decision bar
                     // does; nothing is sent from here.
                     BlockedChatBar(viewModel.peerUsername, onUnblock = viewModel::unblock, modifier = Modifier.then(u2TransitionBlur(fade)))
+                } else if (viewModel.isReadOnlyCommunity) {
+                    // A membership that ended: the history stays, nothing is sent.
+                    U2Text(
+                        stringResource(R.string.community_inactive),
+                        U2TextStyles.callout,
+                        Modifier
+                            .fillMaxWidth()
+                            .background(U2Theme.colors.composerFade)
+                            .padding(start = U2Spacing.screenGutter, top = 14.dp, end = U2Spacing.screenGutter, bottom = bottomPadding)
+                            .testTag("conversation.communityInactive"),
+                        color = U2Theme.colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                } else if (viewModel.isCommunity) {
+                    // A community uses the same sticker picker and voice recorder, without a Ghost timer.
+                    Composer(
+                        text = viewModel.draft,
+                        onTextChange = viewModel::editDraft,
+                        onSend = viewModel::sendDraft,
+                        modifier = Modifier.fillMaxWidth().then(u2TransitionBlur(fade)).testTag("composer"),
+                        onAttach = viewModel::toggleAttachMenu,
+                        bottomPadding = bottomPadding,
+                        onSticker = viewModel::openStickerPicker,
+                        voice = viewModel.voice,
+                        showsTimer = false,
+                    )
                 } else {
                     Column(Modifier.fillMaxWidth().then(u2TransitionBlur(fade)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         val rise = U2Transitions.rise()
@@ -413,9 +507,12 @@ private fun ComposerArea(viewModel: ConversationViewModel, modifier: Modifier) {
             }
         },
         banner = {
-            val rise = U2Transitions.rise(U2Motion.ambient)
-            AnimatedVisibility(urgent && deadline != null, enter = rise.enter, exit = rise.exit) {
-                if (deadline != null) GhostUrgentBanner(deadline, Modifier.padding(horizontal = 12.dp).testTag("conversation.urgent"))
+            Column(Modifier.fillMaxWidth()) {
+                ConversationLatestButton(viewModel, Modifier.align(Alignment.End).padding(end = 14.dp, bottom = 6.dp))
+                val rise = U2Transitions.rise(U2Motion.ambient)
+                AnimatedVisibility(urgent && deadline != null, enter = rise.enter, exit = rise.exit) {
+                    if (deadline != null) GhostUrgentBanner(deadline, Modifier.padding(horizontal = 12.dp).testTag("conversation.urgent"))
+                }
             }
         },
     )
@@ -475,6 +572,13 @@ private fun attachItems(viewModel: ConversationViewModel): List<FloatingMenuItem
     val location = stringResource(R.string.common_media_location)
     val live = stringResource(R.string.common_location_live)
     val picker = rememberMediaPicker(viewModel)
+    // A community takes photos, videos and files (Extension v2); places stay one-to-one.
+    if (viewModel.isCommunity) {
+        return listOf(
+            FloatingMenuItem("photo", media, PhosphorGlyph.Image) { viewModel.sendDemoAttachment(ConversationViewModel.AttachmentKind.Photo, picker) },
+            FloatingMenuItem("file", file, PhosphorGlyph.FilePdf) { viewModel.sendDemoAttachment(ConversationViewModel.AttachmentKind.File, picker) },
+        )
+    }
     return listOf(
         FloatingMenuItem("photo", media, PhosphorGlyph.Image) { viewModel.sendDemoAttachment(ConversationViewModel.AttachmentKind.Photo, picker) },
         FloatingMenuItem("file", file, PhosphorGlyph.FilePdf) { viewModel.sendDemoAttachment(ConversationViewModel.AttachmentKind.File, picker) },
@@ -541,7 +645,25 @@ private fun ConversationSheets(viewModel: ConversationViewModel) {
         )
     }
     U2Sheet(item = viewModel.info, onDismissRequest = { viewModel.info = null }, style = U2SheetStyle.FullHeight) { item ->
-        MessageInfoSheet(viewModel, item.id)
+        if (viewModel.isCommunity) CommunityMessageInfoSheet(viewModel, item.id) else MessageInfoSheet(viewModel, item.id)
+    }
+    // A community's members and management (the header's “…”).
+    val communities = viewModel.messenger.communities
+    val community = viewModel.chat?.community
+    U2Sheet(
+        isPresented = viewModel.showsCommunityManage && communities != null && community != null,
+        onDismissRequest = { viewModel.showsCommunityManage = false },
+        style = U2SheetStyle.FullHeight,
+    ) {
+        if (communities != null && community != null) {
+            CommunityManageHost(
+                communities,
+                community.id,
+                communityName(community),
+                onClose = { viewModel.showsCommunityManage = false },
+                onGone = { viewModel.showsCommunityManage = false },
+            )
+        }
     }
     U2FadeCover(item = viewModel.cover, onEscape = viewModel::closeCover) { cover ->
         when (cover) {
@@ -564,7 +686,8 @@ private fun ConversationSheets(viewModel: ConversationViewModel) {
     ) {
         DestructiveConfirmation(
             title = stringResource(R.string.conversation_confirm_deleteeveryone_title),
-            message = stringResource(R.string.conversation_confirm_deleteeveryone_message),
+            // A community says that copies already downloaded or saved cannot be recalled.
+            message = stringResource(if (viewModel.isCommunity) R.string.community_delete_everyone_message else R.string.conversation_confirm_deleteeveryone_message),
             confirmTitle = stringResource(R.string.conversation_actions_deleteeveryone),
             onConfirm = viewModel::confirmDeleteForEveryone,
             onCancel = { viewModel.deleteForEveryoneCandidate = null },

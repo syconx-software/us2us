@@ -15,7 +15,10 @@ public struct ContactInfo: Sendable, Equatable, Identifiable {
     public let requestState: ConversationRequestState
     /// The contact's display name, if it shared one (§8.7).
     public let displayName: String?
-    /// The username, and whether the directory confirmed it (§3.3).
+    /// The username, and whether the directory confirmed it (§3.3). `nil`
+    /// when the directory maps the name to another account (a mismatch is
+    /// never shown as this contact's name — e.g. the account was deleted
+    /// and someone else registered the name).
     public let username: String?
     public let usernameVerified: Bool
     /// The contact shares "active now" (§8.6).
@@ -37,7 +40,7 @@ public struct ContactInfo: Sendable, Equatable, Identifiable {
         account = contact.accountId
         requestState = contact.requestState
         displayName = contact.profile.displayName
-        username = contact.profile.username?.value
+        username = contact.profile.usernameStatus == .mismatch ? nil : contact.profile.username?.value
         usernameVerified = contact.profile.usernameStatus == .verified
         presenceSharing = contact.profile.presenceSharing
         safetyNumberChanged = contact.identityChanged
@@ -287,6 +290,12 @@ public enum OutgoingStatus: Sendable, Equatable {
 }
 
 /// One message (bubble or system line), in chronological order.
+public struct MessageHistory: Sendable {
+    public let items: [MessageItem]
+    public let oldest: Int64?
+    public let hasOlder: Bool
+}
+
 public struct MessageItem: Sendable, Equatable, Identifiable {
     public var id: Data { messageId }
     public let messageId: MessageId

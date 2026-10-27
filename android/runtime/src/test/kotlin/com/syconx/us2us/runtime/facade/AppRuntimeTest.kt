@@ -197,6 +197,33 @@ class AppRuntimeTest {
         throw AssertionError("expected ${E::class.java.simpleName}")
     }
 
+    @Test fun pagedHistorySurvivesLiveRefreshAndClearsOnLock() = runBlocking {
+        val fixture = newFixture()
+        fixture.onboard(); fixture.connect()
+        val peer = fixture.acceptedContact()
+        val storage = fixture.runtime.session!!.storage
+        storage.write { tx ->
+            val conversation = tx.conversations.forContact(peer)!!
+            repeat(350) { index -> tx.messages.storeIncoming(textContent("history-$index").data, conversation.id, receivedAt = fixture.clock.now()) }
+        }
+        fixture.runtime.openConversation(peer)
+        assertEquals(100, fixture.runtime.openMessages.value.size)
+        assertTrue(fixture.runtime.loadOlderMessages(peer))
+        assertEquals(200, fixture.runtime.openMessages.value.size)
+        val oldest = fixture.runtime.openMessages.value.first().messageId
+        fixture.push(textContent("new arrival"), peer)
+        eventually { fixture.runtime.openMessages.value.lastOrNull()?.body == MessageBody.Text("new arrival") }
+        assertEquals(201, fixture.runtime.openMessages.value.size)
+        assertEquals(oldest, fixture.runtime.openMessages.value.first().messageId)
+        assertTrue(fixture.runtime.loadOlderMessages(peer))
+        assertTrue(fixture.runtime.loadOlderMessages(peer))
+        assertFalse(fixture.runtime.loadOlderMessages(peer))
+        assertEquals(351, fixture.runtime.openMessages.value.size)
+        fixture.runtime.lockNow()
+        assertTrue(fixture.runtime.openMessages.value.isEmpty())
+        assertFalse(fixture.runtime.loadOlderMessages(peer))
+    }
+
     @Test
     fun onboardingConnectsOnlyWhileActiveAndUnlocked() = runBlocking {
         val fixture = newFixture()

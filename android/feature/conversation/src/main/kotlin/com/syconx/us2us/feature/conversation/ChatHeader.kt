@@ -70,6 +70,8 @@ fun ChatHeader(
     onTapPeer: (() -> Unit)? = null,
     peerHint: String? = null,
     backdrop: U2BackdropSource? = null,
+    /** Drawn in the avatar's place (a community's mark); `null` draws the person's avatar. */
+    avatarContent: (@Composable () -> Unit)? = null,
     status: @Composable () -> Unit,
     trailing: @Composable RowScope.() -> Unit,
 ) {
@@ -106,7 +108,11 @@ fun ChatHeader(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Avatar(username, palette, Modifier.testTag("chatHeader.avatar"), size = AvatarSize.Header, showsOnlineDot = showsOnlineDot, picture = avatar)
+                if (avatarContent != null) {
+                    Box(Modifier.testTag("chatHeader.avatar")) { avatarContent() }
+                } else {
+                    Avatar(username, palette, Modifier.testTag("chatHeader.avatar"), size = AvatarSize.Header, showsOnlineDot = showsOnlineDot, picture = avatar)
+                }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                         U2Text(

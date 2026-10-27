@@ -4,6 +4,8 @@
 <resources>
     <!-- a11y.back -->
     <string name="common_a11y_back">Back</string>
+    <!-- a11y.chatDeleted — VoiceOver announcement once a chat was deleted (4.1 long press, the contact screen's “…”). -->
+    <string name="common_a11y_chatdeleted">Chat deleted.</string>
     <!-- a11y.clear -->
     <string name="common_a11y_clear">Clear</string>
     <!-- a11y.close -->
@@ -20,6 +22,8 @@
     <string name="common_a11y_composer_sticker">Sticker</string>
     <!-- a11y.composer.timer -->
     <string name="common_a11y_composer_timer">Disappearing message</string>
+    <!-- a11y.contactDeleted — VoiceOver announcement once a contact was deleted (4.1 long press, the contact screen's “…”). -->
+    <string name="common_a11y_contactdeleted">Contact deleted.</string>
     <!-- a11y.ghost.hint -->
     <string name="common_a11y_ghost_hint">Opens the Ghost settings</string>
     <!-- a11y.ghost.off -->
@@ -114,6 +118,20 @@
     <string name="common_save">Save</string>
     <!-- composer.placeholder -->
     <string name="common_composer_placeholder">Message</string>
+    <!-- delete.chat — 4.1 long press on a chat and the contact screen's “…” menu: deletes the chat's messages and media on this phone; the contact stays. -->
+    <string name="common_delete_chat">Delete chat</string>
+    <!-- delete.chat.message — Confirmation text before deleting a chat: on this phone only, nothing is sent. -->
+    <string name="common_delete_chat_message">Messages and media are deleted from this phone only and can\'t be recovered. Nothing is sent to them; the chat stays on their phone.</string>
+    <!-- delete.chat.title %@ — Confirmation title before deleting a chat. %@ = the name the chat shows. -->
+    <string name="common_delete_chat_title">Delete the chat with %s?</string>
+    <!-- delete.contact — 4.1 long press on a chat and the contact screen's “…” menu: deletes the chat and the contact on this phone, without blocking it. -->
+    <string name="common_delete_contact">Delete contact</string>
+    <!-- delete.contact.message — Confirmation text before deleting a contact: on this phone only; nothing is sent and the contact is not blocked: a message from them later appears as a new request (PROTOCOL §6.4). -->
+    <string name="common_delete_contact_message">The chat, its messages and media are deleted from this phone only and can\'t be recovered. Nothing is sent to them and they are not blocked: if they write again, they appear as a new request.</string>
+    <!-- delete.contact.message.blocked — Confirmation text before deleting a blocked contact: the block stays (Ayarlar › Engellenenler). -->
+    <string name="common_delete_contact_message_blocked">The chat, its messages and media are deleted from this phone only and can\'t be recovered. The block stays; you can lift it in Settings › Blocked.</string>
+    <!-- delete.contact.title %@ — Confirmation title before deleting a contact. %@ = the name the chat shows. -->
+    <string name="common_delete_contact_title">Delete %s?</string>
     <!-- disappearing.1d -->
     <string name="common_disappearing_1d">1 day</string>
     <!-- disappearing.1h -->

@@ -91,7 +91,7 @@ class VaultTest {
         }
         assertThrows<InvalidVaultFileException> { Vault.open(vault.copyOf(20), "472913", deviceSecret) }
         assertThrows<InvalidVaultFileException> { Vault.open(vault.copyOf().also { it[0] = 'X'.code.toByte() }, "472913", deviceSecret) }
-        assertThrows<InvalidVaultFileException> { Vault.open(vault.copyOf().also { it[4] = 2 }, "472913", deviceSecret) }
+        assertThrows<InvalidVaultFileException> { Vault.open(vault.copyOf().also { it[4] = 3 }, "472913", deviceSecret) }
         // A backup file is not a vault.
         val backup = BackupFile.create("yedek parolası 1", byteArrayOf(1, 2, 3), fast)
         assertThrows<InvalidVaultFileException> { Vault.open(backup, "472913", deviceSecret) }

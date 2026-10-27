@@ -21,8 +21,14 @@ import SwiftUI
 ///   same way; reactions grow in softly; status changes cross-fade; a change
 ///   of kind (“herkesten silindi”) morphs. Reduce Motion: short cross-fades,
 ///   the column settles at once.
-struct ConversationMessageList: View {
+struct ConversationMessageList<Footer: View>: View {
     let viewModel: ConversationViewModel
+    let footer: (Bool, @escaping () -> Void) -> Footer
+
+    init(viewModel: ConversationViewModel, @ViewBuilder footer: @escaping (Bool, @escaping () -> Void) -> Footer) {
+        self.viewModel = viewModel
+        self.footer = footer
+    }
 
     /// The history row in the middle of the screen while the user reads
     /// further up (nil near the bottom). Kept in this outer view: it changes
@@ -34,21 +40,33 @@ struct ConversationMessageList: View {
     @State private var viewportHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The typing row's identity in the column.
-    static let typingRowID = "conversation.typing"
-    /// The column's very end (after the last row and the 6 pt below it).
-    static let bottomID = "conversation.bottom"
-
     var body: some View {
         let last = viewModel.rows.last
         return ScrollViewReader { proxy in
             ScrollView {
-                ConversationColumn(viewModel: viewModel, viewportHeight: viewportHeight)
+                ConversationColumn(viewModel: viewModel, viewportHeight: viewportHeight) {
+                    guard !isNearBottom else { return }
+                    Task { await viewModel.loadOlderMessages() }
+                }
+                .background { ConversationKeyboardDismissal() }
             }
             .modifier(BottomAnchoring(isNearBottom: $isNearBottom, viewportHeight: $viewportHeight))
+            .coordinateSpace(name: ConversationListAnchor.viewport)
             .scrollPosition(id: $historyPosition, anchor: .center)
             .scrollDismissesKeyboard(.interactively)
             .accessibilityIdentifier("conversation.list")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                footer(!isNearBottom && !viewModel.rows.isEmpty) {
+                    historyPosition = nil
+                    withAnimation(reduceMotion ? nil : U2Motion.out(0.2)) {
+                        proxy.scrollTo(ConversationListAnchor.bottom, anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: historyPosition) { _, id in
+                guard !isNearBottom, let id, viewModel.rows.prefix(10).contains(where: { $0.id == id }) else { return }
+                Task { await viewModel.loadOlderMessages() }
+            }
             .onChange(of: isNearBottom) { _, near in
                 // At the bottom the column follows arrivals (bottom anchor),
                 // not a row in the history.
@@ -63,7 +81,7 @@ struct ConversationMessageList: View {
                 guard old != nil, new != nil, let last, last.message.isOutgoing || last.message.isSystem else { return }
                 guard !(BottomAnchoring.tracksPosition && isNearBottom) else { return }
                 withAnimation(reduceMotion ? U2Motion.reducedCrossFade : ConversationMotion.send) {
-                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                    proxy.scrollTo(ConversationListAnchor.bottom, anchor: .bottom)
                 }
             }
             #if DEBUG
@@ -77,10 +95,38 @@ struct ConversationMessageList: View {
     }
 }
 
+private enum ConversationListAnchor {
+    static let bottom = "conversation.bottom"
+    static let typing = "conversation.typing"
+    static let viewport = "conversation.viewport"
+}
+
+private struct ConversationBottomPosition: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// Backport the bottom-distance observation for iOS 17 without measuring message rows.
+private struct LegacyBottomPosition: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+        } else {
+            content.background {
+                GeometryReader { geometry in
+                    Color.clear.preference(key: ConversationBottomPosition.self,
+                        value: geometry.frame(in: .named(ConversationListAnchor.viewport)).maxY)
+                }
+            }
+        }
+    }
+}
+
 /// The rows of the column and their motion state.
 private struct ConversationColumn: View {
     let viewModel: ConversationViewModel
     let viewportHeight: CGFloat
+    let loadOlder: () -> Void
 
     @State private var collapsing: Set<MessageID> = []
     /// Arriving rows whose growth has started (the others of
@@ -105,7 +151,10 @@ private struct ConversationColumn: View {
     var body: some View {
         let rows = viewModel.rows
         let leaving = viewModel.leavingRows
-        let displayed = ConversationViewModel.displayedRows(rows, leaving: leaving)
+        let sourceRows = ConversationViewModel.displayedRows(rows, leaving: leaving)
+        let removedPhotos = ConversationPhotos.albumRemovals(sourceRows, leaving: Set(leaving.map(\.row.id)))
+        let displayed = ConversationPhotos.albums(sourceRows.filter { !removedPhotos.contains($0.id) },
+            separate: Set(leaving.map(\.row.id)).union(viewModel.kindChanges.keys))
         let liftedID = viewModel.actions?.messageID
         let frameRequest = viewModel.frameRequest
         let typing = viewModel.isPeerTyping
@@ -132,10 +181,17 @@ private struct ConversationColumn: View {
                 ConversationVerifyPrompt(chatID: viewModel.chatID)
                     .padding(.bottom, displayed.isEmpty ? 0 : 2 * U2Spacing.bubbleGap)
                     .transition(.opacity)
+            } else if viewModel.community != nil {
+                // A community says how it is encrypted (each member separately).
+                SystemPill(glyph: .shieldCheck, text: Text("conversation.intro", table: .communities))
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, displayed.isEmpty ? 0 : 2 * U2Spacing.bubbleGap)
             }
             // The history: lazy — any length costs only what is on screen.
             LazyVStack(spacing: 0) {
-                ForEach(displayed[..<split]) { makeRow($0, false) }
+                ForEach(displayed[..<split]) { row in
+                    makeRow(row, false).onAppear { if row.id == firstID { loadOlder() } }
+                }
             }
             .scrollTargetLayout()
             // The live end — what arrived since the column appeared — laid
@@ -153,7 +209,8 @@ private struct ConversationColumn: View {
                 // drawn.
                 Color.clear
                     .frame(height: U2Spacing.bubbleGap)
-                    .id(ConversationMessageList.bottomID)
+                    .id(ConversationListAnchor.bottom)
+                    .modifier(LegacyBottomPosition())
                     .accessibilityHidden(true)
             }
         }
@@ -178,7 +235,8 @@ private struct ConversationColumn: View {
             grow(ids.subtracting(growing), animation: insertAnimation(newest))
         }
         .onChange(of: leaving.map(\.row.id)) { _, ids in
-            collapse(ids.filter { !collapsing.contains($0) })
+            for id in removedPhotos { viewModel.finishLeaving(id) }
+            collapse(ids.filter { !removedPhotos.contains($0) && !collapsing.contains($0) })
         }
     }
 
@@ -189,7 +247,7 @@ private struct ConversationColumn: View {
             .modifier(ArrivalModifier(progress: reduceMotion ? 1 : typingProgress, sent: false, clips: typingLeaves))
             .accessibilityElement()
             .accessibilityLabel(Text("a11y.typing \(viewModel.peerUsername)", table: .conversation))
-            .id(ConversationMessageList.typingRowID)
+            .id(ConversationListAnchor.typing)
             .transition(.opacity)
     }
 
@@ -384,6 +442,7 @@ private struct CollapsingRow: ViewModifier {
 private struct BottomAnchoring: ViewModifier {
     @Binding var isNearBottom: Bool
     @Binding var viewportHeight: CGFloat
+    @State private var legacyBottom: CGFloat = 0
 
     static var tracksPosition: Bool {
         if #available(iOS 18.0, *) { true } else { false }
@@ -405,6 +464,13 @@ private struct BottomAnchoring: ViewModifier {
             content
                 .defaultScrollAnchor(.bottom)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height - $0.safeAreaInsets.bottom } action: { viewportHeight = $0 }
+                .onPreferenceChange(ConversationBottomPosition.self) { bottom in
+                    legacyBottom = bottom
+                    if viewportHeight > 0 { isNearBottom = bottom - viewportHeight < 80 }
+                }
+                .onChange(of: viewportHeight) { _, height in
+                    if height > 0 { isNearBottom = legacyBottom - height < 80 }
+                }
         }
     }
 }

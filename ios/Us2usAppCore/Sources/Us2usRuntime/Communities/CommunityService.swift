@@ -65,36 +65,58 @@ public final class CommunityService {
     public private(set) var directory: [CommunitySummary] = []
     /// The open conversation's latest messages, oldest first.
     public private(set) var messages: [CommunityTextItem] = []
+    /// Every community with its latest message and unread count (the chats list).
+    public private(set) var chats: [CommunityChatSummary] = []
+    /// Attachments downloading now: the fraction received (0…1) by item id
+    /// (``CommunityTextItem/id``). Memory only.
+    public internal(set) var downloadProgress: [String: Double] = [:]
     public private(set) var requests: [CommunityJoinRequest] = []
+    /// Owner-only inbox across verified active communities; memory only, cleared on lock.
+    public private(set) var ownerRequests: [AccountId: [CommunityJoinRequest]] = [:]
+    @ObservationIgnored private var requestsRevision = 0
     /// Directory-verified usernames of personal contacts, to name members.
     public private(set) var usernames: [AccountId: String] = [:]
     public private(set) var selected: AccountId?
+    @ObservationIgnored var isConversationVisible = false
+    @ObservationIgnored private var historyOldest: CommunityHistoryCursor?
+    @ObservationIgnored private var historyHasOlder = true
+    @ObservationIgnored private var historyVersion = 0
     public private(set) var unsupported = false
     /// The last background refresh's problem (cleared by the next clean one).
-    public private(set) var issue: CommunityIssue?
+    public internal(set) var issue: CommunityIssue?
     public let accountId: AccountId
     /// This account's identity key: a pin with it and no verified roster is an unconfirmed creation.
     public let identityKey: Data?
-    @ObservationIgnored private let engine: CommunityEngine
+    @ObservationIgnored let engine: CommunityEngine
     @ObservationIgnored private let onIdentityChange: @Sendable (AccountId) async -> Void
     @ObservationIgnored private var poller: Task<Void, Never>?
-    @ObservationIgnored private var active = true
+    @ObservationIgnored var active = true
     @ObservationIgnored private var nextCursor: String?
     @ObservationIgnored private var searchQuery = ""
     @ObservationIgnored private var visibleScreens = 0
     @ObservationIgnored let pollInterval: Duration
+    /// The user's read-receipt setting (the 1:1 rule: off sends no READ and shows none).
+    @ObservationIgnored let readReceiptsEnabled: @MainActor () -> Bool
+    /// READ receipts wait this long so they leave together, per original sender.
+    @ObservationIgnored let readCoalescing: Duration
+    @ObservationIgnored var readTask: Task<Void, Never>?
+    @ObservationIgnored var downloads: [String: (community: AccountId, task: Task<Void, Never>)] = [:]
 
     /// The shortest query sent to the public directory (searches reach the relay).
     public static let minimumQueryLength = 2
 
     init(
         backend: MessengerBackend, storage: LocalStorage, pollInterval: Duration = .seconds(10),
-        onIdentityChange: @escaping @Sendable (AccountId) async -> Void = { _ in }
+        readCoalescing: Duration = .seconds(3),
+        onIdentityChange: @escaping @Sendable (AccountId) async -> Void = { _ in },
+        readReceipts: @escaping @MainActor () -> Bool = { true }
     ) {
         accountId = backend.accountId
         identityKey = try? backend.protocolStore.identityKeyPair(context: NullContext()).identityKey.serialize()
         engine = CommunityEngine(backend: backend, storage: storage)
         self.pollInterval = pollInterval
+        self.readCoalescing = readCoalescing
+        self.readReceiptsEnabled = readReceipts
         self.onIdentityChange = onIdentityChange
     }
 
@@ -117,7 +139,13 @@ public final class CommunityService {
 
     func stop() {
         active = false; poller?.cancel(); poller = nil
+        historyOldest = nil; historyHasOlder = true; historyVersion += 1
         joined = []; directory = []; messages = []; requests = []; usernames = [:]; selected = nil; issue = nil
+        isConversationVisible = false
+        chats = []; downloadProgress = [:]; ownerRequests = [:]; requestsRevision += 1
+        readTask?.cancel(); readTask = nil
+        for download in downloads.values { download.task.cancel() }
+        downloads = [:]
         engine.stop()
     }
 
@@ -131,6 +159,7 @@ public final class CommunityService {
 
     public func refresh() async {
         guard active else { return }
+        engine.readReceipts.withLock { $0 = readReceiptsEnabled() }
         do {
             let report = try await engine.sync()
             guard active else { return }
@@ -138,6 +167,7 @@ public final class CommunityService {
             issue = report.issue
             for peer in report.identityChanges { await onIdentityChange(peer) }
             await reloadLocal()
+            await reloadOwnerRequests()
             if let selected { try await reload(selected) }
         } catch {
             guard active else { return }
@@ -200,10 +230,33 @@ public final class CommunityService {
     // MARK: Conversation
 
     public func open(_ id: AccountId) async throws {
+        if selected != id { historyOldest = nil; historyHasOlder = true; historyVersion += 1 }
         selected = id
+        isConversationVisible = true
         try await perform { try await reload(id) }
     }
-    public func closeConversation() { selected = nil; messages = []; requests = [] }
+    /// A temporary full-screen picker keeps the feed, but newly received messages are not read yet.
+    public func coverConversation(_ id: AccountId) {
+        if selected == id { isConversationVisible = false }
+    }
+    public func closeConversation() {
+        historyOldest = nil; historyHasOlder = true; historyVersion += 1
+        selected = nil; isConversationVisible = false; messages = []; requests = []
+    }
+
+    public func loadOlderMessages(_ id: AccountId) async throws -> Bool {
+        guard active, selected == id, historyHasOlder, let before = historyOldest else { return false }
+        let version = historyVersion
+        let page = try await engine.history(id, before: before)
+        guard active, selected == id, version == historyVersion else { return false }
+        guard let oldest = page.oldest else { historyHasOlder = false; return false }
+        let window = try await engine.history(id, through: oldest)
+        guard active, selected == id, version == historyVersion else { return false }
+        historyVersion += 1; historyOldest = oldest; historyHasOlder = window.hasOlder
+        messages = window.items
+        if isConversationVisible { markDisplayed(id) }
+        return true
+    }
 
     /// Returns once the message is stored and queued for every member
     /// (the composer can clear then); delivery continues in the background.
@@ -214,7 +267,14 @@ public final class CommunityService {
         Task { [weak self] in await self?.deliverQueued(id) }
     }
 
-    private func deliverQueued(_ id: AccountId) async {
+    public func sendSticker(_ sticker: BRPSticker, to id: AccountId) async throws {
+        let unreachable = try await perform { try await engine.sendSticker(sticker, to: id) }
+        if let member = unreachable.first { issue = .memberKey(member) }
+        try? await reload(id)
+        Task { [weak self] in await self?.deliverQueued(id) }
+    }
+
+    func deliverQueued(_ id: AccountId) async {
         guard active else { return }
         if let problem = await engine.flushNow() { issue = problem }
         if selected == id { try? await reload(id) }
@@ -222,11 +282,13 @@ public final class CommunityService {
 
     public func approve(_ request: CommunityJoinRequest, in id: AccountId) async throws {
         try await perform { try await engine.approve(request, in: id) }
+        resolved(request, in: id)
         await refresh()
     }
     public func reject(_ request: CommunityJoinRequest, in id: AccountId) async throws {
         try await perform { try await engine.reject(request, in: id) }
-        try? await reload(id)
+        resolved(request, in: id)
+        await refresh()
     }
     public func remove(_ member: CommunityMember, from id: AccountId) async throws {
         try await perform { try await engine.remove(member, from: id) }
@@ -242,27 +304,71 @@ public final class CommunityService {
 
     // MARK: Helpers
 
-    private func forgotten(_ id: AccountId) {
+    func forgotten(_ id: AccountId) {
         if selected == id { closeConversation() }
         joined.removeAll { $0.id == id }
+        ownerRequests[id] = nil; requestsRevision += 1
         Task { await reloadLocal() }
     }
 
-    private func reloadLocal() async {
-        guard let groups = try? await engine.groups(), let names = try? await engine.usernames(), active else { return }
+    func reloadLocal() async {
+        guard let groups = try? await engine.groups(), let names = try? await engine.usernames(),
+              let summaries = try? await engine.summaries(), active else { return }
         joined = groups
+        let owned = Set(groups.filter { $0.isActive && $0.state?.owner.accountId == accountId }.map(\.id))
+        ownerRequests = ownerRequests.filter { owned.contains($0.key) }
         usernames = names
+        if chats != summaries { chats = summaries }
     }
 
-    private func reload(_ id: AccountId) async throws {
-        let items = try await engine.messages(id)
+    private func resolved(_ request: CommunityJoinRequest, in id: AccountId) {
+        requestsRevision += 1
+        ownerRequests[id]?.removeAll { $0.accountId == request.accountId }
+        if selected == id { requests.removeAll { $0.accountId == request.accountId } }
+    }
+
+    /// Fetch without opening conversations or marking their messages as read.
+    private func reloadOwnerRequests() async {
+        requestsRevision += 1
+        let revision = requestsRevision
+        for group in joined where group.isActive && group.state?.owner.accountId == accountId {
+            do {
+                let pending = try await engine.requests(group.id)
+                guard active, requestsRevision == revision else { return }
+                guard joined.contains(where: { $0.id == group.id && $0.isActive && $0.state?.owner.accountId == accountId }) else { continue }
+                ownerRequests[group.id] = pending
+            } catch {
+                guard active, requestsRevision == revision else { return }
+                // Keep the last successful count; an unavailable endpoint is not an empty inbox.
+                issue = CommunityIssue(error)
+            }
+        }
+    }
+
+    func reload(_ id: AccountId) async throws {
+        let version = historyVersion
+        let history = try await engine.history(id, through: historyOldest)
+        guard active, selected == id, version == historyVersion else { return }
+        let items = history.items
+        if historyOldest == nil { historyOldest = history.oldest }
+        historyHasOlder = history.hasOlder
+        if messages != items { messages = items }
+        settleDownloads(of: items, in: id)
+        // The open conversation shows them: they are read.
+        if isConversationVisible, items.contains(where: { !$0.outgoing && !$0.isDisplayed }) { markDisplayed(id) }
+        // Local history remains usable when the independent owner-only
+        // requests endpoint is unavailable. Still report that API failure.
+        let revision = requestsRevision
         let pending = try await engine.requests(id)
-        guard active, selected == id else { return }
-        messages = items; requests = pending
+        guard active, selected == id, requestsRevision == revision else { return }
+        requests = pending
+        if joined.contains(where: { $0.id == id && $0.isActive && $0.state?.owner.accountId == accountId }) {
+            ownerRequests[id] = pending
+        }
     }
 
     /// Runs an action and reports its failure as a ``CommunityIssue``.
-    private func perform<T>(_ action: () async throws -> T) async throws(CommunityIssue) -> T {
+    func perform<T>(_ action: () async throws -> T) async throws(CommunityIssue) -> T {
         do {
             return try await action()
         } catch {
@@ -310,6 +416,10 @@ actor CommunityEngine {
     private var fullInboxes: [AccountId: Date] = [:]
     /// Community state fetches made (one per community and pass; for tests).
     private(set) var stateFetches = 0
+    /// Whether READ receipts may leave (the user's setting, kept current by the service).
+    nonisolated let readReceipts = LockedState(true)
+    /// Own media messages whose upload or fanout runs now.
+    var deliveringMedia: Set<String> = []
     var relay: RelayClient { backend.messenger.relay }
     init(backend: MessengerBackend, storage: LocalStorage) { self.backend = backend; self.storage = storage }
     nonisolated func stop() { activity.withLock { $0 = false } }
@@ -317,6 +427,10 @@ actor CommunityEngine {
     nonisolated func check() throws { guard isActive, storage.isOpen else { throw RuntimeError.locked } }
     func groups() throws -> [StoredCommunity] { try check(); return try storage.read { try $0.communities.all() } }
     func messages(_ id: AccountId) throws -> [CommunityTextItem] { try check(); return try storage.read { try $0.communities.messages(id) } }
+    func history(_ id: AccountId, before: CommunityHistoryCursor? = nil, through: CommunityHistoryCursor? = nil) throws -> CommunityHistory {
+        try check()
+        return try storage.read { try $0.communities.history(id, before: before, through: through) }
+    }
 
     /// Usernames the directory confirmed for personal contacts.
     func usernames() throws -> [AccountId: String] {
@@ -351,7 +465,7 @@ actor CommunityEngine {
 
     /// Fetches and verifies the current state; a community the relay no
     /// longer shows us has ended on this phone.
-    private func current(_ id: AccountId) async throws -> CommunityState {
+    func current(_ id: AccountId) async throws -> CommunityState {
         try check()
         stateFetches += 1
         let signed: SignedCommunityState
@@ -365,7 +479,7 @@ actor CommunityEngine {
         return try accept(signed)
     }
 
-    private func lookup(_ id: AccountId, in pass: inout CommunityPass) async -> CommunityPass.Lookup {
+    func lookup(_ id: AccountId, in pass: inout CommunityPass) async -> CommunityPass.Lookup {
         if let state = pass.states[id] { return .current(state) }
         if pass.gone.contains(id) { return .gone }
         if pass.unavailable.contains(id) { return .unavailable }
@@ -529,7 +643,7 @@ actor CommunityEngine {
     }
 
     /// A relay answer that will not change on retry (4xx other than 408/429).
-    private static func isDefinite(_ failure: RelayError) -> Bool {
+    static func isDefinite(_ failure: RelayError) -> Bool {
         if case .server(let status, _, _) = failure { return (400..<500).contains(status) && status != 408 }
         return false
     }
@@ -542,51 +656,94 @@ actor CommunityEngine {
     /// and returned; everyone else still gets it.
     func send(_ text: String, to id: AccountId) async throws -> [AccountId] {
         try check()
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= ContentLimits.maxTextBytes else { throw CommunityError.invalidState }
+        guard CommunityCaption.isSendableText(text) else { throw CommunityError.invalidState }
         let state = try await current(id)
         let messageId = AccountId(uuid: UUID())
-        var message = BRPCommunityMessage()
-        message.communityID = id.bytes; message.messageID = messageId.bytes; message.revision = state.revision
-        message.sentAt = Date().millisecondsSince1970; message.text = text
+        let message = BRPCommunityMessage.text(text, community: id, revision: state.revision, messageId: messageId.bytes)
+        let fanout = try await seal(message, for: state)
+        try check()
+        // One SQLCipher transaction commits the message, its recipient set
+        // and every prepared ciphertext; a crash cannot turn a partly
+        // prepared fanout into a falsely successful send.
+        try storage.write { tx in
+            try tx.communities.store(message, sender: backend.accountId, outgoing: true)
+            try commit(fanout, of: messageId, in: id, revision: state.revision, tx: tx)
+        }
+        return fanout.mismatched
+    }
+
+    func sendSticker(_ sticker: BRPSticker, to id: AccountId) async throws -> [AccountId] {
+        try check()
+        let state = try await current(id)
+        let message = BRPCommunityMessage.sticker(sticker, community: id, revision: state.revision)
+        try message.validatedKind()
+        let messageId = AccountId(bytes: message.messageID)!
+        let fanout = try await seal(message, for: state)
+        try check()
+        try storage.write { tx in
+            try tx.communities.store(message, sender: backend.accountId, outgoing: true)
+            try commit(fanout, of: messageId, in: id, revision: state.revision, tx: tx)
+        }
+        return fanout.mismatched
+    }
+
+    /// The sealed copies of one message for every other member of `state`.
+    struct Fanout: Sendable {
         var prepared: [(recipient: AccountId, envelope: Data)] = []
+        /// Members whose key does not match the roster (fail closed for them only).
         var mismatched: [AccountId] = []
-        var skipped = 0
+        /// Members whose account no longer exists.
+        var gone: [AccountId] = []
+    }
+
+    /// Encrypts `message` separately for every member but this account. A
+    /// member whose key does not match the roster (or whose account is gone)
+    /// is skipped; when nobody could be prepared the first failure is thrown
+    /// (unless `allowingNone`: then the fanout says who was skipped).
+    func seal(
+        _ message: BRPCommunityMessage, for state: CommunityState, only recipients: [AccountId]? = nil, allowingNone: Bool = false
+    ) async throws -> Fanout {
+        var fanout = Fanout()
         var firstFailure: (any Error)?
-        let others = state.members.filter { $0.accountId != backend.accountId }
+        let others = state.members.filter { $0.accountId != backend.accountId && (recipients?.contains($0.accountId) ?? true) }
         for member in others {
             try check()
             do {
-                prepared.append((member.accountId, try await backend.messenger.sealCommunity(message, to: member)))
+                fanout.prepared.append((member.accountId, try await backend.messenger.sealCommunity(message, to: member)))
             } catch CommunityError.memberKeyMismatch(let who) {
-                // Fail closed for this member only.
-                mismatched.append(who); skipped += 1
+                fanout.mismatched.append(who)
                 firstFailure = firstFailure ?? CommunityError.memberKeyMismatch(who)
             } catch let failure as RelayError where failure.isNotFound {
-                // The account no longer exists.
-                skipped += 1
+                fanout.gone.append(member.accountId)
                 firstFailure = firstFailure ?? failure
             }
         }
-        if !others.isEmpty, prepared.isEmpty, let firstFailure { throw firstFailure }
-        try check()
-        // One SQLCipher transaction commits the message plus every prepared
-        // recipient; a crash cannot turn a partly prepared fanout into a
-        // falsely successful send.
-        try storage.write { tx in
-            try tx.communities.store(message, sender: backend.accountId, outgoing: true)
-            for item in prepared {
-                try tx.communities.enqueue(community: id, message: messageId, recipient: item.recipient, revision: state.revision, envelope: item.envelope)
-            }
-            if prepared.isEmpty { try tx.communities.setStatus(.sent, community: id, message: messageId) }
-            else if skipped > 0 { try tx.communities.setStatus(.partial, community: id, message: messageId) }
+        if !allowingNone, !others.isEmpty, fanout.prepared.isEmpty, let firstFailure { throw firstFailure }
+        return fanout
+    }
+
+    /// Queues a prepared fanout of an own text or media message and fixes
+    /// its recipient set. A member whose key does not match fails it (it can
+    /// be sent again); one who is gone only makes it partial.
+    func commit(_ fanout: Fanout, of messageId: AccountId, in id: AccountId, revision: UInt64, tx: StorageTransaction) throws {
+        var recipients: [AccountId: CommunityRecipientState] = [:]
+        for item in fanout.prepared {
+            try tx.communities.enqueue(community: id, message: messageId, recipient: item.recipient, revision: revision, envelope: item.envelope)
+            recipients[item.recipient] = .pending
         }
-        return mismatched
+        for member in fanout.mismatched { recipients[member] = .failed }
+        for member in fanout.gone { recipients[member] = .skipped }
+        try tx.communities.setRecipients(recipients, community: id, messageId: messageId)
+        if !fanout.mismatched.isEmpty { try tx.communities.setStatus(.failed, community: id, message: messageId) }
+        else if fanout.prepared.isEmpty { try tx.communities.setStatus(.sent, community: id, message: messageId) }
+        else if !fanout.gone.isEmpty { try tx.communities.setStatus(.partial, community: id, message: messageId) }
     }
 
     /// Delivers what is queued now (after a send); returns its problem, if any.
     func flushNow() async -> CommunityIssue? {
         var pass = CommunityPass()
         await flush(using: &pass)
+        await deleteBlobs()
         return pass.issue
     }
 
@@ -619,6 +776,14 @@ actor CommunityEngine {
         // A failing outbox never keeps the inbox from being fetched.
         await flush(using: &pass)
         try await drainInbox(&pass)
+        // The end of the pass: one DELIVERY per community and original
+        // sender for what was stored, READs still owed, blobs to delete and
+        // media whose upload or fanout is unfinished.
+        await queueReceipts(.delivery, using: &pass)
+        await queueReceipts(.read, using: &pass)
+        await deleteBlobs()
+        await resumeMedia(using: &pass)
+        await flush(using: &pass)
         return CommunitySyncReport(issue: pass.issue, identityChanges: pass.identityChanges)
     }
 
@@ -687,12 +852,16 @@ actor CommunityEngine {
                     case .message(let incoming):
                         guard case .community(let content) = incoming.content.body,
                               content.communityID == state.id.bytes, content.revision == state.revision,
-                              incoming.sender != own, state.member(incoming.sender) != nil else {
+                              incoming.sender != own, state.member(incoming.sender) != nil,
+                              let kind = try? content.validatedKind(),
+                              Self.isAuthorized(content, kind: kind, from: incoming.sender, in: state)
+                        else {
+                            // Dropped: the ratchet is committed, nothing is stored or sent back.
                             try storage.write { try $0.communities.recordEnvelope(envelope.id) }
                             return .dropped
                         }
                         try storage.write { tx in
-                            try tx.communities.store(content, sender: incoming.sender, outgoing: false)
+                            try Self.apply(content, kind: kind, from: incoming.sender, own: own, state: state, tx: tx)
                             try tx.communities.recordEnvelope(envelope.id)
                         }
                         return .stored(incoming.identityChanged ? incoming.sender : nil)
@@ -713,25 +882,54 @@ actor CommunityEngine {
 
     // MARK: Outbox
 
-    private func flush(using pass: inout CommunityPass) async {
+    func flush(using pass: inout CommunityPass) async {
         guard !flushing else { flushAgain = true; return }
         flushing = true; defer { flushing = false }
-        await flushOnce(&pass)
-        // A send queued meanwhile goes out in a fresh pass (its roster may be newer).
-        while flushAgain, isActive {
+        var resealed = await flushOnce(&pass)
+        // A send queued meanwhile goes out in a fresh pass (its roster may be
+        // newer); so, once, do receipts and deletes the relay refused as stale.
+        var resealing = 1
+        while isActive, flushAgain || (resealed && resealing > 0) {
+            if !flushAgain { resealing -= 1 }
             flushAgain = false
             var next = CommunityPass()
-            await flushOnce(&next)
+            resealed = await flushOnce(&next)
             if let issue = next.issue { pass.note(issue) }
         }
     }
 
-    private func flushOnce(_ pass: inout CommunityPass) async {
-        guard isActive, let items = try? storage.read({ try $0.communities.pending() }) else { return }
+    /// Seals a queued receipt or delete again for its member under `state`'s
+    /// newer revision. `nil`: it went (the member is gone or its key does not
+    /// match), or it waits for the next pass (offline).
+    private func reseal(_ item: CommunityOutboxItem, for state: CommunityState) async -> CommunityOutboxItem? {
+        guard var event = item.event, let member = state.member(item.recipient) else {
+            try? storage.write { try $0.communities.discard(item) }
+            return nil
+        }
+        event.revision = state.revision
+        do {
+            let envelope = try await backend.messenger.sealCommunity(event, to: member)
+            try check()
+            return try storage.write { try $0.communities.reseal(item, revision: state.revision, envelope: envelope) }
+        } catch let failure as RelayError where failure.isNotFound {
+            try? storage.write { try $0.communities.discard(item) }
+        } catch is CommunityError {
+            try? storage.write { try $0.communities.discard(item) }
+        } catch {}
+        return nil
+    }
+
+    /// One pass over the outbox; `true` when the relay refused a receipt or
+    /// delete as stale (`409`): a fresh pass seals it again.
+    @discardableResult
+    private func flushOnce(_ pass: inout CommunityPass) async -> Bool {
+        var resealNeeded = false
+        guard isActive, let items = try? storage.read({ try $0.communities.pending() }) else { return false }
         var stopped = Set<String>()
         var staleCommunities = Set<AccountId>()
-        for item in items {
-            guard isActive else { return }
+        for queued in items {
+            guard isActive else { return resealNeeded }
+            var item = queued
             let key = item.communityId.string + "/" + item.messageId.string
             if stopped.contains(key) || staleCommunities.contains(item.communityId) { continue }
             let state: CommunityState
@@ -746,13 +944,22 @@ actor CommunityEngine {
             }
             // Queued under a newer roster than this pass saw: next pass.
             if item.revision > state.revision { continue }
-            guard item.revision == state.revision else {
-                try? storage.write { try $0.communities.cancel(item) }
-                stopped.insert(key); continue
-            }
-            guard state.member(item.recipient) != nil else {
-                try? storage.write { try $0.communities.dropRecipient(item) }
-                continue
+            if item.event != nil {
+                // A receipt or delete carries its content: under a newer roster
+                // it is sealed again for its member, if still one.
+                if item.revision < state.revision || state.member(item.recipient) == nil {
+                    guard let resealed = await reseal(item, for: state) else { continue }
+                    item = resealed
+                }
+            } else {
+                guard item.revision == state.revision else {
+                    try? storage.write { try $0.communities.cancel(item) }
+                    stopped.insert(key); continue
+                }
+                guard state.member(item.recipient) != nil else {
+                    try? storage.write { try $0.communities.dropRecipient(item) }
+                    continue
+                }
             }
             if let until = fullInboxes[item.recipient], until > Date() { continue }
             do {
@@ -769,29 +976,40 @@ actor CommunityEngine {
                 case .rateLimited:
                     // The relay limits this account: everything waits for a later pass.
                     pass.note(.rateLimited)
-                    return
+                    return resealNeeded
                 case .server(404, _, _):
                     // The member left, was removed or deleted the account: skip them;
                     // the next pass reads the roster again.
-                    try? storage.write { try $0.communities.dropRecipient(item) }
+                    try? storage.write { tx in
+                        if item.event != nil { try tx.communities.discard(item) } else { try tx.communities.dropRecipient(item) }
+                    }
                 case .server(409, _, _):
-                    // The roster moved (or the ID clashed): this message stops; the
-                    // community's other items wait for the next pass's roster.
-                    try? storage.write { try $0.communities.cancel(item) }
-                    stopped.insert(key); staleCommunities.insert(item.communityId)
+                    // The roster moved (or the ID clashed): the community's other
+                    // items wait for the next pass's roster. A message stops (it
+                    // can be sent again); a receipt or delete is sealed again then.
+                    if item.event != nil {
+                        resealNeeded = true
+                    } else {
+                        try? storage.write { try $0.communities.cancel(item) }
+                        stopped.insert(key)
+                        pass.note(.stale)
+                    }
+                    staleCommunities.insert(item.communityId)
                     pass.states[item.communityId] = nil; pass.unavailable.insert(item.communityId)
-                    pass.note(.stale)
                 case .server(let status, _, _) where (400..<500).contains(status) && status != 408:
                     // Only this recipient cannot be reached.
-                    try? storage.write { try $0.communities.dropRecipient(item) }
+                    try? storage.write { tx in
+                        if item.event != nil { try tx.communities.discard(item) } else { try tx.communities.dropRecipient(item, as: .failed) }
+                    }
                 default:
                     // Offline or the relay is failing: everything stays queued.
                     pass.note(CommunityIssue(failure))
-                    return
+                    return resealNeeded
                 }
             } catch {
-                return
+                return resealNeeded
             }
         }
+        return resealNeeded
     }
 }

@@ -61,8 +61,13 @@ final class AppModel {
     /// Set when the app went to the background: the next foreground locks.
     private var lockIsDue = false
     weak var securityWindow: SecurityOverlayController?
+    @ObservationIgnored private let pickerActivity: SystemPickerActivity
 
-    init(configuration: AppConfiguration, preferences: AppPreferences, messenger: (any MessengerService)? = nil) {
+    init(
+        configuration: AppConfiguration, preferences: AppPreferences, messenger: (any MessengerService)? = nil,
+        pickerActivity: SystemPickerActivity = .shared
+    ) {
+        self.pickerActivity = pickerActivity
         self.configuration = configuration
         self.preferences = preferences
         // Decrypted preview copies never survive a launch (a crash, a kill),
@@ -152,6 +157,9 @@ final class AppModel {
     /// content *now*, before the system snapshot. Never animated.
     func sceneWillResignActive(snapshot: () -> UIImage?) {
         messenger.scenePhaseChanged(.inactive)
+        // The full-screen system picker already covers the conversation. Do not put
+        // our security window above Photos/Files during its temporary inactive phase.
+        guard !pickerActivity.isPresented else { return }
         guard phase == .unlocked, overlay == .none else { return }
         privacySnapshot = snapshot()
         var transaction = Transaction()
@@ -162,6 +170,8 @@ final class AppModel {
 
     func sceneDidEnterBackground() {
         messenger.scenePhaseChanged(.background)
+        // Home, device lock and switching apps still lock normally, even with a picker up.
+        defer { pickerActivity.cancel() }
         // Quick Look / Files copies go with the foreground (the screens close
         // them too), and so does a voice recording (the chat throws it away).
         ProtectedPreviewFiles.removeAll()

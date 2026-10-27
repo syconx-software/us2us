@@ -153,7 +153,7 @@ private struct AnchoredMenuModifier: ViewModifier {
         ) {
             close.wrappedValue = false
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(180))
+                try? await Task.sleep(for: .seconds(U2Motion.Duration.micro))
                 action()
             }
         }

@@ -18,6 +18,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.MediaAvailability
 import com.syconx.us2us.domain.Message
+import com.syconx.us2us.domain.ConversationPhotos
 import com.syconx.us2us.domain.MessageContent
 import com.syconx.us2us.domain.MessageStatus
 import com.syconx.us2us.ui.R
@@ -44,7 +47,11 @@ import com.syconx.us2us.ui.bubbles.MessageBubbleView
 import com.syconx.us2us.ui.bubbles.MessageStatusSentence
 import com.syconx.us2us.ui.bubbles.StateCrossFade
 import com.syconx.us2us.ui.bubbles.TypingIndicatorBubble
+import com.syconx.us2us.ui.components.communityMemberName
 import com.syconx.us2us.ui.env.currentSafeArea
+import com.syconx.us2us.ui.theme.U2Theme
+import com.syconx.us2us.ui.tokens.U2TextStyles
+import com.syconx.us2us.ui.type.U2Text
 import com.syconx.us2us.ui.motion.LocalReduceMotion
 import com.syconx.us2us.ui.motion.U2Motion
 import com.syconx.us2us.ui.motion.u2CollapseProgress
@@ -76,10 +83,30 @@ internal fun ConversationMessageList(
     onVerify: () -> Unit,
 ) {
     val reduceMotion = LocalReduceMotion.current
-    val displayed = viewModel.displayedRows
     val leaving = viewModel.leavingRows
     val arriving = viewModel.arrivingRows
     val kindChanges = viewModel.kindChanges
+    val sourceRows = viewModel.displayedRows
+    val leavingIds = leaving.mapTo(HashSet()) { it.row.id }
+    val removedPhotos = remember(sourceRows, leavingIds) { ConversationRows.albumRemovals(sourceRows, leavingIds) }
+    LaunchedEffect(removedPhotos) { removedPhotos.forEach(viewModel::finishLeaving) }
+    val separate = leaving.mapTo(HashSet()) { it.row.id } + kindChanges.keys
+    val displayed = remember(sourceRows, separate, removedPhotos) {
+        ConversationRows.albums(sourceRows.filterNot { it.id in removedPhotos }, separate)
+    }
+    val hiddenArrivals = displayed.flatMap { it.album.drop(1) }.map { it.id }.filter { it in arriving }
+    LaunchedEffect(hiddenArrivals) { hiddenArrivals.forEach(viewModel::finishArrival) }
+    val oldest = displayed.firstOrNull()?.id
+    LaunchedEffect(viewModel, oldest) {
+        snapshotFlow {
+            val layout = viewModel.listState.layoutInfo
+            val nearTop = layout.totalItemsCount > 0 &&
+                (layout.visibleItemsInfo.maxOfOrNull { it.index } ?: -1) >= layout.totalItemsCount - 8
+            nearTop && (viewModel.listState.firstVisibleItemIndex > 0 || viewModel.listState.firstVisibleItemScrollOffset > 0)
+        }.distinctUntilChanged().collect { nearTop ->
+            if (nearTop) viewModel.loadOlderMessages()
+        }
+    }
     val liftedId = viewModel.actions?.messageId
     val frameRequest = viewModel.frameRequest
     val firstId = displayed.firstOrNull()?.id
@@ -95,7 +122,7 @@ internal fun ConversationMessageList(
     }
     val verifyPrompt = viewModel.showsVerifyPrompt
     LazyColumn(
-        modifier = modifier.testTag("conversation.list"),
+        modifier = modifier.conversationKeyboardDismissal(viewModel.listState).testTag("conversation.list"),
         state = viewModel.listState,
         reverseLayout = true,
         contentPadding = PaddingValues(
@@ -261,14 +288,28 @@ internal fun ConversationMessageRow(
         if (message.isSystem) {
             MessageBubbleView(message, Modifier.testTag("message.${message.id}"))
         } else {
+            val sender = message.community?.sender
+            if (row.showsSender && sender != null) {
+                // A community: who wrote it, above the first bubble of the run (never a whole account id).
+                U2Text(
+                    communityMemberName(sender.account, sender.username),
+                    if (sender.username == null) U2TextStyles.captionCompact else U2TextStyles.monoMeta,
+                    Modifier.padding(start = 6.dp, top = 6.dp, end = 6.dp, bottom = 4.dp).testTag("message.${message.id}.sender"),
+                    color = U2Theme.colors.textSecondary,
+                    maxLines = 1,
+                )
+            }
             Box(Modifier.fillMaxWidth(), contentAlignment = if (message.isOutgoing) Alignment.TopEnd else Alignment.TopStart) {
-                RowBubble(row, viewModel, isLifted, capturesFrame, replacing, isNew, enabled)
+                if (row.album.size > 1 && viewModel != null) {
+                    ConversationPhotoAlbum(row, viewModel, enabled)
+                } else RowBubble(row, viewModel, isLifted, capturesFrame, replacing, isNew, enabled)
             }
         }
-        val status = message.status
+        val statusMessage = row.album.lastOrNull() ?: message
+        val status = if (row.album.size > 1) ConversationPhotos.status(row.album) else statusMessage.status
         if (status != null && (row.showsStatusSentence || sentenceInLayout)) {
-            val detail = statusDetail(message)
-            val resend = remember(viewModel, message.id) { { viewModel?.resend(message.id) ?: Unit } }
+            val detail = statusDetail(statusMessage)
+            val resend = remember(viewModel, statusMessage.id) { { viewModel?.resend(statusMessage.id) ?: Unit } }
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -318,7 +359,7 @@ private fun RowBubble(
     val id = message.id
     val reduceMotion = LocalReduceMotion.current
     var isPressing by remember { mutableStateOf(false) }
-    val lift by animateFloatAsState(if (isPressing && !reduceMotion) 1.02f else 1f, U2Motion.soft(0.3f).spec(), label = "press")
+    val lift by animateFloatAsState(if (isPressing && !reduceMotion) 1.02f else 1f, U2Motion.press.spec(), label = "press")
     val current by rememberUpdatedState(row)
     val actionsLabel = stringResource(R.string.conversation_a11y_message_actions)
     val longPress: (() -> Unit)? = if (viewModel != null && enabled && viewModel.canOpenActions(message)) {

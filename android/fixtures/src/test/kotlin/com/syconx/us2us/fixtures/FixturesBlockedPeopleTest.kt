@@ -54,6 +54,23 @@ class FixturesBlockedPeopleTest {
     }
 
     @Test
+    fun deletingAChatOrAContactKeepsABlockButNotTheChat() = runTest {
+        val service = service()
+        val mert = ChatId("mert_k")
+        assertTrue(service.deleteChat(mert))
+        assertNull(service.chat(mert).value, "the chat left 4.1")
+        assertFalse(service.deleteChat(mert), "nothing left to delete")
+
+        service.loadBlockedPeople()
+        assertTrue(service.deleteContact(bora))
+        assertNull(service.chat(bora).value)
+        assertEquals(listOf("bora", "lale"), service.ids(), "deleting is not unblocking")
+        assertTrue(service.unblock(service.blockedPeople.value.first { it.id == bora }))
+        assertFalse(service.ids().contains("bora"))
+        assertNull(service.chat(bora).value, "unblocked without a chat, it stays without one")
+    }
+
+    @Test
     fun blockingFromTheContactScreenOrARequestListsThePerson() = runTest {
         val service = service()
         assertTrue(service.block(ChatId("mert_k")))

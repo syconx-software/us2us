@@ -49,6 +49,8 @@
     <string name="conversation_actions_info">Bilgi</string>
     <!-- actions.reply -->
     <string name="conversation_actions_reply">Yanıtla</string>
+    <!-- album.photo %lld %lld -->
+    <string name="conversation_album_photo">Fotoğraf %1$d / %2$d</string>
     <!-- attach.file -->
     <string name="conversation_attach_file">Dosya</string>
     <!-- attach.media -->
@@ -201,6 +203,8 @@
     <string name="conversation_save_photos_denied_body">us2us\'ın Fotoğraflar\'a ekleme izni yok. Ayarlar\'dan açabilirsin; us2us arşivini hiçbir zaman okumaz.</string>
     <!-- save.photos.denied.title -->
     <string name="conversation_save_photos_denied_title">Fotoğraflar\'a ekleme kapalı</string>
+    <!-- scroll.latest -->
+    <string name="conversation_scroll_latest">Son mesaja dön</string>
     <!-- sticker.pack.cups -->
     <string name="conversation_sticker_pack_cups">Bardaklar</string>
     <!-- sticker.pack.mood -->
@@ -255,10 +259,14 @@
     <string name="conversation_viewonce_screenshot_title">Ekran görüntüsü algılandı</string>
     <!-- viewOnce.today %@ -->
     <string name="conversation_viewonce_today">Bugün %s</string>
+    <!-- viewer.next -->
+    <string name="conversation_viewer_next">Sonraki fotoğraf</string>
     <!-- viewer.photo.a11y -->
     <string name="conversation_viewer_photo_a11y">Fotoğraf</string>
     <!-- viewer.photo.failed -->
     <string name="conversation_viewer_photo_failed">Fotoğraf yüklenemedi</string>
+    <!-- viewer.previous -->
+    <string name="conversation_viewer_previous">Önceki fotoğraf</string>
     <!-- viewer.save -->
     <string name="conversation_viewer_save">Kaydet</string>
     <!-- viewer.save.failed -->

@@ -47,12 +47,38 @@ message Content {
 }
 
 // Additive extension. Never delivered through the legacy 1:1 mailbox.
+// Exactly one kind per message (docs/COMMUNITIES.md, "Extension v2"):
+//   text      text only (fields 6..10 absent)
+//   media     attachment, text optional as its caption
+//   receipt   receipt only, text empty
+//   delete    delete_target_message_id and delete_target_sender_id only, text empty
+//   sticker   v3 built-in sticker with text equal to its emoji fallback
+// Any other combination is dropped and acknowledged.
 message CommunityMessage {
   bytes community_id = 1;
   uint64 revision = 2;
-  bytes message_id = 3;
+  bytes message_id = 3;              // 16 bytes; for a receipt or delete it names that event itself
   uint64 sent_at = 4;
-  string text = 5;                   // 1..8192 UTF-8 bytes
+  string text = 5;                   // 1..8192 UTF-8 bytes; 0..8192 with an attachment (the caption)
+  // v2: IMAGE, VIDEO or FILE; v3 also VOICE with bounded waveform; delete_token and caption empty, thumbnail <= 10 KiB.
+  // One blob uploaded once (POST /v1/media) and shared by every member.
+  Attachment attachment = 6;
+  CommunityReceipt receipt = 7;      // v2: sent only to the original sender of message_ids
+  bytes delete_target_message_id = 8; // v2: 16 bytes, delete-for-everyone
+  bytes delete_target_sender_id = 9;  // v2: 16 bytes, account id of the target's original sender
+  Sticker sticker = 10;             // v3: built-in only; text = emoji fallback (docs/COMMUNITIES.md)
+}
+
+// Delivery and read state of the recipient's copies of messages that the
+// receiver of this receipt sent in the same community.
+message CommunityReceipt {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    DELIVERY = 1;
+    READ = 2;
+  }
+  Type type = 1;
+  repeated bytes message_ids = 2;    // 1..1000, 16 bytes each
 }
 
 // A user-visible message (bubble) or an action on one.

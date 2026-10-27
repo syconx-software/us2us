@@ -2,7 +2,11 @@ package com.syconx.us2us.domain
 
 import kotlinx.coroutines.flow.Flow
 
-/** UI contract; no protocol keys, account credentials or decrypted data survive a lock. */
+/**
+ * UI contract of the communities directory and management; no protocol keys, account credentials or
+ * decrypted data survive a lock. A community's conversation goes through [MessengerService] with its
+ * [CommunityChats] chat id, like any chat.
+ */
 data class CommunityCard(val id: String, val name: String, val public: Boolean, val count: Int,
     val owner: String, val ownerKey: String, val revision: Long, val active: Boolean = false,
     val members: List<CommunityMemberCard> = emptyList(), val isOwner: Boolean = false,
@@ -15,8 +19,6 @@ data class CommunityPage(val groups: List<CommunityCard>, val next: String?)
 
 /** [warning]: a roster could not be verified (rollback, fork, substituted owner or identity) and was not applied. */
 data class CommunitySnapshot(val groups: List<CommunityCard>, val supported: Boolean, val warning: Boolean = false)
-data class CommunityText(val id: String, val sender: String, val text: String, val time: Long, val status: String,
-    val senderName: String? = null, val outgoing: Boolean = false)
 /** A join request; [fingerprint] is the identity key to review, as [CommunityFormat.fingerprint] writes it. */
 data class CommunityApplication(val account: String, val identity: String, val createdAt: Long, val fingerprint: String = "")
 
@@ -34,11 +36,10 @@ interface CommunitiesService {
     val unlocked: Flow<Boolean>
     suspend fun refresh(): CommunitySnapshot
     suspend fun search(name: String, after: String? = null): CommunityPage
-    suspend fun create(name: String, public: Boolean)
+    /** Creates the community; returns its id, so its conversation can open. */
+    suspend fun create(name: String, public: Boolean): String
     suspend fun request(group: CommunityCard)
     suspend fun redeem(code: String)
-    suspend fun messages(id: String): List<CommunityText>
-    suspend fun send(id: String, text: String)
     suspend fun applications(id: String): List<CommunityApplication>
     suspend fun approve(id: String, application: CommunityApplication)
     suspend fun reject(id: String, account: String)

@@ -74,15 +74,63 @@ extension MessagingEngine {
         outboxWake.signal()
     }
 
-    /// Deletes the conversation on this phone only.
+    /// Deletes the conversation on this phone only (crypto-shredded, §5.3):
+    /// nothing is sent. The contact, its session and its request state stay,
+    /// so writing again continues where it was.
     public func deleteConversationLocally(_ peer: AccountId) throws {
+        let now = clock.now()
         try write { tx in
             guard let conversation = try tx.conversations.forContact(peer) else { throw EngineError.unknownContact }
-            _ = try storage.wipeConversation(conversation.id, reason: .requested, now: clock.now())
+            if try tx.contacts.requestState(of: peer) != .blocked {
+                enqueueStopsBeforeDeleting(conversation, tx: tx, now: now)
+            }
+            _ = try storage.wipeConversation(conversation.id, reason: .requested, now: now)
             forgetNotices(of: conversation.id)
         }
+        forgetTransientState(of: peer)
         emit(.wiped(peer))
         emit(.conversations)
+        outboxWake.signal()
+    }
+
+    /// Deletes the contact on this phone only; nothing is sent and it is not
+    /// blocked (§6.4). Its conversation is crypto-shredded first (§5.3),
+    /// then pending sends to it and the contact itself go: looking the
+    /// username up again starts a new chat, as with a stranger. Its session
+    /// and identity stay, with the name it was shown under, so if it writes
+    /// again the message decrypts and opens a new request under that name —
+    /// and a changed identity key is still flagged. A blocked contact keeps
+    /// only the block: deleting is not unblocking, and 7.1 › Engellenenler
+    /// still lists it.
+    public func deleteContact(_ peer: AccountId) throws {
+        let now = clock.now()
+        try write { tx in
+            guard let state = try tx.contacts.requestState(of: peer) else { throw EngineError.unknownContact }
+            let conversation = try tx.conversations.forContact(peer)
+            if let conversation { forgetNotices(of: conversation.id) }
+            if state == .blocked {
+                if let conversation { _ = try storage.wipeConversation(conversation.id, reason: .requested, now: now) }
+                try tx.contacts.stripToBlock(peer)
+            } else {
+                try tx.contacts.removeKeepingSession(peer)
+            }
+        }
+        forgetTransientState(of: peer)
+        presence.forget(peer)
+        held.remove(peer)
+        pendingPresenceReplies.remove(peer)
+        emit(.wiped(peer))
+        emit(.conversations)
+        emit(.presence)
+    }
+
+    /// What memory still holds about a deleted conversation: typing and
+    /// our live-location shares with the contact (their bubbles are gone;
+    /// the app stops its own updates before deleting).
+    private func forgetTransientState(of peer: AccountId) {
+        typing[peer] = nil
+        lastTypingSent[peer] = nil
+        for (session, value) in liveSessions where value.peer == peer { liveSessions[session] = nil }
     }
 
     // MARK: Notices

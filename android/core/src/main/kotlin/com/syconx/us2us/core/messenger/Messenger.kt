@@ -342,6 +342,19 @@ class Messenger(
         }
     }
 
+    /**
+     * Deletes a community blob this account uploaded, with the delete token that never left this
+     * phone (delete for everyone, COMMUNITIES.md Extension v2). Sent without the auth token, like
+     * every media request. `404` counts as done.
+     */
+    suspend fun deleteCommunityMedia(mediaId: ByteArray, deleteToken: ByteArray) {
+        try {
+            publicRelay.deleteMedia(mediaId, deleteToken)
+        } catch (e: com.syconx.us2us.core.relay.RelayException) {
+            if (e.httpStatus != 404) throw e
+        }
+    }
+
     /** Verify the signed roster BEFORE advancing the ratchet. Runtime must atomically persist the result. */
     suspend fun decryptCommunityEnvelope(envelope: ByteArray, state: com.syconx.us2us.core.community.CommunityState): Pair<AccountId, com.syconx.us2us.core.proto.CommunityMessage>? {
         require(state.member(accountId)?.identityKey == com.syconx.us2us.core.encoding.Base64Url.encode(currentAccount.identityKeyPair.publicKey.serialize()))
@@ -362,9 +375,10 @@ class Messenger(
             catch (_: Exception) { return@withLock null }
             if (!opened.hasCommunity()) return@withLock null
             val message = opened.community
+            // The v1 checks, then exactly one of the v2 kinds (COMMUNITIES.md, Extension v2); a
+            // message failing any step is dropped with its ratchet step committed.
             if (!message.communityId.toByteArray().contentEquals(state.id.toBytes()) || message.revision != state.revision ||
-                message.messageId.size() != 16 || message.sentAt <= 0 || message.text.isBlank() ||
-                message.text.toByteArray(Charsets.UTF_8).size > com.syconx.us2us.core.community.CommunityState.MAX_TEXT_BYTES) return@withLock null
+                com.syconx.us2us.core.community.CommunityContent.kind(message) == null) return@withLock null
             sender to message
         }
     }
@@ -817,6 +831,15 @@ class Messenger(
     suspend fun forgetContact(peer: AccountId) {
         cryptoLock.withLock { store.forget(peer) }
         synchronized(contactLock) { contacts.remove(peer) }
+        forgetContactKeepingSession(peer)
+    }
+
+    /**
+     * What this messenger holds in memory about [peer] (search pictures, presence), for a contact
+     * the app deleted itself (PROTOCOL.md §6.4): its session and identity stay in [store], so a
+     * message it sends later still decrypts and an identity change is still flagged.
+     */
+    fun forgetContactKeepingSession(peer: AccountId) {
         synchronized(searchPictures) {
             searchPictures.keys.removeAll { it.first == peer }
             searchVersions.keys.removeAll { it.first == peer }
@@ -1953,6 +1976,8 @@ class Messenger(
                 identityKeyPair = identity,
                 registrationId = registrationId,
                 accessKey = AccessKey.generate(),
+                // New accounts opt in through the existing setting; restore keeps its saved value.
+                showPictureInSearch = false,
                 pendingSetup = setOf(PendingSetup.PUBLISH_ACCESS_KEY),
             )
             accountStore.save(account)

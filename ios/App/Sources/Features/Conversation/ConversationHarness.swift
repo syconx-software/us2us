@@ -64,6 +64,7 @@
     /// message first (e.g. `stress-4990` with `-U2StressMessages 5000`).
     enum ConversationHarness {
         enum Screen: String, CaseIterable, Sendable {
+            case photoAlbum = "5.1-album"
             case chat = "5.1"
             case chatFailed = "5.1-failed"
             case chatReply = "5.1-reply"
@@ -147,6 +148,11 @@
             if let screen {
                 await apply(screen, to: viewModel, fixtures: fixtures)
             }
+            let pagedCount = UserDefaults.standard.integer(forKey: "U2PagedHistory")
+            if pagedCount > 0, let fixtures {
+                let first = fixtures.messages(in: viewModel.chatID).first?.sentAt ?? Date()
+                fixtures.installHistory(ConversationStressFixture.messages(count: min(50_000, pagedCount), before: first), in: viewModel.chatID)
+            }
             if let demo {
                 let delay = UserDefaults.standard.double(forKey: "U2ConversationDemoDelay")
                 try? await Task.sleep(for: .seconds(delay > 0 ? delay : 1.5))
@@ -162,6 +168,10 @@
                 return transaction
             }()
             switch screen {
+            case .photoAlbum:
+                guard let fixtures else { return }
+                await fixtures.updateGhost(.off, disappearing: .off, in: viewModel.chatID)
+                await fixtures.send(pickedMedia: PickedMediaPlan.messages(for: DesignFixtures.pickedPhotos, caption: "Album caption"), in: viewModel.chatID)
             case .chat, .media:
                 break
             case .chatFailed:

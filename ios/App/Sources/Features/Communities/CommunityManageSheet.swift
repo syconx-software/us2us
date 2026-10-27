@@ -68,7 +68,7 @@ struct CommunityManageSheet: View {
     // MARK: Requests (owner)
 
     private func requests(isFull: Bool) -> some View {
-        let pending = service?.openRequests ?? []
+        let pending = service?.requests(in: communityID) ?? []
         return VStack(alignment: .leading, spacing: U2Spacing.sectionLabelGap) {
             SectionLabel(Text("manage.requests", table: .communities))
             if pending.isEmpty {

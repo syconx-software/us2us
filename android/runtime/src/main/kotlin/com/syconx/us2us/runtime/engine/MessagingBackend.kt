@@ -149,6 +149,12 @@ interface MessagingBackend {
 
     suspend fun forgetContact(contact: AccountId)
 
+    /**
+     * "Kişiyi sil" (§6.4): forgets what the backend holds in memory about [contact] (search
+     * pictures, presence) but keeps its session and identity, so its next message still decrypts.
+     */
+    suspend fun forgetContactKeepingSession(contact: AccountId) {}
+
     /** The encrypted account backup file (§5.5) under [password]. */
     suspend fun exportBackup(password: String): ByteArray
 

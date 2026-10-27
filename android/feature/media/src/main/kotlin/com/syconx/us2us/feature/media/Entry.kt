@@ -7,12 +7,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.syconx.us2us.domain.MessageContent
+import com.syconx.us2us.domain.ConversationPhotos
+import com.syconx.us2us.ui.components.communityMemberName
 import com.syconx.us2us.domain.SaveNoticeKind
 import com.syconx.us2us.domain.ViewOnceState
 import com.syconx.us2us.domain.nav.ChatId
@@ -27,14 +30,29 @@ import kotlinx.coroutines.launch
 
 /**
  * 5.2 the photo viewer (a full-screen cover), opened at [message] of [chat]: a photo, or a picture
- * sent as a file. It asks to be dismissed when the message goes (deleted, expired, taken back) or
+ * sent as a file. Ordinary photos navigate in conversation order; image files open individually.
+ * It asks to be dismissed when the selected message goes (deleted, expired, taken back) or
  * the app leaves the foreground: nothing decrypted waits behind the lock. `5.1-viewer-zoomed`
  * starts zoomed in.
  */
 @Composable
 fun MediaViewerCover(chat: ChatId, message: MessageId, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    MessageViewerCover(chat, message, ViewerItem.Kind.Photo, onDismiss, modifier) { item, saver, appDark, close ->
-        MediaViewer(item, chat, saver, appDark, onClose = close)
+    val messenger = LocalMessenger.current
+    val messages by remember(chat) { messenger.messages(chat) }.collectAsState()
+    var selected by remember(chat, message) { mutableStateOf(message) }
+    // Image files open on their own; view-once media never enter the photo sequence.
+    val photos = remember(messages, message) {
+        if (messages.firstOrNull { it.id == message }?.content is MessageContent.Photo)
+            messages.filter(ConversationPhotos::isBrowsable) else emptyList()
+    }
+    val index = photos.indexOfFirst { it.id == selected }
+    MessageViewerCover(chat, selected, ViewerItem.Kind.Photo, onDismiss, modifier) { item, saver, appDark, close ->
+        key(selected) {
+            MediaViewer(item, chat, saver, appDark, onClose = close,
+                position = index.coerceAtLeast(0), count = photos.size.coerceAtLeast(1),
+                onPrevious = if (index > 0) ({ selected = photos[index - 1].id }) else null,
+                onNext = if (index >= 0 && index < photos.lastIndex) ({ selected = photos[index + 1].id }) else null)
+        }
     }
 }
 
@@ -76,8 +94,11 @@ private fun MessageViewerCover(
             currentOnDismiss()
         }
     }
-    val item = remember(chat, message, found != null) {
-        found?.let { ViewerItem.forMessage(it, if (it.isOutgoing) own else peer?.username ?: chat.value) }
+    val member = found?.community?.sender
+    val sender = if (found?.isOutgoing == true) own else if (member != null) communityMemberName(member.account, member.username)
+        else peer?.username ?: chat.value
+    val item = remember(chat, message, found?.content, sender) {
+        found?.let { ViewerItem.forMessage(it, sender) }
             ?.takeIf { it.kind == kind }
             ?.let {
                 when (harness) {

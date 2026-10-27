@@ -27,6 +27,8 @@ extension AppRuntime {
             throw RuntimeError.locked
         }
         guard let found = try await backend.messenger.findAccount(username: username) else { return nil }
+        // Another contact still showing this name lost it (§3.3).
+        await session.engine.noteUsernameOwner(username, owner: found.accountId)
         return DirectoryEntry(account: found.accountId, identityKey: found.identityKey)
     }
 

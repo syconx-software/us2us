@@ -147,6 +147,35 @@ final class RuntimeFixture {
 @Suite("App runtime lifecycle")
 @MainActor
 struct AppRuntimeTests {
+    @Test func pagedHistorySurvivesLiveRefreshAndClearsOnLock() async throws {
+        let fixture = try RuntimeFixture()
+        try await fixture.onboard(); try await fixture.connect()
+        let peer = try fixture.acceptedContact()
+        let storage = try #require(fixture.runtime.session?.storage)
+        try storage.write { tx in
+            let conversation = try #require(try tx.conversations.forContact(peer))
+            for index in 0..<350 {
+                try tx.messages.storeIncoming(BRPContent.textMessage("history-\(index)").data, in: conversation.id, receivedAt: fixture.clock.now())
+            }
+        }
+        await fixture.runtime.openConversation(peer)
+        #expect(fixture.runtime.openMessages.count == 100)
+        #expect(try await fixture.runtime.loadOlderMessages(peer))
+        #expect(fixture.runtime.openMessages.count == 200)
+        let oldest = fixture.runtime.openMessages.first?.messageId
+        fixture.push(.textMessage("new arrival"), from: peer)
+        try await eventually { fixture.runtime.openMessages.last?.body == .text("new arrival") }
+        #expect(fixture.runtime.openMessages.count == 201)
+        #expect(fixture.runtime.openMessages.first?.messageId == oldest)
+        #expect(try await fixture.runtime.loadOlderMessages(peer))
+        #expect(try await fixture.runtime.loadOlderMessages(peer))
+        #expect(try await !fixture.runtime.loadOlderMessages(peer))
+        #expect(fixture.runtime.openMessages.count == 351)
+        await fixture.runtime.lockNow()
+        #expect(fixture.runtime.openMessages.isEmpty)
+        #expect(try await !fixture.runtime.loadOlderMessages(peer))
+    }
+
     @Test func onboardingConnectsOnlyWhileActiveAndUnlocked() async throws {
         let fixture = try RuntimeFixture()
         #expect(fixture.runtime.lockState == .needsSetup)

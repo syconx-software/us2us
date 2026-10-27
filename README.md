@@ -76,9 +76,13 @@ tutuyor mu?*
 ### Topluluklar
 
 En fazla 100 üyeli, yönetici onaylı açık veya davetli topluluklar da vardır.
-İlk sürüm yalnızca metin destekler; her mesaj mevcut libsignal oturumuyla
-her alıcı için ayrı şifrelenir. Sunucu topluluk üyeliğini, açık topluluk
-adını ve mesajların gönderen/alıcı hesaplarını bilir. Gizli topluluk adı
+Metin, fotoğraf, video ve dosya gönderilebilir; her mesaj mevcut libsignal
+oturumuyla her alıcı için ayrı şifrelenir, bir medya dosyası bir kez
+yüklenir ve anahtarı yalnızca üyelere gider. İletildi ve okundu bilgisi
+yalnızca mesajın sahibine ulaşır; "Herkesten sil" gönderen ve yönetici
+tarafından kullanılabilir. Sunucu topluluk üyeliğini, açık topluluk adını,
+mesajların gönderen/alıcı hesaplarını ve her okundu bildiriminin kimden
+kime gittiğini bilir. Gizli topluluk adı
 yalnızca cihazlarda ve davet kodunda bulunur. Bu özellik bire bir sohbetin
 metadata mahremiyetiyle aynı değildir; üyelik değişiminde bekleyen eski
 sürüm mesajları düşebilir. Topluluk geçmişi ve güvenilen yönetici anahtarları
@@ -217,10 +221,13 @@ conversation between those two people?*
 ### Communities
 
 Public or invitation-only communities support up to 100 members, with owner
-approval required for either kind. The first release supports text only;
-each recipient gets a separate message encrypted through existing libsignal
-sessions. The relay knows membership, public community names and the sender
-and recipient accounts of community messages. Private names stay on devices
+approval required for either kind. Text, photos, videos and files can
+be sent; each recipient gets a separate message encrypted through existing
+libsignal sessions, a media file is uploaded once and its key goes only to
+members. Delivered and read receipts reach only the message's author;
+"Delete for everyone" is available to the sender and to the owner. The
+relay knows membership, public community names, the sender and recipient
+accounts of community messages, and who sent a read receipt to whom. Private names stay on devices
 and in invitation codes. This has different metadata privacy from one-to-one
 chat; a membership change can drop pending messages from the old revision.
 Community history and trusted owner keys are excluded from account backups.

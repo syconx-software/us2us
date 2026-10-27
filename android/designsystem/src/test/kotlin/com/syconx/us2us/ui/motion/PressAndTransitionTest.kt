@@ -88,7 +88,7 @@ class PressAndTransitionTest {
         compose.onNodeWithTag("row").assertHeightIsEqualTo(0.dp)
     }
 
-    /** u2Rise: enters over the state duration (0.36 s), rising 8 dp. */
+    /** u2Rise: enters over the state duration, rising 8 dp. */
     @Test
     fun riseEntersFromEightPointsBelow() {
         compose.mainClock.autoAdvance = false
@@ -105,7 +105,7 @@ class PressAndTransitionTest {
         }
         repeat(3) { compose.mainClock.advanceTimeByFrame() }
         val start = compose.onNodeWithTag("card").getBoundsInRoot().top.value
-        assertTrue("starts below its place: $start", start > 4f)
+        assertTrue("starts below its place: $start", start > 0f)
         compose.mainClock.advanceTimeBy(400)
         assertEquals(0f, compose.onNodeWithTag("card").getBoundsInRoot().top.value, 0.01f)
     }

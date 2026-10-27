@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -36,6 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -46,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.syconx.us2us.domain.AvatarPalette
 import com.syconx.us2us.domain.ChatSummary
+import com.syconx.us2us.domain.CommunityChats
 import com.syconx.us2us.domain.nav.AppRoute
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.domain.nav.Overlay
@@ -53,7 +61,14 @@ import com.syconx.us2us.domain.nav.Phase
 import com.syconx.us2us.domain.nav.QrScanMode
 import com.syconx.us2us.feature.chats.invite.InviteDebugState
 import com.syconx.us2us.ui.R
+import com.syconx.us2us.ui.common.ChatDeletionAnnouncementRegion
+import com.syconx.us2us.ui.common.ChatRowActions
+import com.syconx.us2us.ui.common.ChatDeletion
+import com.syconx.us2us.ui.common.ChatDeletionSheet
+import com.syconx.us2us.ui.common.ChatRowMenu
+import com.syconx.us2us.ui.common.chatDeletionAccessibilityActions
 import com.syconx.us2us.ui.common.MyCodeSheet
+import com.syconx.us2us.ui.common.perform
 import com.syconx.us2us.ui.common.preparedOwnContactCode
 import com.syconx.us2us.ui.components.Avatar
 import com.syconx.us2us.ui.components.AvatarSize
@@ -90,6 +105,8 @@ import com.syconx.us2us.ui.type.U2Text
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 
 /** Test tags of 4.1 (the iOS accessibility identifiers). */
@@ -149,13 +166,23 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
     val allChats by messenger.chats.collectAsStateWithLifecycle()
     val chats = if (harness?.hidesChats == true) emptyList() else allChats
 
+    var communityRequests by remember { mutableStateOf<CommunityRequestInboxRow?>(null) }
+    var inboxRefresh by remember { mutableStateOf(0) }
+    val communityInbox = rememberCommunityRequestInbox(messenger.communities, inboxRefresh) { communityRequests = null }
     var newChat by remember { mutableStateOf<NewChatPresentation?>(null) }
     var showsQRMenu by remember { mutableStateOf(false) }
     var myCode by remember { mutableStateOf<MyCodePresentation?>(null) }
     var showsScanner by remember { mutableStateOf(false) }
     var showsCommunities by remember { mutableStateOf(false) }
+    // 4.2 › Topluluklar: the sheet goes down first, then the communities rise; one opened there is pushed once they have gone.
+    var communitiesAfterSheet by remember { mutableStateOf(false) }
+    var pendingCommunity by remember { mutableStateOf<ChatId?>(null) }
     var invite by remember { mutableStateOf<InvitePresentation?>(null) }
     var pendingChat by remember { mutableStateOf<ChatId?>(null) }
+    // A long press on a one-to-one chat: a menu at the row with “Sohbeti sil” · “Kişiyi sil”, each
+    // after its confirmation ([deletion]; TalkBack's row actions go there directly).
+    var rowActions by remember { mutableStateOf<ChatRowActions?>(null) }
+    var deletion by remember { mutableStateOf<ChatDeletion?>(null) }
     // The own contact code, loaded up front so “Kodumu göster” rises complete.
     var myCodePayload by remember { mutableStateOf<String?>(null) }
     var harnessApplied by remember { mutableStateOf(false) }
@@ -189,6 +216,11 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
 
     // 4.2 “Mesaj yaz”: the sheet goes down first, then 5.1 is pushed.
     fun openPendingChat() {
+        if (communitiesAfterSheet) {
+            communitiesAfterSheet = false
+            showsCommunities = true
+            return
+        }
         val chat = pendingChat ?: return
         pendingChat = null
         router.push(AppRoute.Conversation(chat))
@@ -257,12 +289,17 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
         CompositionLocalProvider(LocalU2Ticker provides ticker) {
             ChatList(
                 chats = chats,
+                communityInbox = communityInbox,
+                onCommunityRequests = { communityRequests = it },
                 listState = listState,
                 onNewChat = { newChat = NewChatPresentation() },
-                onCommunities = { showsCommunities = true },
+                onLongPress = { chat, anchor -> rowActions = ChatRowActions(chat.id, chat.peer.username, chat.peer.isBlocked, anchor) },
+                onDelete = { deletion = it },
                 modifier = Modifier.u2BackdropSource(backdrop),
             )
         }
+        // TalkBack hears “Sohbet silindi” / “Kişi silindi” (also after a deletion on the contact screen).
+        ChatDeletionAnnouncementRegion()
         ChatsHeaderBackdrop(isVisible = isScrolled, source = backdrop)
         TopBar(onQr = { showsQRMenu = !showsQRMenu }, onNewChat = { newChat = NewChatPresentation() })
         U2AnchoredMenu(
@@ -276,10 +313,44 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
             trailing = 70.dp,
             backdrop = backdrop,
         )
+        // A row's long press: the menu at the row (as iOS's context menu).
+        ChatRowMenu(item = rowActions, onDismiss = { rowActions = null }, onChoose = { deletion = it }, backdrop = backdrop)
     }
 
-    U2FadeCover(isPresented = showsCommunities, onEscape = { showsCommunities = false }) {
-        messenger.communities?.let { CommunitiesScreen(it) { showsCommunities = false } }
+    U2FadeCover(
+        isPresented = showsCommunities,
+        onEscape = { showsCommunities = false },
+        onDismissed = {
+            pendingCommunity?.let { chat ->
+                pendingCommunity = null
+                // A community just created or joined is in 4.1 a moment later; 5.1 leaves a chat that is not listed.
+                scope.launch {
+                    withTimeoutOrNull(3_000) { messenger.chats.first { list -> list.any { it.id == chat } } }
+                    router.push(AppRoute.Conversation(chat))
+                }
+            }
+        },
+    ) {
+        messenger.communities?.let { service ->
+            CommunitiesScreen(
+                service,
+                onClose = { showsCommunities = false },
+                onOpen = { id ->
+                    pendingCommunity = CommunityChats.chatId(id)
+                    showsCommunities = false
+                },
+            )
+        }
+    }
+    U2Sheet(
+        item = communityRequests,
+        onDismissRequest = { communityRequests = null },
+        onDismissed = { inboxRefresh += 1 },
+        style = com.syconx.us2us.ui.sheet.U2SheetStyle.FullHeight,
+    ) { inbox ->
+        messenger.communities?.let { service ->
+            screens.CommunityManage(service, inbox.group.id, inbox.group.name, onClose = { communityRequests = null })
+        }
     }
     U2Sheet(item = newChat, onDismissRequest = { newChat = null }, onDismissed = ::openPendingChat) { presentation ->
         key(presentation.id) {
@@ -290,6 +361,14 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
                     newChat = null
                 },
                 onCancel = { newChat = null },
+                onCommunities = if (messenger.communities != null) {
+                    {
+                        communitiesAfterSheet = true
+                        newChat = null
+                    }
+                } else {
+                    null
+                },
             )
         }
     }
@@ -300,6 +379,7 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
     U2Sheet(item = invite, onDismissRequest = { invite = null }) { presentation ->
         key(presentation.id) { InviteSheetContent(presentation.debug, onClose = { invite = null }) }
     }
+    ChatDeletionSheet(deletion, onConfirm = { chosen -> scope.launch { messenger.perform(chosen) } }, onDismiss = { deletion = null })
     // 6.2 from 4.1: a match adds and verifies; “Sohbete dön” pushes 5.1 under the fading cover.
     U2FadeCover(isPresented = showsScanner, onEscape = { showsScanner = false }) {
         screens.QrScan(QrScanMode.AddContact, onDismiss = { showsScanner = false }, modifier = Modifier)
@@ -354,9 +434,12 @@ private fun TopBar(onQr: () -> Unit, onNewChat: () -> Unit) {
 @Composable
 private fun ChatList(
     chats: List<ChatSummary>,
+    communityInbox: List<CommunityRequestInboxRow>,
+    onCommunityRequests: (CommunityRequestInboxRow) -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onNewChat: () -> Unit,
-    onCommunities: () -> Unit,
+    onLongPress: (ChatSummary, Rect) -> Unit,
+    onDelete: (ChatDeletion) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val app = LocalAppModel.current
@@ -381,10 +464,14 @@ private fun ChatList(
         item(key = "title", contentType = "title") {
             TitleBlock(connection, Modifier.u2Top(100.dp))
         }
-        if (messenger.communities != null) item(key = "communities", contentType = "card") {
-            U2TextButton(onClick = onCommunities, modifier = Modifier.testTag("chats.communities")) {
-                U2Text(stringResource(R.string.community_title), U2TextStyles.callout)
-            }
+        items(communityInbox, key = { "communityRequests.${it.group.id}" }, contentType = { "card" }) { inbox ->
+            RequestsCard(
+                count = inbox.count,
+                communityName = inbox.group.name,
+                onClick = { onCommunityRequests(inbox) },
+                modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp, bottom = 4.dp)
+                    .testTag("chats.communityRequests.${inbox.group.id}"),
+            )
         }
         item(key = "access", contentType = "card") {
             AnimatedVisibility(
@@ -434,11 +521,18 @@ private fun ChatList(
                     // The rule belongs to the row's place, not the row: a row moved to the top has none there.
                     if (index > 0) ChatListSeparator()
                     val source = remember { MutableInteractionSource() }
+                    // A long press on a one-to-one chat offers deleting it (communities have their own screen).
+                    val isCommunity = CommunityChats.isCommunity(chat.id)
+                    // Where the row is, for the menu (read only when pressed; no recomposition).
+                    val bounds = remember { RowBounds() }
+                    val deletionActions = if (isCommunity) emptyList() else chatDeletionAccessibilityActions(chat.id, chat.peer.username, chat.peer.isBlocked, onDelete)
                     ChatListRow(
                         chat = chat,
                         modifier = Modifier
+                            .onGloballyPositioned { bounds.rect = it.boundsInWindow() }
                             .groupedRowPress(source)
-                            .clickable(source, indication = null, role = Role.Button) { router.push(AppRoute.Conversation(chat.id)) }
+                            .rowPress(source, onClick = { router.push(AppRoute.Conversation(chat.id)) }, onLongClick = if (isCommunity) null else ({ onLongPress(chat, bounds.rect) }))
+                            .then(if (deletionActions.isEmpty()) Modifier else Modifier.semantics { customActions = deletionActions })
                             .testTag(ChatsTags.chat(chat.id)),
                     )
                 }
@@ -488,3 +582,16 @@ private fun EmptyState(onNewChat: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** A row's bounds in the window, kept outside the snapshot system (scrolling writes it every frame). */
+private class RowBounds {
+    var rect: Rect = Rect.Zero
+}
+
+/** A row's tap, and its long press when there is one ([onLongClick]); the press look comes from `groupedRowPress`. */
+private fun Modifier.rowPress(source: MutableInteractionSource, onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier =
+    if (onLongClick == null) {
+        clickable(source, indication = null, role = Role.Button, onClick = onClick)
+    } else {
+        combinedClickable(interactionSource = source, indication = null, role = Role.Button, onLongClick = onLongClick, onClick = onClick)
+    }

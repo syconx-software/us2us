@@ -410,6 +410,23 @@ internal fun SettingsRootView(modifier: Modifier = Modifier) {
                         SettingsPicker.Language,
                     )
                 }
+                Column(verticalArrangement = Arrangement.spacedBy(U2Spacing.sectionLabelGap)) {
+                    GroupedCard {
+                        GroupedToggleRow(
+                            tile = { IconTile(IconTileContent.Glyph(PhosphorGlyph.Eye)) },
+                            title = stringResource(R.string.settings_keepscreenon),
+                            checked = app.preferences.keepScreenOn,
+                            onCheckedChange = { app.preferences.keepScreenOn = it },
+                            modifier = Modifier.testTag("settings.keepScreenOn"),
+                        )
+                    }
+                    U2Text(
+                        stringResource(R.string.settings_keepscreenon_footnote),
+                        U2TextStyles.footnote,
+                        color = U2Theme.colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
                 GroupedSection(stringResource(R.string.settings_section_app)) {
                     InviteSettingsRow { showsInvite = true }
                     GroupedSeparator()

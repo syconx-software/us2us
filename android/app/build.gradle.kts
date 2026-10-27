@@ -12,12 +12,14 @@ android {
     compileSdk {
         version = release(37) { minorApiLevel = 0 }
     }
+    // Strip native debug symbols in release artifacts with a pinned toolchain.
+    ndkVersion = "30.0.16248370"
     defaultConfig {
         applicationId = "com.syconx.us2us"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.8"
+        versionCode = 16
+        versionName = "1.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -33,14 +35,14 @@ android {
     }
     // Play upload key: kept outside the repo (scripts/create-upload-key.sh); the password comes only
     // from the environment of scripts/bundle-release.sh, which asks for it.
-    val uploadKey = file(System.getProperty("user.home") + "/.us2us/us2us-upload.jks")
+    val uploadKey = file(System.getenv("US2US_UPLOAD_KEYSTORE") ?: (System.getProperty("user.home") + "/.us2us/us2us-upload.jks"))
     val uploadPassword = System.getenv("US2US_UPLOAD_KEY_PASSWORD")
     signingConfigs {
         create("upload") {
             storeFile = uploadKey
             storePassword = uploadPassword
-            keyAlias = "us2us-upload"
-            keyPassword = uploadPassword
+            keyAlias = System.getenv("US2US_UPLOAD_KEY_ALIAS") ?: "us2us-upload"
+            keyPassword = System.getenv("US2US_UPLOAD_PRIVATE_KEY_PASSWORD") ?: uploadPassword
         }
     }
     buildTypes {
@@ -144,6 +146,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.uiautomator)
+    androidTestImplementation(project(":runtime"))
+    androidTestImplementation(project(":core"))
     // The Compose test library asks for Espresso 3.5, which cannot inject input on API 35 and later.
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

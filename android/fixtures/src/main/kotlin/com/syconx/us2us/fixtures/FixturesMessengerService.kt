@@ -453,12 +453,11 @@ class FixturesMessengerService(
             // 4.2 shows deniz as found and not yet a contact.
             return UserLookup.Found(
                 Peer(username = "deniz", palette = AvatarPalette.A, isVerified = false, isAcceptedContact = false, presence = Presence.Hidden),
-                isExistingChat = false,
             )
         }
-        chatsFlow.value.firstOrNull { it.peer.username == name }?.let { return UserLookup.Found(it.peer, isExistingChat = true) }
+        chatsFlow.value.firstOrNull { it.peer.username == name }?.let { return UserLookup.Found(it.peer, existingChat = it.id) }
         if (name in DesignFixtures.takenUsernames) {
-            return UserLookup.Found(stranger(name), isExistingChat = false)
+            return UserLookup.Found(stranger(name))
         }
         return UserLookup.NotFound
     }
@@ -524,6 +523,28 @@ class FixturesMessengerService(
         peersBeforeBlock[chat] = summary.peer
         updateChat(chat) {
             it.copy(peer = it.peer.copy(isBlocked = true, isAcceptedContact = false, presence = Presence.Hidden, avatar = AvatarPicture.Initials))
+        }
+        true
+    }
+
+    // MARK: Deleting
+
+    /** The chat leaves 4.1 with its messages; someone blocked stays blocked, without a chat (7.1 › Engellenenler). */
+    override suspend fun deleteChat(chat: ChatId): Boolean = removeChat(chat, forgetsContact = false)
+
+    /** As [deleteChat]; the contact goes too (its verification and its state from before a block). */
+    override suspend fun deleteContact(chat: ChatId): Boolean = removeChat(chat, forgetsContact = true)
+
+    private fun removeChat(chat: ChatId, forgetsContact: Boolean): Boolean = synchronized(lock) {
+        val summary = chatsFlow.value.firstOrNull { it.id == chat } ?: return false
+        chatsFlow.update { list -> list.filter { it.id != chat } }
+        messageTable[chat] = null
+        if (summary.peer.isBlocked) {
+            blockedRequests.remove(chat)
+            if (forgetsContact) peersBeforeBlock.remove(chat)
+            blockedWithoutChat.update { list ->
+                list.filter { it.id != chat } + BlockedPerson(chat, summary.peer.username, palette = summary.peer.palette)
+            }
         }
         true
     }

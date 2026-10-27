@@ -102,10 +102,22 @@ final class DesignTokenTests: XCTestCase {
         }
     }
 
-    func testMotionIsSoft() {
-        // No bounce anywhere: the springs are critically damped.
-        XCTAssertEqual(U2Motion.Duration.screen, 0.5)
-        XCTAssertEqual(U2Motion.Duration.sheet, 0.55)
-        XCTAssertEqual(U2Motion.Duration.ambient, 0.8)
+    func testMotionIsSoft() throws {
+        let tokens = try DesignSpec.json("tokens.json")
+        let motion = try XCTUnwrap(tokens["motion"] as? [String: Any])
+        let proposed = try XCTUnwrap(motion["proposed"] as? [String: Any])
+        let durations = try XCTUnwrap(proposed["durations"] as? [String: Double])
+        for (name, value) in [
+            "press": U2Motion.Duration.press, "micro": U2Motion.Duration.micro,
+            "state": U2Motion.Duration.state, "screen": U2Motion.Duration.screen,
+            "sheet": U2Motion.Duration.sheet, "ambient": U2Motion.Duration.ambient,
+            "reducedCrossFade": U2Motion.Duration.reducedCrossFade,
+        ] {
+            XCTAssertEqual(value, try XCTUnwrap(durations[name]), accuracy: 0.0001, name)
+        }
+        let spring = try XCTUnwrap(proposed["springSoft"] as? [String: Any])
+        XCTAssertEqual(U2Motion.springResponse, spring["response"] as? Double)
+        XCTAssertEqual(U2Motion.springQuickResponse, spring["quickResponse"] as? Double)
+        XCTAssertEqual(U2Motion.resolve(U2Motion.spring, reduceMotion: true), U2Motion.reducedCrossFade)
     }
 }

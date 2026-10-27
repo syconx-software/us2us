@@ -112,14 +112,14 @@ class VaultUnlocker(
      * @throws IllegalArgumentException if [deviceSecret] is not 32 bytes (not counted).
      */
     @Synchronized
-    fun unlock(vault: ByteArray, code: String, deviceSecret: ByteArray): DataKey {
+    fun unlock(vault: ByteArray, code: String, deviceSecret: ByteArray, hardwareKey: VaultHardwareKey? = null): DataKey {
         if (!SecretCodePolicy.isWellFormed(code)) throw MalformedSecretCodeException()
         val previous = observedAttempts()
         allowedAt(previous)?.let { throw LockedOutException(it) }
         val attempt = UnlockAttempts(previous.failures + 1, Duration.ZERO, bootClock.sinceBoot())
         attempts.save(attempt)
         val dek = try {
-            Vault.open(vault, code, deviceSecret)
+            Vault.open(vault, code, deviceSecret, hardwareKey)
         } catch (e: WrongSecretCodeException) {
             if (UnlockAttemptPolicy.shouldWipe(attempt.failures, wipeAfterFailures)) {
                 wipe()

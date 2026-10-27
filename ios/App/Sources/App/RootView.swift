@@ -42,6 +42,12 @@ struct RootView: View {
         .environment(\.locale, model.locale)
         .environment(\.u2Clock, model.clock)
         .dynamicTypeSize(...DynamicTypeSize.accessibility3)
+        .onChange(of: model.preferences.keepScreenOn, initial: true) { _, _ in
+            updateScreenAwakePreference()
+        }
+        .onChange(of: model.phase == .unlocked && model.overlay == .none, initial: true) { _, _ in
+            updateScreenAwakePreference()
+        }
         .onChange(of: model.interfaceStyle, initial: true) { _, style in
             applyInterfaceStyle(style)
         }
@@ -57,6 +63,12 @@ struct RootView: View {
             }
             .u2FrameProbe()
         #endif
+    }
+
+    private func updateScreenAwakePreference() {
+        ScreenAwakeController.shared.configure(
+            preference: model.preferences.keepScreenOn,
+            contentVisible: model.phase == .unlocked && model.overlay == .none)
     }
 
     /// The in-app theme (7.1 › Tema) is applied to every window of the scene,

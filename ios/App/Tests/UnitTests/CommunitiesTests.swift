@@ -19,7 +19,7 @@ struct CommunitiesTextTests {
         "card.title", "communities.title", "disclosure.body", "disclosure.private", "action.leave", "action.withdraw",
         "action.forget", "action.delete", "confirm.leave.title", "confirm.withdraw.title", "confirm.forget.title",
         "problem.offline", "problem.verification", "problem.full", "problem.rateLimited", "search.hint",
-        "conversation.ended", "message.partial", "message.failed", "community.unnamed",
+        "conversation.ended", "message.deleted", "message.removedByOwner", "community.unnamed",
     ]
 
     @Test(arguments: knownKeys)

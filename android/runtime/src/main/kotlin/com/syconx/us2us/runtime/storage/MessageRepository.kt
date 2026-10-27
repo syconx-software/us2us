@@ -549,16 +549,17 @@ class MessageRepository internal constructor(private val tx: StorageTransaction)
      * Up to [limit] messages before [before] (a [StoredMessage.localId]; `null` = the latest), in
      * chronological order. Expired messages are never returned (§9: never displayed after the deadline).
      */
-    fun page(conversationId: ConversationId, before: Long? = null, limit: Int = 50, now: Instant = Instant.now()): List<StoredMessage> {
+    fun page(conversationId: ConversationId, before: Long? = null, limit: Int = 50, now: Instant = Instant.now(), through: Long? = null): List<StoredMessage> {
         val key = tx.conversationKey(conversationId)
         val rows = tx.connection.query(
             """
             SELECT $COLUMNS FROM messages
-            WHERE conversation_id = ? AND id < ? AND (expires_at IS NULL OR expires_at > ?)
+            WHERE conversation_id = ? AND id < ? AND id >= ? AND (expires_at IS NULL OR expires_at > ?)
             ORDER BY id DESC LIMIT ?
             """.trimIndent(),
             conversationId.raw,
             before ?: Long.MAX_VALUE,
+            through ?: 0L,
             now.toEpochMilli(),
             limit,
         )

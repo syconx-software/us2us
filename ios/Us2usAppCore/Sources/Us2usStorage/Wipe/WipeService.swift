@@ -119,6 +119,8 @@ enum WipeService {
                     if let id = row.blob("id") { referencedItems.insert(id) }
                     if let thumbnail = row.blob("thumbnail_id") { referencedItems.insert(thumbnail) }
                 }
+                // Community photos, videos and files (Extension v2) are items too.
+                referencedItems.formUnion(try tx.communities.attachmentItemIds())
                 for itemId in storage.files.allItemIds().subtracting(referencedItems) {
                     try storage.files.remove(itemId)
                     report.orphanFilesRemoved += 1
@@ -129,6 +131,7 @@ enum WipeService {
                 }
                 try tx.envelopes.prune(now: now)
                 try tx.messages.pruneRemovedIds(now: now)
+                try tx.communities.prune(now: now)
             }
             try tx.messages.markUndelivered(now: now)
         }

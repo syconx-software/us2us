@@ -51,6 +51,10 @@ interface FeatureScreens {
     @Composable
     fun Invite(state: String?, onClose: () -> Unit, modifier: Modifier)
 
+    /** Owner approval screen, supplied by the conversation feature. */
+    @Composable
+    fun CommunityManage(service: com.syconx.us2us.domain.CommunitiesService, id: String, title: String, onClose: () -> Unit) = Unit
+
     /** The photo viewer (media's `MediaViewerCover`). */
     @Composable
     fun MediaViewer(chat: ChatId, message: MessageId, onDismiss: () -> Unit, modifier: Modifier)

@@ -8,6 +8,42 @@ them is a bug — fix it in the same change.
 Key words MUST, SHOULD, MAY are used as in RFC 2119.
 
 > **Change log**
+> * 2026-10-27: **deleting a chat or a contact on one phone** (§3.3, §6.4;
+>   client only, no wire change). "Delete chat" crypto-shreds the
+>   conversation (§5.3) and keeps the contact, its session and its state;
+>   a running live-location share with the contact still gets its stop.
+>   "Delete contact" also removes the contact (state, profile, picture,
+>   access keys) and its pending sends, but **not** its session and
+>   identity, and it keeps the username the contact was shown under; a
+>   blocked contact keeps only `BLOCKED`, as before. Nothing is sent, the
+>   contact is not blocked and the access key is not rotated (that is
+>   Block). If the contact writes again, its message still decrypts on the
+>   kept session and opens a new `INCOMING_REQUEST` under the kept name (an
+>   unchecked claim, §3.3); a changed identity key is still flagged (§6.3
+>   step 5). New receiver rules: a verified visible message carrying
+>   `sender_username` from a contact we are `ACCEPTED` with means it deleted
+>   us and wrote as a new request; we answer with
+>   `MessageRequestResponse{ACCEPT}`, our access key and our profile, so its
+>   request ends. `MessageRequestResponse{ACCEPT}` from a contact we are
+>   `ACCEPTED` with means it deleted us and accepted the request our
+>   message became there; we send our access key and profile again. Older
+>   builds do neither. Our own directory lookup that maps a username to
+>   account A marks every other contact claiming that name as a mismatch,
+>   which is never shown as its name, and drops it as a kept name.
+> * 2026-10-15: Android secure-item wrapping-key maintenance (local only,
+>   §5.2): use unlocked-device-required only on API 35+, atomically migrate
+>   all legacy items after successful unlock, and retire the old key only
+>   after the new generation is verified and durable. Device secret/DEK,
+>   backups, libsignal sessions and 1:1 wire messages are unchanged.
+> * 2026-10-14: **communities extension v2** ([COMMUNITIES.md](COMMUNITIES.md),
+>   "Extension v2"; additive, no relay or 1:1 change): `CommunityMessage`
+>   fields 6–9 (`attachment`, `receipt`, `delete_target_message_id`,
+>   `delete_target_sender_id`) and the new `CommunityReceipt`. Photos,
+>   videos and files are uploaded once (§4.9, §7) and shared by every member
+>   without a delete token; DELIVERY and READ receipts go only to the
+>   original sender, READ under the read-receipt setting (§8.4); delete for
+>   everyone by the sender or, for moderation, the owner. v1 community
+>   builds drop the new kinds.
 > * 2026-10-12: **the Android client rotates tokens as §5.5 says** (§5.5
 >   steps 3–3.5; client only, no wire change): `android/core` and the
 >   Android app now choose the new token, keep it as pending before the
@@ -300,7 +336,8 @@ the app's brand name, so renaming the app never changes the wire format.
 Non-goals for v1: groups, multiple devices per account, calls.
 
 The additive [communities extension](COMMUNITIES.md) defines opt-in group
-text messaging using separate APIs/mailboxes. Its explicit membership and
+messaging (text; since v2 also photos, videos, files, receipts and delete
+for everyone) using separate APIs/mailboxes. Its explicit membership and
 authenticated transport expose more metadata to the relay; the one-to-one
 guarantees and wire format in this document remain unchanged.
 
@@ -470,6 +507,15 @@ for search (§8.10), which is made again after every change. Therefore:
   directory quota by announcing random names.
 * The relay keeps the **old** username hash reserved for the same account for
   14 days, so nobody can grab it right away and impersonate the user.
+* A chat is found by account id, never by the name it shows. When our own
+  lookup (§4.4) maps a username to an account, every other contact still
+  claiming that name (its account was deleted, or it changed the name and
+  someone else took it) is a mismatch and is no longer shown under it.
+* The name a deleted contact was shown under (§6.4 "Delete contact") is
+  kept only as such a claim: when the account becomes a contact again it is
+  shown unchecked and looked up again when the chat is opened, and a lookup
+  that maps it to another account drops it. A name already a mismatch is
+  not kept.
 
 ## 4. Relay HTTP API
 
@@ -1076,10 +1122,44 @@ hw     = SHA-256(Z), Z = the x-coordinate of k·P (32 bytes), computed by the Se
   never synchronized, next to `deviceSecret`. Deleting the Keychain items
   ("erase everything", the optional wipe) destroys it with the device secret.
 
-Android (not implemented yet; the Android client writes v1 until it is):
+Android:
 `hw = HMAC-SHA256(k, codeKey)` with an AndroidKeyStore HMAC-SHA256 key
-(StrongBox where available, else the TEE; `setUnlockedDeviceRequired(true)`,
-no user-authentication requirement).
+(StrongBox where available, else the TEE; the actual `KeyInfo` security level
+MUST be checked before v2 is sealed; software-only keys MUST NOT be used).
+The key uses `setUnlockedDeviceRequired(true)` on API 35+ only, with no
+user-authentication requirement or biometric-enrollment binding. Android
+documents key deletion and unlock bugs for this flag on API 31–34; earlier
+versions therefore rely on app lifecycle locking for this additional key.
+The key has an installation-specific alias separate from the secure-item
+wrapping and biometric keys, and is deleted on wipe/erase. Its output and
+the PIN-derived input are never persisted. An unavailable/failed hardware
+upgrade leaves v1 usable and is retried after a later successful code unlock.
+
+**Android secure-item wrapping (separate from the HWPRF).** New wrapping
+keys use unlocked-device-required only on API 35+. Existing items are moved
+after successful create, PIN/biometric unlock or PIN change to a separate
+non-exportable wrapping key, preserving the exact device secret and all other
+item values. Items retain AES-256-GCM and the existing name-bound AAD. A
+file lock serializes operations across instances/processes. All items are
+copied and verified in a separate generation; synced files/directories and
+one atomically replaced, directory-synced marker commit the entire store
+before the legacy key is retired. A precommit failure keeps the legacy store
+usable; cleanup failures preserve the active store and are retried. Optional
+maintenance failures do not consume PIN attempts or reject an otherwise
+successful unlock. Temporary decrypted copies MUST be zeroed.
+
+After commit, reads/deletes/writes MUST use only the active generation, with
+no per-item legacy fallback. Missing keys/invalid markers MUST NOT cause
+silent replacement or downgrade; a missing marker after legacy retirement
+is an error. Wipe attempts removal of both wrapping aliases and all item
+generations. An already-deleted legacy key cannot be reconstructed; the
+existing recovery path applies. Older app binaries cannot open the migrated
+local store after its legacy key is retired. This local downgrade limit
+does not change peer wire compatibility or existing backup decoding.
+Release verification MUST cover restart and interrupted-commit recovery on
+physical devices. A device that cannot create the legacy flagged key does not
+verify migration from that key form; flagged-key, vendor and OS coverage
+remains required.
 
 Rules for v2:
 
@@ -1549,6 +1629,30 @@ Transitions:
 * Any state → `BLOCKED` on **Block**: the client rotates its access key (new
   key to all other accepted contacts) and drops further messages from that
   account locally.
+* **Delete contact** (local only, nothing is sent, not a block) removes the
+  state with the conversation, the contact's profile, picture and access
+  keys, and pending sends to it, but keeps its libsignal session and
+  identity and the username it was shown under (§3.3); a blocked contact
+  keeps only `BLOCKED` (no session, identity or name), and its messages
+  stay dropped. A message from a deleted contact that is not blocked
+  starts from no state: it still decrypts on the kept session (the contact may still be `ACCEPTED` with us and keeps
+  writing on it, without `sender_username`) and opens `INCOMING_REQUEST`
+  under the kept name; a new identity key in it is flagged as a change
+  (§6.3 step 5), never trusted as new. Accepting it sends `ACCEPT` and the
+  access key as for any request.
+* If the other phone is still `ACCEPTED` and receives a verified visible
+  message with `sender_username` from that account (we deleted it and
+  wrote first), it stays `ACCEPTED` and queues
+  `MessageRequestResponse{ACCEPT}`, then `AccessKeyUpdate` and its
+  `ProfileUpdate`, so the new request ends on both phones.
+* If it is `ACCEPTED` and receives `MessageRequestResponse{ACCEPT}` (it
+  deleted us, we wrote, and it accepted that request), it stays `ACCEPTED`
+  and sends its `AccessKeyUpdate` and `ProfileUpdate` again, which the
+  deleting phone no longer holds — once its own key and profile exchange
+  with that contact had finished; an `ACCEPT` crossing an exchange still
+  under way changes nothing. This rule never answers with `ACCEPT`, and the
+  one above answers only a message with `sender_username`, which an
+  `ACCEPTED` phone never sends, so the two cannot loop.
 
 Delivery: in `OUTGOING_REQUEST` every message includes `sender_username`
 and is delivered with PoW, even if the contact's access key has already
@@ -1976,8 +2080,11 @@ on the relay encrypted under a key that only someone who knows the username
 can derive. That keeps it from the relay and from a copy of its database,
 but **not** from anyone who knows or guesses the username (§9).
 
-**Setting.** "Aramada göster" / "Show in search", default **on**, one per
-account, kept in the vault and in the backup (§5.5). The settings screen
+**Setting.** "Aramada göster" / "Show in search", default **off for new
+accounts**, one per account, kept in the vault and in the backup (§5.5).
+Existing stored preferences are unchanged. Backups and pre-avatar account
+records retain their historical decoding defaults; restoring them does not
+silently reset a preference. The settings screen
 SHOULD explain it — TR: "Açıkken kullanıcı adını tam olarak yazan herkes
 profil resmini görebilir. Kapalıyken yalnızca kişilerin görür. Kapatman,
 daha önce görenlerdeki kopyaları silmez; sunucu da kullanıcı adını tahmin

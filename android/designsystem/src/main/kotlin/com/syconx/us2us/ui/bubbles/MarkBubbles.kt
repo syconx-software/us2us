@@ -89,7 +89,13 @@ fun TombstoneBubble(message: Message, modifier: Modifier = Modifier, isTail: Boo
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             PhosphorIcon(PhosphorGlyph.Prohibit, 16.dp, tint = ink)
-            U2Text(stringResource(R.string.common_message_deleted), U2TextStyles.bubbleTombstone, Modifier.padding(end = 4.dp), color = ink)
+            // A community's trace says who deleted it: its sender, or the owner (moderation).
+            val text = when {
+                message.community == null -> R.string.common_message_deleted
+                message.community?.removedByOwner == true -> R.string.community_message_removed
+                else -> R.string.community_message_deleted
+            }
+            U2Text(stringResource(text), U2TextStyles.bubbleTombstone, Modifier.padding(end = 4.dp), color = ink)
         }
     }
 }
