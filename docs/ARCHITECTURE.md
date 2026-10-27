@@ -23,9 +23,13 @@
 
 [COMMUNITIES.md](COMMUNITIES.md) defines the additive community protocol and
 its threat model. A separate authenticated mailbox and membership tables
-keep community traffic away from legacy one-to-one delivery. Each text is
-sealed with the existing pairwise libsignal session for each of at most 99
-other members. No personal access key grants community authority.
+keep community traffic away from legacy one-to-one delivery. Each message
+(text, or a photo, video or file pointer with its key) is sealed with the
+existing pairwise libsignal session for each of at most 99 other members; a
+media blob is uploaded once through the one-to-one media endpoint and only
+its sender holds the delete token. Delivery and read receipts go to the
+message's author alone, and a delete-for-everyone is honoured from the
+author or the owner. No personal access key grants community authority.
 
 The relay additionally stores public community names, owner-signed rosters,
 requests and invitation hashes, and learns the authenticated sender and
