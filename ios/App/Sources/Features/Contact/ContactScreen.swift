@@ -58,6 +58,7 @@ struct ContactScreen: View {
         } message: {
             Text("requests.block.message", table: .chats)
         }
+        .chatDeletionAlert($actions.deletion, messenger: actions.messenger, locale: locale)
         .u2Sheet(item: $actions.report) { report in
             ReportSheet(model: report)
                 .environment(\.locale, locale)
@@ -140,7 +141,7 @@ struct ContactScreen: View {
     // MARK: “…”
 
     /// Share (Doğrulama only, once the number is known) ‖ Bildir · Engelle
-    /// — or “Engeli kaldır” while blocked.
+    /// — or “Engeli kaldır” while blocked ‖ Sohbeti sil · Kişiyi sil.
     private var menuItems: [FloatingMenuItem] {
         var items: [FloatingMenuItem] = []
         if media.tab == .verification, verification.info != nil {
@@ -164,6 +165,16 @@ struct ContactScreen: View {
                     actions.requestBlock()
                 })
         }
+        items.append(
+            FloatingMenuItem(
+                id: "deleteChat", title: Text("delete.chat"), glyph: .trashSimple, tone: .destructive, startsGroup: true
+            ) {
+                actions.requestDeletion(.chat)
+            })
+        items.append(
+            FloatingMenuItem(id: "deleteContact", title: Text("delete.contact"), glyph: .trash, tone: .destructive) {
+                actions.requestDeletion(.contact)
+            })
         return items
     }
 

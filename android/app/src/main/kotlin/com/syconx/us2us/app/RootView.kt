@@ -51,6 +51,7 @@ import com.syconx.us2us.feature.onboarding.OnboardingFlow
 import com.syconx.us2us.ui.env.LocalOwnAvatar
 import com.syconx.us2us.ui.env.LocalSystemBars
 import com.syconx.us2us.ui.env.ProvideU2Environment
+import com.syconx.us2us.ui.env.ScreenAwakeScope
 import com.syconx.us2us.ui.env.U2Haptics
 import com.syconx.us2us.ui.env.U2SystemBars
 import com.syconx.us2us.ui.env.rememberViewHaptics
@@ -104,43 +105,48 @@ fun AppRoot(
         oldTheme = null
     }
     U2Theme(preference = shownTheme, reduceMotion = reduceMotion) {
-        val systemBars = services?.systemBars ?: remember { U2SystemBars() }
-        ProvideU2Environment(
-            appModel = model,
-            designInsets = model.configuration.designInsets,
-            haptics = haptics,
-            harnessState = model.harnessState,
-            guard = model.guard,
-            systemBars = systemBars,
-            screens = AppFeatureScreens,
+        ScreenAwakeScope(
+            preference = model.preferences.keepScreenOn,
+            contentVisible = model.phase == Phase.Unlocked && model.overlay == Overlay.None,
         ) {
-            val dark = U2Theme.isDark || LocalSystemBars.current.forcesDark
-            LaunchedEffect(dark) { onSystemBarsDark(dark) }
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(U2Theme.colors.bg),
+            val systemBars = services?.systemBars ?: remember { U2SystemBars() }
+            ProvideU2Environment(
+                appModel = model,
+                designInsets = model.configuration.designInsets,
+                haptics = haptics,
+                harnessState = model.harnessState,
+                guard = model.guard,
+                systemBars = systemBars,
+                screens = AppFeatureScreens,
             ) {
-                // The harness's preparation runs before its state's first frame: only the background until then.
-                if (model.isReady) {
-                    DebugScreens.Provide(model.configuration) {
-                        U2OverlayHost {
-                            RootView(model)
-                            DebugScreens.Gallery(model.configuration)
+                val dark = U2Theme.isDark || LocalSystemBars.current.forcesDark
+                LaunchedEffect(dark) { onSystemBarsDark(dark) }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(U2Theme.colors.bg),
+                ) {
+                    // The harness's preparation runs before its state's first frame: only the background until then.
+                    if (model.isReady) {
+                        DebugScreens.Provide(model.configuration) {
+                            U2OverlayHost {
+                                RootView(model)
+                                DebugScreens.Gallery(model.configuration)
+                            }
+                            SecurityLayer(model)
                         }
-                        SecurityLayer(model)
                     }
-                }
-                oldTheme?.let { picture ->
-                    Image(
-                        picture,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { alpha = oldThemeAlpha.value }
-                            .clearAndSetSemantics {},
-                    )
+                    oldTheme?.let { picture ->
+                        Image(
+                            picture,
+                            contentDescription = null,
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = oldThemeAlpha.value }
+                                .clearAndSetSemantics {},
+                        )
+                    }
                 }
             }
         }

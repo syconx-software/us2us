@@ -139,7 +139,8 @@ interface ComposerVoice {
  * Locked or in review, “+” becomes “Sil” and the mic “Gönder”.
  *
  * [bottomPadding] is the space under the row; `null` is the design's 36 dp above the physical
- * bottom (the navigation bar plus 2 dp, as the home indicator is 34).
+ * bottom (the navigation bar plus 2 dp, as the home indicator is 34). [sendsOnly] (communities):
+ * the field without timer and sticker and the send button in the mic's place (no voice notes).
  */
 @Composable
 fun Composer(
@@ -155,6 +156,8 @@ fun Composer(
     onRecord: () -> Unit = {},
     bottomPadding: Dp? = null,
     voice: ComposerVoice? = null,
+    sendsOnly: Boolean = false,
+    showsTimer: Boolean = true,
 ) {
     val colors = U2Theme.colors
     val hasText = text.isNotBlank()
@@ -200,8 +203,9 @@ fun Composer(
             row = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                     LeadingButton(mode, voice, onAttach)
-                    ComposerField(text, onTextChange, mode, onTimer, onSticker, Modifier.weight(1f))
-                    ComposerActionButton(hasText, voice, onSend, onRecord)
+                    ComposerField(text, onTextChange, mode, onTimer, onSticker, Modifier.weight(1f), showsTools = !sendsOnly, showsTimer = showsTimer)
+                    // Send-only previews keep the plane dimmed until there is text.
+                    if (sendsOnly) ComposerSendButton(onSend, enabled = hasText) else ComposerActionButton(hasText, voice, onSend, onRecord)
                 }
             },
             hint = {
@@ -209,33 +213,6 @@ fun Composer(
                 AnimatedVisibility(voice?.showsHint == true, enter = fade.enter, exit = fade.exit) { voice?.HintBubble(Modifier) }
             },
         )
-    }
-}
-
-/**
- * C21 without media (communities, proposed; iOS `CommunityComposer`): the same field without
- * “+”, timer and sticker, and [ComposerSendButton] on `composerFade`. [canSend] dims the button.
- * [bottomPadding] as in [Composer].
- */
-@Composable
-fun TextComposer(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onSend: () -> Unit,
-    modifier: Modifier = Modifier,
-    canSend: Boolean = text.isNotBlank(),
-    bottomPadding: Dp? = null,
-) {
-    val bottom = bottomPadding ?: (WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 36.dp - U2Size.designHomeIndicator)
-    Row(
-        modifier
-            .background(U2Theme.colors.composerFade)
-            .padding(start = U2Spacing.chatComposerGutter, top = 14.dp, end = U2Spacing.chatComposerGutter, bottom = bottom),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        ComposerField(text, onTextChange, ComposerVoiceMode.Idle, onTimer = {}, onSticker = {}, modifier = Modifier.weight(1f), showsTools = false)
-        ComposerSendButton(onSend, enabled = canSend)
     }
 }
 
@@ -315,6 +292,7 @@ private fun ComposerField(
     onSticker: () -> Unit,
     modifier: Modifier,
     showsTools: Boolean = true,
+    showsTimer: Boolean = true,
 ) {
     val colors = U2Theme.colors
     val idle = mode == ComposerVoiceMode.Idle
@@ -369,7 +347,7 @@ private fun ComposerField(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // 2/3 dp lower than centred, like the design's icon font.
-                FieldIconButton(PhosphorGlyph.Timer, stringResource(R.string.common_a11y_composer_timer), idle, onTimer)
+                if (showsTimer) FieldIconButton(PhosphorGlyph.Timer, stringResource(R.string.common_a11y_composer_timer), idle, onTimer)
                 FieldIconButton(PhosphorGlyph.Sticker, stringResource(R.string.common_a11y_composer_sticker), idle, onSticker)
             }
         }

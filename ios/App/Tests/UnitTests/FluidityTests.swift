@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import UIKit
 import Testing
 
 @testable import us2us
@@ -9,6 +11,51 @@ import Testing
 @MainActor
 @Suite("Fluidity")
 struct FluidityTests {
+    @Test func screenModelIsCreatedOnceAcrossRebuildsAndAgainAfterRemoval() async throws {
+        final class Model {}
+        var creations = 0
+        struct Screen: View {
+            @StateObject private var owner: ViewModelOwner<Model>
+            let pass: Int
+            init(pass: Int, make: @escaping () -> Model) {
+                self.pass = pass
+                _owner = StateObject(wrappedValue: ViewModelOwner(make))
+            }
+            var body: some View { Text("\(pass)-\(ObjectIdentifier(owner.model))") }
+        }
+        struct Root: View {
+            let pass: Int
+            let includesScreen: Bool
+            let make: () -> Model
+            var body: some View {
+                if includesScreen { Screen(pass: pass, make: make) }
+            }
+        }
+        let make = { creations += 1; return Model() }
+        let host = UIHostingController(rootView: Root(pass: 0, includesScreen: true, make: make))
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let oldKeyWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            oldKeyWindow?.makeKey()
+        }
+        func render(_ pass: Int, includesScreen: Bool = true) async throws {
+            host.rootView = Root(pass: pass, includesScreen: includesScreen, make: make)
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(30))
+        }
+        for pass in 0..<5 { try await render(pass) }
+        #expect(creations == 1)
+        try await render(5, includesScreen: false)
+        try await render(6)
+        #expect(creations == 2)
+    }
+
     @Test func stagedPushIsOnThePathAtOnce() {
         let router = U2Router<AppRoute>()
         router.push(.settings)

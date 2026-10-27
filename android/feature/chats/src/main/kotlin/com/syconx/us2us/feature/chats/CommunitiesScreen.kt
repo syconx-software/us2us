@@ -27,12 +27,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.CommunitiesService
-import com.syconx.us2us.domain.CommunityApplication
 import com.syconx.us2us.domain.CommunityCard
 import com.syconx.us2us.domain.CommunityFormat
 import com.syconx.us2us.domain.CommunityPage
 import com.syconx.us2us.domain.CommunitySnapshot
-import com.syconx.us2us.domain.CommunityText
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.components.CenteredTitleHeader
 import com.syconx.us2us.ui.components.ConfirmationTags
@@ -80,13 +78,7 @@ internal object CommunityTags {
     const val INVITE = "communities.invite"
     const val WARNING = "communities.warning"
     const val ERROR = "communities.error"
-    const val CONVERSATION = "communities.conversation"
-    const val COMPOSER = "communities.composer"
-    const val MANAGE = "communities.manage"
-    const val MANAGE_SHEET = "communities.manageSheet"
     fun group(id: String) = "communities.group.$id"
-    fun request(account: String) = "communities.request.$account"
-    fun remove(account: String) = "communities.remove.$account"
 }
 
 /** A form that rises over the screen; each one first says what the relay can see. */
@@ -96,64 +88,38 @@ private sealed interface CommunityForm {
     data class Join(val group: CommunityCard) : CommunityForm
 }
 
-/** An irreversible step, confirmed first. */
+/** An irreversible step, confirmed first (the others are in the community's own management sheet). */
 internal sealed interface CommunityConfirmation {
     val group: String
-    data class RemoveMember(override val group: String, val member: String) : CommunityConfirmation
-    data class Leave(override val group: String) : CommunityConfirmation
     data class Withdraw(override val group: String) : CommunityConfirmation
-    data class Forget(override val group: String) : CommunityConfirmation
-    data class Delete(override val group: String) : CommunityConfirmation
 }
 
-/**
- * A one-use invitation on screen. It stays only while it can still be unused: a new join request
- * (someone redeemed it), a roster change (an approval), closing the sheet or a lock hides it.
- */
-private data class IssuedInvite(val code: String, val group: String, val revision: Long, val requests: Set<String>)
-
 private const val POLL_MILLIS = 10_000L
-private const val MAX_TEXT_BYTES = 8192
 private const val SEARCH_DEBOUNCE_MILLIS = 300L
 private const val SEARCH_MIN_CHARACTERS = 2
 
 /**
  * Independent foreground surface: its failures never stop the direct chat feed. Nothing it shows
- * survives a lock (the app stays composed under the lock screen): on lock every list, draft and
- * invitation is dropped, and the poll starts again after the next unlock.
+ * survives a lock (the app stays composed under the lock screen): on lock every list and form is
+ * dropped, and the poll starts again after the next unlock. A joined community opens as a chat
+ * ([onOpen], the conversation screen with its members and management); a new one opens at once.
  */
 @Composable
-internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit) {
+internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit, onOpen: (String) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val unlocked by remember(service) { service.unlocked }.collectAsState(initial = false)
     var snapshot by remember { mutableStateOf(CommunitySnapshot(emptyList(), true)) }
     var directory by remember { mutableStateOf(CommunityPage(emptyList(), null)) }
-    var selected by remember { mutableStateOf<String?>(null) }
-    var messages by remember { mutableStateOf<List<CommunityText>>(emptyList()) }
-    var applications by remember { mutableStateOf<List<CommunityApplication>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var public by remember { mutableStateOf(false) }
     var invite by remember { mutableStateOf("") }
-    var issued by remember { mutableStateOf<IssuedInvite?>(null) }
-    var draft by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var form by remember { mutableStateOf<CommunityForm?>(null) }
     var confirmation by remember { mutableStateOf<CommunityConfirmation?>(null) }
-    var showsManage by remember { mutableStateOf(false) }
-    var sheetConfirmation by remember { mutableStateOf<CommunityConfirmation?>(null) }
-    val group = snapshot.groups.firstOrNull { it.id == selected }
 
-    fun closeManage() {
-        showsManage = false; sheetConfirmation = null; issued = null
-    }
-    fun closeGroup() {
-        closeManage()
-        selected = null; messages = emptyList(); applications = emptyList(); draft = ""
-    }
     fun clearForLock() {
-        closeGroup()
         snapshot = CommunitySnapshot(emptyList(), true); directory = CommunityPage(emptyList(), null)
         query = ""; name = ""; invite = ""; failed = false; form = null; confirmation = null
     }
@@ -161,16 +127,6 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
         val next = service.refresh()
         if (!unlocked) return
         snapshot = next
-        val current = next.groups.firstOrNull { it.id == selected }
-        if (current != null && !current.pending) {
-            messages = service.messages(current.id)
-            applications = if (current.isOwner && current.active) service.applications(current.id) else emptyList()
-        }
-        issued?.let { shown ->
-            val unchanged = current != null && current.id == shown.group && current.active && current.revision == shown.revision &&
-                applications.all { it.account in shown.requests }
-            if (!unchanged) issued = null
-        }
     }
     suspend fun search(text: String, after: String? = null) {
         val page = service.search(text.trim(), after)
@@ -179,11 +135,8 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
     }
     suspend fun carryOut(step: CommunityConfirmation) {
         when (step) {
-            is CommunityConfirmation.RemoveMember -> service.remove(step.group, step.member)
-            is CommunityConfirmation.Leave -> { service.leave(step.group); closeGroup() }
             is CommunityConfirmation.Withdraw -> service.withdraw(step.group)
-            is CommunityConfirmation.Forget -> { service.forget(step.group); closeGroup() }
-            is CommunityConfirmation.Delete -> { service.delete(step.group); closeGroup() }
+            else -> Unit
         }
     }
     fun perform(action: suspend () -> Unit) {
@@ -197,7 +150,7 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
         }
     }
 
-    LaunchedEffect(service, unlocked, selected) {
+    LaunchedEffect(service, unlocked) {
         if (!unlocked) {
             clearForLock()
             return@LaunchedEffect
@@ -219,7 +172,7 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
     }
     // Searches reach the relay: only from two characters on (or on submit), and debounced.
     LaunchedEffect(service, unlocked, query) {
-        if (!unlocked || selected != null) return@LaunchedEffect
+        if (!unlocked) return@LaunchedEffect
         val text = query.trim()
         if (text.isNotEmpty() && text.length < SEARCH_MIN_CHARACTERS) return@LaunchedEffect
         delay(SEARCH_DEBOUNCE_MILLIS)
@@ -228,63 +181,18 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
 
     val privateName = stringResource(R.string.community_private)
     U2Screen {
-        if (group == null) {
-            Directory(
-                snapshot = snapshot, directory = directory, query = query, onQuery = { query = it },
-                busy = busy, failed = failed, privateName = privateName,
-                onOpen = { selected = it; failed = false },
-                onWithdraw = { confirmation = CommunityConfirmation.Withdraw(it) },
-                onJoin = { form = CommunityForm.Join(it) },
-                onSearch = { perform { search(query) } },
-                onMore = { perform { search(query, directory.next) } },
-                onCreate = { failed = false; form = CommunityForm.Create },
-                onRedeem = { failed = false; form = CommunityForm.Redeem },
-                onClose = onClose,
-            )
-        } else {
-            CommunityConversation(
-                group = group,
-                title = group.name.ifEmpty { privateName },
-                messages = messages,
-                draft = draft,
-                onDraft = { if (it.encodeToByteArray().size <= MAX_TEXT_BYTES) draft = it },
-                canSend = !busy && draft.isNotBlank(),
-                onSend = { val text = draft; perform { service.send(group.id, text); if (draft == text) draft = "" } },
-                failed = failed,
-                warning = snapshot.warning,
-                busy = busy,
-                onBack = ::closeGroup,
-                onManage = { failed = false; showsManage = true },
-            )
-        }
-
-        // Members, requests, invitations and leaving live in their own sheet, so the conversation keeps the screen.
-        U2Sheet(isPresented = showsManage && group != null, onDismissRequest = { if (!busy) closeManage() }, style = U2SheetStyle.FullHeight) {
-            group?.let { current ->
-                CommunityManageSheet(
-                    group = current,
-                    title = current.name.ifEmpty { privateName },
-                    applications = applications,
-                    invite = issued?.takeIf { it.group == current.id }?.code,
-                    busy = busy,
-                    failed = failed,
-                    confirmation = sheetConfirmation,
-                    onClose = ::closeManage,
-                    onApprove = { application -> perform { service.approve(current.id, application); issued = null } },
-                    onReject = { application -> perform { service.reject(current.id, application.account) } },
-                    onInvite = {
-                        val requests = applications.map { it.account }.toSet()
-                        perform { issued = IssuedInvite(service.invite(current.id), current.id, current.revision, requests) }
-                    },
-                    onRevoke = { perform { service.revokeInvites(current.id); issued = null } },
-                    onConfirm = { sheetConfirmation = it },
-                    onConfirmed = { step ->
-                        perform { try { carryOut(step) } finally { sheetConfirmation = null } }
-                    },
-                    onCancelConfirmation = { sheetConfirmation = null },
-                )
-            }
-        }
+        Directory(
+            snapshot = snapshot, directory = directory, query = query, onQuery = { query = it },
+            busy = busy, failed = failed, privateName = privateName,
+            onOpen = { if (!busy) onOpen(it) },
+            onWithdraw = { confirmation = CommunityConfirmation.Withdraw(it) },
+            onJoin = { form = CommunityForm.Join(it) },
+            onSearch = { perform { search(query) } },
+            onMore = { perform { search(query, directory.next) } },
+            onCreate = { failed = false; form = CommunityForm.Create },
+            onRedeem = { failed = false; form = CommunityForm.Redeem },
+            onClose = onClose,
+        )
         U2Sheet(item = form, onDismissRequest = { if (!busy) form = null }, style = U2SheetStyle.Content) { current ->
             FormSheet(
                 form = current,
@@ -293,7 +201,11 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
                 onCancel = { form = null; invite = "" },
                 onSubmit = {
                     when (current) {
-                        CommunityForm.Create -> perform { service.create(name.trim(), public); name = ""; form = null }
+                        CommunityForm.Create -> perform {
+                            val created = service.create(name.trim(), public)
+                            name = ""; form = null
+                            onOpen(created)
+                        }
                         CommunityForm.Redeem -> perform { service.redeem(invite.trim()); invite = ""; form = null }
                         is CommunityForm.Join -> { form = null; perform { service.request(current.group) } }
                     }
@@ -321,18 +233,12 @@ internal fun CommunitiesScreen(service: CommunitiesService, onClose: () -> Unit)
 
 /** The confirmation's title, message and button. */
 internal fun CommunityConfirmation.texts(): Triple<Int, Int, Int> = when (this) {
-    is CommunityConfirmation.RemoveMember -> Triple(R.string.community_remove_title, R.string.community_remove_message, R.string.community_remove)
-    is CommunityConfirmation.Leave -> Triple(R.string.community_leave_title, R.string.community_leave_message, R.string.community_leave)
     is CommunityConfirmation.Withdraw -> Triple(R.string.community_withdraw_title, R.string.community_withdraw_message, R.string.community_withdraw)
-    is CommunityConfirmation.Forget -> Triple(R.string.community_forget_title, R.string.community_forget_message, R.string.community_forget)
-    is CommunityConfirmation.Delete -> Triple(R.string.community_delete_title, R.string.community_delete_message, R.string.community_delete_confirm)
 }
 
 internal val CommunityConfirmation.glyph: PhosphorGlyph
     get() = when (this) {
-        is CommunityConfirmation.Leave, is CommunityConfirmation.Withdraw -> PhosphorGlyph.LinkBreak
-        is CommunityConfirmation.RemoveMember -> PhosphorGlyph.Prohibit
-        is CommunityConfirmation.Forget, is CommunityConfirmation.Delete -> PhosphorGlyph.Trash
+        is CommunityConfirmation.Withdraw -> PhosphorGlyph.LinkBreak
     }
 
 /** The joined communities, the public directory and the ways in. */

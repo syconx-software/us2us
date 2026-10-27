@@ -98,7 +98,7 @@ val LocalSheetSettled = compositionLocalOf { true }
 
 /**
  * Presents a C18 sheet while [isPresented]: an opaque backdrop (`mix(bg 55%, #05060c)`, or the 3.3
- * dim) fades in over 0.55 s while the sheet rises on the critically damped spring; it follows the
+ * dim) fades in over the sheet duration while the sheet rises on the entrance curve; it follows the
  * finger down and asks to be dismissed ([onDismissRequest]) past a third of its height or when
  * flung. Back, and a tap on the backdrop of the content and floating styles, ask too. When
  * [isPresented] turns `false` the sheet goes down (0.55 s, or on at the finger's speed after a
@@ -211,20 +211,20 @@ private fun SheetContainer(
     }
 
     // The rise starts one frame after the sheet appears: its first frame (building the content,
-    // measuring the sheet) is spent parked off screen behind a clear backdrop, and the spring then
+    // measuring the sheet) is spent parked off screen behind a clear backdrop, and the finite entrance then
     // plays from rest with every frame.
     LaunchedEffect(Unit) {
         withFrameNanos { }
         while (sheetHeight == null) withFrameNanos { }
         if (!currentPresented) return@LaunchedEffect
         hasRisen = true
-        launch { backdrop.animateTo(1f, U2Motion.resolve(U2Motion.spring<Float>(), reduceMotion)) }
-        travel.animateTo(1f, U2Motion.resolve(U2Motion.spring(visibilityThreshold = 0.0005f), reduceMotion))
+        launch { backdrop.animateTo(1f, U2Motion.resolve(U2Motion.sheet, reduceMotion).spec()) }
+        travel.animateTo(1f, U2Motion.resolve(U2Motion.sheet, reduceMotion).spec())
         isSettled = true
     }
 
-    // “Dismiss reverses”: down on the design curve over the sheet duration (0.55 s), from rest, while
-    // the backdrop fades over 0.36 s; let go mid-fling, on at the finger's speed instead.
+    // “Dismiss reverses”: down on the design curve over the sheet duration, from rest, while
+    // the backdrop fades over the state duration; let go mid-fling, on at the finger's speed instead.
     LaunchedEffect(isPresented) {
         if (isPresented) return@LaunchedEffect
         isSettled = false
@@ -242,7 +242,7 @@ private fun SheetContainer(
             travel.animateTo(0f, U2Motion.spring(visibilityThreshold = 0.0005f), initialVelocity = -relative * spanTravel)
         } else {
             withFrameNanos { }
-            travel.animateTo(0f, U2Motion.resolve(U2Motion.soft(U2Motion.Duration.sheet), reduceMotion).spec())
+            travel.animateTo(0f, U2Motion.resolve(U2Motion.sheet, reduceMotion).spec())
         }
         drag.snapTo(0f)
         flingMargin = 0f

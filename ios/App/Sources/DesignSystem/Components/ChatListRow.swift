@@ -23,9 +23,13 @@ struct ChatListRow: View {
 
     var body: some View {
         HStack(spacing: U2Spacing.rowGap) {
-            Avatar(
-                username: chat.peer.username, palette: chat.peer.palette, size: .listRow,
-                showsOnlineDot: chat.peer.isOnline, picture: chat.peer.avatar)
+            if chat.community != nil {
+                CommunityAvatar(diameter: Avatar.Size.listRow.diameter)
+            } else {
+                Avatar(
+                    username: chat.peer.username, palette: chat.peer.palette, size: .listRow,
+                    showsOnlineDot: chat.peer.isOnline, picture: chat.peer.avatar)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 firstLine
                 secondLine
@@ -45,11 +49,20 @@ struct ChatListRow: View {
 
     private var firstLine: some View {
         HStack(spacing: 6) {
-            Text(verbatim: chat.peer.username)
-                .u2Font(.monoUsername)
-                .foregroundStyle(Color.u2.text)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            if chat.community != nil {
+                // A community's name is free text, not a username.
+                Text(verbatim: CommunityNames.title(chat.peer.username, locale: locale))
+                    .u2Font(.rowTitleEmphasis)
+                    .foregroundStyle(Color.u2.text)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
+                Text(verbatim: chat.peer.username)
+                    .u2Font(.monoUsername)
+                    .foregroundStyle(Color.u2.text)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             if chat.peer.isVerified {
                 PhosphorIcon(.sealCheck, weight: .fill, size: 14, label: Text("a11y.verified"))
                     .foregroundStyle(Color.u2.accent)
@@ -111,13 +124,21 @@ struct ChatListRow: View {
         case .disappearing: .timer
         case .sticker: .sticker
         case .liveLocation, .liveLocationEnded, .location: .navigationArrow
-        case .deleted: .prohibit
+        case .deleted, .communityDeleted: .prohibit
         case .text, .photo, .photoViewOnce, .video, .voice, .file: nil
         }
     }
 
     private func previewText(_ last: MessagePreview) -> Text {
         if isFailed { return Text("chats.preview.failed") }
+        let body = previewBody(last)
+        // A community names who wrote it (“deniz: Merhaba”).
+        guard let sender = last.sender else { return body }
+        let name = CommunityNames.member(username: sender.username, shortID: sender.shortID, locale: locale)
+        return Text(verbatim: name + ": ") + body
+    }
+
+    private func previewBody(_ last: MessagePreview) -> Text {
         switch last.kind {
         case .text(let text): return Text(verbatim: text)
         case .disappearing: return Text("chats.preview.disappearing")
@@ -131,6 +152,8 @@ struct ChatListRow: View {
         case .liveLocation: return Text("location.live")
         case .liveLocationEnded: return Text("chats.preview.liveLocationEnded")
         case .deleted: return Text("message.deleted")
+        case .communityDeleted(let byOwner):
+            return byOwner ? Text("message.removedByOwner", table: .communities) : Text("message.deleted", table: .communities)
         }
     }
 }
@@ -140,6 +163,7 @@ struct ChatListRow: View {
 /// “{n} kişi seninle yazışmak istiyor” · count badge · chevron.
 struct RequestsCard: View {
     let count: Int
+    var communityName: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -151,10 +175,16 @@ struct RequestsCard: View {
                     .background(Circle().fill(Color.u2.accent900))
                     .overlay(Circle().strokeBorder(Color.u2.accent800, lineWidth: 1))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("chats.requests.title")
+                    Group {
+                        if let communityName { Text(verbatim: communityName) }
+                        else { Text("chats.requests.title") }
+                    }
                         .u2Font(.rowTitleEmphasis)
                         .foregroundStyle(Color.u2.text)
-                    Text("chats.requests.subtitle \(count)")
+                    Group {
+                        if communityName != nil { Text("chats.requests.count \(count)", table: .communities) }
+                        else { Text("chats.requests.subtitle \(count)") }
+                    }
                         .u2Font(.caption)
                         .foregroundStyle(Color.u2.textSecondary)
                 }

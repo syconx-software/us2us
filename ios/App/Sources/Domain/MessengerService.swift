@@ -128,6 +128,25 @@ protocol MessengerService: AnyObject, Observable {
     /// The same for the sender of a message request (4.3, 4.4).
     func reportSubject(for request: MessageRequest) -> ReportSubject?
 
+    /// “Sohbeti sil” (4.1 long press, the contact screen's “…”), after its
+    /// confirmation: the chat's messages and media are crypto-shredded on
+    /// this phone only (PROTOCOL §5.3); nothing is sent, the chat stays on
+    /// the other phone. The person stays a contact: writing again continues
+    /// as before. A live location shared with them stops first, and photos
+    /// still being prepared for the chat are dropped. `false` when nothing
+    /// was deleted.
+    @discardableResult
+    func deleteChat(_ chat: ChatID) async -> Bool
+
+    /// “Kişiyi sil”, after its confirmation: the chat as `deleteChat`, and
+    /// the contact itself with its session and safety-number verification —
+    /// on this phone only, nothing is sent. 4.2 then finds the username as a
+    /// stranger: “Mesaj yaz” starts a new chat. Someone blocked stays
+    /// blocked (deleting is not unblocking): only the block is kept, in
+    /// 7.1 › Engellenenler. `false` when nothing was deleted.
+    @discardableResult
+    func deleteContact(_ chat: ChatID) async -> Bool
+
     /// 4.2 “Mesaj yaz”: opens the chat with `username` (exact match),
     /// creating an empty, pending-request conversation when there is none
     /// yet. The first message becomes a request on the other side; neither
@@ -388,6 +407,8 @@ protocol MessengerService: AnyObject, Observable {
     /// unlocked, the background grace period, lock on return).
     func scenePhaseChanged(_ phase: MessengerScenePhase)
 
+    /// Loads another local page. False means the oldest retained message was reached.
+    func loadOlderMessages(in chat: ChatID) async throws -> Bool
     /// 5.1 is on screen: its messages load, receipts and disappearing timers start.
     func conversationAppeared(_ chat: ChatID) async
     func conversationDisappeared(_ chat: ChatID)
@@ -429,6 +450,7 @@ extension MessengerService {
     func checkRestoreAccess() async -> RestoreAccessCheck { .unanswered }
     var biometricUnlockNeedsCode: Bool { false }
     func enableBiometricUnlock(code: String) async -> UnlockAttemptResult { .vaultUnavailable }
+    func loadOlderMessages(in chat: ChatID) async throws -> Bool { false }
     func conversationAppeared(_ chat: ChatID) async {}
     func conversationDisappeared(_ chat: ChatID) {}
     func sendCurrentLocation(in chat: ChatID) async {}

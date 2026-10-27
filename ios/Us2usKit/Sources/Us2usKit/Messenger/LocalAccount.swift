@@ -23,7 +23,8 @@ public struct LocalAccount: Sendable, Equatable, Codable {
     /// letter. Read it as ``profilePicture``.
     public var profileAvatar: Data?
     /// "Aramada göster" / "Show in search" is off (§8.10). `false` — the
-    /// default, also for accounts saved before profile pictures — is on.
+    /// legacy decoding/initializer default — is on. Registration explicitly sets
+    /// this to `true`; stored and restored preferences are preserved.
     public var avatarSearchOff: Bool
     /// The last version this installation used for an avatar-record write
     /// (§4.12, §8.10), raised to the relay's `X-Avatar-Version` after a

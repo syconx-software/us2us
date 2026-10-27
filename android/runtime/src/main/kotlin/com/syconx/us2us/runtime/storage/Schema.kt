@@ -290,7 +290,57 @@ internal object Schema {
         "CREATE INDEX community_messages_by_time ON community_messages(community_id,sent_at)",
         "CREATE TABLE community_outbox(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, message_id TEXT NOT NULL, recipient TEXT NOT NULL, revision INTEGER NOT NULL, envelope BLOB NOT NULL, PRIMARY KEY(community_id,message_id,recipient))",
     ))
-    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6, v7)
+    /**
+     * Communities extension v2 (COMMUNITIES.md): media, receipts and delete for everyone. v7 went
+     * out in internal builds only, but it is treated as released: its rows stay and are upgraded.
+     *
+     * * `community_messages` gains the local receive time (ordering, the chat list), the sealed
+     *   attachment pointer (an item under the community key, like the body), the media state, the
+     *   item id of the decrypted (or, for own media, sent) file, the sealed delete token of own
+     *   uploads with its upload time (kept 14 days at most), who deleted it for everyone (1 its
+     *   sender, 2 the owner) and when, and when an incoming message was displayed. Earlier rows
+     *   count as displayed, so the upgrade neither shows them as unread nor sends READ for them.
+     * * `community_recipients`: the recipient set of own text and media messages, fixed at send
+     *   time, with each member's transport state and delivered and read times.
+     * * `community_pending_deletes`: deletes that arrived before their target (30 days, at most
+     *   1000 per community); `community_removed`: "delete for me" keys (30 days).
+     * * `community_receipt_queue`: receipts to send, persisted before they are sent.
+     * * `community_outbox.payload`: the sealed content of a receipt or delete, so it can be
+     *   encrypted again under a newer revision.
+     */
+    val v8 = Migration(8, listOf(
+        "ALTER TABLE community_messages ADD COLUMN received_at INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN attachment BLOB",
+        "ALTER TABLE community_messages ADD COLUMN media_state INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN file_id BLOB",
+        "ALTER TABLE community_messages ADD COLUMN delete_token BLOB",
+        "ALTER TABLE community_messages ADD COLUMN uploaded_at INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN deleted_by INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN deleted_at INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN displayed_at INTEGER",
+        "UPDATE community_messages SET received_at = sent_at, displayed_at = sent_at",
+        "CREATE INDEX community_messages_by_arrival ON community_messages(community_id, received_at)",
+        "CREATE TABLE community_recipients(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, message_id TEXT NOT NULL, member TEXT NOT NULL, transport TEXT NOT NULL, delivered_at INTEGER, read_at INTEGER, PRIMARY KEY(community_id,message_id,member))",
+        "CREATE TABLE community_pending_deletes(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, target_sender TEXT NOT NULL, target_id TEXT NOT NULL, by_owner INTEGER NOT NULL, remembered_at INTEGER NOT NULL, PRIMARY KEY(community_id,target_sender,target_id))",
+        "CREATE TABLE community_removed(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, sender TEXT NOT NULL, message_id TEXT NOT NULL, removed_at INTEGER NOT NULL, PRIMARY KEY(community_id,sender,message_id))",
+        "CREATE TABLE community_receipt_queue(community_id TEXT NOT NULL REFERENCES community_states(id) ON DELETE CASCADE, recipient TEXT NOT NULL, type INTEGER NOT NULL, message_id TEXT NOT NULL, queued_at INTEGER NOT NULL, PRIMARY KEY(community_id,recipient,type,message_id))",
+        "ALTER TABLE community_outbox ADD COLUMN payload BLOB",
+    ))
+    private val v9 = Migration(9, listOf(
+        "ALTER TABLE community_messages ADD COLUMN sticker BLOB",
+    ))
+
+    /**
+     * "Kişiyi sil" (PROTOCOL.md §6.4): a deleted contact keeps only its session and identity (in the
+     * protocol store) and the username it was shown under, so if it writes again its new request is
+     * recognisable. The row is used up when the account becomes a contact again; "leave no trace"
+     * (§8.2), a bare block and a directory answer giving the name to another account remove it.
+     */
+    val v10 = Migration(10, listOf(
+        "CREATE TABLE former_contacts (account BLOB PRIMARY KEY, username TEXT NOT NULL) WITHOUT ROWID",
+    ))
+
+    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
 
     val latestVersion: Int get() = migrations.maxOf { it.version }
 }

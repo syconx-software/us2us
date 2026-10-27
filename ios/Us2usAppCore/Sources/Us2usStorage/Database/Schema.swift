@@ -9,7 +9,89 @@
 /// is additionally an item under the conversation key CK (§5.3), so
 /// crypto-shredding a conversation leaves only unreadable ciphertext.
 enum Schema {
-    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7]
+    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10]
+
+    /// “Kişiyi sil” (§6.4): a deleted contact keeps only its session and
+    /// identity (protocol store) and the username it was shown under, so a
+    /// message from it later decrypts and opens a request that is
+    /// recognisable. The name is taken back (as unchecked, §3.3) when the
+    /// account becomes a contact again, and goes with “leave no trace”, a
+    /// bare block, or a lookup that finds the name at another account.
+    static let v10 = Migration(version: 10, statements: [
+        "CREATE TABLE former_contacts (account BLOB PRIMARY KEY, username TEXT NOT NULL) WITHOUT ROWID",
+    ])
+
+    static let v9 = Migration(version: 9, statements: [
+        "ALTER TABLE community_messages ADD COLUMN sticker BLOB",
+    ])
+
+    /// Communities extension v2 (docs/COMMUNITIES.md, Extension v2): media,
+    /// receipts and delete for everyone. v7 shipped in test builds, so this
+    /// only adds; one-to-one tables are untouched.
+    ///
+    /// * `community_messages`: `kind` (0 text, 1 media), `deleted_by` (a
+    ///   placeholder: 1 deleted by its sender, 2 removed by the owner; its
+    ///   body is empty), `displayed_at` (an incoming message shown in the
+    ///   open conversation: the unread count), `delivery_due` / `read_due`
+    ///   (a DELIVERY or READ receipt owed to its sender, persisted until it
+    ///   is queued). Messages stored before v8 count as displayed.
+    /// * `community_attachments`: the shared pointer (sealed under the
+    ///   community key; never a delete token), the sender's own delete token
+    ///   (sealed, for 14 days) and the encrypted file's item id.
+    /// * `community_recipients`: for own messages, the recipient set fixed at
+    ///   send time with each member's transport state and delivered / read time.
+    /// * `community_tombstones`: "delete for me" keys (role 0) and deletes
+    ///   that arrived before their target (role 1 by its sender, 2 by the
+    ///   owner), each kept 30 days, at most 1000 pending deletes per community.
+    /// * `community_media_deletes`: blobs this phone uploaded and must delete
+    ///   on the relay (delete for everyone), with their sealed token.
+    /// * `community_outbox.event`: a queued receipt's or delete's own content,
+    ///   sealed under the community key, so a roster change (`409`) seals it
+    ///   again for the same member instead of losing it; `NULL` for text and
+    ///   media messages.
+    static let v8 = Migration(version: 8, statements: [
+        "ALTER TABLE community_messages ADD COLUMN kind INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE community_messages ADD COLUMN deleted_by INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN displayed_at INTEGER",
+        "ALTER TABLE community_messages ADD COLUMN delivery_due INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE community_messages ADD COLUMN read_due INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE community_outbox ADD COLUMN event BLOB",
+        "UPDATE community_messages SET displayed_at = received_at WHERE outgoing = 0",
+        "CREATE INDEX community_messages_unread ON community_messages(community_id, displayed_at) WHERE outgoing = 0",
+        "CREATE INDEX community_messages_receipts_due ON community_messages(community_id) WHERE delivery_due = 1 OR read_due = 1",
+        """
+        CREATE TABLE community_attachments (
+            community_id BLOB NOT NULL, sender BLOB NOT NULL, message_id BLOB NOT NULL,
+            item_id BLOB NOT NULL UNIQUE, descriptor BLOB NOT NULL, delete_token BLOB,
+            state INTEGER NOT NULL, has_file INTEGER NOT NULL DEFAULT 0, uploaded_at INTEGER, updated_at INTEGER NOT NULL,
+            PRIMARY KEY (community_id, sender, message_id),
+            FOREIGN KEY (community_id, sender, message_id)
+                REFERENCES community_messages(community_id, sender, message_id) ON DELETE CASCADE
+        ) WITHOUT ROWID
+        """,
+        """
+        CREATE TABLE community_recipients (
+            community_id BLOB NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+            message_id BLOB NOT NULL, recipient BLOB NOT NULL, state INTEGER NOT NULL,
+            delivered_at INTEGER, read_at INTEGER,
+            PRIMARY KEY (community_id, message_id, recipient)
+        ) WITHOUT ROWID
+        """,
+        """
+        CREATE TABLE community_tombstones (
+            community_id BLOB NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+            sender BLOB NOT NULL, message_id BLOB NOT NULL, role INTEGER NOT NULL, created_at INTEGER NOT NULL,
+            PRIMARY KEY (community_id, sender, message_id)
+        ) WITHOUT ROWID
+        """,
+        "CREATE INDEX community_tombstones_by_age ON community_tombstones(community_id, role, created_at)",
+        """
+        CREATE TABLE community_media_deletes (
+            media_id BLOB PRIMARY KEY, community_id BLOB NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+            token BLOB NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+        ) WITHOUT ROWID
+        """,
+    ])
 
     /// Additive tables: the one-to-one schema and its records are untouched.
     static let v7 = Migration(version: 7, statements: [

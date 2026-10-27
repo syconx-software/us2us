@@ -44,15 +44,18 @@ All binary values are **lowercase hex**. Strings are UTF-8 JSON strings.
 
 ## Shared community vectors
 
-Three files at the top level are shared by Swift, Kotlin and the relay
-(`relay/test/unit/community.test.ts`) instead of being generated per
-platform; see [COMMUNITIES.md](../../docs/COMMUNITIES.md):
+Four files at the top level are shared instead of being generated per
+platform: the first three by Swift, Kotlin and the relay
+(`relay/test/unit/community.test.ts`), `communities-content.json` by Swift
+and Kotlin only (the relay never sees content); see
+[COMMUNITIES.md](../../docs/COMMUNITIES.md):
 
 | File | Vector fields | Verifier checks |
 |---|---|---|
 | `communities.json` | one signed state: `stateHex`, `state`, `signature`, `ownerIdentityKey`, `contentHex`, ... | the state decodes and the libsignal signature verifies with the owner key |
 | `communities-invalid.json` | `reason`, `stateHex`, `valid` | the canonical state decoder accepts exactly the `"valid": true` states |
 | `communities-names.json` | `description`, `name`, `valid`, `canonical` (null if invalid) | the name rule turns `name` into `canonical`, or refuses it |
+| `communities-content.json` | `case` (table below), `reason`, `valid`, `communityMessage` (protobuf), `content` (the same as `Content{community}`) | building the named case yields identical bytes for both fields, parsing them yields an equal message, and the structural validation of COMMUNITIES.md "Extension v2" accepts exactly the `"valid": true` cases |
 
 Keys used by generators (`recipientIdentityKeyPair`, `localKey`, ...) are
 generated once and written into the vector, so verifiers never need the
@@ -85,3 +88,66 @@ hex; `id(n)` means 16 bytes all equal to `n`, e.g. `id(1)` =
 | `profile_avatar_preset` | `Content{control: ControlMessage{profile: ProfileUpdate{display_name: "Kağan", updated_at: 1760000000010, username: "kagan_y", presence_sharing: true, profile_avatar: ProfileAvatar{preset_id: 1}}}}` |
 | `profile_avatar_photo` | `Content{control: ControlMessage{profile: ProfileUpdate{updated_at: 1760000000011, username: "kagan_y", profile_avatar: ProfileAvatar{photo: AvatarPhoto{content_type: "image/jpeg", data: 0xffd8ffd9}}}}}` |
 | `sealed_content` | `SealedContent{sender_account_id: id(14), sender_device_id: 1, type: 3, ciphertext: 0x0102030405, sender_username: "alice_01"}` (not a `Content`) |
+
+## Community content cases (`communities-content.json`)
+
+Every case is a `CommunityMessage` with `community_id: 11111111222243338444555555555555`
+and `revision: 2` (the signed state of `communities.json`) plus the fields
+below; `id(n)` as in the content cases, `m2` =
+`00000000000040008000000000000002` (an account id), `img` =
+`Attachment{kind: IMAGE, media_id: id(0x23), key: 64×0x06, digest: 32×0x07, size: 123456, content_type: "image/jpeg", width: 1920, height: 1080, thumbnail: 0xffd8ffd9}`.
+The structural checks need no roster: sender, revision freshness and
+delete authorization are checked against local state and are not covered.
+
+| `case` | Fields | `valid` |
+|---|---|---|
+| `text` | `message_id: id(0x21), sent_at: 1760000000000, text: "Merhaba topluluk 👋"` | true |
+| `media_caption` | `message_id: id(0x22), sent_at: 1760000000001, text: "Gün batımı", attachment: img` | true |
+| `media_file_no_caption` | `message_id: id(0x24), sent_at: 1760000000002, attachment: Attachment{kind: FILE, media_id: id(0x25), key: 64×0x08, digest: 32×0x09, size: 5000, content_type: "application/pdf", file_name: "plan.pdf"}` | true |
+| `receipt_read` | `message_id: id(0x26), sent_at: 1760000000003, receipt: CommunityReceipt{type: READ, message_ids: [id(0x21), id(0x22)]}` | true |
+| `receipt_delivery` | `message_id: id(0x27), sent_at: 1760000000004, receipt: CommunityReceipt{type: DELIVERY, message_ids: [id(0x24)]}` | true |
+| `delete` | `message_id: id(0x28), sent_at: 1760000000005, delete_target_message_id: id(0x22), delete_target_sender_id: m2` | true |
+| `invalid_empty` | `message_id: id(0x29), sent_at: 1760000000006` | false |
+| `invalid_whitespace_text` | `message_id: id(0x2a), sent_at: 1760000000007, text: " \n\u3000"` | false |
+| `invalid_receipt_with_text` | `message_id: id(0x2b), sent_at: 1760000000008, text: "x", receipt: CommunityReceipt{type: READ, message_ids: [id(0x21)]}` | false |
+| `invalid_receipt_no_ids` | `message_id: id(0x2c), sent_at: 1760000000009, receipt: CommunityReceipt{type: DELIVERY}` | false |
+| `invalid_receipt_short_id` | `message_id: id(0x2d), sent_at: 1760000000010, receipt: CommunityReceipt{type: READ, message_ids: [id(0x21), 15×0x22]}` | false |
+| `invalid_receipt_unknown_type` | `message_id: id(0x2e), sent_at: 1760000000011, receipt: CommunityReceipt{type: 3, message_ids: [id(0x21)]}` | false |
+| `invalid_media_delete_token` | `message_id: id(0x2f), sent_at: 1760000000012, attachment: img with delete_token: 32×0x05` | false |
+| `invalid_media_attachment_caption` | `message_id: id(0x30), sent_at: 1760000000013, attachment: img with caption: "Foto"` | false |
+| `invalid_media_voice` | `message_id: id(0x31), sent_at: 1760000000014, attachment: img with kind: VOICE, content_type: "audio/mp4", no thumbnail` | false |
+| `invalid_media_and_receipt` | `message_id: id(0x32), sent_at: 1760000000015, attachment: img, receipt: CommunityReceipt{type: DELIVERY, message_ids: [id(0x21)]}` | false |
+| `invalid_delete_without_sender` | `message_id: id(0x33), sent_at: 1760000000016, delete_target_message_id: id(0x22)` | false |
+| `invalid_delete_short_target` | `message_id: id(0x34), sent_at: 1760000000017, delete_target_message_id: 15×0x22, delete_target_sender_id: m2` | false |
+| `invalid_delete_with_text` | `message_id: id(0x35), sent_at: 1760000000018, text: "silindi", delete_target_message_id: id(0x22), delete_target_sender_id: m2` | false |
+| `invalid_zero_sent_at` | `message_id: id(0x36), sent_at: 0, text: "Merhaba"` | false |
+
+## Upstream privacy feasibility (separate from community content versions)
+
+`communities-privacy-probe.json` contains **public synthetic test keys** and
+serialized zkgroup credentials/proofs made by pinned libsignal 0.105.0. It is
+not a community v3 message, a BRP transport, a production credential or a new
+cryptographic construction. `Us2usPrivateGroupProbe.java` generates it through
+the upstream Java API using fixed randomness **for test data only**; use the
+pinned libsignal-client and matching kotlin-stdlib JARs on the classpath:
+
+```sh
+java --class-path "$TEST_LIBSIGNAL_JAR:$TEST_KOTLIN_STDLIB_JAR" \
+  spec/test-vectors/Us2usPrivateGroupProbe.java /tmp/new-privacy-probe.json
+```
+
+The destination must not exist. Review regenerated bytes before replacing a
+fixture. Swift/Kotlin `PrivateGroupUpstreamProbe` tests verify the same Java
+credential response, presentation and encrypted member identifier, with
+wrong-account/salt/group/issuer/expiry and encrypted-blob boundary cases.
+The reserved blob trailer is deliberately ignored by upstream; application
+versions must not rely on it for authentication. These probes do not establish
+private membership or hidden routing in the current service. A full protocol
+review remains required before changing the advertised metadata guarantees.
+
+## Communities v3
+
+`communities-v3.json` contains 27 shared Swift/Kotlin wire vectors for built-in
+stickers and bounded AAC/M4A voice pointers: valid bounds, unknown sticker
+fallback, oversized/malformed fields, custom stickers and mixed-kind rejection.
+The existing 20 v2 vectors are unchanged.

@@ -377,6 +377,10 @@
     <string name="settings_faceid_reason">Confirm it\'s you to unlock us2us with Face ID.</string>
     <!-- settings.faceID.unavailable -->
     <string name="settings_faceid_unavailable">Couldn\'t turn on Face ID.</string>
+    <!-- settings.keepScreenOn -->
+    <string name="settings_keepscreenon">Keep screen on</string>
+    <!-- settings.keepScreenOn.footnote -->
+    <string name="settings_keepscreenon_footnote">Only while the app is in the foreground and unlocked. Keeping the screen on uses more battery and may leave your conversations visible if you put your phone down. The power button and app lock still work normally.</string>
     <!-- settings.language -->
     <string name="settings_language">Language</string>
     <!-- settings.language.system -->

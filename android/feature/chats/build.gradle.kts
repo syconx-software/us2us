@@ -50,6 +50,7 @@ dependencies {
     implementation(project(":feature:report"))
     debugImplementation(libs.compose.ui.tooling)
 
+    testImplementation(project(":feature:conversation"))
     testImplementation(project(":fixtures"))
     testImplementation(project(":screenshot-support"))
     testImplementation(libs.robolectric)

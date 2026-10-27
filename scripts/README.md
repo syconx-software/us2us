@@ -17,7 +17,7 @@ scripts/interop.sh --no-build  # reuse the existing builds
 | 1 | Builds the relay (`pnpm build`), the Kotlin bot and tests, and the iOS test bundles (`Us2usKit`, `Us2usAppCore`); creates and migrates a scratch database (`us2us_interop_<time>_<pid>`); starts the relay on a free port with low proof-of-work, rate limits off and a long `WS_ACK_TIMEOUT_MS` |
 | 2 | Kotlin `LiveRelayTest` and Swift `LiveRelayTests` against it |
 | 3 | The Kotlin `us2us-bot` as an echo bot, then **3a** iOS → bot (`LiveEchoBotTests`: message request with proof-of-work, ACCEPT and access key, Turkish text, attachment, location, receipts, profiles, presence, ghost settings, `ConversationWipe`, account deletion), **3b** Kotlin → bot and **3c** Kotlin → iOS (`LiveEchoBotTest` against the Swift `LiveEchoResponderTests`) |
-| 3d | Communities (`docs/COMMUNITIES.md`) between the Kotlin `LiveCommunityInteropTest` (two Android app runtimes on Robolectric, `android/runtime`) and the Swift `LiveCommunityInteropTests` (the iOS runtime, `Us2usAppCore`); see below |
+| 3d | Communities (`docs/COMMUNITIES.md`, v1 and Extension v2: media, receipts, delete for everyone) between the Kotlin `LiveCommunityInteropTest` (two Android app runtimes on Robolectric, `android/runtime`) and the Swift `LiveCommunityInteropTests` (the iOS runtime, `Us2usAppCore`); see below |
 | 4 | `relay/scripts/restart-check.mjs` streams envelopes to an online recipient that never acknowledges and to an offline one; the relay gets SIGTERM in the middle of it and is started again on the same database: every envelope it answered `202` must come back (the fast-path flush). **4b**: the bot, connected throughout, still answers |
 | 5 | Stops everything, checks the relay's exit status and that its logs have no error lines, drops the database |
 
@@ -35,6 +35,28 @@ and a third account K3, iOS plays S:
    both ways, and nobody became anybody's personal contact.
 3. K1 and S start a one-to-one conversation (request, acceptance, reply)
    on the ratchet the communities already use.
+3v. Extension v2, in S's private community (S, K1, K3) and K1's public one,
+   each item from both platforms:
+   * media: a photo with a caption and a file from K1, then from S, each
+     uploaded once; every recipient checks the pointer it got (kind, media
+     id, digest, size, caption, file name, no delete token), downloads the
+     blob and compares the SHA-256 of the plaintext with the sender's;
+   * receipts: the sender waits for DELIVERY and READ per member. K3 keeps
+     read receipts off for the whole run and S reads one text with them
+     off: those recipients show a delivered time and never a read time,
+     also after their later READs;
+   * delete for everyone by the sender (K1's photo, S's photo): the other
+     members hold the placeholder, the file is gone, and `GET /v1/media/{id}`
+     answers `404` because the sender deleted the blob with its token;
+   * moderation: S (owner) removes K1's file, K1 (owner) removes S's public
+     text; the members see "removed by the owner", and the author's phone
+     deletes the blob (`404` again);
+   * a forged delete (K3 of K1's text, S of K3's public text — neither the
+     sender nor the owner) is dropped, checked after a later text from the
+     forger arrived;
+   * a delete that arrives before its message (sent straight to the relay
+     by each platform) leaves the message stored as its placeholder;
+   * a one-to-one text and reply in between.
 4. S removes K3: the copy queued for K3 is purged, K3 can no longer read
    the state or send (`404`), S and K1 go on.
 5. K3 leaves the public community (`DELETE …/members/me`, `204`); S's next
@@ -64,20 +86,37 @@ databases, default `mysql://root@127.0.0.1:3307`), `INTEROP_DESTINATION`
 > isteği, Türkçe metin, ek, konum, okundu/iletildi bilgisi, "aktif" durumu,
 > hayalet mod, konuşma silme), iki platform arasında topluluklar (herkese
 > açık topluluğu arama ve katılma isteği, onay, davetle özel topluluk,
-> üye çıkarma, ayrılma, yanında birebir sohbet) ve trafik sürerken relay'in SIGTERM ile
+> üye çıkarma, ayrılma, yanında birebir sohbet; v2: iki yönde başlıklı
+> fotoğraf ve dosya — bir kez yüklenir, her alıcı indirip özetini
+> karşılaştırır —, üye başına iletildi/okundu bilgisi ve okundu bilgisi
+> kapalıyken READ gönderilmemesi, gönderenin ve yöneticinin herkesten
+> silmesi — blob relay'den silinir, `404` —, yetkisiz silmenin düşürülmesi,
+> mesajından önce gelen silme) ve trafik sürerken relay'in SIGTERM ile
 > durdurulup yeniden başlatılması (kabul edilen hiçbir zarf kaybolmamalı).
 > Geçici veritabanını kendisi oluşturur ve sonunda siler.
 
 ## `deploy-relay.sh` — relay deployment
 
-Runs the relay's dependency audit (`pnpm run audit`; an advisory not
-recorded in `relay/package.json` stops the deploy), uploads `relay/` to a
-Linux server as an immutable release, builds it there, runs the migrations,
-switches a symlink to the new release, reloads the pm2 app and checks
-`/v1/health`; a failed health check switches back to the previous release.
+Runs the relay's dependency audit (`pnpm run audit`; any nonzero result stops
+the deploy) and build locally. Uploads only a runtime release (`.output/`,
+`drizzle/`, the deployment template and the small ORM migration runner).
+No install or build runs on the server. Requires separate private
+`~/us2us-migrate.env` (only `DATABASE_URL`) and `~/us2us.env`, verifies different
+database principals and DML-only relay grants, then migrates with the isolated
+DDL principal. Switches the live symlink, reloads pm2 and checks `/v1/health`;
+failed startup/health/runtime-mode checks restore the previous code release.
+Schema migrations are not automatically reversed. The live and rollback
+release are protected during retention cleanup.
 The server's pm2 file is never replaced; the script says when it differs
 from `relay/deploy/ecosystem.config.cjs`. See `relay/README.md`
 ("Dependencies", "Deploying") for the details and the server layout.
+
+`scripts/deploy-relay.sh --prepare-only /path/to/fresh-release` performs only
+the audit, local build and packaging; it never reads deployment configuration
+or contacts SSH. `node scripts/prepare-relay-release.mjs relay /fresh/path`
+packages an already-built tree without running an audit/build; this is useful
+for tests and is not release approval. `--verify /release/path` checks its
+file list, checksums and Node major. Hashes detect corruption, not signer identity.
 
 ## `deploy-bot.sh` — echo bot deployment
 
@@ -141,3 +180,47 @@ They can also live in `scripts/deploy.local.env`. On the server:
 > `/home/us2us_user/us2us-echo` klasöründe uygulamanın kendi yedeği olarak
 > durur; bu klasör kaybolursa kullanıcı adı da kaybolur. Relay'in pm2
 > uygulamasına ve dosyalarına dokunmaz.
+
+## Community UI tests
+
+The native UI suites are `ios/App/Tests/UITests/CommunityFlowUITests.swift`
+and `android/app/src/androidTest/kotlin/com/syconx/us2us/app/flows/CommunityFlowTest.kt`.
+They use a real **loopback** relay and a dedicated scratch database. Never
+point the relay at a production database. Use the existing `scratch-db.mjs`
+and migrations; set register PoW difficulty to 0 only on this isolated relay.
+
+Create an API-only applicant:
+
+```sh
+node scripts/community-ui-peer.mjs http://127.0.0.1:33318 > /tmp/community-ui-peer.json
+```
+
+This applicant's pre-key signatures are placeholders. It tests discovery,
+membership access and approval, and must not be used as a Signal messaging
+peer. Cryptographic delivery is covered by the runtime/interop suites.
+
+For iOS, create a fresh simulator/container and seed one photo with
+`xcrun simctl addmedia <test-device> relay/public/apple-touch-icon.png`.
+Pass `TEST_RUNNER_U2COMMUNITY_RELAY`, `TEST_RUNNER_U2COMMUNITY_PEER_TOKEN`
+and `TEST_RUNNER_U2COMMUNITY_PEER_ID` (the latter two from the JSON), then run
+`xcodebuild test -project ios/App/us2us.xcodeproj -scheme us2us -destination
+'platform=iOS Simulator,id=<test-device>' -parallel-testing-enabled NO
+-only-testing:us2usUITests/CommunityFlowUITests`. Re-runs require a fresh
+test container; never erase or uninstall an existing user's app.
+
+For Android, use `adb -s <device> reverse tcp:33318 tcp:33318`, set
+`ANDROID_SERIAL=<device>`, and run `:app:connectedDebugAndroidTest` from
+`android/` with these Gradle properties:
+
+- `android.testInstrumentationRunnerArguments.class=com.syconx.us2us.app.flows.CommunityFlowTest`
+- `android.testInstrumentationRunnerArguments.relayUrl=http://127.0.0.1:33318`
+- `android.testInstrumentationRunnerArguments.communityPeerToken=<authToken>`
+- `android.testInstrumentationRunnerArguments.communityPeerId=<accountId>`
+
+The Android suite injects a real runtime with a unique vault directory and
+Keystore aliases. It never opens the installed user's vault. Media enters
+through the real picker-copy bridge; iOS also drives the native photo picker.
+Both suites record failure diagnostics (Xcode attachments; Android window
+hierarchy in instrumentation logs, plus screenshots where supported).
+Missing relay/applicant configuration is reported as a skip, not a pass.
+Record physical-device runs separately from emulator/simulator runs.

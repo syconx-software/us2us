@@ -231,6 +231,25 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
         setProfile(contact.profile.recordingUsernameCheck(username, owner, account), account)
     }
 
+    /**
+     * Our own directory lookup answered that [username] belongs to [owner] (§3.3): every other
+     * contact still showing that name gets [UsernameStatus.MISMATCH], so it is never shown as their
+     * name again (an account deleted and its username registered by someone else). Returns how many
+     * contacts changed.
+     */
+    fun noteUsernameOwner(username: Username, owner: AccountId): Int {
+        tx.requireWritable()
+        // A deleted contact's kept name is not its name any more either.
+        tx.connection.run("DELETE FROM former_contacts WHERE username = ? AND account != ?", username.value, owner.toBytes())
+        return tx.connection.run(
+            "UPDATE contacts SET username_status = ? WHERE username = ? AND account != ? AND username_status != ?",
+            UsernameStatus.MISMATCH.raw,
+            username.value,
+            owner.toBytes(),
+            UsernameStatus.MISMATCH.raw,
+        )
+    }
+
     /** A username verified by our own lookup or a verified `sender_username`. */
     fun confirmUsername(username: Username, account: AccountId) {
         val contact = get(account) ?: storageFailure(StorageError.NotFound)
@@ -261,7 +280,38 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
         tx.conversations.forContact(account)?.let { WipeService.wipe(it, WipeReason.REQUESTED, tx) }
         tx.connection.run("DELETE FROM outbox WHERE recipient = ?", account.toBytes())
         tx.connection.run("DELETE FROM contacts WHERE account = ?", account.toBytes())
+        forgetFormerName(account)
         tx.storage.protocolStorage.deleteProtocolState(account, tx.connection)
+    }
+
+    /**
+     * "Kişiyi sil" (§6.4): deletes the contact, its conversation (crypto-shredded first) and pending
+     * sends to it, but keeps its session and identity, and the username it was shown under. Nothing
+     * is sent and the contact is not blocked: if it writes again, its message still decrypts and
+     * opens a new incoming request under that name ([insert]); an identity change is still flagged,
+     * because the identity stays.
+     */
+    fun removeKeepingSession(account: AccountId) {
+        tx.requireWritable()
+        val contact = get(account) ?: storageFailure(StorageError.NotFound)
+        val label = contact.profile.username?.takeIf { contact.profile.usernameStatus != UsernameStatus.MISMATCH }
+        tx.conversations.forContact(account)?.let { WipeService.wipe(it, WipeReason.REQUESTED, tx) }
+        tx.connection.run("DELETE FROM outbox WHERE recipient = ?", account.toBytes())
+        tx.connection.run("DELETE FROM contacts WHERE account = ?", account.toBytes())
+        if (label != null) {
+            tx.connection.run("INSERT OR REPLACE INTO former_contacts (account, username) VALUES (?, ?)", account.toBytes(), label.value)
+        } else {
+            forgetFormerName(account)
+        }
+    }
+
+    /** The username kept for a contact deleted with [removeKeepingSession], if any. */
+    fun formerName(account: AccountId): Username? =
+        tx.connection.queryOne("SELECT username FROM former_contacts WHERE account = ?", account.toBytes())
+            ?.text("username")?.let { text -> Username.parse(text)?.takeIf { it.value == text } }
+
+    private fun forgetFormerName(account: AccountId) {
+        tx.connection.run("DELETE FROM former_contacts WHERE account = ?", account.toBytes())
     }
 
     /** Removes everything about a blocked contact except the block: profile, access keys, pending sends, session and identity. */
@@ -275,6 +325,7 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
             """.trimIndent(),
         )
         tx.connection.run("DELETE FROM outbox WHERE recipient = ?", account.toBytes())
+        forgetFormerName(account)
         tx.storage.protocolStorage.deleteProtocolState(account, tx.connection)
     }
 
@@ -282,13 +333,21 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
 
     // MARK: Rows
 
+    /**
+     * Every new contact row. An account deleted with [removeKeepingSession] gets back the username it
+     * was shown under, as a claim to check again (`unchecked`, §3.3); the kept name is used up.
+     */
     private fun insert(account: AccountId, state: ContactState, now: Instant) {
+        val former = formerName(account)
         tx.connection.run(
-            "INSERT INTO contacts (account, request_state, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO contacts (account, request_state, username, username_status, created_at) VALUES (?, ?, ?, ?, ?)",
             account.toBytes(),
             state.raw,
+            former?.value,
+            UsernameStatus.UNCHECKED.raw,
             now.toEpochMilli(),
         )
+        if (former != null) forgetFormerName(account)
     }
 
     private fun setState(state: ContactState, account: AccountId) = update(account, "request_state = ?", state.raw)

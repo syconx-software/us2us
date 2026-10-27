@@ -410,18 +410,19 @@ object U2MotionTokens {
     val curveSoft: List<Float> = listOf(0.45f, 0f, 0.55f, 1f)
     /** `curveOut` (ease-out) — entrances and ring pulses. */
     val curveOut: List<Float> = listOf(0f, 0f, 0.58f, 1f)
-    /** `springSoft`: response 0.55 s, damping fraction 1 (critically damped). */
-    const val springResponse: Float = 0.55f
-    /** The quicker spring for small interactive elements: response 0.42 s. */
-    const val springQuickResponse: Float = 0.42f
+    /** `springSoft`: damping fraction 1 (critically damped). */
+    const val springResponse: Float = 0.2f
+    /** The quicker spring for small interactive elements. */
+    const val springQuickResponse: Float = 0.14f
 
     /** Durations in seconds (`motion.proposed.durations`). */
     object Duration {
-        const val press: Float = 0.16f
-        const val micro: Float = 0.24f
-        const val state: Float = 0.36f
-        const val screen: Float = 0.5f
-        const val sheet: Float = 0.55f
+        const val press: Float = 0.06f
+        const val micro: Float = 0.1f
+        const val state: Float = 0.12f
+        const val screen: Float = 0.16f
+        const val sheet: Float = 0.18f
+        const val reducedCrossFade: Float = 0.08f
         const val ambient: Float = 0.8f
     }
 

@@ -46,6 +46,10 @@ final class VerificationModel {
     var confirmsRemoval = false
     var confirmsAccept = false
 
+    // Refreshing info behind a confirmation must not retarget the user's decision.
+    private var comparedNumber: Data?
+    private var acceptedNumber: Data?
+
     init(chatID: ChatID, messenger: any MessengerService) {
         self.chatID = chatID
         self.messenger = messenger
@@ -123,14 +127,24 @@ final class VerificationModel {
 
     /// “Doğrulandı olarak işaretle” → confirmation.
     func requestMarkVerified() {
+        guard let number = info?.scannablePayload else { return }
+        comparedNumber = number
+        acceptedNumber = nil
         confirmsMarkVerified = true
+    }
+
+    func cancelMarkVerified() {
+        confirmsMarkVerified = false
+        comparedNumber = nil
     }
 
     /// Confirmed: mark manually — bound to the number on screen, the one the
     /// user compared — and push 6.3. If the number changed meanwhile nothing
     /// is marked: 6.1 shows the new number and says so.
     func markVerifiedManually() async {
-        guard let compared = info?.scannablePayload else { return }
+        guard let compared = comparedNumber else { return }
+        comparedNumber = nil
+        confirmsMarkVerified = false
         guard await messenger.markVerified(chatID, comparing: compared) else {
             await numberChangedMeanwhile()
             return
@@ -158,14 +172,24 @@ final class VerificationModel {
 
     /// After a change › “Doğrulamadan devam et” → confirmation.
     func requestAccept() {
+        guard let number = info?.scannablePayload else { return }
+        acceptedNumber = number
+        comparedNumber = nil
         confirmsAccept = true
+    }
+
+    func cancelAccept() {
+        confirmsAccept = false
+        acceptedNumber = nil
     }
 
     /// Confirmed: the changed number is accepted without verifying it —
     /// sending resumes, no seal — bound to the number on screen; then back
     /// to the chat. Refused like marking if the number changed meanwhile.
     func acceptChangeWithoutVerifying() async {
-        guard let shown = info?.scannablePayload else { return }
+        guard let shown = acceptedNumber else { return }
+        acceptedNumber = nil
+        confirmsAccept = false
         guard await messenger.acceptSafetyNumberChange(chatID, showing: shown) else {
             await numberChangedMeanwhile()
             return

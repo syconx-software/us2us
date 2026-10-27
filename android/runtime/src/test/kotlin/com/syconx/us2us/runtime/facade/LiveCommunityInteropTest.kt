@@ -1,16 +1,25 @@
 package com.syconx.us2us.runtime.facade
 
+import com.google.protobuf.ByteString
 import com.syconx.us2us.core.AccountId
+import com.syconx.us2us.core.community.CommunityContent
+import com.syconx.us2us.core.community.CommunityState
 import com.syconx.us2us.core.contacts.ContactState
 import com.syconx.us2us.core.encoding.Base64Url
+import com.syconx.us2us.core.proto.Attachment
 import com.syconx.us2us.core.relay.RelayClient
 import com.syconx.us2us.core.relay.RelayException
 import com.syconx.us2us.runtime.community.CommunityEngine
+import com.syconx.us2us.runtime.community.CommunityMessageKey
+import com.syconx.us2us.runtime.media.PreparedMedia
 import com.syconx.us2us.runtime.engine.MessageBody
 import com.syconx.us2us.runtime.engine.MessagingEngine
 import com.syconx.us2us.runtime.engine.MessengerBackend
 import com.syconx.us2us.runtime.net.Backoff
 import com.syconx.us2us.runtime.net.ConnectionStatus
+import com.syconx.us2us.runtime.storage.CommunityDeletion
+import com.syconx.us2us.runtime.storage.CommunityMediaState
+import com.syconx.us2us.runtime.storage.CommunityRecipient
 import com.syconx.us2us.runtime.storage.LocalStorage
 import com.syconx.us2us.runtime.storage.PlainSqlDriver
 import com.syconx.us2us.runtime.support.ManualCaptureEvents
@@ -32,8 +41,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -46,6 +57,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.Executors
 import kotlin.random.Random
@@ -171,6 +183,11 @@ class LiveCommunityInteropTest {
         eventually(60.seconds, "S's one-to-one reply") { owner.runtime.openMessages.value.any { it.body == MessageBody.Text(directReply) } }
         assertEquals(ContactState.ACCEPTED, owner.runtime.contact(s)?.requestState)
 
+        // 3v. Extension v2: media, receipts and delete for everyone, the one-to-one path alongside.
+        val v2Reply = extensionV2(meeting, owner, third, s, publicId, privateId)
+
+        extensionV3(meeting, owner, third, s, privateId)
+
         // 4. S removes K3 from its private community. K3 does not fetch in between, so a copy
         // of the next private message waits in its inbox until the removal purges it.
         owner.send(publicId, AFTER_DIRECT)
@@ -217,7 +234,7 @@ class LiveCommunityInteropTest {
         eventually(60.seconds, "S's last one-to-one message") { owner.runtime.openMessages.value.any { it.body == MessageBody.Text(lastDirect) } }
         // Neither path leaked into the other.
         val directTexts = owner.runtime.openMessages.value.mapNotNull { (it.body as? MessageBody.Text)?.text }.toSet()
-        assertEquals(setOf(DIRECT_FROM_OWNER, directReply, lastDirect), directTexts)
+        assertEquals(setOf(DIRECT_FROM_OWNER, directReply, DIRECT_AFTER_MEDIA, v2Reply, lastDirect), directTexts)
         val communityTexts = owner.communities { engine -> listOf(publicId, privateId).flatMap { engine.messages(it) }.map { it.text } }.toSet()
         assertTrue(communityTexts.intersect(directTexts).isEmpty())
         assertTrue(communityTexts.containsAll(listOf(hello, PUBLIC_REPLY, welcome, FROM_THIRD, stillHere, afterLeave, AFTER_LEAVE)))
@@ -228,6 +245,171 @@ class LiveCommunityInteropTest {
         assertTrue(third.runtime.chats.value.isEmpty())
         owner.communities { it.delete(publicId) }
         meeting.post("kotlin-done")
+    }
+
+    /**
+     * Extension v2 with the iOS phone, in S's private community (S, K1, K3) and K1's public one:
+     * a photo with a caption and a file from each platform, uploaded once and downloaded by every
+     * recipient (pointer, digest and bytes compared); DELIVERY and READ per member, where K3 keeps
+     * read receipts off throughout and S reads one text with them off; delete for everyone by the
+     * sender on each platform (the blob is gone from the relay, `404`) and by the owner on each
+     * (the author deletes the blob); a forged delete from each platform dropped; a delete ahead of
+     * its message from each platform; and a one-to-one exchange in between. Returns S's reply.
+     */
+    private suspend fun extensionV2(meeting: Meeting, owner: Phone, third: Phone, s: AccountId, publicId: AccountId, privateId: AccountId): String {
+        val k1 = owner.id
+        val k3 = third.id
+        third.runtime.setReadReceipts(false)
+
+        // A text S reads with read receipts off: DELIVERY comes, READ never.
+        val keepId = owner.send(privateId, TEXT_KEEP)
+        meeting.post("kotlin-v2-text", "messageId" to keepId.toString(), "text" to TEXT_KEEP)
+        meeting.await("ios-v2-text-seen")
+        owner.awaitReceipt(privateId, keepId, s, read = false)
+
+        // K1's photo with a caption and K1's file; K3's text in the public community.
+        val photo = ByteArray(5000) { (it % 251).toByte() }
+        val file = ByteArray(900) { (it % 13).toByte() }
+        val imageId = owner.sendMedia(privateId, media(photo, Attachment.Kind.IMAGE), CAPTION_K)
+        val fileId = owner.sendMedia(privateId, media(file, Attachment.Kind.FILE, FILE_NAME_K))
+        val imageFacts = owner.facts(privateId, imageId)
+        val fileFacts = owner.facts(privateId, fileId)
+        val publicThirdId = third.send(publicId, PUBLIC_FROM_THIRD)
+        meeting.post(
+            "kotlin-v2-sent", "imageId" to imageId.toString(), "fileId" to fileId.toString(),
+            *imageFacts.pairs("image"), *fileFacts.pairs("file"),
+            "publicThirdText" to PUBLIC_FROM_THIRD, "publicThirdId" to publicThirdId.toString(),
+        )
+        // K3 (read receipts off) downloads both and displays them: DELIVERY only.
+        third.receiveMedia(privateId, k1, imageId, imageFacts)
+        third.receiveMedia(privateId, k1, fileId, fileFacts)
+        third.display(privateId, k1 to imageId, k1 to fileId)
+
+        // S's photo and file: K1 (read receipts on) and K3 (off) download and display them.
+        val sent = meeting.await("ios-v2-sent")
+        val sImage = AccountId.parse(sent.getString("imageId"))
+        val sFile = AccountId.parse(sent.getString("fileId"))
+        val sImageFacts = MediaFacts.of(sent, "image")
+        val sFileFacts = MediaFacts.of(sent, "file")
+        assertEquals(Attachment.Kind.IMAGE, sImageFacts.kind)
+        assertEquals(Attachment.Kind.FILE, sFileFacts.kind)
+        for (phone in listOf(owner, third)) {
+            phone.receiveMedia(privateId, s, sImage, sImageFacts)
+            phone.receiveMedia(privateId, s, sFile, sFileFacts)
+            phone.display(privateId, s to sImage, s to sFile)
+        }
+        val moderatedId = AccountId.parse(sent.getString("publicModeratedId"))
+        owner.awaitText(publicId, s, sent.getString("publicModeratedText"))
+        // K1's own messages: S delivered and read them, K3 delivered only.
+        for (id in listOf(imageId, fileId)) {
+            owner.awaitReceipt(privateId, id, s, read = true)
+            owner.awaitReceipt(privateId, id, k3, read = false)
+            assertNull("K3 keeps read receipts off", owner.recipient(privateId, id, k3).readAt)
+        }
+
+        // Delete for everyone by its sender: the placeholder here, the blob gone from the relay.
+        owner.communities { it.deleteForEveryone(privateId, k1, imageId) }
+        owner.assertPlaceholder(privateId, k1, imageId, CommunityDeletion.SENDER)
+        poll("K1's blob deleted") { owner.communities { it.sync() }; mediaStatus(imageFacts.mediaId) == 404 }
+        meeting.post("kotlin-v2-deleted", "imageId" to imageId.toString())
+
+        // S deleted its photo, removed K1's file as the owner, forged a delete and sent one early.
+        val deleted = meeting.await("ios-v2-deleted")
+        for (phone in listOf(owner, third)) {
+            phone.awaitPlaceholder(privateId, s, sImage, CommunityDeletion.SENDER)
+            phone.awaitPlaceholder(privateId, k1, fileId, CommunityDeletion.OWNER)
+        }
+        assertEquals("S deleted its blob", 404, mediaStatus(sImageFacts.mediaId))
+        poll("the author's blob deleted after the owner's delete") { owner.communities { it.sync() }; mediaStatus(fileFacts.mediaId) == 404 }
+        assertArrayEquals("S's file stays", sFileFacts.sha256, sha256(checkNotNull(owner.communities { it.mediaData(privateId, s, sFile) })))
+        owner.awaitText(publicId, s, deleted.getString("afterForgedText"))
+        val kept = checkNotNull(owner.communities { it.message(CommunityMessageKey(publicId, k3, publicThirdId)) })
+        assertNull("S's forged delete of K3's message was dropped", kept.deletedBy)
+        assertEquals(PUBLIC_FROM_THIRD, kept.text)
+        owner.awaitPlaceholder(privateId, s, AccountId.parse(deleted.getString("earlyId")), CommunityDeletion.SENDER)
+
+        // The same from here: moderation in K1's community, K3's forged delete, K1's early delete.
+        owner.communities { it.deleteForEveryone(publicId, s, moderatedId) }
+        owner.assertPlaceholder(publicId, s, moderatedId, CommunityDeletion.OWNER)
+        val privateState = checkNotNull(third.communities { engine -> engine.communities().single { it.id == privateId }.state })
+        third.sendRaw(privateState, s, CommunityContent.delete(privateId, privateState.revision, AccountId(UUID.randomUUID()), System.currentTimeMillis(), keepId, k1))
+        third.send(privateId, THIRD_AFTER_FORGED)
+        val earlyId = AccountId(UUID.randomUUID())
+        owner.sendRaw(privateState, s, CommunityContent.delete(privateId, privateState.revision, AccountId(UUID.randomUUID()), System.currentTimeMillis(), earlyId, k1))
+        owner.sendRaw(privateState, s, CommunityContent.text(privateId, privateState.revision, earlyId, System.currentTimeMillis(), EARLY_TEXT))
+        meeting.post(
+            "kotlin-v2-events", "moderatedId" to moderatedId.toString(), "keepId" to keepId.toString(),
+            "afterForgedText" to THIRD_AFTER_FORGED, "earlyId" to earlyId.toString(),
+        )
+        third.awaitPlaceholder(publicId, s, moderatedId, CommunityDeletion.OWNER)
+
+        // One-to-one between the same accounts still works.
+        owner.runtime.sendText(DIRECT_AFTER_MEDIA, s)
+        meeting.post("kotlin-v2-direct", "text" to DIRECT_AFTER_MEDIA)
+        val reply = meeting.await("ios-v2-direct").getString("text")
+        eventually(60.seconds, "S's one-to-one reply after media") { owner.runtime.openMessages.value.any { it.body == MessageBody.Text(reply) } }
+        // What S read with read receipts off never became READ, also after its later READs.
+        assertNull(owner.recipient(privateId, keepId, s).readAt)
+        assertNotNull(owner.recipient(privateId, keepId, s).deliveredAt)
+        return reply
+    }
+
+    private suspend fun extensionV3(meeting: Meeting, owner: Phone, third: Phone, s: AccountId, privateId: AccountId) {
+        val sticker = com.syconx.us2us.core.proto.Sticker.newBuilder().setPackId("us2us.cups").setStickerId(1).setEmoji("👋").build()
+        val stickerId = owner.communities { it.sendSticker(privateId, sticker) }
+        owner.communities { it.sync() }
+        val audio = ByteArray(4000) { (it % 239).toByte() }
+        val file = File(temporary.newFolder(), "voice.m4a").apply { writeBytes(audio) }
+        val voiceId = owner.sendMedia(privateId, PreparedMedia(file, Attachment.Kind.VOICE, "audio/mp4", null, audio.size.toLong(),
+            durationMs = 2000, waveform = ByteString.copyFrom(byteArrayOf(0, -128, -1))))
+        meeting.post("kotlin-v3-sent", "stickerId" to stickerId.toString(), "voiceId" to voiceId.toString(), *owner.facts(privateId, voiceId).pairs("voice"))
+        val sent = meeting.await("ios-v3-sent")
+        val remoteSticker = AccountId.parse(sent.getString("stickerId"))
+        val remoteVoice = AccountId.parse(sent.getString("voiceId"))
+        val facts = MediaFacts.of(sent, "voice")
+        for (phone in listOf(owner, third)) {
+            phone.receiveMedia(privateId, s, remoteVoice, facts)
+            val items = phone.communities { it.messages(privateId) }
+            assertEquals(sticker, items.first { it.sender == s && it.messageId == remoteSticker }.sticker)
+            val pointer = items.first { it.sender == s && it.messageId == remoteVoice }.attachment!!
+            assertEquals(2000, pointer.durationMs)
+            assertEquals(ByteString.copyFrom(byteArrayOf(0, -128, -1)), pointer.waveform)
+        }
+        meeting.post("kotlin-v3-seen")
+    }
+
+    /** A staged photo or file as the app's media preparation hands it over. */
+    private fun media(bytes: ByteArray, kind: Attachment.Kind, fileName: String? = null): PreparedMedia {
+        val file = File(temporary.newFolder(), "staged").apply { writeBytes(bytes) }
+        return if (kind == Attachment.Kind.FILE) {
+            PreparedMedia(file, kind, "application/pdf", fileName, bytes.size.toLong())
+        } else {
+            PreparedMedia(file, kind, "image/jpeg", null, bytes.size.toLong(), width = 40, height = 30, thumbnail = ByteString.copyFrom(THUMBNAIL))
+        }
+    }
+
+    /** What both platforms compare about one media message: the pointer every member got and the plaintext. */
+    private data class MediaFacts(val kind: Attachment.Kind, val mediaId: String, val digest: String, val size: Long, val sha256: ByteArray, val caption: String, val fileName: String) {
+        fun pairs(prefix: String): Array<Pair<String, String>> = arrayOf(
+            "${prefix}Kind" to kind.name, "${prefix}MediaId" to mediaId, "${prefix}Digest" to digest, "${prefix}Size" to size.toString(),
+            "${prefix}Sha256" to Base64Url.encode(sha256), "${prefix}Caption" to caption, "${prefix}FileName" to fileName,
+        )
+
+        companion object {
+            fun of(json: JSONObject, prefix: String) = MediaFacts(
+                Attachment.Kind.valueOf(json.getString("${prefix}Kind")), json.getString("${prefix}MediaId"), json.getString("${prefix}Digest"),
+                json.getString("${prefix}Size").toLong(), Base64Url.decode(json.getString("${prefix}Sha256"), 32),
+                json.getString("${prefix}Caption"), json.getString("${prefix}FileName"),
+            )
+        }
+    }
+
+    private fun sha256(bytes: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(bytes)
+
+    /** `GET /v1/media/{id}` (anonymous, like a recipient's download), answered with its bare status. */
+    private fun mediaStatus(mediaId: String): Int {
+        val request = Request.Builder().url("${relayUrl.trimEnd('/')}/v1/media/$mediaId").get().build()
+        return OkHttpClient().newCall(request).execute().use { it.code }
     }
 
     /** An app runtime with its own account on the live relay. */
@@ -291,12 +473,95 @@ class LiveCommunityInteropTest {
             return checkNotNull(communities { engine -> engine.communities().single { it.id == id }.state })
         }
 
-        /** Sends [text] and waits until every recipient of the roster has it. */
-        suspend fun send(id: AccountId, text: String) {
-            communities { it.send(id, text) }
-            poll("\"$text\" delivered") {
-                communities { engine -> engine.sync(); engine.messages(id).firstOrNull { it.sender == this.id && it.text == text }?.status == "sent" }
-            }
+        /** Sends [text] and waits until every recipient of the roster has it; its message id. */
+        suspend fun send(id: AccountId, text: String): AccountId {
+            val messageId = communities { it.send(id, text) }
+            awaitSent(id, messageId, text)
+            return messageId
+        }
+
+        /** Sends a photo or file (uploaded once) and waits until every recipient has the pointer. */
+        suspend fun sendMedia(id: AccountId, media: PreparedMedia, caption: String? = null): AccountId {
+            val messageId = communities { it.sendMedia(id, media, caption) }
+            awaitSent(id, messageId, "media $messageId")
+            val sent = checkNotNull(communities { it.message(CommunityMessageKey(id, this.id, messageId)) })
+            assertEquals(CommunityMediaState.LOCAL, sent.media)
+            assertTrue("the token never enters the pointer", sent.attachment!!.deleteToken.isEmpty)
+            return messageId
+        }
+
+        private suspend fun awaitSent(id: AccountId, messageId: AccountId, what: String) = poll("\"$what\" delivered") {
+            communities { engine -> engine.sync(); engine.message(CommunityMessageKey(id, this.id, messageId))?.status == "sent" }
+        }
+
+        /** The pointer and plaintext of an own media message, for the other side to compare. */
+        suspend fun facts(id: AccountId, messageId: AccountId): MediaFacts {
+            val message = checkNotNull(communities { it.message(CommunityMessageKey(id, this.id, messageId)) })
+            val pointer = checkNotNull(message.attachment)
+            val bytes = checkNotNull(communities { it.mediaData(id, this.id, messageId) })
+            return MediaFacts(
+                pointer.kind, Base64Url.encode(pointer.mediaId.toByteArray()), Base64Url.encode(pointer.digest.toByteArray()),
+                pointer.size, sha256(bytes), message.text, pointer.fileName,
+            )
+        }
+
+        /** Syncs until the media message is here, checks its pointer against [facts], downloads and checks the bytes. */
+        suspend fun receiveMedia(id: AccountId, sender: AccountId, messageId: AccountId, facts: MediaFacts) {
+            val key = CommunityMessageKey(id, sender, messageId)
+            poll("media $messageId from $sender in $id") { communities { engine -> engine.sync(); engine.message(key)?.status == "received" } }
+            val received = checkNotNull(communities { it.message(key) })
+            val pointer = checkNotNull(received.attachment)
+            assertEquals(facts.kind, pointer.kind)
+            assertEquals(facts.mediaId, Base64Url.encode(pointer.mediaId.toByteArray()))
+            assertEquals(facts.digest, Base64Url.encode(pointer.digest.toByteArray()))
+            assertEquals(facts.size, pointer.size)
+            assertEquals(facts.caption, received.text)
+            assertEquals(facts.fileName, pointer.fileName)
+            assertTrue(pointer.deleteToken.isEmpty && pointer.caption.isEmpty())
+            assertEquals(CommunityMediaState.REMOTE, received.media)
+            assertNull(received.displayedAt)
+            communities { it.download(id, sender, messageId) }
+            val bytes = checkNotNull(communities { it.mediaData(id, sender, messageId) }) { "no file after the download" }
+            assertEquals(facts.size, bytes.size.toLong())
+            assertArrayEquals(facts.sha256, sha256(bytes))
+            assertEquals(CommunityMediaState.LOCAL, checkNotNull(communities { it.message(key) }).media)
+        }
+
+        /** The messages are on screen: READ is queued (while read receipts are on) and sent. */
+        suspend fun display(id: AccountId, vararg keys: Pair<AccountId, AccountId>) {
+            assertTrue(communities { it.markDisplayed(id, keys.toList()) })
+            communities { it.flushReceipts() }
+        }
+
+        suspend fun recipient(id: AccountId, messageId: AccountId, member: AccountId): CommunityRecipient =
+            checkNotNull(communities { it.recipients(id, messageId) }.firstOrNull { it.member == member }) { "$member is no recipient of $messageId" }
+
+        /** Syncs until [member] has delivered (and, if [read], read) this own message. */
+        suspend fun awaitReceipt(id: AccountId, messageId: AccountId, member: AccountId, read: Boolean) = poll("${if (read) "READ" else "DELIVERY"} from $member for $messageId") {
+            communities { it.sync() }
+            val recipient = recipient(id, messageId, member)
+            recipient.transport == CommunityRecipient.ACCEPTED && recipient.deliveredAt != null && (!read || recipient.readAt != null)
+        }
+
+        /** The message is the placeholder: nothing of it but who deleted it. */
+        suspend fun assertPlaceholder(id: AccountId, sender: AccountId, messageId: AccountId, by: CommunityDeletion) {
+            val placeholder = checkNotNull(communities { it.message(CommunityMessageKey(id, sender, messageId)) })
+            assertEquals(by, placeholder.deletedBy)
+            assertEquals("", placeholder.text)
+            assertNull(placeholder.attachment)
+            assertNull(communities { it.mediaData(id, sender, messageId) })
+        }
+
+        suspend fun awaitPlaceholder(id: AccountId, sender: AccountId, messageId: AccountId, by: CommunityDeletion) {
+            poll("placeholder of $messageId in $id") { communities { engine -> engine.sync(); engine.message(CommunityMessageKey(id, sender, messageId))?.deletedBy == by } }
+            assertPlaceholder(id, sender, messageId, by)
+        }
+
+        /** One envelope straight to [recipient], as a client would that bypasses the engine. */
+        suspend fun sendRaw(state: CommunityState, recipient: AccountId, message: com.syconx.us2us.core.proto.CommunityMessage) {
+            val member = checkNotNull(state.member(recipient))
+            val envelope = messenger.encryptCommunityMessage(member, message)
+            relay.sendCommunityEnvelope(state.id, recipient, AccountId.fromBytes(message.messageId.toByteArray()), state.revision, envelope)
         }
 
         /** Syncs until [text] from [sender] is stored in the community. */
@@ -356,5 +621,13 @@ class LiveCommunityInteropTest {
         const val QUEUED_FOR_THIRD = "K3 bunu hiç görmemeli"
         const val AFTER_REMOVAL = "K3 çıkarıldı, biz devam"
         const val AFTER_LEAVE = "Yeni liste: yalnızca ikimiz"
+        const val TEXT_KEEP = "Bu metin kalır (S okundu bilgisi kapalı okur)"
+        const val CAPTION_K = "Gün batımı, Android'den 🌅"
+        const val FILE_NAME_K = "plan.pdf"
+        const val PUBLIC_FROM_THIRD = "K3 herkese açık toplulukta"
+        const val THIRD_AFTER_FORGED = "K3: sahte silmeden sonra"
+        const val EARLY_TEXT = "Silme önce geldi"
+        const val DIRECT_AFTER_MEDIA = "Birebir: medyadan sonra da çalışıyor"
+        val THUMBNAIL = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte())
     }
 }

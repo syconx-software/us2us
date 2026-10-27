@@ -79,16 +79,55 @@ class MigrationAndCrashTest {
     }
 
     @Test
-    fun theLatestSchemaIsVersion7WithKeySlottedCommunities() {
-        assertEquals(7, Schema.latestVersion)
+    fun theLatestSchemaIsVersion10WithKeySlottedCommunities() {
+        assertEquals(10, Schema.latestVersion)
         val database = rawDatabase(File(temporary.newFolder(), "main.sqlite"))
         database.read { connection ->
             val columns = connection.query("PRAGMA table_info(community_states)").map { it.text("name") }
             assertTrue("a community has its own key slot", "slot_id" in columns)
             val bodyType = connection.query("PRAGMA table_info(community_messages)").first { it.text("name") == "body" }.text("type")
             assertEquals("bodies are sealed items, never text", "BLOB", bodyType)
+            val tables = connection.query("SELECT name FROM sqlite_master WHERE type = 'table'").map { it.text("name") }.toSet()
+            for (table in listOf("community_recipients", "community_pending_deletes", "community_removed", "community_receipt_queue")) assertTrue(table, table in tables)
+            val sealed = connection.query("PRAGMA table_info(community_messages)").filter { it.text("name") in setOf("attachment", "delete_token") }
+            assertTrue("pointers and tokens are sealed items", sealed.size == 2 && sealed.all { it.text("type") == "BLOB" })
         }
         database.close()
+    }
+
+    @Test
+    fun aVersion7DatabaseIsUpgradedKeepingItsCommunities() {
+        val file = File(temporary.newFolder(), "main.sqlite")
+        val old = EncryptedDatabase.open(file, ByteArray(32), Schema.migrations.take(7), PlainSqlDriver)
+        old.write { connection ->
+            connection.run("INSERT INTO community_states (id, owner_key, name, slot_id, state, signature, active) VALUES ('c', 'k', 'n', ?, 's', 'g', 1)", ByteArray(16) { 6 })
+            connection.run("INSERT INTO community_messages (community_id, sender, message_id, sent_at, body, status) VALUES ('c', 'me', 'm1', 100, ?, 'sent')", byteArrayOf(1))
+            connection.run("INSERT INTO community_messages (community_id, sender, message_id, sent_at, body, status) VALUES ('c', 'them', 'm2', 200, ?, 'received')", byteArrayOf(2))
+            connection.run("INSERT INTO community_outbox (community_id, message_id, recipient, revision, envelope) VALUES ('c', 'm1', 'them', 1, ?)", byteArrayOf(3))
+        }
+        old.close()
+        val upgraded = rawDatabase(file)
+        upgraded.write { connection ->
+            assertEquals(Schema.latestVersion.toLong(), connection.pragma("PRAGMA user_version"))
+            val rows = connection.query("SELECT * FROM community_messages ORDER BY sent_at")
+            assertEquals(listOf("m1", "m2"), rows.map { it.text("message_id") })
+            for (row in rows) {
+                assertEquals("ordered as before", row.long("sent_at"), row.long("received_at"))
+                assertEquals("earlier messages are not unread, and no READ goes for them", row.long("sent_at"), row.long("displayed_at"))
+                assertNull(row.blob("attachment")); assertNull(row.long("deleted_by")); assertNull(row.blob("delete_token"))
+            }
+            assertEquals(byteArrayOf(2).toList(), rows[1].blob("body")!!.toList())
+            assertNull(connection.queryOne("SELECT payload FROM community_outbox")!!.blob("payload"))
+            connection.run("INSERT INTO community_recipients (community_id, message_id, member, transport) VALUES ('c', 'm1', 'them', 'accepted')")
+            connection.run("INSERT INTO community_pending_deletes (community_id, target_sender, target_id, by_owner, remembered_at) VALUES ('c', 'x', 'y', 0, 1)")
+            connection.run("INSERT INTO community_removed (community_id, sender, message_id, removed_at) VALUES ('c', 'x', 'z', 1)")
+            connection.run("INSERT INTO community_receipt_queue (community_id, recipient, type, message_id, queued_at) VALUES ('c', 'them', 1, 'm2', 1)")
+            connection.run("DELETE FROM community_states WHERE id = 'c'")
+            for (table in listOf("community_messages", "community_outbox", "community_recipients", "community_pending_deletes", "community_removed", "community_receipt_queue")) {
+                assertEquals("$table goes with the community", 0L, connection.scalar("SELECT count(*) FROM $table"))
+            }
+        }
+        upgraded.close()
     }
 
     @Test
@@ -105,7 +144,7 @@ class MigrationAndCrashTest {
             )
         }
         old.close()
-        val upgraded = rawDatabase(file)
+        val upgraded = EncryptedDatabase.open(file, ByteArray(32), Schema.migrations.take(7), PlainSqlDriver)
         upgraded.write { connection ->
             assertEquals(7L, connection.pragma("PRAGMA user_version"))
             assertEquals(1L, connection.scalar("SELECT count(*) FROM processed_envelopes WHERE relay_id = 'env-6'"))

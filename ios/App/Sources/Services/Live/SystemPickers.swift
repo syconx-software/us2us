@@ -44,10 +44,14 @@ enum SystemPickers {
         picker.delegate = delegate
         return await withCheckedContinuation { continuation in
             delegate.continuation = continuation
-            guard present(picker) else {
+            guard let token = present(picker, cancel: { [weak delegate, weak picker] in
+                delegate?.finish([])
+                picker?.dismiss(animated: false)
+            }) else {
                 delegate.finish([])
                 return
             }
+            delegate.presentation = token
             objc_setAssociatedObject(picker, &delegateKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
     }
@@ -70,24 +74,42 @@ enum SystemPickers {
         picker.delegate = delegate
         return await withCheckedContinuation { continuation in
             delegate.continuation = continuation
-            guard present(picker) else {
+            guard let token = present(picker, cancel: { [weak delegate, weak picker] in
+                delegate?.finish(nil)
+                picker?.dismiss(animated: false)
+            }) else {
                 delegate.finish(nil)
                 return
             }
+            delegate.presentation = token
             objc_setAssociatedObject(picker, &delegateKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
     }
 
     private nonisolated(unsafe) static var delegateKey: UInt8 = 0
 
-    private static func present(_ controller: UIViewController) -> Bool {
+    private static func present(_ controller: UIViewController, cancel: @escaping () -> Void) -> UUID? {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         guard let window = scene?.windows.first(where: { $0.windowLevel == .normal && !$0.isHidden }),
             var top = window.rootViewController
-        else { return false }
+        else { return nil }
         while let presented = top.presentedViewController { top = presented }
+        guard scene?.activationState == .foregroundActive, top.viewIfLoaded?.window != nil,
+              !top.isBeingPresented, !top.isBeingDismissed,
+              let token = SystemPickerActivity.shared.begin(cancel: cancel) else { return nil }
+        controller.modalPresentationStyle = .fullScreen
         top.present(controller, animated: true)
-        return true
+        return token
+    }
+
+    /// Keep the activity alive through the closing transition, so late SwiftUI disappearance
+    /// callbacks cannot close the community between selection and sending.
+    private static func dismiss(_ controller: UIViewController, completion: @escaping () -> Void) {
+        if controller.isBeingDismissed, let transition = controller.transitionCoordinator {
+            transition.animate(alongsideTransition: nil) { _ in completion() }
+        } else if controller.presentingViewController != nil {
+            controller.dismiss(animated: true, completion: completion)
+        } else { completion() }
     }
 
     /// Where picked copies live, one folder per pick.
@@ -165,18 +187,20 @@ enum SystemPickers {
     @MainActor private final class PhotoDelegate: NSObject, PHPickerViewControllerDelegate {
         let limit: Int
         var continuation: CheckedContinuation<[PickedMediaItem], Never>?
+        var presentation: UUID?
 
         init(limit: Int) {
             self.limit = limit
         }
 
         func finish(_ items: [PickedMediaItem]) {
-            continuation?.resume(returning: items)
-            continuation = nil
+            guard let continuation else { SystemPickers.discard(items); return }
+            self.continuation = nil
+            SystemPickerActivity.shared.end(presentation)
+            continuation.resume(returning: items)
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            picker.dismiss(animated: true)
             var items: [PickedMediaItem] = []
             for result in results.prefix(limit) {
                 let provider = result.itemProvider
@@ -186,7 +210,7 @@ enum SystemPickers {
                 let copy = Self.pickedCopy(from: provider, type: type)
                 items.append(PickedMediaItem(kind: isVideo ? .video : .photo, source: .copy(copy)))
             }
-            finish(items)
+            SystemPickers.dismiss(picker) { self.finish(items) }
         }
 
         /// The provider's file, copied into a protected folder of its own.
@@ -207,15 +231,21 @@ enum SystemPickers {
 
     @MainActor private final class DocumentDelegate: NSObject, UIDocumentPickerDelegate {
         var continuation: CheckedContinuation<URL?, Never>?
+        var presentation: UUID?
 
         func finish(_ url: URL?) {
-            continuation?.resume(returning: url)
-            continuation = nil
+            guard let continuation else {
+                if let url { SystemPickers.discardPicked(url) }
+                return
+            }
+            self.continuation = nil
+            SystemPickerActivity.shared.end(presentation)
+            continuation.resume(returning: url)
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             guard let picked = urls.first else {
-                finish(nil)
+                SystemPickers.dismiss(controller) { self.finish(nil) }
                 return
             }
             // The picker's own copy (`asCopy`) moves into the protected
@@ -225,12 +255,16 @@ enum SystemPickers {
                 let url = await Task.detached(priority: .userInitiated) {
                     SystemPickers.moveIntoPickDirectory(picked)
                 }.value
-                self.finish(url)
+                guard self.continuation != nil else {
+                    if let url { SystemPickers.discardPicked(url) }
+                    return
+                }
+                SystemPickers.dismiss(controller) { self.finish(url) }
             }
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            finish(nil)
+            SystemPickers.dismiss(controller) { self.finish(nil) }
         }
     }
 }

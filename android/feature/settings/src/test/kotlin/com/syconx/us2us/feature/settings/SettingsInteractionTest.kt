@@ -9,15 +9,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import com.syconx.us2us.domain.PresenceVisibility
@@ -118,6 +122,21 @@ class SettingsInteractionTest {
     }
 
     @Test
+    fun screenAwakeIsOptInAndTheWholeRowChangesIt() {
+        // This is an interaction test, not a frozen animation screenshot.
+        host.compose.mainClock.autoAdvance = true
+        host.render { SettingsApp(reduceMotion = true, onFixture = { fixture = it }) }
+        host.compose.mainClock.autoAdvance = true
+        assertEquals(false, fixture.model.preferences.keepScreenOn)
+        host.compose.onNodeWithTag("settings.keepScreenOn").performScrollTo().assertIsOff().performClick()
+        host.settle(100)
+        assertEquals(true, fixture.model.preferences.keepScreenOn)
+        host.compose.onNodeWithTag("settings.keepScreenOn").assertIsOn().performClick()
+        host.settle(100)
+        assertEquals(false, fixture.model.preferences.keepScreenOn)
+    }
+
+    @Test
     fun pickersWriteTheSettings() {
         open()
         click(SettingsTags.picker(SettingsPicker.Presence.raw))
@@ -160,6 +179,8 @@ class SettingsInteractionTest {
         settleUntil { fixture.router.top == AppRoute.Settings }
         assertTrue("the backup was written where the user picked", target.length() > 0)
         assertEquals(DesignFixtures.referenceDate, fixture.service.settings.value.lastBackupAt)
+        // The toast is set as the export screen pops; with the shorter push it needs a frame more.
+        settleUntil { host.compose.onAllNodesWithText("Yedek dışa aktarıldı", substring = true).fetchSemanticsNodes().isNotEmpty() }
         host.compose.onNodeWithText("Yedek dışa aktarıldı", substring = true).assertIsDisplayed()
     }
 

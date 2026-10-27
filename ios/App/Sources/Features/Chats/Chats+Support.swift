@@ -209,3 +209,39 @@ private final class DotTileCache {
         return image
     }
 }
+
+/// 4.1 › a one-to-one chat's long press (proposed): “Sohbeti sil” and
+/// “Kişiyi sil”, the same as VoiceOver actions. Each only asks for its
+/// confirmation (`ChatDeletion`). Communities are left from their own screen.
+struct ChatRowDeletion: ViewModifier {
+    let chat: ChatSummary
+    @Binding var deletion: ChatDeletion?
+
+    func body(content: Content) -> some View {
+        if chat.community == nil {
+            content
+                .contextMenu {
+                    Button(role: .destructive) {
+                        deletion = ChatDeletion(.chat, chat: chat.id, peer: chat.peer)
+                    } label: {
+                        Label { Text("delete.chat") } icon: { PhosphorIcon(.trashSimple, size: 20) }
+                    }
+                    .accessibilityIdentifier("chat.deleteChat")
+                    Button(role: .destructive) {
+                        deletion = ChatDeletion(.contact, chat: chat.id, peer: chat.peer)
+                    } label: {
+                        Label { Text("delete.contact") } icon: { PhosphorIcon(.trash, size: 20) }
+                    }
+                    .accessibilityIdentifier("chat.deleteContact")
+                }
+                .accessibilityAction(named: Text("delete.chat")) {
+                    deletion = ChatDeletion(.chat, chat: chat.id, peer: chat.peer)
+                }
+                .accessibilityAction(named: Text("delete.contact")) {
+                    deletion = ChatDeletion(.contact, chat: chat.id, peer: chat.peer)
+                }
+        } else {
+            content
+        }
+    }
+}

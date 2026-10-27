@@ -116,6 +116,9 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    // The release's separate migration process uses the same upstream ORM. Trace its ESM
+    // entry alongside the server so production needs neither the source nor drizzle-kit.
+    externals: { traceInclude: [fileURLToPath(new URL('./node_modules/drizzle-orm/mysql2/migrator.js', import.meta.url))] },
     // One long-lived process: WebSocket sessions, rate limits and the online
     // fast path live in memory, so the relay must not be clustered.
     preset: 'node-server',

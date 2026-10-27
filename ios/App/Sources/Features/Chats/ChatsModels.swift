@@ -30,7 +30,9 @@ final class NewChatModel {
         case pending
         /// The exact lookup is running (spinner in the field).
         case searching
-        case found(Peer, isExistingChat: Bool)
+        /// `existingChat`: the chat with the account the lookup found —
+        /// never one that only shows the same name (PROTOCOL §3.3).
+        case found(Peer, existingChat: ChatID?)
         /// Nobody has the name.
         case notFound
         /// Nobody can have the name: it breaks a rule (the first one is
@@ -133,8 +135,8 @@ final class NewChatModel {
             let result = await self.messenger.lookup(username: name)
             guard !Task.isCancelled, self.resultName == name else { return }
             switch result {
-            case .found(let peer, let isExistingChat):
-                self.set(.found(peer, isExistingChat: isExistingChat), name: name)
+            case .found(let peer, let existingChat):
+                self.set(.found(peer, existingChat: existingChat), name: name)
                 if settle > .zero, self.resultAvatar == .loading {
                     try? await Task.sleep(for: settle)
                     guard !Task.isCancelled, self.resultName == name else { return }
@@ -176,15 +178,17 @@ final class NewChatModel {
         withU2Animation(U2Motion.state) { resultAvatar = .loaded(picture) }
     }
 
-    /// “Mesaj yaz” / “Sohbete git”: the chat to open after the sheet is down —
-    /// the existing one, or a new pending-request conversation.
-    func startChat(with peer: Peer) async -> ChatID? {
-        guard !isStarting else { return nil }
+    /// “Mesaj yaz” / “Sohbete git” on the found result: the chat to open
+    /// after the sheet is down — the chat with the account the lookup found,
+    /// or a new pending-request conversation. Never matched by the name a
+    /// chat shows: after an account was deleted and someone else registered
+    /// its name, the old chat still shows it (PROTOCOL §3.3). The messenger
+    /// looks the name up again and opens the conversation of that account.
+    func startChat() async -> ChatID? {
+        guard !isStarting, case .found(let peer, let existingChat) = phase else { return nil }
         isStarting = true
         defer { isStarting = false }
-        if let existing = messenger.chats.first(where: { $0.peer.username == peer.username }) {
-            return existing.id
-        }
+        if let existingChat, messenger.chat(existingChat) != nil { return existingChat }
         return await messenger.startChat(username: peer.username)
     }
 

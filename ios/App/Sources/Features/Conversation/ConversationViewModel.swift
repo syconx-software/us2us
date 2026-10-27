@@ -76,6 +76,23 @@ final class ConversationViewModel {
     /// Bubble frames for the 5.3 lift (not observed).
     @ObservationIgnored let frames = BubbleFrameStore()
 
+    private(set) var isLoadingHistory = false
+    @ObservationIgnored private var historyExhausted = false
+    @ObservationIgnored private var historyGeneration = 0
+
+    func loadOlderMessages() async {
+        guard !isLoadingHistory, !historyExhausted, !rows.isEmpty else { return }
+        isLoadingHistory = true
+        defer { isLoadingHistory = false }
+        let generation = historyGeneration
+        do {
+            let loaded = try await messenger.loadOlderMessages(in: chatID)
+            if generation == historyGeneration { historyExhausted = !loaded }
+        }
+        catch is CancellationError { }
+        catch { /* Retry when the user reaches the top again. Existing history stays visible. */ }
+    }
+
     var draft = ""
     /// The quote above the composer after “Yanıtla”.
     var replyTo: QuotedMessage?
@@ -142,6 +159,10 @@ final class ConversationViewModel {
 
     var chat: ChatSummary? { messenger.chat(chatID) }
 
+    /// A community shown on these screens (`CommunityChatMessenger`); `nil`
+    /// in a one-to-one chat.
+    var community: (any CommunityConversationContext)? { messenger as? any CommunityConversationContext }
+
     /// The conversation, oldest first.
     var messages: [Message] {
         let live = messenger.messages(in: chatID)
@@ -157,6 +178,18 @@ final class ConversationViewModel {
 
     func message(_ id: MessageID) -> Message? {
         messages.last { $0.id == id }
+    }
+
+    var actionsTargetIsGone: Bool {
+        guard let actions else { return false }
+        return message(actions.messageID) == nil
+    }
+
+    func clearMissingActions() {
+        guard actionsTargetIsGone else { return }
+        actionsVisible = false
+        actions = nil
+        showsAllReactions = false
     }
 
     /// The rows of the message column, derived once per change of the
@@ -200,6 +233,9 @@ final class ConversationViewModel {
     /// rows after the last one that was already there start arriving.
     private func noteChanges(from old: [ConversationRow], to new: [ConversationRow]) {
         let current = Set(new.lazy.map(\.id))
+        if old.isEmpty || new.isEmpty || !old.contains(where: { current.contains($0.id) }) {
+            historyExhausted = false; historyGeneration += 1
+        }
         var previous: MessageID?
         var j = new.startIndex
         var lastKept: Int?
@@ -268,7 +304,8 @@ final class ConversationViewModel {
             let message = messages[index]
             rows.append(
                 ConversationRow(
-                    message: message, isTail: isTail(index, in: messages), showsStatusSentence: sentences.contains(message.id)))
+                    message: message, isTail: isTail(index, in: messages), showsStatusSentence: sentences.contains(message.id),
+                    showsSender: showsSender(index, in: messages)))
         }
         return rows
     }
@@ -337,14 +374,33 @@ final class ConversationViewModel {
         return ids
     }
 
-    /// The last bubble of a run of the same direction gets the tail (C15).
+    /// The last bubble of a run of the same direction gets the tail (C15);
+    /// in a community a run is also one sender's.
     static func isTail(_ index: Int, in messages: [Message]) -> Bool {
         let message = messages[index]
         if message.isSystem { return false }
         guard index + 1 < messages.count else { return true }
         let next = messages[index + 1]
         if next.isSystem { return true }
-        return next.direction != message.direction
+        if next.direction != message.direction { return true }
+        return !message.isOutgoing && next.community?.senderID != message.community?.senderID
+    }
+
+    /// A community's incoming message names its sender above the first
+    /// bubble of each run.
+    static func showsSender(_ index: Int, in messages: [Message]) -> Bool {
+        let message = messages[index]
+        guard !message.isOutgoing, !message.isSystem, let marks = message.community, marks.sender != nil else { return false }
+        guard index > 0 else { return true }
+        let previous = messages[index - 1]
+        return previous.isSystem || previous.isOutgoing || previous.community?.senderID != marks.senderID
+    }
+
+    /// A community member's name as the screens say it (“Üye · 1a2b3c4d” without a username).
+    func senderName(of message: Message) -> String {
+        if message.isOutgoing { return ownUsername }
+        guard let sender = message.community?.sender else { return peerUsername }
+        return CommunityNames.member(username: sender.username, shortID: sender.shortID, locale: presentationLocale)
     }
 
     // MARK: Composer
@@ -359,6 +415,15 @@ final class ConversationViewModel {
         // The field shrinks back to one line as the bubble leaves it.
         withU2Animation(U2Motion.micro) { draft = "" }
         withU2Animation(U2Motion.state) { replyTo = nil }
+        if let community {
+            // A community text is queued for every member first; if it
+            // could not be, the composer gets it back (unless typed over).
+            Task { [weak self] in
+                guard !(await community.sendText(text)), let self, self.draft.isEmpty else { return }
+                withU2Animation(U2Motion.micro) { self.draft = text }
+            }
+            return
+        }
         Task { await messenger.send(text: text, replyTo: quote, in: chatID) }
     }
 
@@ -563,6 +628,13 @@ final class ConversationViewModel {
         voicePlayer.stop()
     }
 
+    /// “Tekrar gönder” under a failed message; in a community only while
+    /// this account is still a member (it goes to those who did not get it).
+    func offersResend(_ message: Message) -> Bool {
+        guard message.community != nil, let community else { return true }
+        return community.row?.isOpenable == true
+    }
+
     func resend(_ id: MessageID) {
         // Nothing reaches someone blocked (the bar offers “Engeli kaldır”).
         guard !isBlocked else { return }
@@ -574,6 +646,14 @@ final class ConversationViewModel {
 
     func canOpenActions(_ message: Message) -> Bool {
         !message.isSystem
+    }
+
+    /// “Herkesten sil”: own messages (not to someone blocked); in a
+    /// community also, for its owner, every message (moderation).
+    func canDeleteForEveryone(_ message: Message) -> Bool {
+        guard !message.isDeleted, !message.isPendingMedia, !message.isSystem else { return false }
+        if let community { return message.isOutgoing || community.isOwner }
+        return message.isOutgoing && !isBlocked
     }
 
     func openActions(for message: Message, isTail: Bool) {
@@ -654,7 +734,7 @@ final class ConversationViewModel {
             let quote = message.quote(ownUsername: ownUsername, peerUsername: peerUsername, locale: locale)
         else { return }
         dismissActions { [weak self] in
-            withU2Animation(U2Motion.soft(0.3)) { self?.replyTo = quote }
+            withU2Animation(U2Motion.state) { self?.replyTo = quote }
         }
     }
 
@@ -789,7 +869,7 @@ final class ConversationViewModel {
         guard !voice.isRecording else { return }
         if case .voice = message.content { return }
         stopVoicePlayback()
-        let sender = message.isOutgoing ? ownUsername : peerUsername
+        let sender = senderName(of: message)
         switch message.content {
         case .photo(let source, let caption):
             // Still being prepared here (or that failed): it opens once it is sent.
@@ -1063,6 +1143,10 @@ struct ConversationRow: Identifiable, Equatable {
     let isTail: Bool
     /// The state spelled out under the bubble (5.1 item 8; failed messages).
     let showsStatusSentence: Bool
+    /// Communities: the sender's name above the first bubble of its run.
+    var showsSender = false
+    /// Display only: the original message rows stay independent in the view model.
+    var album: [Message] = []
 
     var id: MessageID { message.id }
 }

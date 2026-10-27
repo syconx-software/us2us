@@ -323,6 +323,11 @@ describe('PRIV-7 (unit): ephemeral ids carry no batch position', () => {
 })
 
 describe('deploy/nginx/us2us.conf', () => {
+  it('suppresses version disclosure in every site server', () => {
+    const blocks = serverBlocks(nginxConf())
+    expect(blocks.length).toBeGreaterThan(0)
+    expect(blocks.every(block => /\bserver_tokens\s+off\s*;/.test(block))).toBe(true)
+  })
   it('PRIV-2: keeps upstream and client-body errors (which name client IP and request URI) out of the error log', () => {
     const conf = nginxConf()
     const quiet = /\berror_log\s+\S+\s+(crit|alert|emerg)\s*;/

@@ -139,7 +139,7 @@ internal fun SafetyNumberFlow(
         QrScanView(model.scanner, chromeDark = appDark, forcesDenied = harness?.state == VerificationHarness.DENIED)
     }
 
-    U2Sheet(isPresented = model.confirmsMarkVerified, onDismissRequest = { model.confirmsMarkVerified = false }, style = U2SheetStyle.Floating) {
+    U2Sheet(isPresented = model.confirmsMarkVerified, onDismissRequest = model::cancelMarkVerified, style = U2SheetStyle.Floating) {
         VerificationConfirmation(
             title = stringResource(R.string.verification_safety_confirm_title),
             message = stringResource(R.string.verification_safety_confirm_message, model.peerName),
@@ -148,7 +148,7 @@ internal fun SafetyNumberFlow(
                 model.confirmsMarkVerified = false
                 scope.launch { model.markVerifiedManually() }
             },
-            onCancel = { model.confirmsMarkVerified = false },
+            onCancel = model::cancelMarkVerified,
             modifier = ConfirmationPadding,
         )
     }
@@ -166,7 +166,7 @@ internal fun SafetyNumberFlow(
             modifier = ConfirmationPadding,
         )
     }
-    U2Sheet(isPresented = model.confirmsAccept, onDismissRequest = { model.confirmsAccept = false }, style = U2SheetStyle.Floating) {
+    U2Sheet(isPresented = model.confirmsAccept, onDismissRequest = model::cancelAccept, style = U2SheetStyle.Floating) {
         VerificationConfirmation(
             title = stringResource(R.string.verification_safety_accept_title),
             message = stringResource(R.string.verification_safety_accept_message),
@@ -175,7 +175,7 @@ internal fun SafetyNumberFlow(
                 model.confirmsAccept = false
                 scope.launch { model.acceptChangeWithoutVerifying() }
             },
-            onCancel = { model.confirmsAccept = false },
+            onCancel = model::cancelAccept,
             modifier = ConfirmationPadding,
         )
     }

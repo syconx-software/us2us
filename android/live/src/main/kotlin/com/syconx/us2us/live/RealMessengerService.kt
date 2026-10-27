@@ -176,6 +176,9 @@ class RealMessengerService(
 
     /** Photos and videos picked in “+” while they are prepared, one at a time: their bubbles show at once. */
     val outgoingMedia: OutgoingMedia<PreparedMedia> = OutgoingMedia(mediaSteps(), scope, io = io)
+
+    /** Communities in the chat list and the conversation screen (docs/COMMUNITIES.md). */
+    private val communityChats = LiveCommunities(runtime, scope, outgoingMedia, showsRead = { runtime.settings.value.readReceipts })
     private val mediaLoading = HashSet<MessageId>()
 
     /** Attachments of the open conversation the user asked to download, so the bubble shows its ring at once (the runtime reports the transfer only once it runs). */
@@ -215,6 +218,7 @@ class RealMessengerService(
 
     init {
         outgoingMedia.onSent = ::keepImage
+        communityChats.start()
         // Picked copies a crash or a kill left behind go with the new process.
         pickers.removeAllPicked()
         recomputeChats()
@@ -224,7 +228,7 @@ class RealMessengerService(
         recomputeOwnAvatar()
         recomputeOpen()
         scope.launch {
-            merge(runtime.chats, runtime.presence, runtime.settings, runtime.safetyNumberChanges, searchedAvatars).conflate().collect { recomputeChats() }
+            merge(runtime.chats, runtime.presence, runtime.settings, runtime.safetyNumberChanges, searchedAvatars, communityChats.summaries).conflate().collect { recomputeChats() }
         }
         scope.launch { runtime.requests.collect { recomputeRequests() } }
         scope.launch { runtime.blockedContacts.collect { recomputeBlocked() } }
@@ -256,8 +260,12 @@ class RealMessengerService(
         },
         preparedFile = { it.file },
         send = { prepared, id, chat ->
-            val peer = account(chat) ?: throw IOException("unknown chat")
-            runtime.sendMedia(prepared, peer, messageId = id.toByteString())
+            if (communityChats.isCommunity(chat)) {
+                communityChats.sendMedia(prepared, chat, AccountId.fromBytes(id.toByteArray()))
+            } else {
+                val peer = account(chat) ?: throw IOException("unknown chat")
+                runtime.sendMedia(prepared, peer, messageId = id.toByteString())
+            }
         },
         discardSource = pickers::discardPicked,
         discardPrepared = { file -> file.delete() },
@@ -269,6 +277,7 @@ class RealMessengerService(
      * the upload finished.
      */
     private fun keepImage(item: OutgoingMediaItem) {
+        if (communityChats.isCommunity(item.chat)) return communityChats.keep(item)
         val image = item.keptImage ?: return
         if (runtime.openPeer.value?.toString() != item.chat.value) return
         media.value = media.value + (item.id to image)
@@ -462,6 +471,7 @@ class RealMessengerService(
                 runtime.scenePhaseChanged(AppPhase.ACTIVE)
                 sharing.appReturned()
                 outgoingMedia.didBecomeActive()
+                communityChats.foregroundChanged(true)
             }
             MessengerScenePhase.Inactive -> runtime.scenePhaseChanged(AppPhase.INACTIVE)
             MessengerScenePhase.Background -> {
@@ -469,11 +479,13 @@ class RealMessengerService(
                 sharing.appLeft()
                 clearCaches()
                 outgoingMedia.didEnterBackground()
+                communityChats.foregroundChanged(false)
             }
         }
     }
 
     private fun clearCaches() {
+        communityChats.clearCaches()
         liveTicks = emptyMap()
         media.value = emptyMap()
         mediaLoading.clear()
@@ -506,12 +518,15 @@ class RealMessengerService(
         val searched = searchedAvatars.value
         val date = now
         val source = runtime.chats.value
-        chatsState.value = source.map { summary ->
+        val direct = source.map { summary ->
             var record = LiveChatRecord.of(summary, own)
             if (summary.id in changed) record = record.copy(safetyNumberChanged = true)
             if (record.requestState == LiveRequestState.OutgoingRequest) searched[record.peer]?.let { record = record.copy(avatar = it) }
             LiveMapping.chatSummary(record, presence[summary.id]?.let(LivePresence::of), date, sharing)
+                .copy(lastMessageActivity = summary.lastMessage?.storedAt)
         }
+        // Communities take their place among the chats by last activity.
+        chatsState.value = LiveCommunityMapping.mixed(direct, communityChats.summaries.value)
     }
 
     private fun recomputeRequests() {
@@ -530,7 +545,8 @@ class RealMessengerService(
             null
         } ?: return@withContext UserLookup.NotFound
         rememberLookup(username, entry.account)
-        chat(ChatId(entry.account.toString())).value?.let { return@withContext UserLookup.Found(it.peer, isExistingChat = true) }
+        // The chat of the account the directory answered with, never one that only shows the name.
+        chat(ChatId(entry.account.toString())).value?.let { return@withContext UserLookup.Found(it.peer, existingChat = it.id) }
         UserLookup.Found(
             Peer(
                 username = normalized.value,
@@ -539,7 +555,6 @@ class RealMessengerService(
                 isAcceptedContact = false,
                 presence = Presence.Hidden,
             ),
-            isExistingChat = false,
         )
     }
 
@@ -580,6 +595,47 @@ class RealMessengerService(
     private suspend fun block(peer: AccountId) = withContext(main) {
         sharing.stopSharingWith(peer)
         runtime.block(peer)
+    }
+
+    // MARK: Deleting
+
+    override suspend fun deleteChat(chat: ChatId): Boolean {
+        val peer = account(chat) ?: return false
+        return succeeds {
+            withContext(main) { forgetChat(peer, chat) }
+            runtime.deleteConversation(peer, forBoth = false)
+        }
+    }
+
+    override suspend fun deleteContact(chat: ChatId): Boolean {
+        val peer = account(chat) ?: return false
+        return succeeds {
+            withContext(main) { forgetChat(peer, chat) }
+            runtime.deleteContact(peer)
+            withContext(main) {
+                avatarAccounts.values.removeAll { it == peer }
+                revealedAvatars.remove(chat.value)
+            }
+        }
+    }
+
+    /**
+     * What this service holds for a chat being deleted: a live location shared in it ends here
+     * (nothing keeps tracking for a chat that is gone; the runtime's deletion sends its stop, so it
+     * is not asked to stop it first), photos and videos still being prepared for it are dropped
+     * with their picked copies, and the decrypted media, downloads and search picture kept for it go.
+     */
+    private fun forgetChat(peer: AccountId, chat: ChatId) {
+        sharing.forgetSharesWith(peer)
+        for (item in outgoingMedia.items(chat)) outgoingMedia.remove(item.id)
+        listedMedia.values.removeAll { it.first == peer }
+        searchedAvatars.value = searchedAvatars.value - chat.value
+        if (runtime.openPeer.value == peer) {
+            liveTicks = emptyMap()
+            media.value = emptyMap()
+            mediaLoading.clear()
+            downloads.value = emptyMap()
+        }
     }
 
     override suspend fun unblock(chat: ChatId): Boolean {
@@ -705,7 +761,14 @@ class RealMessengerService(
         return chat
     }
 
+    override suspend fun loadOlderMessages(chat: ChatId): Boolean = withContext(main) {
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.loadOlder(chat)
+        val peer = account(chat) ?: return@withContext false
+        runtime.loadOlderMessages(peer)
+    }
+
     override suspend fun conversationAppeared(chat: ChatId) = withContext(main) {
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.appeared(chat)
         val peer = account(chat) ?: return@withContext
         runtime.openConversation(peer)
         loadRequestAvatar(peer)
@@ -713,6 +776,7 @@ class RealMessengerService(
 
     override fun conversationDisappeared(chat: ChatId) {
         outgoingMedia.conversationClosed(chat)
+        if (communityChats.isCommunity(chat)) return communityChats.disappeared(chat)
         if (runtime.openPeer.value?.toString() != chat.value) return
         runtime.closeConversation()
         liveTicks = emptyMap()
@@ -722,7 +786,11 @@ class RealMessengerService(
     }
 
     override fun messages(chat: ChatId): StateFlow<List<Message>> =
-        messageFlows.getOrPut(chat) { openState.mapState { if (it.peer == chat.value) it.messages else emptyList() } }
+        if (communityChats.isCommunity(chat)) {
+            communityChats.messages(chat)
+        } else {
+            messageFlows.getOrPut(chat) { openState.mapState { if (it.peer == chat.value) it.messages else emptyList() } }
+        }
 
     override fun liveLocations(chat: ChatId): StateFlow<LiveLocationSnapshot> =
         liveLocationFlows.getOrPut(chat) { openState.mapState { if (it.peer == chat.value) it.liveLocations else LiveLocationSnapshot.Empty } }
@@ -819,6 +887,7 @@ class RealMessengerService(
     // MARK: Media of the open conversation
 
     override suspend fun mediaPayload(message: MessageId, chat: ChatId): MediaPayload? = withContext(main) {
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.mediaPayload(message, chat)
         val peer = account(chat) ?: return@withContext null
         val id = LiveMapping.messageData(message) ?: return@withContext null
         val attachment = openAttachment(id, peer) ?: return@withContext null
@@ -841,6 +910,7 @@ class RealMessengerService(
     }
 
     override suspend fun downloadMedia(message: MessageId, chat: ChatId) = withContext(main) {
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.downloadMedia(message, chat)
         val peer = account(chat) ?: return@withContext
         val id = LiveMapping.messageData(message) ?: return@withContext
         val attachment = openAttachment(id, peer) ?: return@withContext
@@ -910,6 +980,7 @@ class RealMessengerService(
     }
 
     override suspend fun sendText(text: String, replyTo: QuotedMessage?, chat: ChatId) {
+        if (communityChats.isCommunity(chat)) return withContext(main) { communityChats.sendText(text, chat) }
         val peer = account(chat) ?: return
         quietly { runtime.sendText(text, peer, quote(replyTo)) }
     }
@@ -921,7 +992,11 @@ class RealMessengerService(
     }
 
     override suspend fun sendAttachment(attachment: ConversationAttachment, chat: ChatId) = withContext(main) {
-        val peer = account(chat) ?: return@withContext
+        // A community takes photos, videos and files (Extension v2); places and live location stay one-to-one.
+        val community = communityChats.isCommunity(chat)
+        val peer = account(chat)
+        if (peer == null && !community) return@withContext
+        if (community && (attachment is ConversationAttachment.Location || attachment is ConversationAttachment.LiveLocation)) return@withContext
         val disappearing = summary(chat)?.disappearing ?: DisappearingTimer.Off
         when (attachment) {
             is ConversationAttachment.Photo -> {
@@ -940,7 +1015,7 @@ class RealMessengerService(
                     val type = contentType(file, attachment.uri)
                     val prepared = runtime.prepareFile(context, MediaInput.of(file), file.name, type)
                     try {
-                        runtime.sendMedia(prepared, peer)
+                        if (community) communityChats.sendMedia(prepared, chat) else runtime.sendMedia(prepared, peer!!)
                     } catch (e: Exception) {
                         prepared.file.delete()
                         throw e
@@ -953,6 +1028,7 @@ class RealMessengerService(
                 }
             }
             is ConversationAttachment.Location -> quietly {
+                if (peer == null) return@quietly
                 runtime.sendLocation(
                     LocationInfo(
                         latitude = attachment.latitude,
@@ -964,7 +1040,7 @@ class RealMessengerService(
                     peer,
                 )
             }
-            is ConversationAttachment.LiveLocation -> sharing.start(peer, attachment.duration)
+            is ConversationAttachment.LiveLocation -> if (peer != null) sharing.start(peer, attachment.duration)
             // The design's sample content exists only in the fixtures.
             is ConversationAttachment.File -> Unit
         }
@@ -987,6 +1063,13 @@ class RealMessengerService(
      * relay never learns which). The recents (ids only) go to the vault's encrypted runtime state.
      */
     override suspend fun sendSticker(sticker: BrandStickerSelection, replyTo: QuotedMessage?, chat: ChatId) {
+        val community = LiveCommunityMapping.community(chat)
+        if (community != null) {
+            val wire = com.syconx.us2us.core.proto.Sticker.newBuilder().setPackId(sticker.sticker.packId)
+                .setStickerId(sticker.sticker.id).setEmoji(sticker.sticker.emoji).setLang(sticker.wireLanguage).build()
+            if (succeeds { runtime.withCommunities { it.sendSticker(community, wire) } }) quietly { runtime.noteRecentSticker(sticker.id) }
+            return
+        }
         val peer = account(chat) ?: return
         val sent = succeeds {
             runtime.sendSticker(
@@ -1016,7 +1099,8 @@ class RealMessengerService(
      * it. `false` when it could not be stored.
      */
     override suspend fun sendVoice(voice: VoiceRecording, replyTo: QuotedMessage?, chat: ChatId): Boolean {
-        val peer = account(chat) ?: return false
+        val community = communityChats.isCommunity(chat)
+        val peer = if (community) null else account(chat) ?: return false
         val prepared = try {
             runtime.prepareVoiceNote(voice.audio.toByteArray(), voice.durationMilliseconds.toInt(), voice.waveform.toByteArray())
         } catch (e: CancellationException) {
@@ -1025,7 +1109,7 @@ class RealMessengerService(
             return false
         }
         return try {
-            runtime.sendMedia(prepared, peer, quote = quote(replyTo))
+            if (community) communityChats.sendMedia(prepared, chat) else runtime.sendMedia(prepared, peer!!, quote = quote(replyTo))
             true
         } catch (e: CancellationException) {
             prepared.file.delete()
@@ -1038,6 +1122,7 @@ class RealMessengerService(
     }
 
     override suspend fun markVoicePlayed(message: MessageId, chat: ChatId) {
+        if (communityChats.isCommunity(chat)) return // v3 has no PLAYED receipt.
         val peer = account(chat) ?: return
         val id = LiveMapping.messageData(message) ?: return
         quietly { runtime.markVoiceNotePlayed(id.toByteString(), peer) }
@@ -1113,6 +1198,7 @@ class RealMessengerService(
     override suspend fun resend(message: MessageId, chat: ChatId) = withContext(main) {
         // A photo or video whose preparing failed is prepared again (it never reached the runtime).
         if (outgoingMedia.resend(message)) return@withContext
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.resend(message, chat)
         val peer = account(chat) ?: return@withContext
         val id = LiveMapping.messageData(message) ?: return@withContext
         quietly { runtime.resend(id.toByteString(), peer) }
@@ -1127,6 +1213,7 @@ class RealMessengerService(
     override suspend fun deleteForEveryone(message: MessageId, chat: ChatId) = withContext(main) {
         // A photo or video still being prepared never left the phone: it just goes.
         if (outgoingMedia.remove(message)) return@withContext
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.deleteForEveryone(message, chat)
         val peer = account(chat) ?: return@withContext
         val id = LiveMapping.messageData(message) ?: return@withContext
         quietly { runtime.deleteForEveryone(id.toByteString(), peer) }
@@ -1134,10 +1221,14 @@ class RealMessengerService(
 
     override suspend fun deleteForMe(message: MessageId, chat: ChatId) = withContext(main) {
         if (outgoingMedia.remove(message)) return@withContext
+        if (communityChats.isCommunity(chat)) return@withContext communityChats.deleteForMe(message, chat)
         val peer = account(chat) ?: return@withContext
         val id = LiveMapping.messageData(message) ?: return@withContext
         quietly { runtime.deleteForMe(id.toByteString(), peer) }
     }
+
+    override suspend fun messageRecipients(message: MessageId, chat: ChatId): List<com.syconx.us2us.domain.MessageRecipient> =
+        withContext(main) { communityChats.recipients(message, chat) }
 
     override suspend fun setReaction(emoji: String?, message: MessageId, chat: ChatId) {
         val peer = account(chat) ?: return

@@ -364,6 +364,8 @@ class MessengerBackend internal constructor(
 
     override suspend fun forgetContact(contact: AccountId) = messenger.forgetContact(contact)
 
+    override suspend fun forgetContactKeepingSession(contact: AccountId) = messenger.forgetContactKeepingSession(contact)
+
     override suspend fun exportBackup(password: String): ByteArray = messenger.exportBackup(password)
 
     override suspend fun deleteAccount() = messenger.deleteAccount()

@@ -191,6 +191,23 @@ extension MessagingEngine {
         afterLocalChange(peer)
     }
 
+    /// The conversation with `peer` is about to be deleted while we share
+    /// our location with them: each running share gets its normal stop,
+    /// queued without the conversation so the wipe does not take it along
+    /// (their bubble stops instead of showing a frozen position as live
+    /// until `expires_at`, §8.3). Nothing is stored in the conversation.
+    func enqueueStopsBeforeDeleting(_ conversation: Conversation, tx: StorageTransaction, now: Date) {
+        for (sessionId, session) in liveSessions where session.peer == conversation.contact {
+            guard let (current, timer) = try? Self.liveLocation(sessionId, in: conversation.id, tx: tx, now: now)
+            else { continue }
+            var live = current
+            live.stopped = true
+            live.sequence += 1
+            let data = BRPDataMessage(payload: .liveLocation(live), sentAt: now, expireTimerSeconds: timer)
+            _ = try? tx.outbox.enqueue(BRPContent(data: data), to: conversation.contact, now: now)
+        }
+    }
+
     /// Our live-location bubbles that still look live although this engine
     /// sends nothing for them: the process ended while sharing (killed in
     /// the background, a crash, a relaunch) or the vault was locked, so the

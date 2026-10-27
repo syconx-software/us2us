@@ -377,6 +377,10 @@
     <string name="settings_faceid_reason">us2us\'ı Face ID ile açabilmek için yüzünü doğrula.</string>
     <!-- settings.faceID.unavailable -->
     <string name="settings_faceid_unavailable">Face ID açılamadı.</string>
+    <!-- settings.keepScreenOn -->
+    <string name="settings_keepscreenon">Ekranı açık tut</string>
+    <!-- settings.keepScreenOn.footnote -->
+    <string name="settings_keepscreenon_footnote">Yalnızca uygulama ön planda ve kilidi açıkken çalışır. Pil tüketimini artırabilir; telefonunuzu açık bırakırsanız yazışmalarınız görülebilir. Güç tuşuyla kilitleme ve uygulama kilidi normal çalışır.</string>
     <!-- settings.language -->
     <string name="settings_language">Dil</string>
     <!-- settings.language.system -->

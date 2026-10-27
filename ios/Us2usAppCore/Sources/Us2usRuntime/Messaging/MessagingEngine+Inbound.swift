@@ -121,6 +121,20 @@ extension MessagingEngine {
             outcome.downloads = true
             outcome.wakeOutbox = true
         }
+        if previous == .accepted, message.senderUsername != nil, case .data(let data) = content.body,
+            Self.opensRequest(data)
+        {
+            // §6.4: only an OUTGOING_REQUEST carries `sender_username`, so the
+            // contact deleted us on its phone and wrote as a new request.
+            // We accepted it long ago: our ACCEPT ends its request, and our
+            // access key and profile go again (it forgot both).
+            try tx.contacts.setOurAccessKeySent(nil, to: sender)
+            try tx.contacts.setProfileSent(at: nil, to: sender)
+            try tx.outbox.enqueue(.messageRequestResponse(.accept), to: sender, now: now)
+            try enqueueOurAccessKey(to: sender, tx: tx, now: now)
+            try sendProfileIfExchanged(sender, tx: tx, now: now)
+            outcome.wakeOutbox = true
+        }
         if message.identityChanged {
             outcome.notices.append(.safetyNumberChanged)
             outcome.safetyNumberChanged = true
@@ -205,7 +219,11 @@ extension MessagingEngine {
         from sender: AccountId, tx: StorageTransaction, now: Date, outcome: inout InboundOutcome
     ) throws {
         switch control.action {
-        case .requestResponse:
+        case .requestResponse(let response):
+            if previous == .accepted, response.type == .accept {
+                try resendKeyAndProfileAfterReacceptance(sender, tx: tx, now: now, outcome: &outcome)
+                return
+            }
             // ACCEPT ended our outgoing request (Us2usStorage applied §6.4).
             guard previous == .outgoingRequest, state == .accepted else { return }
             outcome.notices.append(.requestAccepted)
@@ -260,6 +278,24 @@ extension MessagingEngine {
         case .none:
             break
         }
+    }
+
+    /// `ACCEPT` from a contact we were accepted with already (§6.4): it had
+    /// deleted us, we wrote again (without `sender_username`, so on its phone
+    /// that was a new request) and it accepted. It forgot our access key and
+    /// profile, so both go again — once the exchange had finished here; an
+    /// `ACCEPT` that crosses an exchange still under way changes nothing.
+    private func resendKeyAndProfileAfterReacceptance(
+        _ sender: AccountId, tx: StorageTransaction, now: Date, outcome: inout InboundOutcome
+    ) throws {
+        guard let contact = try tx.contacts.get(sender), contact.ourAccessKeySent == (try ourAccessKey(tx)),
+            contact.profileSentAt != nil
+        else { return }
+        try tx.contacts.setOurAccessKeySent(nil, to: sender)
+        try tx.contacts.setProfileSent(at: nil, to: sender)
+        try enqueueOurAccessKey(to: sender, tx: tx, now: now)
+        try sendProfileIfExchanged(sender, tx: tx, now: now)
+        outcome.wakeOutbox = true
     }
 
     static func settingsNotice(before: BRPConversationSettings, after: BRPConversationSettings) -> SystemNotice {

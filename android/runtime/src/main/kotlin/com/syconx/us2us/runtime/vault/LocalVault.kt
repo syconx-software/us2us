@@ -9,6 +9,8 @@ import com.syconx.us2us.core.vault.SecretCodePolicy
 import com.syconx.us2us.core.vault.UnlockAttempts
 import com.syconx.us2us.core.vault.UnlockStatus
 import com.syconx.us2us.core.vault.Vault
+import com.syconx.us2us.core.vault.VaultHardwareKey
+import com.syconx.us2us.core.vault.VaultHardwareKeyMissingException
 import com.syconx.us2us.core.vault.VaultUnlocker
 import com.syconx.us2us.core.vault.VaultWipedException
 import com.syconx.us2us.core.vault.WrongSecretCodeException
@@ -23,8 +25,8 @@ import java.time.Clock
  *
  * The file format and the wrong-attempt rules are the core's ([Vault], [VaultUnlocker]); this
  * class adds the files: `vault.brpv` and `vault-attempts.json` in [directory], both replaced
- * atomically. Android writes format v1 (the hardware step of v2 is not implemented yet), so a v2
- * file reads as [VaultError.Corrupted].
+ * atomically. Verified secure hardware enables v2; existing v1 vaults move after a successful
+ * code unlock, keeping the same DEK. A failed move leaves the old vault usable.
  *
  * One [VaultController] owns these files; the methods are not meant to run concurrently.
  *
@@ -38,6 +40,7 @@ class LocalVault(
     private val configuration: Configuration = Configuration(),
     private val clock: Clock = Clock.systemUTC(),
     private val bootClock: BootClock = AndroidBootClock,
+    private val hardwareKey: VaultHardwareKey? = null,
 ) {
     data class Configuration(
         val iterations: Int = Vault.ITERATIONS,
@@ -68,8 +71,10 @@ class LocalVault(
         val deviceSecret = DeviceSecretItem.generate()
         try {
             storage("device secret") { deviceSecrets.replace(deviceSecret) }
-            val vault = Vault.create(code, deviceSecret, dek, configuration.iterations)
-            storage("vault") { VaultFiles.write(vaultFile, vault) }
+            if (!writeWithHardwareStep(dek, code, deviceSecret)) {
+                val vault = Vault.create(code, deviceSecret, dek, configuration.iterations)
+                storage("vault") { VaultFiles.write(vaultFile, vault) }
+            }
             storage("attempts") { attempts.save(UnlockAttempts()) }
             return dek.toBytes().let { bytes -> SecretKeyMaterial(bytes).also { bytes.fill(0) } }
         } finally {
@@ -103,8 +108,9 @@ class LocalVault(
         storage("attempts") { unlocker.nextAttemptAllowedAt() }?.let { throw VaultException(VaultError.LockedOut(it)) }
         val deviceSecret = loadDeviceSecret()
         try {
-            val dek = unlocker.unlock(vault, code, deviceSecret)
+            val dek = unlocker.unlock(vault, code, deviceSecret, hardwareKey)
             try {
+                if (Vault.version(vault) == 1) writeWithHardwareStep(dek, code, deviceSecret)
                 return dek.toBytes().let { bytes -> SecretKeyMaterial(bytes).also { bytes.fill(0) } }
             } finally {
                 dek.wipe()
@@ -123,6 +129,8 @@ class LocalVault(
             throw VaultException(VaultError.LockedOut(e.until), e)
         } catch (e: MalformedSecretCodeException) {
             throw VaultException(VaultError.MalformedCode, e)
+        } catch (e: VaultHardwareKeyMissingException) {
+            throw VaultException(VaultError.DeviceSecretMissing, e)
         } catch (e: InvalidVaultFileException) {
             throw VaultException(VaultError.Corrupted, e)
         } catch (e: IllegalArgumentException) {
@@ -145,7 +153,12 @@ class LocalVault(
         try {
             val deviceSecret = loadDeviceSecret()
             try {
-                val vault = dek.withDataKey { key -> Vault.create(new, deviceSecret, key, configuration.iterations) }
+                val currentVault = storage("vault") { VaultFiles.read(vaultFile) } ?: throw VaultException(VaultError.NotFound)
+                val currentVersion = try { Vault.version(currentVault) } catch (e: InvalidVaultFileException) { throw VaultException(VaultError.Corrupted, e) }
+                val requiredHardware = if (currentVersion == 2) hardwareKey ?: throw VaultException(VaultError.DeviceSecretMissing) else null
+                val vault = storage("vault hardware") {
+                    dek.withDataKey { key -> Vault.create(new, deviceSecret, key, configuration.iterations, requiredHardware) }
+                }
                 storage("vault") { VaultFiles.write(vaultFile, vault) }
             } finally {
                 deviceSecret.fill(0)
@@ -162,9 +175,31 @@ class LocalVault(
     @Synchronized
     fun destroy() {
         storage("destroy") {
-            deviceSecrets.destroy()
-            VaultFiles.delete(vaultFile)
-            attempts.delete()
+            var failure: IOException? = null
+            // Attempt every shred even if one Keystore operation fails. In particular a PRF
+            // deletion failure must not leave the device secret and vault file intact as well.
+            for (remove in listOf<() -> Unit>(
+                { hardwareKey?.deleteKey(); Unit }, deviceSecrets::destroy,
+                { VaultFiles.delete(vaultFile) }, attempts::delete,
+            )) {
+                try { remove() } catch (error: IOException) { if (failure == null) failure = error }
+            }
+            failure?.let { throw it }
+        }
+    }
+
+    /** No operation after the atomic replacement can fail and delete a committed v2 key. */
+    private fun writeWithHardwareStep(dek: DataKey, code: String, deviceSecret: ByteArray): Boolean {
+        val hardware = hardwareKey?.takeIf { it.isAvailable } ?: return false
+        return try {
+            hardware.createKey()
+            val candidate = Vault.create(code, deviceSecret, dek, configuration.iterations, hardware)
+            VaultFiles.write(vaultFile, candidate)
+            true
+        } catch (_: Exception) {
+            // The v1 file is still intact. Never call this path for an existing v2 vault.
+            VaultLog.notice("vault hardware upgrade deferred")
+            false
         }
     }
 
@@ -181,6 +216,8 @@ class LocalVault(
 
     private inline fun <T> storage(what: String, block: () -> T): T = try {
         block()
+    } catch (e: VaultHardwareKeyMissingException) {
+        throw VaultException(VaultError.DeviceSecretMissing, e)
     } catch (e: IOException) {
         throw VaultException(VaultError.Storage("$what: ${e.message}"), e)
     }

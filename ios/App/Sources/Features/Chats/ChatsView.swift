@@ -10,18 +10,24 @@ import SwiftUI
 /// The top bar stays put and the list scrolls under it (inventory 4.1); at rest
 /// the bar is exactly as drawn, and once rows pass beneath it the chat
 /// header's translucent band fades in (proposed). New messages move a row to
-/// the top with the soft 0.5 s reorder.
+/// the top with the soft 0.5 s reorder. A long press on a chat (proposed)
+/// offers “Sohbeti sil” and “Kişiyi sil”, each after its confirmation
+/// (`ChatDeletion`; on this phone only) — also as VoiceOver actions.
 struct ChatsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.locale) private var locale
     /// The own profile picture on the top bar (proposed), set at the root.
     @Environment(\.u2OwnAvatar) private var ownAvatar
 
+    @State private var communityRequests: CommunityRequestInboxRow?
     @State private var newChat: NewChatPresentation?
     @State private var showsQRMenu = false
     @State private var myCode: MyCodePresentation?
     @State private var showsScanner = false
     @State private var isScrolled = false
+    /// “Sohbeti sil” / “Kişiyi sil” from a row's long press, until confirmed.
+    @State private var deletion: ChatDeletion?
     /// One clock for every Ghost pill in the list (instead of a timeline per
     /// row), ticking only while 4.1 can be seen.
     @State private var ticker: U2Ticker?
@@ -47,8 +53,22 @@ struct ChatsView: View {
                 newChat = nil
             } onCancel: {
                 newChat = nil
+            } onCommunities: {
+                // Topluluklar (create, invitation, search) once the sheet is down.
+                opensCommunities = true
+                newChat = nil
             }
         }
+        .u2Sheet(item: $communityRequests, style: .fullHeight, onDismiss: {
+            Task { await model.messenger.communities?.refresh() }
+        }) { inbox in
+            CommunityManageSheet(communityID: inbox.id) { communityRequests = nil } onGone: { communityRequests = nil }
+                .task { await model.messenger.communities?.refresh() }
+        }
+        .onChange(of: model.overlay) { _, overlay in
+            if overlay != .none { communityRequests = nil }
+        }
+        .chatDeletionAlert($deletion, messenger: model.messenger, locale: locale)
         .u2Sheet(item: $myCode) { presentation in
             MyCodeSheet(username: model.messenger.ownUsername, payload: presentation.payload) { myCode = nil }
         }
@@ -73,13 +93,15 @@ struct ChatsView: View {
     // MARK: List
 
     @State private var pendingChat: ChatID?
+    @State private var opensCommunities = false
 
+    /// The one-to-one chats and the communities, by last activity.
     private var chats: [ChatSummary] {
         #if DEBUG
             if harness.hidesChats { return [] }
             if let feed = harness.stressFeed { return feed.chats }
         #endif
-        return model.messenger.chats
+        return ChatListOrder.merged(chats: model.messenger.chats, communities: model.messenger.communities?.chatRows ?? [])
     }
 
     private var list: some View {
@@ -90,11 +112,11 @@ struct ChatsView: View {
                 titleBlock(connection: messenger.connection)
                     .u2Top(100)
 
-                if let communities = messenger.communities {
-                    // Communities (proposed): one card in the requests card's shape.
-                    CommunitiesCard(count: communities.rows.count) { model.router.push(.communities) }
-                        .accessibilityIdentifier("chats.communities")
-                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                ForEach(messenger.communities?.requestInbox ?? []) { inbox in
+                    RequestsCard(count: inbox.count, communityName: inbox.name) { communityRequests = inbox }
+                        .accessibilityIdentifier("chats.communityRequests.\(inbox.id)")
+                        .padding(EdgeInsets(top: 10, leading: 16, bottom: 4, trailing: 16))
+                        .transition(.u2Fade)
                 }
 
                 if messenger.restoreAccessPending {
@@ -102,7 +124,7 @@ struct ChatsView: View {
                     // old phone may still have access; 7.1 explains and checks.
                     RestoreAccessCard { model.router.push(.settings) }
                         .accessibilityIdentifier("chats.access")
-                        .padding(EdgeInsets(top: messenger.communities != nil ? 6 : 18, leading: 16, bottom: 4, trailing: 16))
+                        .padding(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
                         .transition(.u2Fade)
                 }
 
@@ -112,7 +134,7 @@ struct ChatsView: View {
                         // Under the access card: the 10 pt gap of stacked option cards.
                         .padding(
                             EdgeInsets(
-                                top: messenger.restoreAccessPending || messenger.communities != nil ? 6 : 18, leading: 16,
+                                top: messenger.restoreAccessPending ? 6 : 18, leading: 16,
                                 bottom: 4, trailing: 16))
                         .transition(.u2Fade)
                 }
@@ -133,11 +155,16 @@ struct ChatsView: View {
                                         .transition(.identity)
                                 }
                                 Button {
-                                    model.router.push(.conversation(chat.id))
+                                    if let community = chat.community {
+                                        model.router.push(.community(community.id))
+                                    } else {
+                                        model.router.push(.conversation(chat.id))
+                                    }
                                 } label: {
                                     ChatListRow(chat: chat)
                                 }
                                 .buttonStyle(GroupedRowButtonStyle())
+                                .modifier(ChatRowDeletion(chat: chat, deletion: $deletion))
                                 .accessibilityIdentifier("chat.\(chat.id)")
                             }
                             .transition(.u2Rise)
@@ -271,6 +298,11 @@ struct ChatsView: View {
 
     /// 4.2 “Mesaj yaz”: the sheet goes down first (0.4 s), then 5.1 is pushed.
     private func openPendingChat() {
+        if opensCommunities {
+            opensCommunities = false
+            model.router.push(.communities)
+            return
+        }
         guard let chat = pendingChat else { return }
         pendingChat = nil
         model.router.push(.conversation(chat))

@@ -167,6 +167,9 @@ class AppRuntime(
     val openPeer: StateFlow<AccountId?> = openPeerFlow.asStateFlow()
 
     private val openMessagesFlow = MutableStateFlow<List<MessageItem>>(emptyList())
+    private var openHistoryOldest: Long? = null
+    private var openHistoryHasOlder = true
+    private var openHistoryVersion = 0
 
     /** The messages of the open conversation, oldest first. */
     val openMessages: StateFlow<List<MessageItem>> = openMessagesFlow.asStateFlow()
@@ -672,7 +675,8 @@ class AppRuntime(
             backoff = environment.reconnectBackoff,
         )
         if (!networkAvailable) supervisor.networkChanged(false)
-        val opened = Session(key, storage, backend, engine, supervisor, supervisorScope)
+        // The read-receipt setting as the community engine finds it when a message is displayed.
+        val opened = Session(key, storage, backend, engine, supervisor, supervisorScope) { settingsFlow.value.readReceipts }
         opened.listeners += scope.launch { engine.changes.collect { engineChanged(it) } }
         opened.listeners += scope.launch {
             supervisor.statusUpdates.collect { status ->
@@ -720,11 +724,28 @@ class AppRuntime(
     }
 
     private val communityOperations = HashSet<Job>()
+    private val communityDownloadsFlow = MutableStateFlow<Map<com.syconx.us2us.runtime.community.CommunityMessageKey, Double>>(emptyMap())
+    private val communityRevisionFlow = MutableStateFlow(0L)
+
+    /** Community media downloads under way (0…1). Empty while locked. */
+    val communityDownloads: StateFlow<Map<com.syconx.us2us.runtime.community.CommunityMessageKey, Double>> = communityDownloadsFlow.asStateFlow()
+
+    /** Bumped whenever stored community content changes (sync, send, delete, receipts). */
+    val communityRevision: StateFlow<Long> = communityRevisionFlow.asStateFlow()
+
+    /** Forwards the session's community engine state to [communityDownloads] and [communityRevision] (once per session). */
+    private fun observeCommunities(session: Session, engine: com.syconx.us2us.runtime.community.CommunityEngine) {
+        if (session.communitiesObserved) return
+        session.communitiesObserved = true
+        session.listeners += scope.launch { engine.downloadProgress.collect { if (isCurrent(session)) communityDownloadsFlow.value = it } }
+        session.listeners += scope.launch { engine.revision.collect { if (isCurrent(session)) communityRevisionFlow.value += 1 } }
+    }
 
     private fun clearUnlockedState() {
         // Community HTTP polls and fanout stop immediately on lock, even during the direct-chat grace period.
         communityOperations.toList().forEach { it.cancel() }
         communityOperations.clear()
+        communityDownloadsFlow.value = emptyMap()
         refreshJob?.cancel()
         refreshJob = null
         tickJob?.cancel()
@@ -732,6 +753,7 @@ class AppRuntime(
         chatsFlow.value = emptyList()
         requestsFlow.value = emptyList()
         blockedContactsFlow.value = emptyList()
+        openHistoryOldest = null; openHistoryHasOlder = true; openHistoryVersion++
         openPeerFlow.value = null
         openMessagesFlow.value = emptyList()
         downloadProgressFlow.value = emptyMap()
@@ -762,6 +784,7 @@ class AppRuntime(
                 val current = session
                 if (current == null || !isCurrent(current)) runtimeFailure(RuntimeError.Locked)
                 val communities = current.communities ?: runtimeFailure(RuntimeError.Locked)
+                observeCommunities(current, communities)
                 val operation = checkNotNull(currentCoroutineContext()[Job])
                 communityOperations += operation
                 try {
@@ -1127,7 +1150,10 @@ class AppRuntime(
             }
             is EngineChange.Wiped -> {
                 pendingRefresh.chats = true
-                if (change.peer == openPeerFlow.value) pendingRefresh.messages = true
+                if (change.peer == openPeerFlow.value) {
+                    openHistoryOldest = null; openHistoryHasOlder = true; openHistoryVersion++
+                    pendingRefresh.messages = true
+                }
             }
             is EngineChange.SafetyNumberChanged -> safetyNumberChangesFlow.value = safetyNumberChangesFlow.value + change.peer
             is EngineChange.DownloadProgress -> {
@@ -1222,13 +1248,14 @@ class AppRuntime(
         }
         val peer = openPeerFlow.value
         if ((work.messages || work.all) && peer != null) {
-            val messages = try {
-                engine.messages(peer)
-            } catch (_: Exception) {
-                emptyList()
-            }
+            val version = openHistoryVersion
+            val history = try { engine.history(peer, through = openHistoryOldest) } catch (_: Exception) { null }
             if (!isCurrent(current) || openPeerFlow.value != peer) return
-            openMessagesFlow.value = messages
+            if (version == openHistoryVersion && history != null) {
+                openMessagesFlow.value = history.items
+                openHistoryOldest = history.oldest
+                openHistoryHasOlder = history.hasOlder
+            }
             pruneDownloadProgress()
             try {
                 engine.markDisplayed(peer)
@@ -1333,15 +1360,19 @@ class AppRuntime(
         val current = session
         if (lockStateFlow.value != LockState.UNLOCKED || current == null) return@withContext
         val engine = current.engine
-        openPeerFlow.value = peer
-        if (bannerFlow.value?.peer == peer) bannerFlow.value = null
-        val messages = try {
-            engine.messages(peer)
-        } catch (_: Exception) {
-            emptyList()
+        if (openPeerFlow.value != peer) {
+            openHistoryOldest = null; openHistoryHasOlder = true; openHistoryVersion++
         }
-        if (!isCurrent(current) || openPeerFlow.value != peer) return@withContext
-        openMessagesFlow.value = messages
+        openPeerFlow.value = peer
+        val version = openHistoryVersion
+        if (bannerFlow.value?.peer == peer) bannerFlow.value = null
+        val history = try { engine.history(peer, through = openHistoryOldest) } catch (_: Exception) { null }
+        if (!isCurrent(current) || openPeerFlow.value != peer || version != openHistoryVersion) return@withContext
+        if (history != null) {
+            openMessagesFlow.value = history.items
+            openHistoryOldest = history.oldest
+            openHistoryHasOlder = history.hasOlder
+        }
         pruneDownloadProgress()
         quietly { engine.markDisplayed(peer) }
         notifyRecordingIfNeeded()
@@ -1359,7 +1390,27 @@ class AppRuntime(
         }
     }
 
+    suspend fun loadOlderMessages(peer: AccountId): Boolean = withContext(main) {
+        val current = session ?: return@withContext false
+        val before = openHistoryOldest ?: return@withContext false
+        if (!isCurrent(current) || openPeerFlow.value != peer || !openHistoryHasOlder) return@withContext false
+        val version = openHistoryVersion
+        val page = current.engine.history(peer, before = before)
+        if (!isCurrent(current) || openPeerFlow.value != peer || version != openHistoryVersion) return@withContext false
+        val oldest = page.oldest
+        if (oldest == null) { openHistoryHasOlder = false; return@withContext false }
+        val window = current.engine.history(peer, through = oldest)
+        if (!isCurrent(current) || openPeerFlow.value != peer || version != openHistoryVersion) return@withContext false
+        openHistoryVersion++
+        openHistoryOldest = oldest
+        openHistoryHasOlder = window.hasOlder
+        openMessagesFlow.value = window.items
+        quietly { current.engine.markDisplayed(peer) }
+        true
+    }
+
     fun closeConversation() {
+        openHistoryOldest = null; openHistoryHasOlder = true; openHistoryVersion++
         openPeerFlow.value = null
         openMessagesFlow.value = emptyList()
         downloadProgressFlow.value = emptyMap()
@@ -1539,6 +1590,15 @@ class AppRuntime(
     suspend fun deleteConversation(peer: AccountId, forBoth: Boolean) {
         val engine = engine()
         if (forBoth) engine.deleteConversationForBoth(peer) else engine.deleteConversationLocally(peer)
+        withContext(main) { if (openPeerFlow.value == peer) closeConversation() }
+    }
+
+    /**
+     * "Kişiyi sil": deletes the contact on this phone only (its conversation crypto-shredded, its
+     * session and identity gone; nothing is sent). A blocked contact keeps only the block.
+     */
+    suspend fun deleteContact(peer: AccountId) {
+        engine().deleteContact(peer)
         withContext(main) { if (openPeerFlow.value == peer) closeConversation() }
     }
 
@@ -1754,7 +1814,15 @@ class AppRuntime(
             requireUnlocked()
             session
         } ?: runtimeFailure(RuntimeError.Locked)
-        return current.backend.findAccount(normalized)
+        val entry = current.backend.findAccount(normalized) ?: return null
+        // The answer also tells which other contacts no longer own the name (§3.3).
+        try {
+            current.engine.noteUsernameOwner(normalized, entry.account)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+        return entry
     }
 
     /** The own account id while unlocked (to tell own reactions from the contact's). */
@@ -1823,13 +1891,17 @@ internal class Session(
     val engine: MessagingEngine,
     val supervisor: ConnectionSupervisor,
     val supervisorScope: CoroutineScope,
+    private val readReceipts: () -> Boolean = { true },
 ) {
     /** Built on first use, so opening a session never writes for communities. */
     val communities by lazy {
         (backend as? com.syconx.us2us.runtime.engine.MessengerBackend)?.let {
-            com.syconx.us2us.runtime.community.CommunityEngine(it.messenger, storage)
+            com.syconx.us2us.runtime.community.CommunityEngine(it.messenger, storage, readReceipts)
         }
     }
+
+    /** [AppRuntime.communityDownloads] and [AppRuntime.communityRevision] follow this session's engine. */
+    var communitiesObserved = false
 
     /** In the background grace period (UI locked, still receiving). */
     var inGrace = false

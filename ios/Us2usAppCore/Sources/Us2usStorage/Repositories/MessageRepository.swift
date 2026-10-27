@@ -529,15 +529,16 @@ public struct MessageRepository {
     /// `nil` = the latest), in chronological order. Expired messages are
     /// never returned (§9: never displayed after the deadline).
     public func page(
-        in conversationId: ConversationId, before: Int64? = nil, limit: Int = 50, now: Date = Date()
+        in conversationId: ConversationId, before: Int64? = nil, limit: Int = 50, now: Date = Date(),
+        through: Int64? = nil
     ) throws -> [StoredMessage] {
         let key = try tx.conversationKey(conversationId)
         let rows = try tx.connection.query(
             """
             SELECT \(Self.columns) FROM messages
-            WHERE conversation_id = ? AND id < ? AND (expires_at IS NULL OR expires_at > ?)
+            WHERE conversation_id = ? AND id < ? AND id >= ? AND (expires_at IS NULL OR expires_at > ?)
             ORDER BY id DESC LIMIT ?
-            """, [conversationId.rawValue, before ?? Int64.max, now.storageMilliseconds, limit])
+            """, [conversationId.rawValue, before ?? Int64.max, through ?? 0, now.storageMilliseconds, limit])
         return try rows.reversed().map { try message(from: $0, key: key) }
     }
 

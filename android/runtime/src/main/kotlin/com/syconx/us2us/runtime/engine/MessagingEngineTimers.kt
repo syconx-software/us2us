@@ -9,6 +9,7 @@ import com.syconx.us2us.runtime.storage.RandomIds
 import com.syconx.us2us.runtime.storage.WipeReason
 import com.syconx.us2us.runtime.storage.WipeReport
 import com.syconx.us2us.runtime.vault.SlotId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import java.time.Instant
@@ -94,15 +95,70 @@ internal fun MessagingEngine.deleteConversationForBothNow(peer: AccountId) {
     outboxWake.signal()
 }
 
-/** Deletes the conversation on this phone only. */
+/**
+ * Deletes the conversation on this phone only (crypto-shredded, §5.3); the contact stays. A live
+ * location we share with the contact still stops on its phone (its stop goes without the
+ * conversation, [enqueueLiveLocationStops]); nothing goes to someone blocked.
+ */
 internal fun MessagingEngine.deleteConversationLocallyNow(peer: AccountId) {
-    write { tx ->
+    val now = clock.now()
+    val stops = write { tx ->
         val conversation = tx.conversations.forContact(peer) ?: engineFailure(EngineError.UNKNOWN_CONTACT)
-        storage.wipeConversation(conversation.id, WipeReason.REQUESTED, clock.now())
+        val stops = if (tx.contacts.requestState(peer) != ContactState.BLOCKED) enqueueLiveLocationStops(peer, conversation.id, tx, now) else 0
+        storage.wipeConversation(conversation.id, WipeReason.REQUESTED, now)
         forgetNotices(conversation.id)
+        stops
     }
+    typing.remove(peer)
+    // The shares end here (the Wiped change drops them as well).
+    endLiveSessions(peer)
     emit(EngineChange.Wiped(peer))
     emit(EngineChange.Conversations)
+    if (stops > 0) outboxWake.signal()
+}
+
+/**
+ * "Kişiyi sil": deletes the contact on this phone only, nothing is sent. Its conversation is
+ * crypto-shredded first (§5.3), then pending sends to it and the contact itself. Deleting is not
+ * blocking (§6.4): the session and identity stay, with the username it was shown under, so if it
+ * writes again its message still decrypts and appears as a new incoming request under that name
+ * (an identity change is still flagged); writing to the username again starts a new outgoing
+ * request. A blocked contact keeps the block and nothing else, no session either (7.1 ›
+ * Engellenenler still lists it).
+ */
+internal suspend fun MessagingEngine.deleteContactNow(peer: AccountId) {
+    val now = clock.now()
+    val forgotten = write { tx ->
+        val state = tx.contacts.requestState(peer) ?: engineFailure(EngineError.UNKNOWN_CONTACT)
+        val conversation = tx.conversations.forContact(peer)
+        conversation?.let { forgetNotices(it.id) }
+        if (state == ContactState.BLOCKED) {
+            conversation?.let { storage.wipeConversation(it.id, WipeReason.REQUESTED, now) }
+            tx.contacts.stripToBlock(peer)
+            false
+        } else {
+            tx.contacts.removeKeepingSession(peer)
+            true
+        }
+    }
+    presence.forget(peer)
+    typing.remove(peer)
+    lastTypingSent.remove(peer)
+    held.remove(peer)
+    pendingPresenceReplies.remove(peer)
+    emit(EngineChange.Wiped(peer))
+    emit(EngineChange.Conversations)
+    emit(EngineChange.Presence)
+    // The core's memory of the account (its search pictures, presence); the rows are gone already,
+    // the session and identity stay.
+    if (forgotten) {
+        try {
+            backend.forgetContactKeepingSession(peer)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
 }
 
 // MARK: Notices

@@ -122,6 +122,23 @@ class LiveLocationSharing(
         return true
     }
 
+    /**
+     * The chat with [peer] (or [peer] itself) is being deleted: its shares end here without asking
+     * the runtime, whose deletion sends their stops itself (a stop stored in the chat would be
+     * crypto-shredded with it) or, for a deleted contact, nothing at all. With the last share the
+     * location updates stop and the notice goes.
+     */
+    fun forgetSharesWith(peer: AccountId) {
+        var removed = false
+        for ((key, share) in shares.entries.toList()) {
+            if (share.peer != peer) continue
+            shares.remove(key)
+            share.expiry?.cancel()
+            removed = true
+        }
+        if (removed) settle()
+    }
+
     /** Stops every share with [peer], before they are blocked: nothing keeps tracking for someone blocked. */
     suspend fun stopSharingWith(peer: AccountId) {
         for ((key, share) in shares.entries.toList()) {

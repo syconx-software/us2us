@@ -388,6 +388,27 @@ class LiveLocationSharingTest {
     }
 
     @Test
+    fun deletingAChatForgetsItsSharesWithoutAskingTheRuntime() = runTest {
+        val sharing = sharing()
+        sharing.start(deniz, 1.hours)
+        sharing.start(ece, 15.minutes)
+        sharing.forgetSharesWith(deniz)
+        assertTrue("the deletion sends the stop, not the share", runtime.stopped.isEmpty())
+        assertFalse(sharing.isRunning(ByteString.copyFrom(ByteArray(16) { 1 })))
+        assertTrue(updates.running)
+
+        updates.fix()
+        runCurrent()
+        assertEquals("only the share left ticks", listOf(ByteString.copyFrom(ByteArray(16) { 2 })), runtime.ticks.map { it.first })
+        // Its expiry is gone with it: nothing is stopped later either.
+        testScheduler.advanceTimeBy(1.hours.inWholeMilliseconds)
+        runCurrent()
+        assertEquals(listOf(ByteString.copyFrom(ByteArray(16) { 2 })), runtime.stopped)
+        assertFalse(notice.isShown)
+        assertFalse(updates.running)
+    }
+
+    @Test
     fun aTickThatCannotGoOutEndsTheShare() = runTest {
         val sharing = sharing()
         sharing.start(deniz, 1.hours)

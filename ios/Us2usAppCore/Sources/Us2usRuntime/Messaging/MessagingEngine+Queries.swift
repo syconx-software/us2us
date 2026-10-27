@@ -31,23 +31,37 @@ extension MessagingEngine {
 
     /// The newest messages of a conversation and its system lines, oldest first.
     public func messages(of peer: AccountId) throws -> [MessageItem] {
+        try history(of: peer, limit: configuration.pageSize).items
+    }
+
+    /// Local history only. `before` loads one older page; `through` refreshes
+    /// the entire already loaded window, including new arrivals at its end.
+    public func history(of peer: AccountId, before: Int64? = nil, through: Int64? = nil, limit: Int = 100) throws -> MessageHistory {
         let now = clock.now()
-        let (items, conversationId) = try read { tx -> ([MessageItem], ConversationId?) in
-            guard let conversation = try tx.conversations.forContact(peer) else { return ([], nil) }
+        let (items, conversationId, oldest, hasOlder) = try read { tx -> ([MessageItem], ConversationId?, Int64?, Bool) in
+            guard let conversation = try tx.conversations.forContact(peer) else { return ([], nil, nil, false) }
             let accepted = try tx.contacts.requestState(of: peer) == .accepted
-            let page = try tx.messages.page(in: conversation.id, limit: configuration.pageSize, now: now)
+            var page = try tx.messages.page(in: conversation.id, before: before,
+                limit: through == nil ? max(1, limit) : Int.max, now: now, through: through)
+            if through != nil, page.isEmpty {
+                page = try tx.messages.page(in: conversation.id, limit: max(1, limit), now: now)
+            }
+            let oldest = page.first?.localId
+            let hasOlder = try oldest.map { try !tx.messages.page(in: conversation.id, before: $0, limit: 1, now: now).isEmpty } ?? false
             let reactions = try tx.messages.reactions(on: page.map(\.messageId), in: conversation.id)
             let items = try page.map { message in
                 try item(from: message, tx: tx, accepted: accepted, reactions: reactions[message.messageId] ?? [])
             }
-            return (items, conversation.id)
+            return (items, conversation.id, oldest, hasOlder)
         }
-        guard let conversationId else { return [] }
-        let lines = notices(of: conversationId).map(MessageItem.notice)
-        guard !lines.isEmpty else { return items }
+        guard let conversationId else { return MessageHistory(items: [], oldest: nil, hasOlder: false) }
         let cutoff = items.first?.storedAt ?? .distantPast
-        return (items + lines.filter { $0.storedAt >= cutoff || items.count < configuration.pageSize })
-            .sorted { $0.storedAt < $1.storedAt }
+        // Notices are merged once when refreshing the displayed window;
+        // a raw older page contains only its own stored rows.
+        let lines = before == nil ? notices(of: conversationId).map(MessageItem.notice)
+            .filter { $0.storedAt >= cutoff || !hasOlder } : []
+        let combined = lines.isEmpty ? items : (items + lines).sorted { $0.storedAt < $1.storedAt }
+        return MessageHistory(items: combined, oldest: oldest, hasOlder: hasOlder)
     }
 
     /// The conversation's photos and videos (`.visual`) or files

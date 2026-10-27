@@ -12,9 +12,22 @@ import Us2usStorage
 @MainActor
 final class RealCommunitiesService: CommunitiesService {
     @ObservationIgnored let service: CommunityService
+    /// How picked media is prepared (the runtime's: no metadata, ≤ 2048 px, ≤ 720p).
+    @ObservationIgnored let preparation: CommunityMediaPreparation
+    /// Photos and videos picked in “+”, shown at once while they are prepared.
+    @ObservationIgnored let outgoingMedia: OutgoingMedia
+    /// Full photos of the open community, decrypted into memory only.
+    var media: [MessageID: Data] = [:]
+    @ObservationIgnored var mediaLoading: Set<MessageID> = []
+    @ObservationIgnored var conversationCache: ConversationCache?
 
-    init(service: CommunityService) {
+    init(service: CommunityService, preparation: CommunityMediaPreparation = .unavailable) {
         self.service = service
+        self.preparation = preparation
+        outgoingMedia = OutgoingMedia(steps: Self.mediaSteps(service: service, preparation: preparation))
+        outgoingMedia.onSent = { [weak self] item in
+            if let image = item.keptImage { self?.media[item.id] = image }
+        }
     }
 
     // MARK: State
@@ -34,19 +47,25 @@ final class RealCommunitiesService: CommunitiesService {
 
     var hasMoreResults: Bool { service.hasMoreResults }
 
-    var openMessages: [CommunityMessage] {
-        let names = service.usernames
-        return service.messages.map { item in
-            CommunityMessage(
-                id: item.id, text: item.text, senderID: item.sender.string, senderName: names[item.sender],
-                senderShortID: Self.shortID(item.sender), isOutgoing: item.outgoing,
-                sentAt: Date(timeIntervalSince1970: TimeInterval(item.sentAt) / 1000), status: Self.status(item.status))
-        }
+    var openRequests: [CommunityJoinRequestRow] {
+        mapRequests(service.requests)
     }
 
-    var openRequests: [CommunityJoinRequestRow] {
+    var requestInbox: [CommunityRequestInboxRow] {
+        rows.filter { $0.phase == .owner }.compactMap { row in
+            let count = requests(in: row.id).count
+            return count > 0 ? CommunityRequestInboxRow(id: row.id, name: row.name, count: count) : nil
+        }.sorted { $0.id < $1.id }
+    }
+
+    func requests(in id: CommunityID) -> [CommunityJoinRequestRow] {
+        guard let account = AccountId(string: id) else { return [] }
+        return mapRequests(service.ownerRequests[account] ?? (service.selected == account ? service.requests : []))
+    }
+
+    private func mapRequests(_ pending: [CommunityJoinRequest]) -> [CommunityJoinRequestRow] {
         let names = service.usernames
-        return service.requests.map { request in
+        return pending.map { request in
             CommunityJoinRequestRow(
                 id: request.accountId.string, username: names[request.accountId], shortID: Self.shortID(request.accountId),
                 keyFingerprint: CommunityIdentifiers.keyFingerprint(request.identityKey),
@@ -113,13 +132,28 @@ final class RealCommunitiesService: CommunitiesService {
         try await run { try await service.forget(account) }
     }
 
+    func loadOlderMessages(in id: CommunityID) async throws -> Bool {
+        try await service.loadOlderMessages(try account(id))
+    }
+
     func open(_ id: CommunityID) async throws(CommunityProblem) {
         let account = try account(id)
         try await run { try await service.open(account) }
     }
 
     func close(_ id: CommunityID) {
-        if service.selected?.string == id { service.closeConversation() }
+        outgoingMedia.conversationClosed(id)
+        if service.selected?.string == id {
+            service.closeConversation()
+            media = [:]
+            mediaLoading = []
+            conversationCache = nil
+        }
+    }
+
+    func cover(_ id: CommunityID) {
+        guard let account = AccountId(string: id) else { return }
+        service.coverConversation(account)
     }
 
     func send(_ text: String, to id: CommunityID) async throws(CommunityProblem) {
@@ -129,13 +163,13 @@ final class RealCommunitiesService: CommunitiesService {
 
     func approve(_ request: CommunityID, in id: CommunityID) async throws(CommunityProblem) {
         let account = try account(id)
-        guard let pending = service.requests.first(where: { $0.accountId.string == request }) else { throw .stale }
+        guard let pending = (service.ownerRequests[account] ?? (service.selected == account ? service.requests : [])).first(where: { $0.accountId.string == request }) else { throw .stale }
         try await run { try await service.approve(pending, in: account) }
     }
 
     func reject(_ request: CommunityID, in id: CommunityID) async throws(CommunityProblem) {
         let account = try account(id)
-        guard let pending = service.requests.first(where: { $0.accountId.string == request }) else { throw .stale }
+        guard let pending = (service.ownerRequests[account] ?? (service.selected == account ? service.requests : [])).first(where: { $0.accountId.string == request }) else { throw .stale }
         try await run { try await service.reject(pending, in: account) }
     }
 
@@ -169,7 +203,7 @@ final class RealCommunitiesService: CommunitiesService {
         return account
     }
 
-    private func run<T>(_ action: () async throws -> T) async throws(CommunityProblem) -> T {
+    func run<T>(_ action: () async throws -> T) async throws(CommunityProblem) -> T {
         do {
             return try await action()
         } catch {
@@ -207,16 +241,6 @@ final class RealCommunitiesService: CommunitiesService {
         case .invalidName: .invalidName
         case .invalidInvite: .invalidInvite
         case .ownerCannotLeave: .ownerCannotLeave
-        case .failed: .failed
-        }
-    }
-
-    private static func status(_ status: CommunityDeliveryStatus) -> CommunityMessageStatus {
-        switch status {
-        case .received: .received
-        case .sending: .sending
-        case .sent: .sent
-        case .partial: .partial
         case .failed: .failed
         }
     }

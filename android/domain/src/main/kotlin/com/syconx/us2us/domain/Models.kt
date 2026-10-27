@@ -399,6 +399,8 @@ data class Message(
     val savedByPeerAt: Instant? = null,
     /** Photo, video and file messages: I saved it or handed it on from one of the app's viewers (the viewer's “Kaydet” shows the check). */
     val savedByMe: Boolean = false,
+    /** A community message: who wrote it and what may be done with it (Communities extension v2); `null` in one-to-one chats. */
+    val community: CommunityMessageInfo? = null,
 ) {
     val isOutgoing: Boolean get() = direction == MessageDirection.Outgoing
 
@@ -483,6 +485,12 @@ data class MessagePreview(
     val direction: MessageDirection,
     val status: MessageStatus?,
     val sentAt: Instant,
+    /** A community's incoming message: who wrote it (the row says “@deniz: …” / “Üye · 1a2b3c4d: …”). */
+    val sender: CommunitySender? = null,
+    /** A community photo's, video's or file's caption, shown after its kind (“Fotoğraf · Gün batımı”). */
+    val caption: String? = null,
+    /** A community placeholder removed by the owner (“Yönetici tarafından kaldırıldı”), not by its sender. */
+    val removedByOwner: Boolean = false,
 )
 
 data class ChatSummary(
@@ -492,7 +500,79 @@ data class ChatSummary(
     val unreadCount: Int,
     val ghost: GhostState,
     val disappearing: DisappearingTimer,
+    /** Set for a community's row (Communities extension): [peer] then only carries its name. */
+    val community: CommunityChat? = null,
+    /** Local send/receive time of the latest message; fixtures fall back to the preview time. */
+    val lastMessageActivity: Instant? = null,
+) {
+    val isCommunity: Boolean get() = community != null
+}
+
+// MARK: - Communities (docs/COMMUNITIES.md)
+
+/** A community as the chat list and its conversation show it. */
+data class CommunityChat(
+    /** The community id (a UUID string). */
+    val id: String,
+    /** The public name, or the private name kept on this phone; empty when unknown (“Özel topluluk”). */
+    val name: String,
+    val isPublic: Boolean,
+    val memberCount: Int,
+    val isOwner: Boolean,
+    /** A current membership; `false` once it ended (left elsewhere, removed, deleted): read only. */
+    val isActive: Boolean,
 )
+
+/** A community member as a message names it: never a whole account id. */
+data class CommunitySender(
+    /** The account id (UUID string). */
+    val account: String,
+    /** The username, only for a verified contact with the very identity key the roster lists. */
+    val username: String?,
+)
+
+/** What a community message carries besides its content. */
+data class CommunityMessageInfo(
+    val sender: CommunitySender,
+    /** A placeholder: deleted by the owner (moderation) rather than by its sender. */
+    val removedByOwner: Boolean = false,
+    /** “Herkesten sil” is offered: own messages, and every message for the owner. */
+    val canDeleteForEveryone: Boolean = false,
+)
+
+/** One recipient of an own community message (5.4 › Bilgi). */
+data class MessageRecipient(
+    val member: CommunitySender,
+    val state: State,
+    val deliveredAt: Instant?,
+    /** Only while read receipts are on (they are mutual). */
+    val readAt: Instant?,
+    /** No longer a member: its last state is shown. */
+    val hasLeft: Boolean = false,
+) {
+    enum class State {
+        /** Not accepted by the relay yet. */
+        Pending,
+
+        /** Accepted by the relay for this member. */
+        Sent,
+
+        /** It never reached this member (refused, or the roster changed before it left). */
+        Failed,
+    }
+}
+
+/** Chat ids of communities: `community:<uuid>`, never mistaken for a person's account id. */
+object CommunityChats {
+    const val PREFIX = "community:"
+
+    fun chatId(community: String): ChatId = ChatId(PREFIX + community)
+
+    /** The community id of [chat], or `null` for a one-to-one chat. */
+    fun community(chat: ChatId): String? = chat.value.takeIf { it.startsWith(PREFIX) }?.removePrefix(PREFIX)
+
+    fun isCommunity(chat: ChatId): Boolean = chat.value.startsWith(PREFIX)
+}
 
 // MARK: - Requests (4.3, 4.4)
 
@@ -582,7 +662,14 @@ sealed interface UserLookup {
 
     data object Searching : UserLookup
 
-    data class Found(val peer: Peer, val isExistingChat: Boolean) : UserLookup
+    /**
+     * [existingChat] is the chat of the account the directory answered with, `null` when there is
+     * none yet. A chat is found by that account, never by the name it shows: an old chat can still
+     * show a username that now belongs to someone else (PROTOCOL §3.3).
+     */
+    data class Found(val peer: Peer, val existingChat: ChatId? = null) : UserLookup {
+        val isExistingChat: Boolean get() = existingChat != null
+    }
 
     data object NotFound : UserLookup
 }

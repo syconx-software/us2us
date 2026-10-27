@@ -6,12 +6,12 @@ import SwiftUI
 // overshoot (the same critically damped spring as `U2Motion.spring`).
 
 extension U2Motion {
-    /// `U2Motion.spring` (response 0.55, no bounce) starting at
+    /// `U2Motion.spring` (no bounce) starting at
     /// `initialVelocity`, given in units of the remaining distance per second
     /// (SwiftUI's convention: 1 = the whole remaining distance in one second).
     /// Under Reduce Motion: the short cross-fade, like every movement.
     static func spring(initialVelocity: Double) -> Animation {
-        .interpolatingSpring(duration: 0.55, bounce: 0, initialVelocity: initialVelocity)
+        .interpolatingSpring(duration: springResponse, bounce: 0, initialVelocity: initialVelocity)
     }
 
     /// The finger's speed (`points` per second, positive towards the target)

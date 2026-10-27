@@ -102,7 +102,7 @@ import kotlinx.coroutines.launch
  * Looks like a chat but has no composer: the decision bar takes its place. Until accepted no read
  * receipt is sent, links are inert (no tap, no preview fetch) and media is never decoded: a
  * placeholder says what it is. “Kabul et” turns this screen into 5.1: the decision bar slides down
- * (0.4 s) while the composer fades in and the header settles into the chat's, then the
+ * (screen duration) while the composer fades in and the header settles into the chat's, then the
  * conversation takes over. Engelle (after a confirmation) and Sil go back to 4.3, where the card
  * collapses. “Bildir” (the “…” menu, or beside Engelle in its confirmation) opens the report sheet;
  * when the report blocked the sender, closing it goes back to 4.3 too.
@@ -138,7 +138,7 @@ internal fun RequestPreviewContent(requestId: RequestId, modifier: Modifier = Mo
     fun leave(decision: suspend () -> Unit) {
         router.pop()
         outliving.value.launch {
-            delay(450)
+            delay(U2Motion.screen.millis.toLong())
             decision()
         }
     }
@@ -147,10 +147,10 @@ internal fun RequestPreviewContent(requestId: RequestId, modifier: Modifier = Mo
         scope.launch {
             val id = messenger.accept(request) ?: return@launch
             haptics.success()
-            // The whole morph happens here (0.4 s): bar → composer, header → the chat's, thread →
+            // The whole morph happens here (screen duration): bar → composer, header → the chat's, thread →
             // 5.1's column. Then 5.1 replaces this screen without any animation: it is drawn identically.
             acceptedChat = id
-            morph.animateTo(1f, U2Motion.resolve(U2Motion.soft(0.4f), reduceMotion).spec())
+            morph.animateTo(1f, U2Motion.resolve(U2Motion.screen, reduceMotion).spec())
             // Only if the user is still here (back during the morph keeps 4.3).
             if (router.top == AppRoute.RequestPreview(requestId)) router.replaceTop(AppRoute.Conversation(id), animated = false)
         }

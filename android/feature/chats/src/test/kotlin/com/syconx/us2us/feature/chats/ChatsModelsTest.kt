@@ -5,7 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.syconx.us2us.domain.AvatarPicture
 import com.syconx.us2us.domain.DesignClock
 import com.syconx.us2us.domain.MessageContent
+import com.syconx.us2us.domain.MessengerService
 import com.syconx.us2us.domain.OwnAvatarState
+import com.syconx.us2us.domain.UserLookup
 import com.syconx.us2us.domain.UsernameRules
 import com.syconx.us2us.domain.design.DesignAvatars
 import com.syconx.us2us.domain.nav.ChatId
@@ -182,6 +184,55 @@ class NewChatModelTest {
         // deniz is in the list already (the design's 4.1): the same chat.
         assertEquals(ChatId("deniz"), model.startChat(deniz))
         assertFalse(model.isStarting)
+    }
+
+    /**
+     * deniz's account was deleted and someone else registered the name: the old chat still shows
+     * “deniz”, but the lookup resolved to another account, so “Mesaj yaz” opens that account's chat.
+     */
+    @Test
+    fun startChatOpensTheChatOfTheAccountTheLookupFoundNeverOneThatOnlyShowsTheName() = runTest {
+        val fixtures = service(backgroundScope)
+        val reused = ChatId("account-that-registered-deniz")
+        var started = emptyList<String>()
+        val messenger = object : MessengerService by fixtures {
+            override suspend fun lookup(username: String): UserLookup {
+                val old = fixtures.chats.value.first { it.peer.username == "deniz" }.peer
+                return UserLookup.Found(old.copy(isAcceptedContact = false), existingChat = null)
+            }
+
+            override suspend fun startChat(username: String): ChatId {
+                started = started + username
+                return reused
+            }
+        }
+        assertTrue("the old chat shows the name", fixtures.chats.value.any { it.id == ChatId("deniz") && it.peer.username == "deniz" })
+        val model = NewChatModel(messenger, backgroundScope, debounce = 10.milliseconds, avatarSettle = 10.milliseconds)
+        model.query = "deniz"
+        settle()
+        val found = model.phase as Phase.Found
+        assertFalse(found.isExistingChat)
+        assertEquals(reused, model.startChat(found.peer))
+        assertEquals(listOf("deniz"), started)
+    }
+
+    @Test
+    fun startChatOpensTheExistingChatTheLookupResolvedTo() = runTest {
+        val fixtures = service(backgroundScope)
+        var started = 0
+        val messenger = object : MessengerService by fixtures {
+            override suspend fun startChat(username: String): ChatId? {
+                started += 1
+                return fixtures.startChat(username)
+            }
+        }
+        val model = NewChatModel(messenger, backgroundScope, debounce = 10.milliseconds, avatarSettle = 10.milliseconds)
+        model.query = "mert_k"
+        settle()
+        val found = model.phase as Phase.Found
+        assertEquals(ChatId("mert_k"), found.existingChat)
+        assertEquals(ChatId("mert_k"), model.startChat(found.peer))
+        assertEquals("no second lookup", 0, started)
     }
 }
 

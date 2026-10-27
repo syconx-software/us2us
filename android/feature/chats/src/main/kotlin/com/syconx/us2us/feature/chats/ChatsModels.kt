@@ -65,7 +65,10 @@ class NewChatModel(
         /** The exact lookup is running (spinner in the field). */
         data object Searching : Phase
 
-        data class Found(val peer: Peer, val isExistingChat: Boolean) : Phase
+        /** [existingChat]: the chat of the account the lookup resolved to (by account, never by name). */
+        data class Found(val peer: Peer, val existingChat: ChatId? = null) : Phase {
+            val isExistingChat: Boolean get() = existingChat != null
+        }
 
         /** Nobody has the name. */
         data object NotFound : Phase
@@ -172,7 +175,7 @@ class NewChatModel(
             if (!isActive || resultName != name) return@launch
             when (result) {
                 is UserLookup.Found -> {
-                    set(Phase.Found(result.peer, result.isExistingChat), name)
+                    set(Phase.Found(result.peer, result.existingChat), name)
                     if (settle > Duration.ZERO && resultAvatar == ResultAvatar.Loading) {
                         delay(settle)
                         if (resultName != name) return@launch
@@ -209,12 +212,20 @@ class NewChatModel(
     /**
      * “Mesaj yaz” / “Sohbete git”: the chat to open after the sheet is down, the existing one or a
      * new pending-request conversation.
+     *
+     * The existing chat is the one of the account the lookup resolved to ([Phase.Found.existingChat]),
+     * never a chat that merely shows the same name: after an account was deleted and someone else
+     * registered its username, the old chat still shows it (PROTOCOL §3.3). Without one (or once it
+     * is gone) the messenger looks the name up again and opens the chat of the account it finds.
      */
-    suspend fun startChat(peer: Peer): ChatId? {
+    suspend fun startChat(
+        peer: Peer,
+        existingChat: ChatId? = (phase as? Phase.Found)?.takeIf { it.peer == peer }?.existingChat,
+    ): ChatId? {
         if (isStarting) return null
         isStarting = true
         try {
-            messenger.chats.value.firstOrNull { it.peer.username == peer.username }?.let { return it.id }
+            existingChat?.let { chat -> if (messenger.chat(chat).value != null) return chat }
             return messenger.startChat(peer.username)
         } catch (cancelled: CancellationException) {
             throw cancelled

@@ -38,7 +38,7 @@
 
 /* Begin PBXFileReference section */
 		15DC8004FB89BE92CE63C746 /* us2usPerformanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = us2usPerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		60E43F4787CEFDDB61B2FC01 /* us2us.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = us2us.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		60E43F4787CEFDDB61B2FC01 /* us2us.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = us2us.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		692C965AFC5448E222B18A88 /* Us2usAppCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Us2usAppCore; path = ../Us2usAppCore; sourceTree = SOURCE_ROOT; };
 		867323CB96EC1FE2013378A2 /* Us2usKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Us2usKit; path = ../Us2usKit; sourceTree = SOURCE_ROOT; };
 		AA0F92CFD2943199D26F0F77 /* us2usUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = us2usUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -48,37 +48,21 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		24811F321BDBEF8F37DE016F /* UITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			name = UITests;
 			path = UITests;
 			sourceTree = "<group>";
 		};
 		520BF0EBC1DD425C0336B2D1 /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
 		555B9C82AC2BF77949A042EB /* PerformanceTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			name = PerformanceTests;
 			path = PerformanceTests;
 			sourceTree = "<group>";
 		};
 		9352135D1CBF3B8436C201EE /* Resources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
 			explicitFolders = (
 				Fonts,
 				Licenses,
@@ -88,11 +72,6 @@
 		};
 		D587F07DF48C2B60F80EB422 /* UnitTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			name = UnitTests;
 			path = UnitTests;
 			sourceTree = "<group>";
 		};
@@ -170,8 +149,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9352135D1CBF3B8436C201EE /* Resources */,
 				520BF0EBC1DD425C0336B2D1 /* Sources */,
+				9352135D1CBF3B8436C201EE /* Resources */,
 			);
 			name = us2us;
 			packageProductDependencies = (
@@ -446,7 +425,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 17;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = C8QW8MBYQX;
@@ -470,7 +449,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.8;
+				MARKETING_VERSION = 1.1.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -547,14 +526,18 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/us2us.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 17;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = us2us;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.syconx.us2us;
 				PRODUCT_NAME = us2us;
 				SDKROOT = iphoneos;
@@ -602,7 +585,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 17;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = C8QW8MBYQX;
@@ -620,7 +603,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.8;
+				MARKETING_VERSION = 1.1.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -696,14 +679,18 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/us2us.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 17;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = us2us;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.syconx.us2us;
 				PRODUCT_NAME = us2us;
 				SDKROOT = iphoneos;

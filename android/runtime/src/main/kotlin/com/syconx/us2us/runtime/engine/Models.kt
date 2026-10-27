@@ -41,7 +41,10 @@ data class ContactInfo(
     val requestState: ContactState,
     /** The contact's display name, if it shared one (§8.7). */
     val displayName: String?,
-    /** The username, and whether the directory confirmed it (§3.3). */
+    /**
+     * The username, and whether the directory confirmed it (§3.3). `null` when the directory said
+     * it belongs to another account: it is never shown as this contact's name.
+     */
     val username: String?,
     val usernameVerified: Boolean,
     /** The contact shares "active now" (§8.6). */
@@ -66,7 +69,7 @@ data class ContactInfo(
             account = contact.accountId,
             requestState = contact.requestState,
             displayName = contact.profile.displayName,
-            username = contact.profile.username?.value,
+            username = contact.profile.username?.value?.takeIf { contact.profile.usernameStatus != UsernameStatus.MISMATCH },
             usernameVerified = contact.profile.usernameStatus == UsernameStatus.VERIFIED,
             presenceSharing = contact.profile.presenceSharing,
             safetyNumberChanged = contact.identityChanged,
@@ -368,6 +371,8 @@ enum class OutgoingStatus {
 }
 
 /** One message (bubble or system line), in chronological order. */
+data class MessageHistory(val items: List<MessageItem>, val oldest: Long?, val hasOlder: Boolean)
+
 data class MessageItem(
     val messageId: MessageId,
     val direction: MessageDirection,

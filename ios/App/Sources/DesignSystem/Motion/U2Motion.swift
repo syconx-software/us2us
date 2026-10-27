@@ -4,7 +4,7 @@ import UIKit
 /// Motion tokens (tokens.json › motion).
 ///
 /// Design rule: every animation is *very soft* — no bounce, no
-/// overshoot, long gentle ease-in-out, nothing snaps. All curves here are the
+/// overshoot, responsive gentle ease-in-out, nothing snaps. All curves here are the
 /// design's own `cubic-bezier(0.45, 0, 0.55, 1)`, its ease-out, or a
 /// critically damped spring (damping fraction 1.0, never below).
 ///
@@ -17,15 +17,17 @@ enum U2Motion {
     /// Durations in seconds.
     enum Duration {
         /// Press feedback in.
-        static let press: Double = 0.16
+        static let press: Double = 0.06
         /// Dots, icons, chips: small state changes.
-        static let micro: Double = 0.24
+        static let micro: Double = 0.1
         /// Text/colour changes, messages appearing.
-        static let state: Double = 0.36
+        static let state: Double = 0.12
         /// Screen changes (push, page, root swap).
-        static let screen: Double = 0.5
+        static let screen: Double = 0.16
         /// Sheet backdrops.
-        static let sheet: Double = 0.55
+        static let sheet: Double = 0.18
+        /// Short cross-fade replacing movement under Reduce Motion.
+        static let reducedCrossFade: Double = 0.08
         /// Ambient colour changes (Ghost calm → urgent).
         static let ambient: Double = 0.8
     }
@@ -42,22 +44,25 @@ enum U2Motion {
 
     /// Critically damped spring for interactive moves (sheets following the
     /// finger, toggles, the reaction bar): zero bounce.
-    static let spring = Animation.spring(response: 0.55, dampingFraction: 1.0)
+    static let springResponse: Double = 0.2
+    static let springQuickResponse: Double = 0.14
+    static let spring = Animation.spring(response: springResponse, dampingFraction: 1.0)
 
     /// Same spring, a touch quicker — for small interactive elements (toggle knob).
-    static let springQuick = Animation.spring(response: 0.42, dampingFraction: 1.0)
+    static let springQuick = Animation.spring(response: springQuickResponse, dampingFraction: 1.0)
 
     // Named uses.
     static var press: Animation { soft(Duration.press) }
     static var release: Animation { soft(Duration.micro) }
     static var micro: Animation { soft(Duration.micro) }
     static var state: Animation { soft(Duration.state) }
-    static var screen: Animation { soft(Duration.screen) }
+    static var screen: Animation { out(Duration.screen) }
+    static var sheet: Animation { out(Duration.sheet) }
     static var ambient: Animation { soft(Duration.ambient) }
     static var appear: Animation { out(Duration.state) }
 
     /// The cross-fade that replaces movement when Reduce Motion is on.
-    static var reducedCrossFade: Animation { .easeInOut(duration: 0.3) }
+    static var reducedCrossFade: Animation { .easeInOut(duration: Duration.reducedCrossFade) }
 
     /// `animation`, or a short cross-fade when Reduce Motion is on.
     static func resolve(_ animation: Animation, reduceMotion: Bool) -> Animation {
@@ -155,7 +160,7 @@ extension AnyTransition {
 
 // MARK: - Press feedback
 
-/// `pressFeedback`: scale 0.97 + fill brighten over 0.16 s, release 0.24 s.
+/// `pressFeedback`: scale 0.97 + fill brighten on press and release timings.
 struct U2PressEffect: ViewModifier {
     let isPressed: Bool
     var scale: CGFloat = 0.97
@@ -181,7 +186,7 @@ extension AnyTransition {
     /// collapses to nothing (clipped with `cornerRadius`, so the shrinking edge
     /// stays a rounded bottom instead of a straight cut), and what follows
     /// glides up into its place instead of sliding over it. Driven by the
-    /// removal's animation (0.36 s soft).
+    /// removal's state animation.
     static func u2Collapse(cornerRadius: CGFloat = U2Radius.cardL) -> AnyTransition {
         .modifier(
             active: CollapseModifier(progress: 0, cornerRadius: cornerRadius),

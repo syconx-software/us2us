@@ -53,7 +53,7 @@ sealed interface VaultError {
     data object Wiped : VaultError
 
     /**
-     * The device secret is gone (or no longer readable), so the vault can never be opened here.
+     * The device secret or v2 hardware key is gone, so the vault can never be opened here.
      * Not a wrong code (§5.2).
      */
     data object DeviceSecretMissing : VaultError

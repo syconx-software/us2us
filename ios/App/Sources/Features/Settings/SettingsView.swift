@@ -140,6 +140,19 @@ struct SettingsRootView: View {
                                 GroupedSeparator()
                                 pickerRow(.translate, Text("settings.language", table: .settings), detail: languageText(model.preferences.language), picker: .language)
                             }
+                            VStack(alignment: .leading, spacing: U2Spacing.sectionLabelGap) {
+                                GroupedCard {
+                                    GroupedToggleRow(
+                                        tile: IconTile(content: .glyph(.eye)), title: Text("settings.keepScreenOn", table: .settings),
+                                        isOn: Binding(get: { model.preferences.keepScreenOn }, set: { model.preferences.keepScreenOn = $0 }))
+                                        .accessibilityIdentifier("settings.keepScreenOn")
+                                }
+                                Text("settings.keepScreenOn.footnote", table: .settings)
+                                    .u2Font(.footnote)
+                                    .foregroundStyle(Color.u2.textSecondary)
+                                    .padding(.horizontal, 16)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             GroupedSection(Text("settings.section.app", table: .settings)) {
                                 InviteSettingsRow { showsInvite = true }
                                 GroupedSeparator()

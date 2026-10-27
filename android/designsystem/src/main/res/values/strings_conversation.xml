@@ -49,6 +49,8 @@
     <string name="conversation_actions_info">Info</string>
     <!-- actions.reply -->
     <string name="conversation_actions_reply">Reply</string>
+    <!-- album.photo %lld %lld -->
+    <string name="conversation_album_photo">Photo %1$d of %2$d</string>
     <!-- attach.file -->
     <string name="conversation_attach_file">File</string>
     <!-- attach.media -->
@@ -201,6 +203,8 @@
     <string name="conversation_save_photos_denied_body">us2us isn\'t allowed to add to Photos. You can allow it in Settings; us2us never reads your library.</string>
     <!-- save.photos.denied.title — Photos refused the add-only permission (floating sheet title). -->
     <string name="conversation_save_photos_denied_title">Adding to Photos is off</string>
+    <!-- scroll.latest -->
+    <string name="conversation_scroll_latest">Jump to latest message</string>
     <!-- sticker.pack.cups — Pack tab and section label: the cup mascot pack (us2us.cups). -->
     <string name="conversation_sticker_pack_cups">Cups</string>
     <!-- sticker.pack.mood — Pack tab and section label: coffee, on my way, busy, party, sleepy (us2us.mood). -->
@@ -255,10 +259,14 @@
     <string name="conversation_viewonce_screenshot_title">Screenshot detected</string>
     <!-- viewOnce.today %@ -->
     <string name="conversation_viewonce_today">Today %s</string>
+    <!-- viewer.next -->
+    <string name="conversation_viewer_next">Next photo</string>
     <!-- viewer.photo.a11y -->
     <string name="conversation_viewer_photo_a11y">Photo</string>
     <!-- viewer.photo.failed -->
     <string name="conversation_viewer_photo_failed">The photo can\'t be loaded</string>
+    <!-- viewer.previous -->
+    <string name="conversation_viewer_previous">Previous photo</string>
     <!-- viewer.save — Photo viewer / player: save to Photos. -->
     <string name="conversation_viewer_save">Save</string>
     <!-- viewer.save.failed — Toast: the photo or video could not be saved. -->

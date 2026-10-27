@@ -19,7 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
@@ -31,6 +35,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.Message
+import com.syconx.us2us.domain.MessageRecipient
 import com.syconx.us2us.domain.MessageStatus
 import com.syconx.us2us.domain.nav.MessageId
 import com.syconx.us2us.ui.R
@@ -39,7 +44,13 @@ import com.syconx.us2us.ui.bubbles.StateCrossFade
 import com.syconx.us2us.ui.bubbles.titleRes
 import com.syconx.us2us.ui.components.DotPattern
 import com.syconx.us2us.ui.components.DottedRule
+import com.syconx.us2us.ui.components.GroupedCard
+import com.syconx.us2us.ui.components.GroupedRow
+import com.syconx.us2us.ui.components.GroupedSeparator
 import com.syconx.us2us.ui.components.NoteCard
+import com.syconx.us2us.ui.components.SectionLabel
+import com.syconx.us2us.ui.components.communityMemberName
+import com.syconx.us2us.ui.tokens.U2Spacing
 import com.syconx.us2us.ui.components.SheetCloseHeader
 import com.syconx.us2us.ui.icons.PhosphorGlyph
 import com.syconx.us2us.ui.icons.PhosphorIcon
@@ -88,6 +99,76 @@ internal fun MessageInfoSheet(viewModel: ConversationViewModel, messageId: Messa
             Modifier.testTag("info.note"),
         )
     }
+}
+
+/**
+ * 5.4 for a community message (Extension v2): the bubble, then every recipient fixed when it was
+ * sent: delivered and read times (read only while read receipts are on; they are mutual), or
+ * “Bekliyor” until the member's phone reports it, sends that failed, and members who have left
+ * with their last state. Read again whenever the conversation changes (a receipt arrived).
+ */
+@Composable
+internal fun CommunityMessageInfoSheet(viewModel: ConversationViewModel, messageId: MessageId, modifier: Modifier = Modifier) {
+    val message = viewModel.message(messageId)
+    var recipients by remember { mutableStateOf<List<MessageRecipient>?>(null) }
+    LaunchedEffect(message) {
+        recipients = viewModel.messenger.messageRecipients(messageId, viewModel.chatId)
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 24.dp)
+            .testTag("info.sheet"),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        SheetCloseHeader(stringResource(R.string.conversation_info_title), onClose = { viewModel.info = null }, modifier = Modifier.testTag("info.header"))
+        if (message != null) InfoBubble(message)
+        val list = recipients
+        if (list != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(U2Spacing.sectionLabelGap)) {
+                SectionLabel(stringResource(R.string.community_info_recipients))
+                GroupedCard(Modifier.testTag("info.recipients"), fill = U2Theme.colors.bg) {
+                    if (list.isEmpty()) GroupedRow(tile = null, title = stringResource(R.string.community_info_none))
+                    list.forEachIndexed { index, recipient ->
+                        if (index > 0) GroupedSeparator(inset = 14.dp)
+                        RecipientRow(recipient)
+                    }
+                }
+            }
+        }
+        NoteCard(
+            stringResource(R.string.community_info_note_title),
+            stringResource(R.string.community_info_note_body),
+            Modifier.testTag("info.note"),
+            glyph = PhosphorGlyph.Info,
+        )
+    }
+}
+
+/** One recipient: the name (never a whole account id) over its state, the times on the right. */
+@Composable
+private fun RecipientRow(recipient: MessageRecipient) {
+    val locale = currentAppLocale()
+    val delivered = recipient.deliveredAt
+    val read = recipient.readAt
+    val state = when {
+        read != null -> stringResource(R.string.community_info_read, U2Format.clockTime(read, locale))
+        delivered != null -> stringResource(R.string.community_info_delivered, U2Format.clockTime(delivered, locale))
+        recipient.state == MessageRecipient.State.Failed -> stringResource(R.string.community_info_failed)
+        else -> stringResource(R.string.community_info_pending)
+    }
+    val details = buildList {
+        // Read implies delivered: both times are shown.
+        if (read != null && delivered != null) add(stringResource(R.string.community_info_delivered, U2Format.clockTime(delivered, locale)))
+        if (recipient.hasLeft) add(stringResource(R.string.community_info_left))
+    }
+    GroupedRow(
+        tile = null,
+        title = communityMemberName(recipient.member.account, recipient.member.username),
+        subtitle = (listOf(state) + details).joinToString(" · "),
+        modifier = Modifier.testTag("info.recipient.${recipient.member.account}"),
+    )
 }
 
 /** The bubble as a plain, round bubble (the design drops the reply quote and the chips under it here). */
@@ -155,7 +236,7 @@ private fun InfoTimeline(steps: List<InfoStep>, peer: String) {
 private fun InfoTimelineRow(step: InfoStep, peer: String, isLast: Boolean, nextIsReached: Boolean, modifier: Modifier) {
     val colors = U2Theme.colors
     val locale = currentAppLocale()
-    val fill by animateFloatAsState(if (nextIsReached) 1f else 0f, u2Spec(U2Motion.soft(0.5f)), label = "connector")
+    val fill by animateFloatAsState(if (nextIsReached) 1f else 0f, u2Spec(U2Motion.state), label = "connector")
     Box(modifier.fillMaxWidth().heightIn(min = if (isLast) 34.dp else 56.dp).semantics(mergeDescendants = true) {}) {
         if (!isLast) Connector(fill, Modifier.matchParentSize())
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {

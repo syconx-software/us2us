@@ -32,8 +32,13 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
         private var _bundles: [AccountId: PreKeyBundleResponse] = [:]
         private var _requests: [String] = []
         private var _leaveStatus = 204
+        private var _applications: [AccountId: [CommunityJoinRequest]] = [:]
+        private var _applicationStatus: [AccountId: Int] = [:]
         private var _summaries: [AccountId: Data] = [:]
         private var _direct: [DirectEnvelope] = []
+        private var _media: [Data: (blob: Data, token: Data)] = [:]
+        private var _uploads = 0
+        private var _mediaDeletes: [Data] = []
 
         init(own: AccountId) {
             self.own = own
@@ -55,10 +60,23 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
         func setIdentityStatus(_ status: Int) { with { $0._identityStatus = status } }
         func setLeaveStatus(_ status: Int) { with { $0._leaveStatus = status } }
         func setRedeemSummary(_ json: String, for id: AccountId) { with { $0._summaries[id] = Data(json.utf8) } }
+        func setApplications(_ applications: [CommunityJoinRequest], in id: AccountId) { with { $0._applications[id] = applications } }
+        func setApplicationStatus(_ status: Int, in id: AccountId) { with { $0._applicationStatus[id] = status } }
         var acked: [String] { with { $0._acked } }
         var inbox: [Envelope] { with { $0._inbox } }
         var sent: [Sent] { with { $0._sent } }
         var requests: [String] { with { $0._requests } }
+        /// `POST /v1/media` calls.
+        var uploads: Int { with { $0._uploads } }
+        /// Blobs deleted with their token (`DELETE /v1/media/{id}` → 204).
+        var deletedMedia: [Data] { with { $0._mediaDeletes } }
+        func blob(_ id: Data) -> Data? { with { $0._media[id]?.blob } }
+        /// A blob another member uploaded.
+        func putMedia(_ blob: Data, token: Data = Data(repeating: 0x44, count: 32)) -> Data {
+            let id = RandomId.make()
+            with { $0._media[id] = (blob, token) }
+            return id
+        }
         func count(_ prefix: String) -> Int { requests.filter { $0.hasPrefix(prefix) }.count }
 
         static let encoder: JSONEncoder = {
@@ -114,6 +132,21 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
             case ("GET", let p) where p.count == 3 && p[1] == "communities":
                 guard let id = AccountId(string: p[2]), let state = _states[id] else { return error(404, "not_found") }
                 return json(200, state)
+            case ("GET", let p) where p.count == 4 && p[1] == "communities" && p[3] == "requests":
+                guard let id = AccountId(string: p[2]) else { return error(400, "bad_request") }
+                if let status = _applicationStatus[id], status != 200 { return error(status, "unavailable") }
+                struct Applications: Encodable { let requests: [CommunityJoinRequest] }
+                return json(200, Applications(requests: _applications[id] ?? []))
+            case ("DELETE", let p) where p.count == 5 && p[3] == "requests" && p[4] != "me":
+                guard let id = AccountId(string: p[2]), let account = AccountId(string: p[4]) else { return error(400, "bad_request") }
+                _applications[id]?.removeAll { $0.accountId == account }
+                return (204, Data())
+            case ("PUT", let p) where p.count == 4 && p[3] == "state":
+                guard let id = AccountId(string: p[2]), let signed = try? Self.decoder.decode(SignedCommunityState.self, from: body),
+                      let state = try? CommunityState(bytes: signed.state) else { return error(400, "bad_request") }
+                _states[id] = signed
+                _applications[id]?.removeAll { state.member($0.accountId) != nil }
+                return json(200, signed)
             case ("DELETE", let p) where p.count == 5 && p[3] == "members" && p[4] == "me":
                 return _leaveStatus == 204 ? (204, Data()) : error(_leaveStatus, _leaveStatus == 409 ? "stale_version" : "not_found")
             case ("DELETE", let p) where p.count == 5 && p[3] == "requests" && p[4] == "me":
@@ -141,6 +174,22 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
             case ("GET", let p) where p.count == 3 && p[1] == "keys":
                 guard let id = AccountId(string: p[2]), let bundle = _bundles[id] else { return error(404, "not_found") }
                 return json(200, bundle)
+            case ("POST", ["v1", "media"]):
+                struct Uploaded: Encodable { let mediaId: Data; let deleteToken: Data; let expiresAt: Int64 }
+                let id = RandomId.make(), token = RandomId.make() + RandomId.make()
+                _media[id] = (body, token)
+                _uploads += 1
+                return json(201, Uploaded(mediaId: id, deleteToken: token, expiresAt: 1))
+            case ("GET", let p) where p.count == 3 && p[1] == "media":
+                guard let id = Data(base64URLEncoded: p[2]), let stored = _media[id] else { return error(404, "not_found") }
+                return (200, stored.blob)
+            case ("DELETE", let p) where p.count == 3 && p[1] == "media":
+                guard let id = Data(base64URLEncoded: p[2]), let stored = _media[id] else { return error(404, "not_found") }
+                let token = headers.first(where: { $0.key.lowercased() == "x-delete-token" }).flatMap { Data(base64URLEncoded: $0.value) }
+                guard token == stored.token else { return error(403, "access_denied") }
+                _media[id] = nil
+                _mediaDeletes.append(id)
+                return (204, Data())
             case ("GET", ["v1", "messages"]):
                 return json(200, Page(messages: _direct, more: false))
             case ("POST", ["v1", "messages", "ack"]):
@@ -277,6 +326,29 @@ final class CommunityFixture: @unchecked Sendable {
         return envelopeId
     }
 
+    /// `peer` seals any community message to this phone and the relay queues it.
+    @discardableResult
+    func deliver(_ message: BRPCommunityMessage, from peer: CommunityPeer, in state: CommunityState, envelopeId: String = UUID().uuidString) throws -> String {
+        if try !peer.cipher.hasUsableSession(with: account.accountId) { try peer.cipher.processBundle(try bundle()) }
+        var content = BRPContent(); content.body = .community(message)
+        let sealed = try peer.cipher.seal(content, for: account.accountId)
+        relay.deliver(.init(id: envelopeId, communityId: state.id, revision: message.revision, serverTimestamp: 1, envelope: sealed))
+        return envelopeId
+    }
+
+    private var openedCount: [AccountId: Int] = [:]
+
+    /// What this phone sent to `peer` since the last call, decrypted by
+    /// `peer` (each envelope once: the ratchet moves on).
+    func opened(by peer: CommunityPeer) throws -> [BRPCommunityMessage] {
+        let all = relay.sent.filter { $0.recipient == peer.account }
+        let start = openedCount[peer.account] ?? 0
+        openedCount[peer.account] = all.count
+        return try all[start...].map {
+            try peer.cipher.decrypt(try SealedEnvelope.open($0.envelope, with: peer.identity)).content.community
+        }
+    }
+
     func texts(_ id: AccountId) throws -> [String] { try storage.read { try $0.communities.messages(id) }.map(\.text) }
     func status(_ id: AccountId) throws -> [CommunityDeliveryStatus] { try storage.read { try $0.communities.messages(id) }.filter(\.outgoing).map(\.status) }
     func pending() throws -> [CommunityOutboxItem] { try storage.read { try $0.communities.pending() } }
@@ -409,10 +481,11 @@ struct CommunityEngineTests {
         let report = try await fixture.engine.sync()
         #expect(report.issue == .offline)
         #expect(try fixture.texts(state.id).contains("gelen"))
-        #expect(try fixture.pending().count == 2)
+        // The text to both members, and alice's DELIVERY for what she sent (v2).
+        #expect(try fixture.pending().count == 3)
     }
 
-    @Test("a member's key that differs from the roster is skipped and named")
+    @Test("a member's key that differs from the roster is skipped and named; the message fails for them")
     func keyMismatchNamesTheMember() async throws {
         let fixture = try CommunityFixture()
         let alice = CommunityPeer(), mallory = CommunityPeer()
@@ -423,7 +496,8 @@ struct CommunityEngineTests {
         let state = try fixture.ownCommunity(members: [alice.member, mallory.member])
         #expect(try await fixture.engine.send("dikkat", to: state.id) == [mallory.account])
         #expect(try fixture.pending().map(\.recipient) == [alice.account])
-        #expect(try fixture.status(state.id) == [.partial])
+        // “Tekrar gönder” is offered: the others still get it.
+        #expect(try fixture.status(state.id) == [.failed])
     }
 
     @Test("leave, withdraw and forget")

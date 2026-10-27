@@ -18,7 +18,7 @@ struct MigrationTests {
         let storage = try environment.open()
         let version = try storage.database.locked { try $0.scalar("PRAGMA user_version") }
         #expect(version == .integer(Int64(Schema.latestVersion)))
-        #expect(Schema.latestVersion == 7)
+        #expect(Schema.latestVersion == 10)
     }
 
     @Test("an older database is upgraded in place, keeping its data")
@@ -47,14 +47,14 @@ struct MigrationTests {
         let environment = try TestEnvironment()
         try environment.layout.prepare()
         let dbKey = LocalKeyDerivation.databaseKey(dek: environment.dek)
-        let future = Migration(version: 9, statements: ["CREATE TABLE future (x)"])
+        let future = Migration(version: Schema.latestVersion + 1, statements: ["CREATE TABLE future (x)"])
         let database = try EncryptedDatabase(
             url: environment.layout.databaseURL, key: dbKey, migrations: Schema.migrations + [future])
         database.close()
-        #expect(throws: StorageError.schemaTooNew(found: 9, supported: Schema.latestVersion)) { _ = try environment.open() }
+        #expect(throws: StorageError.schemaTooNew(found: Schema.latestVersion + 1, supported: Schema.latestVersion)) { _ = try environment.open() }
         let reopened = try EncryptedDatabase(
             url: environment.layout.databaseURL, key: dbKey, migrations: Schema.migrations + [future])
-        #expect(try reopened.locked { try $0.scalar("PRAGMA user_version") } == .integer(9))
+        #expect(try reopened.locked { try $0.scalar("PRAGMA user_version") } == .integer(Int64(Schema.latestVersion + 1)))
     }
 
     @Test("a failing migration rolls back completely and can be retried")

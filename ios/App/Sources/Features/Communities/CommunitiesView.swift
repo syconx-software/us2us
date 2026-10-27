@@ -45,6 +45,7 @@ struct CommunitiesView: View {
                     }
                 }
             }
+            .accessibilityIdentifier("communities.scroll")
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await service?.refresh() }
@@ -135,6 +136,7 @@ struct CommunitiesView: View {
                         }
                     }
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("communities.list")
             }
         }
