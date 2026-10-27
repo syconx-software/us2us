@@ -339,8 +339,10 @@ check, e.g. while the registry cannot be reached).
 None of the advisories handled here reaches the running relay:
 `.output/server` holds only mysql2, drizzle-orm and their dependencies. They
 are in the build and development tools that `pnpm install` puts next to it,
-on the production host too (see [Hardening still to
-do](#hardening-still-to-do)).
+on older production releases too. The runtime-only deployment tool now keeps
+that toolchain off newly deployed releases (see
+[Shared-host hardening rollout](#shared-host-hardening-rollout)); deploying it
+does not remove old release directories by itself.
 
 `pnpm.overrides` in `package.json` replaces vulnerable versions with fixed
 ones. Each override applies only where a package asks for a vulnerable
@@ -380,12 +382,16 @@ user with a per-user Node 24 (nvm) under pm2, and is updated with
 US2US_DEPLOY_TARGET=<app-user>@<server> US2US_APP_ROOT=/var/www/<app-user> US2US_PORT=<port> scripts/deploy-relay.sh
 ```
 
-The script first runs the dependency audit locally (see
-[Dependencies](#dependencies)), then uploads `relay/` as an immutable release
-(`$US2US_APP_ROOT/releases/<timestamp>`), runs `pnpm install`, `pnpm build`
-and the migrations there, points the `us2us-relay` symlink at it, reloads the
-pm2 app and checks `/v1/health`; if that fails it switches back to the
-previous release. It keeps the newest three releases. Settings and secrets live
+The script audits and builds locally with a supported Node release, then
+uploads an explicit runtime-only package as an immutable release
+(`$US2US_APP_ROOT/releases/<timestamp>`). It verifies checksums and the matching
+Node major, checks private credentials, different database users and DML-only
+relay grants, runs the upstream ORM migrator under the separate migration
+identity, points the `us2us-relay` symlink at it, reloads pm2 and checks health.
+No package manager, install scripts or build runs on the production host.
+A failed startup, health check or actual pm2 production-mode check restores
+the previous code release; it does not reverse SQL migrations. It keeps the
+newest three releases and protects both live and rollback releases. Secrets live
 in `~/us2us.env` (mode 600, loaded with `node --env-file`), the pm2 app in
 `$US2US_APP_ROOT/ecosystem.config.cjs` (a copy of
 `deploy/ecosystem.config.cjs`, see [The pm2 app](#the-pm2-app)), and pm2 is started at boot by the
@@ -408,12 +414,16 @@ sites; and growing restart delays (up to 15 s) while MySQL is unreachable. It ne
 where the copy lives and from the pm2 user's home directory. `~/us2us.env`
 holds `DATABASE_URL`, `POW_SECRET`, `HOST=127.0.0.1`, `PORT` (the same as
 `US2US_PORT`, which the health check uses), `TRUST_PROXY=1` and `MEDIA_DIR`.
+Keep the migration user's URL in `~/us2us-migrate.env` (mode 600, owned by the
+deploy user), with exactly one non-comment assignment, `DATABASE_URL=...`.
+It must target the same host/database with a different username. Neither file
+is sourced as shell code or copied into a release. The migration worker starts
+with an empty environment and does not receive the relay's secrets.
 
 `scripts/deploy-relay.sh` never writes the server's copy. It stops before
-installing anything if the file is missing, prints a note when it differs
-from the template of the release it deploys, and after the reload warns
-when pm2 does not run `.output/server/index.mjs` with
-`NODE_ENV=production`. Installing or updating it is a manual step on the
+migrating or switching if the file is missing, prints a note when it differs
+from the template, and rolls back if the reloaded pm2 app does not run
+`.output/server/index.mjs` with `NODE_ENV=production`. Installing or updating it is a manual step on the
 server (`pm2 reload` does not pick up a changed `script`, `node_args` or
 `exec_mode`; `pm2 delete` stops the relay gracefully):
 
@@ -428,32 +438,32 @@ pm2 describe us2us-relay   # script path …/.output/server/index.mjs, node env 
 Check that the old file has no settings the env file lacks before
 replacing it.
 
-#### Hardening still to do
+#### Shared-host hardening rollout
 
-Recommendations for the shared host, not implemented yet:
+The tools and nginx template implement the following; applying and verifying
+them on the actual host is still required:
 
-- **Build somewhere else.** Every deploy installs the whole build and
-  development toolchain (about 725 packages: Nuxt, Vite, nitropack,
-  drizzle-kit, vitest, TypeScript, with their install scripts) on the shared
-  production host and runs it there, while the running relay needs only the
-  packages in `.output/server/package.json`. Building `.output/` locally or
-  in CI with the server's Node version, uploading only `.output/` and
-  `drizzle/`, and migrating with drizzle-orm's own migrator
-  (`drizzle-orm/mysql2/migrator`, already a runtime dependency) instead of
-  drizzle-kit would keep that toolchain off the server.
-- **A separate database user for migrations.** The deploy runs
-  `drizzle-kit migrate` with the `DATABASE_URL` from `~/us2us.env`, the
-  relay's own credentials, so that user needs schema rights, and drizzle-kit
-  sees every relay secret. `deploy/mysql/setup.sql` intends two users: the
-  running relay as `us2us` with `SELECT, INSERT, UPDATE, DELETE` only (DML),
-  and `us2us_migrate` with the schema rights (DDL) for migrations alone. Keep
-  the migration user's URL in its own file (mode 600, only `DATABASE_URL`)
-  that only the migrate step loads, and take the DDL rights away from the
-  relay's user.
-- **`server_tokens off;` in nginx.** `deploy/nginx/us2us.conf` does not set
-  it, so the `Server` header and nginx's own error pages name the nginx
-  version. Set it in the `http` block of `/etc/nginx/nginx.conf` (all sites
-  of the shared host) or in each us2us `server` block.
+- **Runtime-only releases.** Build locally/CI using the frozen dependency lock,
+  upload only `.output/`, `drizzle/` and deployment helpers. Packaging rejects
+  escaping/cyclic symlinks, secret files, missing runtime entries and known build
+  packages in the runtime manifest. The existing dependency audit gate is not
+  weakened: even a nonzero "ignored" advisory result stops the default deploy.
+- **Separate migration user.** `deploy/mysql/setup.sql` defines DML-only relay
+  and DDL migration users. The latter also needs `REFERENCES` for community
+  foreign keys. The new preflight rejects schema/global/grant-option privileges
+  on the runtime user and requires direct grants without active roles. Existing
+  broad grants are not removed automatically by `GRANT` or this script; a DBA
+  must prepare the least-privilege identities before rollout. For continuity,
+  prepare a new DML identity and update the runtime env for the next restart
+  before retiring the old overprivileged identity after a healthy deployment.
+- **Version disclosure.** Every site server block sets `server_tokens off;`.
+  Apply it to the actual nginx config, validate with `nginx -t`, then reload.
+  This does not change the access/error logging or TLS isolation policies.
+
+Before production: test a signed/reviewed release on staging, validate actual
+Node version/pm2 configuration, establish private migration credentials, check
+health rollback with a real service, review old releases/backups and inspect
+actual proxy/CDN/APM settings. Local package tests do not attest the live host.
 
 ### Dedicated VM with systemd
 

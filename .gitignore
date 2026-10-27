@@ -76,3 +76,7 @@ Desktop.ini
 # Android Studio signed bundles
 android/app/release/
 *.aab
+
+# Python bytecode from helper scripts
+__pycache__/
+*.pyc
