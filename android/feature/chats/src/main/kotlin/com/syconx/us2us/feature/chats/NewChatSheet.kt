@@ -89,6 +89,7 @@ object NewChatTags {
     const val INFO = "newChat.info"
     const val SCAN = "newChat.scan"
     const val MY_CODE = "newChat.myCode"
+    const val COMMUNITIES = "newChat.communities"
     const val OPTIONS = "newChat.options"
     const val HINT = "newChat.hint"
 
@@ -113,6 +114,7 @@ internal fun NewChatSheetContent(
     onOpenChat: (ChatId) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    onCommunities: (() -> Unit)? = null,
 ) {
     val app = LocalAppModel.current
     val messenger = app.messenger
@@ -158,6 +160,7 @@ internal fun NewChatSheetContent(
                     onScan = { showsScanner = true },
                     onMyCode = { go(NewChatPage.MyCode) },
                     onInvite = { go(NewChatPage.Invite) },
+                    onCommunities = onCommunities,
                 )
                 NewChatPage.MyCode -> MyCodeSheet(
                     username = ownUsername,
@@ -198,6 +201,7 @@ private fun NewChatSearchPage(
     onScan: () -> Unit,
     onMyCode: () -> Unit,
     onInvite: () -> Unit,
+    onCommunities: (() -> Unit)?,
 ) {
     val app = LocalAppModel.current
     val scope = rememberCoroutineScope()
@@ -250,7 +254,7 @@ private fun NewChatSearchPage(
                 .verticalScroll(scroll, enabled = scroll.maxValue > 0),
         ) {
             Results(model, onOpenChat = ::openChat, onInvite = onInvite)
-            Options(model.ownUsername, onScan, onMyCode, Modifier.padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 24.dp))
+            Options(model.ownUsername, onScan, onMyCode, onCommunities, Modifier.padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 24.dp))
         }
     }
 }
@@ -490,7 +494,7 @@ private fun InfoRow(username: String, modifier: Modifier = Modifier) {
 
 /** Options group (pad 22 16 0): C13 card on `bg`, 62 dp rows. */
 @Composable
-private fun Options(ownUsername: String, onScan: () -> Unit, onMyCode: () -> Unit, modifier: Modifier = Modifier) {
+private fun Options(ownUsername: String, onScan: () -> Unit, onMyCode: () -> Unit, onCommunities: (() -> Unit)?, modifier: Modifier = Modifier) {
     GroupedCard(modifier.testTag(NewChatTags.OPTIONS), fill = U2Theme.colors.bg) {
         GroupedNavigationRow(
             tile = { IconTile(IconTileContent.Glyph(PhosphorGlyph.Scan)) },
@@ -507,5 +511,16 @@ private fun Options(ownUsername: String, onScan: () -> Unit, onMyCode: () -> Uni
             onClick = onMyCode,
             modifier = Modifier.testTag(NewChatTags.MY_CODE),
         )
+        // Communities: discover, create, or join with an invitation (their conversations are in 4.1 like any chat).
+        if (onCommunities != null) {
+            GroupedSeparator()
+            GroupedNavigationRow(
+                tile = { IconTile(IconTileContent.Glyph(PhosphorGlyph.ChatCircleDots)) },
+                title = stringResource(R.string.community_title),
+                subtitle = stringResource(R.string.community_entry_subtitle),
+                onClick = onCommunities,
+                modifier = Modifier.testTag(NewChatTags.COMMUNITIES),
+            )
+        }
     }
 }

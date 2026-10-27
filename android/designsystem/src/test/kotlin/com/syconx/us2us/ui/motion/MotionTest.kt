@@ -11,16 +11,16 @@ import org.junit.Test
 class MotionTest {
     @Test
     fun durationsAreTheTokens() {
-        assertEquals(0.16f, U2Motion.Duration.press, 0f)
-        assertEquals(0.24f, U2Motion.Duration.micro, 0f)
-        assertEquals(0.36f, U2Motion.Duration.state, 0f)
-        assertEquals(0.5f, U2Motion.Duration.screen, 0f)
-        assertEquals(0.55f, U2Motion.Duration.sheet, 0f)
+        assertEquals(0.06f, U2Motion.Duration.press, 0f)
+        assertEquals(0.1f, U2Motion.Duration.micro, 0f)
+        assertEquals(0.12f, U2Motion.Duration.state, 0f)
+        assertEquals(0.16f, U2Motion.Duration.screen, 0f)
+        assertEquals(0.18f, U2Motion.Duration.sheet, 0f)
         assertEquals(0.8f, U2Motion.Duration.ambient, 0f)
-        assertEquals(360, U2Motion.state.millis)
-        assertEquals(500, U2Motion.screen.millis)
-        assertEquals(240, U2Motion.release.millis)
-        assertEquals(160, U2Motion.press.millis)
+        assertEquals(120, U2Motion.state.millis)
+        assertEquals(160, U2Motion.screen.millis)
+        assertEquals(100, U2Motion.release.millis)
+        assertEquals(60, U2Motion.press.millis)
     }
 
     /** cubic-bezier(0.45, 0, 0.55, 1) is symmetric: half-way at t = 0.5, slow at both ends. */
@@ -38,11 +38,11 @@ class MotionTest {
         for (i in 0..100) assertTrue(out.transform(i / 100f) <= 1.0001f)
     }
 
-    /** SwiftUI `.spring(response: 0.55, dampingFraction: 1)` → stiffness (2π / 0.55)², damping ratio 1. */
+    /** SwiftUI `.spring(response: 0.2, dampingFraction: 1)` → stiffness (2π / 0.2)², damping ratio 1. */
     @Test
     fun springsAreCriticallyDamped() {
-        assertEquals(130.5f, U2Motion.SpringStiffness, 0.1f)
-        assertEquals(223.8f, U2Motion.SpringQuickStiffness, 0.1f)
+        assertEquals(987.0f, U2Motion.SpringStiffness, 0.1f)
+        assertEquals(2014.2f, U2Motion.SpringQuickStiffness, 0.1f)
         val spring = U2Motion.spring<Float>()
         assertEquals(1f, spring.dampingRatio, 0f)
         assertEquals(U2Motion.SpringStiffness, spring.stiffness, 0f)
@@ -57,7 +57,7 @@ class MotionTest {
         assertSame(spec, U2Motion.resolve(spec, reduceMotion = false))
         val reduced = U2Motion.resolve(spec, reduceMotion = true)
         assertTrue(reduced is TweenSpec<*>)
-        assertEquals(300, (reduced as TweenSpec<*>).durationMillis)
+        assertEquals(80, (reduced as TweenSpec<*>).durationMillis)
         assertEquals(U2Motion.reducedCrossFade, U2Motion.resolve(U2Motion.screen, reduceMotion = true))
         assertEquals(U2Motion.screen, U2Motion.resolve(U2Motion.screen, reduceMotion = false))
         assertTrue(U2Motion.resolve(U2Motion.spring<Float>(), reduceMotion = false) is SpringSpec<*>)
@@ -77,7 +77,7 @@ class MotionTest {
     @Test
     fun timingsBuildTweens() {
         val spec = U2Motion.state.delayed(0.25f).spec<Float>()
-        assertEquals(360, spec.durationMillis)
+        assertEquals(120, spec.durationMillis)
         assertEquals(250, spec.delay)
         assertSame(U2Motion.SoftEasing, spec.easing)
         assertSame(U2Motion.OutEasing, U2Motion.appear.spec<Float>().easing)

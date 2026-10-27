@@ -69,6 +69,10 @@ object AppFeatureScreens : FeatureScreens {
     override fun Invite(state: String?, onClose: () -> Unit, modifier: Modifier) = InviteSheet(state, onClose, modifier)
 
     @Composable
+    override fun CommunityManage(service: com.syconx.us2us.domain.CommunitiesService, id: String, title: String, onClose: () -> Unit) =
+        com.syconx.us2us.feature.conversation.CommunityManageHost(service, id, title, onClose = onClose, onGone = onClose)
+
+    @Composable
     override fun MediaViewer(chat: ChatId, message: MessageId, onDismiss: () -> Unit, modifier: Modifier) =
         MediaViewerCover(chat, message, onDismiss, modifier)
 

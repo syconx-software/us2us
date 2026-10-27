@@ -11,7 +11,7 @@ import com.syconx.us2us.ui.l10n.AppLanguage
 
 /**
  * Device-level preferences that must be readable before unlocking (the lock screen is themed and
- * localized too): theme and language, and the save notice's acknowledgement. Not sensitive, so
+ * localized too): theme, language, screen-awake opt-in and the save notice's acknowledgement. Not sensitive, so
  * they live in plain shared preferences (excluded from backups like everything else); everything
  * else is in the vault. The keys are the iOS ones.
  *
@@ -22,6 +22,14 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
     private var themeState by mutableStateOf(store.getString(THEME_KEY, null)?.let(ThemePreference::fromRaw) ?: ThemePreference.System)
     private var languageState by mutableStateOf(AppLanguage.fromRaw(store.getString(LANGUAGE_KEY, null)) ?: AppLanguage.System)
     private var saveNoticeState by mutableStateOf(store.getBoolean(SAVE_NOTICE_KEY, false))
+    private var keepScreenOnState by mutableStateOf(store.getBoolean(KEEP_SCREEN_ON_KEY, false))
+
+    override var keepScreenOn: Boolean
+        get() = keepScreenOnState
+        set(value) {
+            keepScreenOnState = value
+            store.edit().putBoolean(KEEP_SCREEN_ON_KEY, value).apply()
+        }
 
     override var theme: ThemePreference
         get() = themeState
@@ -47,9 +55,10 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
 
     /** `U2ResetPreferences`: forgets the saved theme, language and save notice. */
     fun reset() {
-        store.edit().remove(THEME_KEY).remove(LANGUAGE_KEY).remove(SAVE_NOTICE_KEY).apply()
+        store.edit().remove(THEME_KEY).remove(LANGUAGE_KEY).remove(SAVE_NOTICE_KEY).remove(KEEP_SCREEN_ON_KEY).apply()
         themeState = ThemePreference.System
         saveNoticeState = false
+        keepScreenOnState = false
         language = AppLanguage.System
     }
 
@@ -62,6 +71,7 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
         const val THEME_KEY = "u2.theme"
         const val LANGUAGE_KEY = "u2.language"
         const val SAVE_NOTICE_KEY = "u2.saveNotice.acknowledged"
+        const val KEEP_SCREEN_ON_KEY = "u2.keepScreenOn"
 
         /** The file the app's preferences are kept in. */
         const val FILE = "us2us.preferences"

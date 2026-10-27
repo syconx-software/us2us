@@ -69,7 +69,7 @@ object U2Transitions {
     fun pop(timing: U2Timing = U2Motion.state): U2Transition = soft(DpOffset.Zero, blur = 2.dp, scale = 0.96f, timing = timing)
 
     /**
-     * `screenPush`: cross-fade + 16 dp horizontal drift, 0.5 s soft. Both the inserted and the
+     * `screenPush`: cross-fade + 16 dp horizontal drift on the screen timing. Both the inserted and the
      * removed screen sit 16 dp towards the end while hidden, as on iOS.
      */
     @Composable
@@ -104,7 +104,7 @@ object U2Transitions {
 
     /**
      * 4.3 “Engelle / Sil”, 5.3 “Benden sil”: the item fades while its height collapses to nothing
-     * from the bottom, and what follows glides up into its place. 0.36 s soft. For the rounded
+     * from the bottom, and what follows glides up into its place on the state timing. For the rounded
      * shrinking edge use [u2CollapseProgress] on an item that collapses before it is removed.
      */
     @Composable

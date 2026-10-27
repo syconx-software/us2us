@@ -38,6 +38,9 @@ interface U2Preferences {
      * was acknowledged with “Kaydet”. It goes with the account.
      */
     var hasAcknowledgedSaveNotice: Boolean
+
+    /** Opt-in screen auto-sleep prevention while the foreground app is unlocked. */
+    var keepScreenOn: Boolean
 }
 
 /**
@@ -134,6 +137,7 @@ class MemoryPreferences(
     override var theme: ThemePreference by mutableStateOf(theme)
     override var language: AppLanguage by mutableStateOf(language)
     override var hasAcknowledgedSaveNotice: Boolean by mutableStateOf(false)
+    override var keepScreenOn: Boolean by mutableStateOf(false)
 }
 
 /**

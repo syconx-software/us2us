@@ -4,6 +4,13 @@ import android.app.Application
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.test.espresso.Espresso
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsDisplayed
@@ -11,7 +18,9 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import androidx.test.core.app.ApplicationProvider
@@ -23,6 +32,7 @@ import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.domain.nav.RequestId
 import com.syconx.us2us.feature.report.ReportTags
 import com.syconx.us2us.shot.ShotHost
+import com.syconx.us2us.ui.common.ChatDeletionTags
 import com.syconx.us2us.ui.common.MyCodeTags
 import com.syconx.us2us.ui.sheet.U2SheetTags
 import org.junit.Assert.assertEquals
@@ -41,6 +51,12 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [ShotHost.SDK])
 class ChatsInteractionTest {
+    private companion object {
+        /** The long-press menu's rows (FloatingMenu tags each row `menu.<id>`). */
+        const val MENU_DELETE_CHAT = "menu.${ChatDeletionTags.DELETE_CHAT}"
+        const val MENU_DELETE_CONTACT = "menu.${ChatDeletionTags.DELETE_CONTACT}"
+    }
+
     @get:Rule
     val host = ShotHost()
 
@@ -65,6 +81,76 @@ class ChatsInteractionTest {
         host.advance(1_000)
         assertEquals(AppRoute.Conversation(ChatId("deniz")), fixture.router.top)
         host.compose.onNodeWithTag(OTHER_SCREEN_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aLongPressDeletesTheChatAfterItsConfirmation() {
+        open()
+        val deniz = ChatId("deniz")
+        host.compose.onNodeWithTag(ChatsTags.chat(deniz)).performTouchInput { longClick() }
+        host.advance(1_200)
+        host.compose.onNodeWithTag(MENU_DELETE_CHAT).performClick()
+        host.advance(2_000)
+        assertTrue("the menu closes before the confirmation", gone(ChatDeletionTags.MENU))
+        // “deniz ile sohbet silinsin mi?” says it happens on this phone only.
+        host.compose.onNodeWithText("deniz ile sohbet silinsin mi?").assertIsDisplayed()
+        host.compose.onNodeWithTag(ChatDeletionTags.CANCEL).performClick()
+        host.advance(1_500)
+        assertTrue("Vazgeç keeps the chat", fixture.service.chats.value.any { it.id == deniz })
+
+        host.compose.onNodeWithTag(ChatsTags.chat(deniz)).performTouchInput { longClick() }
+        host.advance(1_200)
+        host.compose.onNodeWithTag(MENU_DELETE_CONTACT).performClick()
+        host.advance(2_000)
+        host.compose.onNodeWithText("deniz silinsin mi?").assertIsDisplayed()
+        // Not a block: a message from them later is a new request.
+        host.compose.onNodeWithText("yeniden yazarsa yeni bir istek olarak görünür", substring = true).assertIsDisplayed()
+        host.compose.onNodeWithTag(ChatDeletionTags.CONFIRM).performClick()
+        host.advance(1_500)
+        assertTrue(gone(U2SheetTags.SHEET))
+        assertFalse(fixture.service.chats.value.any { it.id == deniz })
+        assertTrue(gone(ChatsTags.chat(deniz)))
+        assertTrue(fixture.router.isAtRoot)
+    }
+
+    @Test
+    fun theLongPressMenuOpensAtTheRowWithBothDeletionsInTheOrderOfIOS() {
+        open()
+        val row = host.compose.onNodeWithTag(ChatsTags.chat(ChatId("deniz"))).fetchSemanticsNode().boundsInWindow
+        host.compose.onNodeWithTag(ChatsTags.chat(ChatId("deniz"))).performTouchInput { longClick() }
+        host.advance(1_200)
+        val menu = host.compose.onNodeWithTag(ChatDeletionTags.MENU).assertIsDisplayed().fetchSemanticsNode().boundsInWindow
+        // A compact menu, not a sheet: anchored right under (or above) the pressed row, at its gutter.
+        assertTrue(gone(U2SheetTags.SHEET))
+        assertTrue("next to the row: $menu / $row", menu.top >= row.bottom - 1f || menu.bottom <= row.top + 1f)
+        assertTrue("under the row when there is room", menu.top - row.bottom < 40f)
+        assertTrue("narrower than the row", menu.width < row.width)
+        val chat = host.compose.onNodeWithTag(MENU_DELETE_CHAT).assertIsDisplayed().assertHasClickAction()
+        val contact = host.compose.onNodeWithTag(MENU_DELETE_CONTACT).assertIsDisplayed().assertHasClickAction()
+        assertTrue("“Sohbeti sil” first", chat.fetchSemanticsNode().boundsInWindow.top < contact.fetchSemanticsNode().boundsInWindow.top)
+        chat.assert(hasText("Sohbeti sil"))
+        contact.assert(hasText("Kişiyi sil"))
+        assertEquals(Role.Button, chat.fetchSemanticsNode().config[SemanticsProperties.Role])
+        // Back closes it, the chat stays.
+        Espresso.pressBack()
+        host.advance(1_200)
+        assertTrue(gone(ChatDeletionTags.MENU))
+        assertTrue(fixture.service.chats.value.any { it.id == ChatId("deniz") })
+    }
+
+    @Test
+    fun talkBackDeletesFromTheRowWithoutTheMenu() {
+        open()
+        val actions = host.compose.onNodeWithTag(ChatsTags.chat(ChatId("deniz"))).fetchSemanticsNode().config[SemanticsActions.CustomActions]
+        assertEquals(listOf("Sohbeti sil", "Kişiyi sil"), actions.map { it.label })
+        host.compose.runOnUiThread { actions.single { it.label == "Kişiyi sil" }.action() }
+        Snapshot.sendApplyNotifications()
+        host.advance(2_000)
+        assertTrue(gone(ChatDeletionTags.MENU))
+        host.compose.onNodeWithText("deniz silinsin mi?").assertIsDisplayed()
+        host.compose.onNodeWithTag(ChatDeletionTags.CANCEL).performClick()
+        host.advance(1_500)
+        assertTrue(fixture.service.chats.value.any { it.id == ChatId("deniz") })
     }
 
     @Test

@@ -43,6 +43,9 @@ import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.bubbles.MessageStatusIcon
 import com.syconx.us2us.ui.components.Avatar
 import com.syconx.us2us.ui.components.AvatarSize
+import com.syconx.us2us.ui.components.CommunityAvatar
+import com.syconx.us2us.ui.components.communityMemberName
+import com.syconx.us2us.ui.components.communityName
 import com.syconx.us2us.ui.components.CountBadge
 import com.syconx.us2us.ui.components.DotPattern
 import com.syconx.us2us.ui.components.DottedRule
@@ -89,13 +92,19 @@ fun ChatListRow(chat: ChatSummary, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(U2Spacing.rowGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(
-            username = chat.peer.username,
-            palette = chat.peer.palette,
-            size = AvatarSize.ListRow,
-            showsOnlineDot = chat.peer.isOnline,
-            picture = chat.peer.avatar,
-        )
+        val community = chat.community
+        if (community != null) {
+            // A community (Communities extension): its mark where a person's avatar would be.
+            CommunityAvatar(communityName(community), size = AvatarSize.ListRow)
+        } else {
+            Avatar(
+                username = chat.peer.username,
+                palette = chat.peer.palette,
+                size = AvatarSize.ListRow,
+                showsOnlineDot = chat.peer.isOnline,
+                picture = chat.peer.avatar,
+            )
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FirstLine(chat)
             SecondLine(chat)
@@ -113,7 +122,7 @@ private fun FirstLine(chat: ChatSummary) {
         // The name and the seal take what the time leaves; a long name truncates before the seal.
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             U2Text(
-                chat.peer.username,
+                chat.community?.let { communityName(it) } ?: chat.peer.username,
                 U2TextStyles.monoUsername,
                 color = colors.text,
                 maxLines = 1,
@@ -197,7 +206,11 @@ private fun RowScope.PreviewLine(chat: ChatSummary, isBlocked: Boolean) {
             }
             val glyph = typeGlyph(last.kind)
             if (glyph != null && !isFailed) PhosphorIcon(glyph, size = 15.dp, tint = colors.textSecondary)
-            val text = previewText(last, isFailed)
+            val preview = previewText(last, isFailed, isCommunity = chat.isCommunity)
+            // A community's incoming message says who wrote it.
+            val text = last.sender?.takeIf { !isFailed }?.let { sender ->
+                stringResource(R.string.community_preview_sender, communityMemberName(sender.account, sender.username), preview)
+            } ?: preview
             val ink by animateColorAsState(
                 when {
                     isFailed -> colors.danger
@@ -239,8 +252,18 @@ private fun typeGlyph(kind: MessagePreviewKind): PhosphorGlyph? = when (kind) {
 }
 
 @Composable
-private fun previewText(last: MessagePreview, isFailed: Boolean): String {
+private fun previewText(last: MessagePreview, isFailed: Boolean, isCommunity: Boolean = false): String {
     if (isFailed) return stringResource(R.string.common_chats_preview_failed)
+    val text = kindText(last, isCommunity)
+    // A community photo, video or file shows its caption after its kind.
+    return last.caption?.let { stringResource(R.string.community_preview_caption, text, it) } ?: text
+}
+
+@Composable
+private fun kindText(last: MessagePreview, isCommunity: Boolean): String {
+    if (isCommunity && last.kind == MessagePreviewKind.Deleted) {
+        return stringResource(if (last.removedByOwner) R.string.community_message_removed else R.string.community_message_deleted)
+    }
     return when (val kind = last.kind) {
         is MessagePreviewKind.Text -> kind.text
         MessagePreviewKind.Disappearing -> stringResource(R.string.common_chats_preview_disappearing)
@@ -279,7 +302,7 @@ fun ChatListSeparator(modifier: Modifier = Modifier) {
  * badge · chevron.
  */
 @Composable
-fun RequestsCard(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun RequestsCard(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier, communityName: String? = null) {
     val colors = U2Theme.colors
     CardRow(onClick, modifier) {
         Box(
@@ -292,9 +315,9 @@ fun RequestsCard(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier)
             PhosphorIcon(PhosphorGlyph.Tray, size = 21.dp, tint = colors.accent300)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            U2Text(stringResource(R.string.common_chats_requests_title), U2TextStyles.rowTitleEmphasis, color = colors.text)
+            U2Text(communityName ?: stringResource(R.string.common_chats_requests_title), U2TextStyles.rowTitleEmphasis, color = colors.text)
             U2Text(
-                pluralStringResource(R.plurals.common_chats_requests_subtitle, count, count),
+                if (communityName != null) stringResource(R.string.community_requests_count, count) else pluralStringResource(R.plurals.common_chats_requests_subtitle, count, count),
                 U2TextStyles.caption,
                 color = colors.textSecondary,
             )

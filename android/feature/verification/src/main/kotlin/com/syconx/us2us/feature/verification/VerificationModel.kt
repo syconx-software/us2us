@@ -81,6 +81,11 @@ class VerificationModel(val chatId: ChatId, val messenger: MessengerService) {
     var confirmsRemoval: Boolean by mutableStateOf(false)
     var confirmsAccept: Boolean by mutableStateOf(false)
 
+    // A background refresh can replace info while its confirmation is covering the digits.
+    // Bind each decision to what was shown when the user requested it, and consume it once.
+    private var comparedNumber: Bytes? = null
+    private var acceptedNumber: Bytes? = null
+
     /** Haptics of the window (the view sets them). */
     var haptics: U2Haptics = U2Haptics.None
         set(value) {
@@ -155,7 +160,14 @@ class VerificationModel(val chatId: ChatId, val messenger: MessengerService) {
 
     /** “Doğrulandı olarak işaretle” → confirmation. */
     fun requestMarkVerified() {
+        comparedNumber = info?.scannablePayload ?: return
+        acceptedNumber = null
         confirmsMarkVerified = true
+    }
+
+    fun cancelMarkVerified() {
+        confirmsMarkVerified = false
+        comparedNumber = null
     }
 
     /**
@@ -163,7 +175,9 @@ class VerificationModel(val chatId: ChatId, val messenger: MessengerService) {
      * 6.3. If the number changed meanwhile nothing is marked: 6.1 shows the new number and says so.
      */
     suspend fun markVerifiedManually() {
-        val compared = info?.scannablePayload ?: return
+        val compared = comparedNumber ?: return
+        comparedNumber = null
+        confirmsMarkVerified = false
         if (!messenger.markVerified(chatId, compared)) {
             numberChangedMeanwhile()
             return
@@ -192,7 +206,14 @@ class VerificationModel(val chatId: ChatId, val messenger: MessengerService) {
 
     /** After a change › “Doğrulamadan devam et” → confirmation. */
     fun requestAccept() {
+        acceptedNumber = info?.scannablePayload ?: return
+        comparedNumber = null
         confirmsAccept = true
+    }
+
+    fun cancelAccept() {
+        confirmsAccept = false
+        acceptedNumber = null
     }
 
     /**
@@ -201,7 +222,9 @@ class VerificationModel(val chatId: ChatId, val messenger: MessengerService) {
      * changed meanwhile.
      */
     suspend fun acceptChangeWithoutVerifying() {
-        val shown = info?.scannablePayload ?: return
+        val shown = acceptedNumber ?: return
+        acceptedNumber = null
+        confirmsAccept = false
         if (!messenger.acceptSafetyNumberChange(chatId, shown)) {
             numberChangedMeanwhile()
             return

@@ -175,6 +175,7 @@ internal fun ZoomableImage(
     modifier: Modifier = Modifier,
     startsZoomed: Boolean = false,
     locale: Locale = Locale.getDefault(),
+    onNavigate: ((Boolean) -> Unit)? = null,
 ) {
     val state = remember { ZoomState() }
     val scope = rememberCoroutineScope()
@@ -184,6 +185,7 @@ internal fun ZoomableImage(
     val currentOnZoomChange by rememberUpdatedState(onZoomChange)
     val currentOnDismissProgress by rememberUpdatedState(onDismissProgress)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val currentOnNavigate by rememberUpdatedState(onNavigate)
     var appliedStartZoom by remember { mutableStateOf(false) }
 
     // The image and its proportions: the full photo replaces the thumbnail in place.
@@ -351,19 +353,26 @@ internal fun ZoomableImage(
                         event.changes.firstOrNull { it.id == down.id }?.let { tracker.addPosition(it.uptimeMillis, it.position) }
                         val zoom = event.calculateZoom()
                         val pan = event.calculatePan()
+                        moved += pan
                         val centroid = event.calculateCentroid(useCurrent = true)
                         if (centroid.isSpecified()) focus = centroid - center
                         if (mode == GestureMode.Undecided) {
-                            moved += pan
                             mode = when {
                                 pressed > 1 && image != null -> GestureMode.Transform
                                 moved.getDistance() <= viewConfiguration.touchSlop -> GestureMode.Undecided
                                 state.isZoomed -> GestureMode.Transform
+                                pressed == 1 && currentOnNavigate != null && abs(moved.x) > abs(moved.y) * 1.2f -> GestureMode.Navigate
                                 image != null && abs(moved.y) > abs(moved.x) * 1.2f -> GestureMode.Dismiss
                                 else -> GestureMode.Ignored
                             }
                         }
                         when (mode) {
+                            GestureMode.Navigate -> {
+                                if (pressed > 1) mode = GestureMode.Ignored
+                                else {
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
                             GestureMode.Transform -> {
                                 state.transform(focus, zoom, pan)
                                 event.changes.forEach { it.consume() }
@@ -381,6 +390,9 @@ internal fun ZoomableImage(
                     }
                     val velocity = tracker.calculateVelocity().let { Offset(it.x, it.y) }
                     when (mode) {
+                        GestureMode.Navigate -> {
+                            if (abs(moved.x) / density.density >= 48f) currentOnNavigate?.invoke(moved.x < 0f)
+                        }
                         GestureMode.Transform -> settle(velocity, focus)
                         GestureMode.Dismiss -> {
                             val dpTranslation = dismiss.y / density.density
@@ -427,7 +439,7 @@ internal fun ZoomableImage(
 
 private fun Offset.isSpecified(): Boolean = x.isFinite() && y.isFinite()
 
-private enum class GestureMode { Undecided, Transform, Dismiss, Ignored }
+private enum class GestureMode { Undecided, Transform, Dismiss, Navigate, Ignored }
 
 /** Test tags of the zooming photo. */
 object ZoomableImageTags {

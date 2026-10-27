@@ -37,7 +37,7 @@ data class U2Timing(val seconds: Float, val easing: Easing, val delaySeconds: Fl
 /**
  * Motion tokens (tokens.json › motion).
  *
- * Every animation is *very soft* — no bounce, no overshoot, long gentle
+ * Every animation is *very soft* — no bounce, no overshoot, responsive gentle
  * ease-in-out, nothing snaps. All curves here are the design's own
  * `cubic-bezier(0.45, 0, 0.55, 1)`, its ease-out, or a critically damped spring (damping
  * ratio 1, never below).
@@ -60,6 +60,8 @@ object U2Motion {
         const val screen: Float = U2MotionTokens.Duration.screen
         /** Sheet backdrops. */
         const val sheet: Float = U2MotionTokens.Duration.sheet
+        /** Short cross-fade replacing movement under reduce motion. */
+        const val reducedCrossFade: Float = U2MotionTokens.Duration.reducedCrossFade
         /** Ambient colour changes (Ghost calm → urgent). */
         const val ambient: Float = U2MotionTokens.Duration.ambient
     }
@@ -84,13 +86,13 @@ object U2Motion {
     val release: U2Timing = soft(Duration.micro)
     val micro: U2Timing = soft(Duration.micro)
     val state: U2Timing = soft(Duration.state)
-    val screen: U2Timing = soft(Duration.screen)
-    val sheet: U2Timing = soft(Duration.sheet)
+    val screen: U2Timing = out(Duration.screen)
+    val sheet: U2Timing = out(Duration.sheet)
     val ambient: U2Timing = soft(Duration.ambient)
     val appear: U2Timing = out(Duration.state)
 
     /** The cross-fade that replaces movement when reduce motion is on. */
-    val reducedCrossFade: U2Timing = U2Timing(0.3f, EaseInOutEasing)
+    val reducedCrossFade: U2Timing = U2Timing(Duration.reducedCrossFade, EaseInOutEasing)
 
     /**
      * Stiffness of a critically damped spring with SwiftUI's `response` (the period of the
@@ -101,10 +103,10 @@ object U2Motion {
         return (omega * omega).toFloat()
     }
 
-    /** `springSoft`: response 0.55 s, damping ratio 1 (≈ 130.5). Sheets following the finger, toggles, the reaction bar. */
+    /** `springSoft`: damping ratio 1. Sheets following the finger, toggles, the reaction bar. */
     val SpringStiffness: Float = stiffness(U2MotionTokens.springResponse)
 
-    /** The quicker spring for small interactive elements (toggle knob): response 0.42 s (≈ 223.8). */
+    /** The quicker spring for small interactive elements (toggle knob). */
     val SpringQuickStiffness: Float = stiffness(U2MotionTokens.springQuickResponse)
 
     /** The critically damped interactive spring: zero bounce. */

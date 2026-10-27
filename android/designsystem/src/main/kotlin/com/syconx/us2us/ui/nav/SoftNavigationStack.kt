@@ -85,8 +85,8 @@ object SoftNavigation {
 
 /**
  * A navigation stack with the design's *soft* push: screens cross-fade with a 16 dp horizontal
- * drift on the design curve (0.5 s) instead of the system slide, and the edge swipe back follows the
- * finger and settles on the critically damped spring. Under reduce motion pushes become 0.3 s
+ * drift on the design curve (160 ms) instead of the system slide, and the edge swipe back follows the
+ * finger and settles on the critically damped spring. Under reduce motion pushes become 80 ms
  * cross-fades. System back and Android's predictive back gesture pop with the same progress.
  *
  * Every screen on the path stays composed (hidden below the top, each with its own saveable

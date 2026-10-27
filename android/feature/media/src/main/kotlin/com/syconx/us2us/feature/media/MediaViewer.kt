@@ -65,6 +65,7 @@ import com.syconx.us2us.ui.theme.U2Theme
 import com.syconx.us2us.ui.tokens.U2TextStyles
 import com.syconx.us2us.ui.type.U2Text
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,6 +98,10 @@ fun MediaViewer(
     appDark: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    position: Int = 0,
+    count: Int = 1,
+    onPrevious: (() -> Unit)? = null,
+    onNext: (() -> Unit)? = null,
 ) {
     val messenger = LocalMessenger.current
     val context = LocalContext.current
@@ -137,6 +142,10 @@ fun MediaViewer(
             if (payload.data == initialData && image != null) return@LaunchedEffect
             val full = MediaImages.decode(payload.data, MediaImages.VIEWER_MAX_PIXEL)
             if (full != null) image = full else if (image == null) failed = true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            failed = true
         } finally {
             indicator.cancel()
             isLoadingFull = false
@@ -176,6 +185,7 @@ fun MediaViewer(
                         dismissProgress = value
                     },
                     onDismiss = onClose,
+                    onNavigate = if (count > 1) { forward -> if (forward) onNext?.invoke() else onPrevious?.invoke() } else null,
                 )
             val fade = U2Transitions.fade(U2Motion.state)
             AnimatedVisibility(showsLoading, Modifier.align(Alignment.Center), enter = fade.enter, exit = fade.exit) {
@@ -190,7 +200,8 @@ fun MediaViewer(
                     .graphicsLayer { alpha = chromeOpacity },
             ) {
                 // Drawn while it shows at all; it fades with the chrome's opacity.
-                if (chromeOpacity > 0.01f) ViewerChrome(item, message, appDark, failed, saving, saver, haptics, onClose)
+                if (chromeOpacity > 0.01f) ViewerChrome(item, message, appDark, failed, saving, saver, haptics, onClose,
+                    position, count, onPrevious, onNext)
             }
             val toast = saving.toast
             U2Toast(toast?.text(), onDismiss = { saving.toast = null })
@@ -208,6 +219,10 @@ private fun ViewerChrome(
     saver: MediaSaver,
     haptics: com.syconx.us2us.ui.env.U2Haptics,
     onClose: () -> Unit,
+    position: Int,
+    count: Int,
+    onPrevious: (() -> Unit)?,
+    onNext: (() -> Unit)?,
 ) {
     val colors = U2Theme.colors
     MediaViewerShades()
@@ -229,6 +244,14 @@ private fun ViewerChrome(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (count > 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PhotoNavigationButton(false, onPrevious)
+                    U2Text(stringResource(R.string.conversation_album_photo, position + 1, count), U2TextStyles.label15Emphasis,
+                        Modifier.testTag("mediaViewer.position"), color = colors.onMedia)
+                    PhotoNavigationButton(true, onNext)
+                }
+            }
             if (failed) {
                 Row(
                     Modifier.testTag(MediaViewerTags.FAILED),
@@ -252,6 +275,16 @@ private fun ViewerChrome(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PhotoNavigationButton(forward: Boolean, action: (() -> Unit)?) {
+    MediaGlassButton(onClick = { action?.invoke() }, enabled = action != null,
+        contentDescription = stringResource(if (forward) R.string.conversation_viewer_next else R.string.conversation_viewer_previous),
+        modifier = Modifier.testTag(if (forward) "mediaViewer.next" else "mediaViewer.previous")
+            .graphicsLayer { alpha = if (action == null) 0.35f else 1f }) {
+        PhosphorIcon(if (forward) PhosphorGlyph.CaretRight else PhosphorGlyph.CaretLeft, 21.dp, tint = U2Theme.colors.onMedia)
     }
 }
 

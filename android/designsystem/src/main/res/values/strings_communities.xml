@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="message_invite_title">Would you like to join this group?</string>
+    <string name="message_invite_sent">Join request sent. Waiting for administrator approval.</string>
+    <string name="message_invite_done">Done</string>
+    <string name="message_link_open_failed">The link could not be opened. Check that a browser is installed.</string>
     <string name="community_title">Communities</string>
     <string name="community_back">Back</string>
-    <string name="community_privacy">Messages are end-to-end encrypted. Unlike direct chats, the relay sees who belongs to a community and who sends to whom in it. Searches for public communities reach the relay. Joining always needs administrator approval. Text only for now.</string>
+    <string name="community_privacy">Messages are end-to-end encrypted. Unlike direct chats, the relay sees who belongs to a community and who sends to whom in it. Searches for public communities reach the relay. Joining always needs administrator approval. Photos, videos and files are uploaded once and every member can fetch them until they are deleted or 14 days pass.</string>
     <string name="community_unsupported">This relay does not support communities yet. Direct chats remain available.</string>
     <string name="community_error">The action could not be completed. Check your connection and current membership, then try again. An invitation may have expired or already been used.</string>
     <string name="community_warning_title">Community membership could not be verified</string>
@@ -67,4 +71,26 @@
     <string name="community_invites_hint">An invitation works once within 24 hours. A private community\'s name travels in this code; joining still needs your approval.</string>
     <string name="community_share_invite">Share invitation</string>
     <string name="community_partial">Did not reach some members</string>
+    <string name="community_message_deleted">This message was deleted</string>
+    <string name="community_message_removed">Removed by the owner</string>
+    <plurals name="community_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <string name="community_header_owner">%1$s · you are the administrator</string>
+    <string name="community_delete_everyone_message">It is replaced by a trace for every member the deletion reaches. Copies already downloaded or saved cannot be recalled.</string>
+    <string name="community_info_recipients">Recipients</string>
+    <string name="community_info_pending">Pending</string>
+    <string name="community_info_sent">Sent</string>
+    <string name="community_info_failed">Not sent</string>
+    <string name="community_info_delivered">Delivered %1$s</string>
+    <string name="community_info_read">Read %1$s</string>
+    <string name="community_info_left">Left the community</string>
+    <string name="community_info_none">No one else was in the community when this was sent.</string>
+    <string name="community_info_note_title">Receipts are a courtesy</string>
+    <string name="community_info_note_body">Each member\'s phone reports when it got the message and, while read receipts are on for both of you, when it was read. A member can withhold or misreport this.</string>
+    <string name="community_preview_sender">%1$s: %2$s</string>
+    <string name="community_preview_caption">%1$s · %2$s</string>
+    <string name="community_entry_subtitle">Discover, create, or join with an invitation</string>
+    <string name="community_requests_count">%1$d join requests · Approve / Reject</string>
 </resources>

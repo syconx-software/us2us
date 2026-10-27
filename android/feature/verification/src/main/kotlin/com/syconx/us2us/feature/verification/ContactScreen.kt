@@ -39,6 +39,8 @@ import com.syconx.us2us.feature.report.BlockConfirmationTags
 import com.syconx.us2us.feature.report.ReportPresenter
 import com.syconx.us2us.feature.report.ReportSheet
 import com.syconx.us2us.ui.R
+import com.syconx.us2us.ui.common.ChatDeletionSheet
+import com.syconx.us2us.ui.common.chatDeletionMenuItems
 import com.syconx.us2us.ui.components.FloatingMenuItem
 import com.syconx.us2us.ui.components.FloatingMenuTone
 import com.syconx.us2us.ui.components.SegmentedChips
@@ -73,8 +75,9 @@ import kotlinx.coroutines.launch
  * cross-fade (0.36 s).
  *
  * “…” opens the 4.4 menu's look: “Numarayı paylaş” on Doğrulama ‖ “Bildir” · “Engelle” (after the
- * request block's confirmation), “Engeli kaldır” while the person is blocked ([ContactActions]). A
- * blocked person gets `ph:prohibit` after the name.
+ * request block's confirmation), “Engeli kaldır” while the person is blocked ‖ “Sohbeti sil” ·
+ * “Kişiyi sil” (on this phone only, after their confirmation) ([ContactActions]). A blocked person
+ * gets `ph:prohibit` after the name.
  *
  * Over it: the photo viewer and the player swiping through the grid ([MediaGalleryViewer], the 5.6
  * fade cover) and a file's preview. Everything decrypted closes with the app (the lock follows), or
@@ -128,6 +131,8 @@ internal fun ContactScreen(
                 ) { actions.requestBlock() },
             )
         }
+        // Sohbeti sil · Kişiyi sil (on this phone only), in their own group.
+        addAll(chatDeletionMenuItems(media.chatId, verification.peerName, isBlocked) { actions.deletion = it })
     }
     // The block is on screen: its haptic and announcement, once.
     LaunchedEffect(isBlocked) { if (isBlocked) actions.blockDidShow() }
@@ -188,6 +193,11 @@ internal fun ContactScreen(
             onReport = { actions.openReport(reports, peer, afterConfirmation = true) },
             onDismiss = { actions.confirmsBlock = false },
             tags = BlockConfirmationTags(VerificationTags.BLOCK_CONFIRM, VerificationTags.BLOCK_REPORT, VerificationTags.BLOCK_CANCEL),
+        )
+        ChatDeletionSheet(
+            item = actions.deletion,
+            onConfirm = { deletion -> scope.launch { actions.delete(deletion) } },
+            onDismiss = { actions.deletion = null },
         )
         ReportSheet(reports)
         U2FadeCover(item = media.gallery, onEscape = media::closeGallery) { gallery ->

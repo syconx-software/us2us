@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import com.syconx.us2us.domain.ChatSummary
+import com.syconx.us2us.domain.CommunityChats
 import com.syconx.us2us.domain.ConversationAttachment
 import com.syconx.us2us.domain.DisappearingTimer
 import com.syconx.us2us.domain.GhostPeriod
@@ -166,7 +167,41 @@ class ConversationViewModel(
     /** The person is blocked (PROTOCOL §6.4): nothing can be sent, reacted or changed here (`ConversationBlocked.kt`). */
     val isBlocked: Boolean get() = chat?.peer?.isBlocked ?: false
 
+    /**
+     * A community's conversation (docs/COMMUNITIES.md, Extension v2): the same bubbles, composer,
+     * pickers, viewers and actions, without what communities do not carry (reactions, replies,
+     * places, Ghost).
+     */
+    val isCommunity: Boolean = CommunityChats.isCommunity(chatId)
+
+    /** A community's members and management (the header's “…”). */
+    var showsCommunityManage: Boolean by mutableStateOf(false)
+
+    /** A community that ended (left elsewhere, removed, deleted): read only. */
+    val isReadOnlyCommunity: Boolean get() = isCommunity && chat?.community?.isActive == false
+
     // Composer
+
+    var isLoadingHistory by mutableStateOf(false)
+        private set
+    private var historyExhausted = false
+    private var historyGeneration = 0
+
+    suspend fun loadOlderMessages() {
+        if (isLoadingHistory || historyExhausted || rows.isEmpty()) return
+        isLoadingHistory = true
+        val generation = historyGeneration
+        try {
+            val loaded = messenger.loadOlderMessages(chatId)
+            if (generation == historyGeneration) historyExhausted = !loaded
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Keep current history; a later visit to the top retries the local read.
+        } finally {
+            isLoadingHistory = false
+        }
+    }
 
     var draft: String by mutableStateOf("")
 
@@ -266,11 +301,25 @@ class ConversationViewModel(
         val next = ConversationRows.rows(all)
         val changes = ConversationRows.changes(rows, next)
         val current = next.mapTo(HashSet()) { it.id }
+        if (rows.isEmpty() || next.isEmpty() || rows.none { it.id in current }) {
+            historyExhausted = false; historyGeneration++
+        }
         val leaving = (leavingRows + changes.leaving.filter { item -> leavingRows.none { it.row.id == item.row.id } })
             .filter { it.row.id !in current }
         val kinds = kindChanges.toMutableMap()
         changes.kindChanges.forEach { (id, before) -> if (id !in kinds) kinds[id] = before }
         messages = all
+        // A remote deletion/expiry may remove the long-pressed photo while its menu is open.
+        // Drop the stale overlay too; otherwise only its empty dim/blur layer remains.
+        actions?.let { context ->
+            val target = all.lastOrNull { it.id == context.messageId }
+            if (target == null) {
+                dismissJob?.cancel()
+                actionsVisible = false
+                actions = null
+                showsAllReactions = false
+            }
+        }
         rows = next
         leavingRows = leaving
         kindChanges = kinds
@@ -321,7 +370,20 @@ class ConversationViewModel(
 
     // Composer
 
-    val canSend: Boolean get() = draft.isNotBlank()
+    val canSend: Boolean get() = draft.isNotBlank() && !isReadOnlyCommunity
+
+    /** What the composer may hold: a community text is at most 8192 UTF-8 bytes. */
+    fun editDraft(text: String) {
+        if (isCommunity && text.encodeToByteArray().size > COMMUNITY_TEXT_BYTES) return
+        draft = text
+    }
+
+    fun openCommunityManage() {
+        if (!isCommunity) return
+        dismissAttachMenu()
+        platform.dismissKeyboard()
+        showsCommunityManage = true
+    }
 
     fun sendDraft() {
         if (!canSend) return
@@ -652,6 +714,7 @@ class ConversationViewModel(
 
     /** “Yanıtla”: the quote slides up into the composer, with the author and kind texts in the UI language. */
     fun reply(id: MessageId) {
+        if (isCommunity) return
         val quote = message(id)?.quote(ownUsername, peerUsername, platform.strings) ?: return
         dismissActions { replyTo = quote }
     }
@@ -870,5 +933,8 @@ class ConversationViewModel(
     companion object {
         /** The 5.3 dismissal (0.24 s). */
         const val ACTIONS_DISMISS_MILLIS = 240L
+
+        /** A community text's limit (COMMUNITIES.md: 1..8192 UTF-8 bytes). */
+        const val COMMUNITY_TEXT_BYTES = 8192
     }
 }

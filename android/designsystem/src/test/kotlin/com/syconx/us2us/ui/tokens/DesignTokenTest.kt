@@ -283,8 +283,12 @@ class DesignTokenTest {
 
     @Test
     fun motionTokensAreSoft() {
-        assertEquals(0.5f, U2MotionTokens.Duration.screen, 0f)
-        assertEquals(0.55f, U2MotionTokens.Duration.sheet, 0f)
+        assertEquals(0.16f, U2MotionTokens.Duration.screen, 0f)
+        assertEquals(0.18f, U2MotionTokens.Duration.sheet, 0f)
+        val motion = tokens.getJSONObject("motion").getJSONObject("proposed")
+        assertEquals(motion.getJSONObject("springSoft").getDouble("response").toFloat(), U2MotionTokens.springResponse, 0f)
+        assertEquals(motion.getJSONObject("springSoft").getDouble("quickResponse").toFloat(), U2MotionTokens.springQuickResponse, 0f)
+        assertEquals(0.08f, U2MotionTokens.Duration.reducedCrossFade, 0f)
         assertEquals(0.8f, U2MotionTokens.Duration.ambient, 0f)
         assertEquals(listOf(0.45f, 0f, 0.55f, 1f), U2MotionTokens.curveSoft)
         assertEquals(listOf(0f, 0f, 0.58f, 1f), U2MotionTokens.curveOut)
