@@ -332,6 +332,9 @@ struct Message: Identifiable, Hashable, Sendable {
     /// Photo, video and file messages: I saved it or handed it on from one of
     /// the app's viewers (the viewer's “Kaydet” shows the check).
     var savedByMe = false
+    /// A message of a community conversation (Extension v2): who sent it
+    /// and how it was deleted; `nil` in a one-to-one chat.
+    var community: CommunityMessageMarks? = nil
 
     var isOutgoing: Bool { direction == .outgoing }
     var isDisappearing: Bool { disappearing != .off }
@@ -369,14 +372,37 @@ struct Message: Identifiable, Hashable, Sendable {
         }
     }
 
-    /// The plain text a message carries (text, photo caption), for copying.
+    /// The plain text a message carries (text, a photo's caption, a
+    /// community video's or file's caption), for copying.
     var copyableText: String? {
         switch content {
         case .text(let text): text
         case .photo(_, let caption): caption
+        case .video, .file: community?.caption
         default: nil
         }
     }
+}
+
+/// Who wrote a community message: the username this phone knows (a
+/// directory-verified contact), else the short account id — shown as
+/// “Üye · 1a2b3c4d” (``CommunityNames/member(username:shortID:locale:)``).
+struct CommunitySenderName: Hashable, Sendable {
+    let username: String?
+    let shortID: String
+}
+
+/// What a community message adds to a ``Message``.
+struct CommunityMessageMarks: Hashable, Sendable {
+    /// The sender's account id: a run of bubbles ends where it changes.
+    let senderID: String
+    /// Incoming: the name above the bubble; `nil` for own messages.
+    var sender: CommunitySenderName?
+    /// A placeholder removed by the community's owner (not by its sender).
+    var removedByOwner = false
+    /// A video's or file's caption, shown as a text row under it (a photo
+    /// carries its own).
+    var caption: String? = nil
 }
 
 /// The contact screen's media tabs (6.1 › Fotoğraflar / Belgeler).
@@ -403,6 +429,8 @@ enum MessagePreviewKind: Hashable, Sendable {
     case liveLocation
     case liveLocationEnded
     case deleted
+    /// A community message deleted by its sender, or removed by the owner.
+    case communityDeleted(byOwner: Bool)
 }
 
 struct MessagePreview: Hashable, Sendable {
@@ -410,6 +438,8 @@ struct MessagePreview: Hashable, Sendable {
     var direction: MessageDirection
     var status: MessageStatus?
     var sentAt: Date
+    /// Communities: who wrote an incoming message (“deniz: …”).
+    var sender: CommunitySenderName? = nil
 }
 
 struct ChatSummary: Identifiable, Hashable, Sendable {
@@ -419,6 +449,11 @@ struct ChatSummary: Identifiable, Hashable, Sendable {
     var unreadCount: Int
     var ghost: GhostState
     var disappearing: DisappearingTimer
+    /// A community shown among the chats (4.1); `nil` for a one-to-one chat.
+    var community: CommunityChatInfo? = nil
+    /// Local send/receive time of the latest message, independent of the peer's clock.
+    /// Fixtures/older adapters fall back to the preview time. No messages: nil.
+    var lastMessageActivity: Date? = nil
 }
 
 // MARK: - Requests (4.3, 4.4)
@@ -492,7 +527,10 @@ struct BlockedPerson: Identifiable, Hashable, Sendable {
 enum UserLookup: Hashable, Sendable {
     case idle
     case searching
-    case found(Peer, isExistingChat: Bool)
+    /// `existingChat`: the chat with the account the directory returned —
+    /// never one that only shows the same name (an account deleted since,
+    /// whose name someone else registered, PROTOCOL §3.3).
+    case found(Peer, existingChat: ChatID?)
     case notFound
 }
 

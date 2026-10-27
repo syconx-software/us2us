@@ -329,7 +329,11 @@ struct LiveWiringTests {
             "https://us2us.app/tr/gizlilik", "https://us2us.app/en/privacy",
             "https://us2us.app/tr/destek", "https://us2us.app/en/support",
         ]
-        let allowed = ["https://relay.us2us.app", "https://us2us.app/u/", "https://wa.me/"] + websitePages
+        // `MessageLinkText` tags tappable ranges with an opaque index under the
+        // reserved `.invalid` TLD (RFC 2606); its URL action only reads the index
+        // and never opens or requests that address.
+        let localLinkTags = ["https://message-link.invalid/"]
+        let allowed = ["https://relay.us2us.app", "https://us2us.app/u/", "https://wa.me/"] + websitePages + localLinkTags
         let pattern = try NSRegularExpression(pattern: #"https?://[A-Za-z0-9.\-]+[/A-Za-z0-9._\-]*"#)
         var offenders: [String] = []
         let enumerator = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)

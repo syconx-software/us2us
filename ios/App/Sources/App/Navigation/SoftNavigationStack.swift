@@ -36,7 +36,7 @@ final class U2Router<Route: Hashable & Sendable> {
         entries = path.map { Entry(route: $0) }
     }
 
-    /// Pushes with the soft `screenPush` motion (cross-fade + 16 pt drift, 0.5 s).
+    /// Pushes with the soft `screenPush` motion (cross-fade + 16 pt drift).
     ///
     /// Like UIKit, the incoming screen is built before it moves: it is added
     /// (practically) transparent and untouchable, its first, heaviest frame
@@ -125,7 +125,7 @@ final class U2Router<Route: Hashable & Sendable> {
         }
     }
 
-    /// One `screenPush` (0.5 s, the design curve; Reduce Motion: 0.3 s
+    /// One `screenPush` (the design curve; Reduce Motion: a short
     /// cross-fade); the stack counts as moving until it has finished.
     private func animate(_ name: StaticString, counted: Bool = false, _ change: @escaping () -> Void) {
         let end = U2Signposts.animation(name)
@@ -145,9 +145,9 @@ final class U2Router<Route: Hashable & Sendable> {
 }
 
 /// A navigation stack with the design's *soft* push: screens cross-fade with
-/// a 16 pt horizontal drift on the design curve (0.5 s) instead of the system
+/// a 16 pt horizontal drift on the design curve instead of the system
 /// slide, and the edge-swipe back follows the finger and settles on a
-/// critically damped spring. Under Reduce Motion pushes become 0.3 s
+/// critically damped spring. Under Reduce Motion pushes become short
 /// cross-fades.
 ///
 /// Every screen on the path stays in the hierarchy (hidden below the top), so

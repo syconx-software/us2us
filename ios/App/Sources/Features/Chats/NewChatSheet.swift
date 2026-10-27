@@ -12,11 +12,14 @@ struct NewChatSheet: View {
     /// “Mesaj yaz” / “Sohbete git”: the sheet closes, then 5.1 is pushed.
     let onOpenChat: (ChatID) -> Void
     let onCancel: () -> Void
+    /// “Topluluklar”: the sheet closes, then the communities screen is pushed.
+    var onCommunities: () -> Void = {}
 
     @Environment(AppModel.self) private var app
     /// Built before the sheet rises, so the search page is there from the
     /// first frame and the whole sheet moves as one piece.
-    @State private var model: NewChatModel
+    @StateObject private var modelOwner: ViewModelOwner<NewChatModel>
+    private var model: NewChatModel { modelOwner.model }
     @State private var page: Page = .search
     @State private var isForward = true
     @State private var showsScanner = false
@@ -32,19 +35,25 @@ struct NewChatSheet: View {
 
     init(
         presentation: NewChatPresentation, messenger: any MessengerService,
-        onOpenChat: @escaping (ChatID) -> Void, onCancel: @escaping () -> Void
+        onOpenChat: @escaping (ChatID) -> Void, onCancel: @escaping () -> Void,
+        onCommunities: @escaping () -> Void = {}
     ) {
         self.presentation = presentation
         self.onOpenChat = onOpenChat
         self.onCancel = onCancel
-        let model = NewChatModel(messenger: messenger)
+        self.onCommunities = onCommunities
+        _modelOwner = StateObject(wrappedValue: ViewModelOwner {
+            let model = NewChatModel(messenger: messenger)
+            #if DEBUG
+                model.debug = presentation.debug
+            #endif
+            model.query = presentation.initialQuery
+            return model
+        })
         var page = Page.search
         #if DEBUG
-            model.debug = presentation.debug
             if presentation.debug.startsOnMyCode { page = .myCode }
         #endif
-        model.query = presentation.initialQuery
-        _model = State(initialValue: model)
         _page = State(initialValue: page)
     }
 
@@ -54,7 +63,8 @@ struct NewChatSheet: View {
             case .search:
                 NewChatSearchPage(
                     model: model, presentation: presentation, onOpenChat: onOpenChat, onCancel: onCancel,
-                    onScan: { showsScanner = true }, onMyCode: { go(to: .myCode) }, onInvite: { go(to: .invite) }
+                    onScan: { showsScanner = true }, onMyCode: { go(to: .myCode) }, onInvite: { go(to: .invite) },
+                    onCommunities: app.messenger.communities != nil ? onCommunities : nil
                 )
                 .transition(.chatsPage(forward: isForward))
             case .myCode:
@@ -97,6 +107,8 @@ private struct NewChatSearchPage: View {
     let onScan: () -> Void
     let onMyCode: () -> Void
     let onInvite: () -> Void
+    /// “Topluluklar”, where the messenger has communities.
+    let onCommunities: (() -> Void)?
 
     @Environment(\.locale) private var locale
 
@@ -127,7 +139,7 @@ private struct NewChatSearchPage: View {
         #if DEBUG
             .task {
                 guard await ChatsHarness.waitForDemo(.write, delay: .milliseconds(2200)) else { return }
-                if case .found(let peer, _) = model.phase { openChat(with: peer) }
+                if case .found = model.phase { openChat() }
             }
         #endif
     }
@@ -158,7 +170,7 @@ private struct NewChatSearchPage: View {
                     .transition(.u2Rise)
                     .id(model.resultName + String(describing: cardKind))
             }
-            if case .found(let peer, false) = model.phase {
+            if case .found(let peer, nil) = model.phase {
                 infoRow(username: peer.username)
                     .padding(EdgeInsets(top: 16, leading: 24, bottom: 0, trailing: 24))
                     .transition(.asymmetric(insertion: .u2Fade.animation(U2Motion.state.delay(U2Motion.Duration.state)), removal: .u2Fade))
@@ -181,7 +193,7 @@ private struct NewChatSearchPage: View {
 
     private var cardKind: CardKind? {
         switch model.phase {
-        case .found(_, let existing): existing ? .existing : .found
+        case .found(_, let existing): existing != nil ? .existing : .found
         case .notFound: .notFound
         case .invalid(let violation): .invalid(violation)
         case .ownName: .own
@@ -203,22 +215,22 @@ private struct NewChatSearchPage: View {
 
     private var resultCard: AnyView? {
         switch model.phase {
-        case .found(let peer, let existing):
+        case .found(let peer, let existingChat):
             AnyView(
                 ResultCard(
                     avatar: Avatar(
                         username: peer.username, palette: peer.palette, size: .listRow, picture: model.resultAvatar.picture),
                     isLoadingAvatar: model.resultAvatar == .loading,
                     name: Text(verbatim: peer.username), nameColor: Color.u2.text,
-                    subtitle: Text(existing ? "newChat.existing" : "newChat.found", table: .chats),
+                    subtitle: Text(existingChat != nil ? "newChat.existing" : "newChat.found", table: .chats),
                     status: .found
                 ) {
                     Button {
-                        openChat(with: peer)
+                        openChat()
                     } label: {
                         HStack(spacing: 8) {
-                            PhosphorIcon(existing ? .chatCircleDots : .paperPlaneTilt, size: 20)
-                            Text(existing ? "newChat.openChat" : "newChat.write", table: .chats)
+                            PhosphorIcon(existingChat != nil ? .chatCircleDots : .paperPlaneTilt, size: 20)
+                            Text(existingChat != nil ? "newChat.openChat" : "newChat.write", table: .chats)
                         }
                     }
                     .buttonStyle(.u2PrimaryInCard)
@@ -245,9 +257,9 @@ private struct NewChatSearchPage: View {
         }
     }
 
-    private func openChat(with peer: Peer) {
+    private func openChat() {
         Task {
-            if let chat = await model.startChat(with: peer) { onOpenChat(chat) }
+            if let chat = await model.startChat() { onOpenChat(chat) }
         }
     }
 
@@ -293,6 +305,15 @@ private struct NewChatSearchPage: View {
                 subtitle: Text(verbatim: "@\(model.ownUsername)"), action: onMyCode
             )
             .accessibilityIdentifier("newChat.myCode")
+            if let onCommunities {
+                // Communities (proposed): create, use an invitation, search.
+                GroupedSeparator()
+                GroupedNavigationRow(
+                    tile: IconTile(content: .glyph(.chatCircleDots)), title: Text("card.title", table: .communities),
+                    subtitle: Text("newChat.subtitle", table: .communities), action: onCommunities
+                )
+                .accessibilityIdentifier("newChat.communities")
+            }
         }
     }
 }

@@ -25,23 +25,33 @@ struct ConversationView: View {
     }
 }
 
-private struct ConversationScreen: View {
-    @State private var viewModel: ConversationViewModel
+struct ConversationScreen: View {
+    private struct Session: Hashable {
+        let chatID: ChatID
+        let community: ObjectIdentifier?
+        let pickerIsPresented: Bool
+    }
+    @StateObject private var modelOwner: ViewModelOwner<ConversationViewModel>
+    private var viewModel: ConversationViewModel { modelOwner.model }
     @State private var isKeyboardVisible = false
     @State private var composerFrame: CGRect = .zero
+    /// Communities: members and management (the header's “…”).
+    @State private var showsManage = false
     @Environment(AppModel.self) private var model
     @Environment(\.u2SafeArea) private var safeArea
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
 
     init(chatID: ChatID, messenger: any MessengerService, saveNotice: any SaveNoticeMemory) {
-        ConversationSignposts.beginOpen(chatID)
-        _viewModel = State(
-            initialValue: ConversationViewModel(chatID: chatID, messenger: messenger, saveNotice: saveNotice))
+        _modelOwner = StateObject(wrappedValue: ViewModelOwner {
+            ConversationSignposts.beginOpen(chatID)
+            return ConversationViewModel(chatID: chatID, messenger: messenger, saveNotice: saveNotice)
+        })
     }
 
     var body: some View {
-        U2Screen {
+        @Bindable var viewModel = modelOwner.model
+        return U2Screen {
             ZStack(alignment: .top) {
                 chatLayer
                     .blur(radius: viewModel.actionsVisible ? 14 : 0)
@@ -65,6 +75,10 @@ private struct ConversationScreen: View {
                 }
             }
         }
+        .modifier(MessageInvitationModifier())
+        .onChange(of: viewModel.actionsTargetIsGone) { _, gone in
+            if gone { viewModel.clearMissingActions() }
+        }
         .u2Sheet(isPresented: $viewModel.showsGhostSettings, style: .content, onDismiss: viewModel.commitGhostChange) {
             if let chat = viewModel.chat {
                 GhostSettingsSheet(chat: chat) { enabled, period, disappearing in
@@ -82,7 +96,21 @@ private struct ConversationScreen: View {
                 onClose: viewModel.closeStickerPicker)
         }
         .u2Sheet(item: $viewModel.info, style: .fullHeight) { item in
-            MessageInfoSheet(viewModel: viewModel, messageID: item.id)
+            if let community = viewModel.community {
+                CommunityMessageInfoSheet(viewModel: viewModel, community: community, messageID: item.id)
+            } else {
+                MessageInfoSheet(viewModel: viewModel, messageID: item.id)
+            }
+        }
+        .u2Sheet(isPresented: $showsManage) {
+            if let community = viewModel.community {
+                CommunityManageSheet(communityID: community.communityID) { showsManage = false } onGone: {
+                    showsManage = false
+                    model.router.pop()
+                }
+                .environment(\.locale, locale)
+                .environment(\.u2Clock, model.clock)
+            }
         }
         .u2FadeCover(item: $viewModel.viewer) { item in
             Group {
@@ -94,7 +122,7 @@ private struct ConversationScreen: View {
                         viewModel.closeViewer()
                     }
                 case .photo:
-                    MediaViewer(item: item, viewModel: viewModel, themeScheme: colorScheme, onClose: viewModel.closeViewer)
+                    ConversationPhotoViewer(item: item, viewModel: viewModel, themeScheme: colorScheme, onClose: viewModel.closeViewer)
                 case .video:
                     VideoPlayerScreen(item: item, viewModel: viewModel, themeScheme: colorScheme, onClose: viewModel.closeViewer)
                 }
@@ -128,7 +156,10 @@ private struct ConversationScreen: View {
         ) {
             DestructiveConfirmation(
                 title: StringTable.conversation.string("confirm.deleteEveryone.title", locale: locale),
-                message: Text("confirm.deleteEveryone.message", table: .conversation),
+                // A community: copies already downloaded or saved cannot be recalled.
+                message: viewModel.community != nil
+                    ? Text("confirm.deleteEveryone.message", table: .communities)
+                    : Text("confirm.deleteEveryone.message", table: .conversation),
                 confirmTitle: Text("actions.deleteEveryone", table: .conversation),
                 confirmGlyph: .trash,
                 identifiers: ("conversation.deleteEveryone.confirm", "conversation.deleteEveryone.cancel"),
@@ -160,7 +191,6 @@ private struct ConversationScreen: View {
             viewModel.closeLocationScreens()
             // A recording and a voice message in memory go with the foreground too.
             viewModel.stopVoice()
-            UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: viewModel.presentedMediaIsGone) { _, isGone in
             if isGone { viewModel.closeMedia() }
@@ -208,10 +238,9 @@ private struct ConversationScreen: View {
                 // which it reports as its bottom safe-area inset (U2Screen
                 // ignores the container insets, so that is the keyboard alone).
                 let keyboard = proxy.safeAreaInsets.bottom
-                ConversationMessageList(viewModel: viewModel)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        composer(keyboard: keyboard)
-                    }
+                ConversationMessageList(viewModel: viewModel) { showsLatest, returnToLatest in
+                    composer(keyboard: keyboard, showsLatest: showsLatest, returnToLatest: returnToLatest)
+                }
             }
             .onAppear { ConversationSignposts.didAppear(viewModel.chatID) }
             .onDisappear {
@@ -219,16 +248,31 @@ private struct ConversationScreen: View {
                 viewModel.stopVoice()
                 viewModel.messenger.conversationDisappeared(viewModel.chatID)
             }
-            .task(id: viewModel.chatID) {
+            .task(id: Session(
+                chatID: viewModel.chatID, community: viewModel.community?.sessionID,
+                pickerIsPresented: viewModel.community != nil && SystemPickerActivity.shared.isPresented)
+            ) {
+                // Restore the retained community even if UIKit coverage did not restart
+                // SwiftUI's appearance task. While covered, do not mark new messages read.
+                if viewModel.community != nil && SystemPickerActivity.shared.isPresented { return }
                 viewModel.loadStickerRecents()
                 await viewModel.messenger.conversationAppeared(viewModel.chatID)
             }
             header
+            if let community = viewModel.community, let problem = community.problem {
+                CommunityProblemNote(problem: problem, onDismiss: community.dismissProblem)
+                    .padding(.horizontal, U2Spacing.chatGutter)
+                    .u2Top(116)
+                    .transition(.u2Fade)
+            }
         }
+        .u2Animation(U2Motion.state, value: viewModel.community?.problem)
     }
 
     @ViewBuilder private var header: some View {
-        if let chat = viewModel.chat {
+        if let community = viewModel.community {
+            CommunityConversationHeader(context: community, onBack: model.router.pop) { showsManage = true }
+        } else if let chat = viewModel.chat {
             ChatHeader(
                 username: chat.peer.username, palette: chat.peer.palette, isVerified: chat.peer.isVerified,
                 showsOnlineDot: chat.peer.isOnline, avatar: chat.peer.avatar, onBack: model.router.pop,
@@ -253,9 +297,21 @@ private struct ConversationScreen: View {
 
     // MARK: Composer
 
-    private func composer(keyboard: CGFloat) -> some View {
+    private func composer(keyboard: CGFloat, showsLatest: Bool, returnToLatest: @escaping () -> Void) -> some View {
         VStack(spacing: 6) {
-            if viewModel.isBlocked, let chat = viewModel.chat {
+            if let community = viewModel.community, community.row?.isOpenable != true {
+                // Removed, left elsewhere or deleted by its owner: read only.
+                Text("conversation.ended", table: .communities)
+                    .u2Font(.callout)
+                    .foregroundStyle(Color.u2.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, U2Spacing.screenGutter)
+                    .padding(.top, 14)
+                    .padding(.bottom, max(12, safeArea.bottom(36)))
+                    .background(Color.u2.composerFade.allowsHitTesting(false))
+                    .accessibilityIdentifier("community.ended")
+            } else if viewModel.isBlocked, let chat = viewModel.chat {
                 // Blocked (proposed): the bar takes the composer's place, as
                 // 4.4's decision bar does; nothing is sent from here.
                 BlockedChatBar(username: chat.peer.username, onUnblock: viewModel.unblock, bottomPadding: safeArea.bottom(40))
@@ -277,7 +333,17 @@ private struct ConversationScreen: View {
         .u2Animation(U2Motion.state, value: viewModel.showsSafetyNumberChanged)
         .u2Animation(U2Motion.state, value: viewModel.isBlocked)
         .overlay(alignment: .top) {
-            urgentBanner
+            VStack(alignment: .trailing, spacing: 6) {
+                if showsLatest {
+                    ConversationLatestButton(action: returnToLatest)
+                        .padding(.trailing, 14)
+                        .transition(.u2Soft(offset: .zero, blur: 0, scale: 0.94))
+                }
+                urgentBanner
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .alignmentGuide(.top) { $0[.bottom] + 6 }
+            .u2Animation(U2Motion.micro, value: showsLatest)
         }
     }
 
@@ -294,7 +360,6 @@ private struct ConversationScreen: View {
             }
             .u2Animation(U2Motion.ambient, value: viewModel.chat?.ghost.isUrgent(at: now) ?? false)
         }
-        .alignmentGuide(.top) { $0[.bottom] + 6 }
     }
 
     // MARK: “+” menu (proposed)
@@ -322,7 +387,18 @@ private struct ConversationScreen: View {
     }
 
     private var attachItems: [FloatingMenuItem] {
-        [
+        if viewModel.community != nil {
+            // Communities: photos, videos and files.
+            return [
+                FloatingMenuItem(id: "photo", title: Text("attach.media", table: .conversation), glyph: .image) {
+                    viewModel.sendDemoAttachment(.photo)
+                },
+                FloatingMenuItem(id: "file", title: Text("attach.file", table: .conversation), glyph: .filePdf) {
+                    viewModel.sendDemoAttachment(.file)
+                },
+            ]
+        }
+        return [
             FloatingMenuItem(id: "photo", title: Text("attach.media", table: .conversation), glyph: .image) {
                 viewModel.sendDemoAttachment(.photo)
             },
@@ -342,15 +418,16 @@ private struct ConversationScreen: View {
 /// and playing never re-render the screen itself.
 private struct VoiceKeepsScreenAwake: View {
     let viewModel: ConversationViewModel
+    @State private var owner = UUID()
 
     var body: some View {
         Color.clear
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .onChange(of: viewModel.keepsScreenAwake, initial: true) { _, awake in
-                UIApplication.shared.isIdleTimerDisabled = awake
+                ScreenAwakeController.shared.setMediaActive(awake, owner: owner)
             }
-            .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+            .onDisappear { ScreenAwakeController.shared.setMediaActive(false, owner: owner) }
     }
 }
 
@@ -373,11 +450,13 @@ private struct ConversationComposerBar: View {
         let draft = Binding(
             get: { viewModel.draft },
             set: { text in withAnimation(animation) { viewModel.draft = text } })
+        let isCommunity = viewModel.community != nil
         Composer(
             text: draft, quote: viewModel.replyTo, onCancelQuote: viewModel.cancelReply,
             onSend: viewModel.sendDraft, onAttach: viewModel.toggleAttachMenu, onTimer: viewModel.openGhostSettings,
             onSticker: viewModel.openStickerPicker, onRecord: {},
-            bottomPadding: bottomPadding, voice: viewModel.voice
+            bottomPadding: bottomPadding, voice: viewModel.voice,
+            showsTimer: !isCommunity
         )
     }
 }

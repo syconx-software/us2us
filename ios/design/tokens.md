@@ -454,7 +454,7 @@ Opacity tokens: `disabled` 0.45, `lockBehindSheet` 0.3, `contextBackdropContent`
 
 ## 11 · Motion
 
-**Principle.** Design rule: every animation very soft — no bounce, no overshoot, long gentle ease-in-out; nothing snaps. Reduce Motion: stop all infinite/ambient motion and replace movement with short cross-fades.
+**Principle.** Design rule: every animation very soft — no bounce, no overshoot, brief transitions with no bounce or overshoot. Reduce Motion: stop all infinite/ambient motion and replace movement with short cross-fades.
 
 ### From the design (exact)
 
@@ -463,24 +463,24 @@ Opacity tokens: `disabled` 0.45, `lockBehindSheet` 0.3, `contextBackdropContent`
 * **`countdownTick`** — interval: 1.0; where: ["1.3", "5.1 header chip", "5.5", "4.1 pills (minute granularity)"]; format: HH:MM:SS (tabular)
 * **`scene3D`** — where: 1.1; sway: world.rotation.y = −0.42 + 0.07·sin(0.3·t) (period ≈ 20.9 s); rotation.x = 0.03·sin(0.21·t) (≈ 29.9 s); pulses: 4 forward pulses, speed 0.17 line/s (≈ 5.9 s per crossing); 4 backward at 0.14 (≈ 7.1 s), amplitude 0.8; lattice: tube lattice spins about the line at 0.25 rad/s; scan hex-ring sweeps every 3.125 s; dust: 420 motes drift upward 0.05 u/s; reduceMotion: design note: show a still frame (scene time frozen)
 
-### Proposed (to satisfy “very soft”, consistent with the design curve)
+### Application motion (short transitions; springs for interactive drag hand-offs)
 
 * **`curveSoft`** — bezier: [0.45, 0, 0.55, 1]; swiftUI: .timingCurve(0.45, 0, 0.55, 1, duration: d); note: the design’s own curve — default for all transitions
 * **`curveOut`** — bezier: [0, 0, 0.58, 1]; swiftUI: .easeOut(duration: d); note: entrances, ring pulses
-* **`springSoft`** — swiftUI: .spring(response: 0.55, dampingFraction: 1.0); note: interactive moves (sheets following the finger, toggles, reaction bar) — critically damped, zero bounce
-* **`durations`** — press: 0.16; micro: 0.24; state: 0.36; screen: 0.5; sheet: 0.55; ambient: 0.8
-* **`pressFeedback`** — scale 0.97 + fill brighten (text·9% → text·14% / accent tint 12%) over 0.16 s curveSoft, release 0.24 s
-* **`screenPush`** — cross-fade + 16 pt horizontal drift, 0.5 s curveSoft (no parallax, no bounce)
-* **`sheet`** — system sheet presentation or custom: backdrop fades 0→scrim over 0.55 s while the sheet rises with springSoft
-* **`codeDotFill`** — dot fills accent400 with scale 0.6→1 and glow fade-in, 0.24 s curveSoft
-* **`codeWrong`** — dots tint to danger over 0.24 s + soft horizontal shake (±6 pt, 3 damped cycles, 0.45 s), message fades in 0.36 s; dots clear after 0.8 s
+* **`springSoft`** — response: 0.2; quickResponse: 0.14; zero bounce
+* **`durations`** — press: 0.06; micro: 0.1; state: 0.12; screen: 0.16; sheet: 0.18; reducedCrossFade: 0.08; ambient: 0.8
+* **`pressFeedback`** — scale 0.97 + fill brighten (text·9% → text·14% / accent tint 12%) over 0.06 s curveSoft, release 0.1 s
+* **`screenPush`** — cross-fade + 16 pt horizontal drift, 0.16 s curveOut (no parallax, no bounce)
+* **`sheet`** — system sheet presentation or custom: backdrop and sheet enter/exit over 0.18 s curveOut; springs only for drag hand-offs
+* **`codeDotFill`** — dot fills accent400 with scale 0.6→1 and glow fade-in, 0.1 s curveSoft
+* **`codeWrong`** — dots tint to danger over 0.1 s + soft horizontal shake (±6 pt, 3 damped cycles, 0.45 s), message fades in 0.12 s; dots clear after 0.8 s
 * **`setupAdvance`** — 6th digit → hold 0.25 s → cross-fade to the confirm step (2.2 note: “6 hane dolunca kendiliğinden ilerler”)
 * **`ghostUrgentFlip`** — pill/chip colours cross-fade to danger over 0.8 s when < 1 h remains
-* **`statusChange`** — message status icon cross-fades (0.36 s) sent → delivered → read
-* **`newMessage`** — bubble fades in + rises 8 pt, 0.36 s curveOut
-* **`lockCover`** — privacy cover appears instantly on resign-active (no animation — must hit the snapshot); unlock dissolves it over 0.36 s
+* **`statusChange`** — message status icon cross-fades (0.12 s) sent → delivered → read
+* **`newMessage`** — bubble fades in + rises 8 pt, 0.12 s curveOut
+* **`lockCover`** — privacy cover appears instantly on resign-active (no animation — must hit the snapshot); unlock dissolves it over 0.12 s
 
-Reduce Motion (`accessibilityReduceMotion`): `linePacket` and `pulseRing` hidden, 3D scene frozen on a still frame, shakes removed, pushes become 0.3 s cross-fades, countdowns keep ticking (they are information).
+Reduce Motion: ambient motion stops, shakes are removed, and movement becomes an 80 ms cross-fade.
 
 ## 12 · 3D scene (1.1)
 

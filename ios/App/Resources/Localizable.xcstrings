@@ -18,6 +18,24 @@
         }
       }
     },
+    "a11y.chatDeleted" : {
+      "comment" : "VoiceOver announcement once a chat was deleted (4.1 long press, the contact screen's “…”).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sohbet silindi."
+          }
+        }
+      }
+    },
     "a11y.clear" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -150,6 +168,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Süreli mesaj"
+          }
+        }
+      }
+    },
+    "a11y.contactDeleted" : {
+      "comment" : "VoiceOver announcement once a contact was deleted (4.1 long press, the contact screen's “…”).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kişi silindi."
           }
         }
       }
@@ -952,6 +988,132 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mesaj"
+          }
+        }
+      }
+    },
+    "delete.chat" : {
+      "comment" : "4.1 long press on a chat and the contact screen's “…” menu: deletes the chat's messages and media on this phone; the contact stays.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete chat"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sohbeti sil"
+          }
+        }
+      }
+    },
+    "delete.chat.message" : {
+      "comment" : "Confirmation text before deleting a chat: on this phone only, nothing is sent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messages and media are deleted from this phone only and can't be recovered. Nothing is sent to them; the chat stays on their phone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Karşı tarafa bir şey gönderilmez; sohbet onun telefonunda kalır."
+          }
+        }
+      }
+    },
+    "delete.chat.title %@" : {
+      "comment" : "Confirmation title before deleting a chat. %@ = the name the chat shows.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the chat with %@?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ile sohbet silinsin mi?"
+          }
+        }
+      }
+    },
+    "delete.contact" : {
+      "comment" : "4.1 long press on a chat and the contact screen's “…” menu: deletes the chat, the contact and its security details on this phone.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete contact"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kişiyi sil"
+          }
+        }
+      }
+    },
+    "delete.contact.message" : {
+      "comment" : "Confirmation text before deleting a contact: on this phone only; nothing is sent and the contact is not blocked: a message from them later appears as a new request (PROTOCOL §6.4).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The chat, its messages and media are deleted from this phone only and can't be recovered. Nothing is sent to them and they are not blocked: if they write again, they appear as a new request."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sohbet, mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Karşı tarafa bir şey gönderilmez ve engellenmez; yeniden yazarsa yeni bir istek olarak görünür."
+          }
+        }
+      }
+    },
+    "delete.contact.message.blocked" : {
+      "comment" : "Confirmation text before deleting a blocked contact: the block stays (Ayarlar › Engellenenler).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The chat, its messages and media are deleted from this phone only and can't be recovered. The block stays; you can lift it in Settings › Blocked."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sohbet, mesajlar ve medya yalnızca bu telefondan silinir ve geri getirilemez. Engel kalır; Ayarlar › Engellenenler'den kaldırabilirsin."
+          }
+        }
+      }
+    },
+    "delete.contact.title %@" : {
+      "comment" : "Confirmation title before deleting a contact. %@ = the name the chat shows.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete %@?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ silinsin mi?"
           }
         }
       }

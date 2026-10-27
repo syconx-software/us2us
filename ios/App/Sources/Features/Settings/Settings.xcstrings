@@ -3266,6 +3266,40 @@
         }
       }
     },
+    "settings.keepScreenOn": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekranı açık tut"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep screen on"
+          }
+        }
+      }
+    },
+    "settings.keepScreenOn.footnote": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca uygulama ön planda ve kilidi açıkken çalışır. Pil tüketimini artırabilir; telefonunuzu açık bırakırsanız yazışmalarınız görülebilir. Güç tuşuyla kilitleme ve uygulama kilidi normal çalışır."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only while the app is in the foreground and unlocked. Keeping the screen on uses more battery and may leave your conversations visible if you put your phone down. The power button and app lock still work normally."
+          }
+        }
+      }
+    },
     "settings.language": {
       "extractionState": "manual",
       "localizations": {

@@ -281,7 +281,7 @@ struct RequestCard: View {
         case .liveLocation, .liveLocationEnded: Text("location.live")
         case .sticker: Text("chats.preview.sticker")
         case .disappearing: Text("chats.preview.disappearing")
-        case .deleted: Text("message.deleted")
+        case .deleted, .communityDeleted: Text("message.deleted")
         }
     }
 
