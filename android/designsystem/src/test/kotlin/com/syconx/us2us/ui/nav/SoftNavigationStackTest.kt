@@ -40,7 +40,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The soft stack on the test clock: push and pop with their 0.5 s fades, covered screens kept with
+ * The soft stack on the test clock: push and pop with their short fades, covered screens kept with
  * their state but untouchable and out of the semantics tree, the edge swipe's thresholds, and back
  * (plain and predictive).
  */
@@ -138,11 +138,11 @@ class SoftNavigationStackTest {
         setUp()
         push("a")
         act { router.pop() }
-        advance(250)
+        advance(64)
         // Mid-fade: the leaving screen is still drawn, the root is the top again.
         assertTrue("a" in composed)
         compose.onNodeWithTag("screen-root").assertExists()
-        advance(500)
+        advance(160)
         assertFalse("a" in composed)
     }
 

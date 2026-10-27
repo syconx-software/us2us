@@ -3,6 +3,7 @@ package com.syconx.us2us.ui.sheet
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,7 +69,7 @@ class U2SheetBehaviourTest {
         }
     }
 
-    private fun show(content: @Composable () -> Unit) {
+    private fun show(advanceMillis: Long = 2_000, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -79,7 +80,7 @@ class U2SheetBehaviourTest {
                 }
             }
         }
-        advance(2_000)
+        advance(advanceMillis)
     }
 
     private fun sheet(style: U2SheetStyle, dismissible: Boolean = true) = show {
@@ -99,12 +100,52 @@ class U2SheetBehaviourTest {
     }
 
     @Test
+    fun aSheetCanOpenACoverAndItsCapturedContentStaysLive() {
+        var cover by mutableStateOf(false)
+        var title by mutableStateOf("Directory")
+        show {
+            val capturedTitle = title
+            U2Sheet(isPresented = presented, onDismissRequest = { presented = false },
+                style = U2SheetStyle.Content, onDismissed = { cover = true }) {
+                Box(Modifier.fillMaxWidth().height(300.dp).testTag("openCover")
+                    .clickable { presented = false }) { BasicText("Open directory") }
+            }
+            U2FadeCover(isPresented = cover) { BasicText(capturedTitle) }
+        }
+        compose.onNodeWithTag("openCover").performClick()
+        advance(2_000)
+        compose.onNodeWithText("Directory").assertExists()
+        compose.onNodeWithTag(U2SheetTags.SHEET, useUnmergedTree = true).assertDoesNotExist()
+        act { title = "Updated directory" }
+        advance(100)
+        compose.onNodeWithText("Updated directory").assertExists()
+        act { cover = false }
+        advance(1_000)
+        compose.onNodeWithText("Updated directory").assertDoesNotExist()
+    }
+
+    @Test
+    fun entranceReadinessHasNoSpringSettlingTail() {
+        show(advanceMillis = 32) {
+            U2Sheet(isPresented = presented, onDismissRequest = { presented = false }, style = U2SheetStyle.Content) {
+                settled = LocalSheetSettled.current
+                Box(Modifier.fillMaxWidth().height(300.dp))
+            }
+        }
+        assertEquals(false, settled)
+        // Layout measurement is dispatched between frames, separately from the animation clock.
+        // 180 ms of travel plus staging and readiness publication fit within 14 frames.
+        repeat(14) { advance(16) }
+        assertEquals("keyboard focus is ready without a spring settling tail", true, settled)
+    }
+
+    @Test
     fun risesSettlesAndGoesWhenNoLongerPresented() {
         sheet(U2SheetStyle.Content)
         compose.onNodeWithTag(U2SheetTags.SHEET, useUnmergedTree = true).assertExists()
         assertEquals(true, settled)
         act { presented = false }
-        advance(200)
+        advance(64)
         assertEquals(false, settled)
         assertEquals(0, dismissed)
         advance(1_000)
@@ -171,7 +212,7 @@ class U2SheetBehaviourTest {
         }
         compose.onNodeWithText("deniz").assertExists()
         act { item = null }
-        advance(200)
+        advance(64)
         compose.onNodeWithText("deniz").assertExists()
         advance(1_000)
         compose.onNodeWithText("deniz").assertDoesNotExist()

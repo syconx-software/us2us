@@ -30,6 +30,11 @@ import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntRect
+import kotlin.math.ceil
+import kotlin.math.floor
 import androidx.compose.ui.unit.Dp
 import com.syconx.us2us.ui.tokens.U2Blur
 import com.syconx.us2us.ui.tokens.U2ColorScheme
@@ -159,6 +164,15 @@ private data class BackdropElement(
     }
 }
 
+/** Samples only the surface and its blur halo, bounded by the source for the same edge clamping. */
+internal fun backdropSampleBounds(source: IntSize, surface: Size, offset: Offset, halo: Float): IntRect? {
+    val left = floor(offset.x - halo).toInt().coerceIn(0, source.width)
+    val top = floor(offset.y - halo).toInt().coerceIn(0, source.height)
+    val right = ceil(offset.x + surface.width + halo).toInt().coerceIn(0, source.width)
+    val bottom = ceil(offset.y + surface.height + halo).toInt().coerceIn(0, source.height)
+    return if (right > left && bottom > top) IntRect(left, top, right, bottom) else null
+}
+
 private class BackdropNode(
     var style: U2BackdropStyle,
     var shape: Shape,
@@ -199,15 +213,23 @@ private class BackdropNode(
             val blurred = blurLayer
             if (content != null && blurred != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val sourcePosition = source?.positionInRoot ?: Offset.Zero
-                blurred.record(size = content.size) { drawLayer(content) }
                 val radius = U2Effects.blurRadiusForSigma(style.blur.toPx())
-                blurred.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
-                blurred.colorFilter = if (style.saturation != 1f) {
-                    ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(style.saturation) })
-                } else {
-                    null
+                val sample = backdropSampleBounds(content.size, size, positionInRoot - sourcePosition, 3 * radius)
+                if (sample != null) {
+                    // The old full-screen layer blurred every pixel even for a small header.
+                    // A conservative three-radius halo keeps the visible Gaussian kernel intact.
+                    blurred.clip = true
+                    blurred.record(size = IntSize(sample.width, sample.height)) {
+                        translate(-sample.left.toFloat(), -sample.top.toFloat()) { drawLayer(content) }
+                    }
+                    blurred.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
+                    blurred.colorFilter = if (style.saturation != 1f) {
+                        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(style.saturation) })
+                    } else {
+                        null
+                    }
+                    translate(sourcePosition.x + sample.left - positionInRoot.x, sourcePosition.y + sample.top - positionInRoot.y) { drawLayer(blurred) }
                 }
-                translate(sourcePosition.x - positionInRoot.x, sourcePosition.y - positionInRoot.y) { drawLayer(blurred) }
             }
             drawRect(style.tint(colors))
         }

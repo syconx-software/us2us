@@ -2,6 +2,7 @@ package com.syconx.us2us.feature.conversation
 
 import androidx.compose.runtime.Immutable
 import com.syconx.us2us.domain.Message
+import com.syconx.us2us.domain.ConversationPhotos
 import com.syconx.us2us.domain.MessageStatus
 import com.syconx.us2us.domain.nav.MessageId
 
@@ -13,6 +14,10 @@ data class ConversationRow(
     val isTail: Boolean,
     /** The state spelled out under the bubble (5.1 item 8; failed messages). */
     val showsStatusSentence: Boolean,
+    /** A community: the sender's name above the first incoming bubble of a run. */
+    val showsSender: Boolean = false,
+    /** Display-only album. The underlying rows and message IDs stay independent. */
+    val album: List<Message> = emptyList(),
 ) {
     val id: MessageId get() = message.id
 }
@@ -23,10 +28,30 @@ data class LeavingRow(val row: ConversationRow, val after: MessageId?)
 
 /** The rules that turn a conversation into the rows of its column (tails, status sentences, leaving rows). */
 object ConversationRows {
+    /** Remove an album child in place; do not temporarily explode an album into full-size rows. */
+    fun albumRemovals(rows: List<ConversationRow>, leaving: Set<MessageId>): Set<MessageId> =
+        if (leaving.isEmpty()) emptySet() else albums(rows).flatMap { it.album }.map { it.id }.filterTo(HashSet()) { it in leaving }
+
+    fun albums(rows: List<ConversationRow>, separate: Set<MessageId> = emptySet()): List<ConversationRow> {
+        val result = ArrayList<ConversationRow>()
+        for (row in rows) {
+            val previous = result.lastOrNull()
+            val photos = previous?.album?.ifEmpty { listOf(previous.message) }
+            if (previous != null && photos != null && row.id !in separate && photos.none { it.id in separate } &&
+                ConversationPhotos.canAppend(photos, row.message)) {
+                result[result.lastIndex] = previous.copy(
+                    album = photos + row.message, isTail = row.isTail,
+                    showsStatusSentence = previous.showsStatusSentence || row.showsStatusSentence,
+                )
+            } else result += row
+        }
+        return result
+    }
+
     fun rows(messages: List<Message>): List<ConversationRow> {
         val sentences = statusSentenceIds(messages)
         return messages.mapIndexed { index, message ->
-            ConversationRow(message, isTail = isTail(index, messages), showsStatusSentence = message.id in sentences)
+            ConversationRow(message, isTail = isTail(index, messages), showsStatusSentence = message.id in sentences, showsSender = showsSender(index, messages))
         }
     }
 
@@ -48,13 +73,22 @@ object ConversationRows {
         return ids
     }
 
-    /** The last bubble of a run of the same direction gets the tail (C15). */
+    /** The last bubble of a run of the same direction (in a community, of the same sender) gets the tail (C15). */
     fun isTail(index: Int, messages: List<Message>): Boolean {
         val message = messages[index]
         if (message.isSystem) return false
         val next = messages.getOrNull(index + 1) ?: return true
         if (next.isSystem) return true
-        return next.direction != message.direction
+        return next.direction != message.direction || next.community?.sender != message.community?.sender
+    }
+
+    /** A community's incoming message that starts a run of its sender shows the sender's name above it. */
+    fun showsSender(index: Int, messages: List<Message>): Boolean {
+        val message = messages[index]
+        val sender = message.community?.sender ?: return false
+        if (message.isOutgoing || message.isSystem) return false
+        val previous = messages.getOrNull(index - 1) ?: return true
+        return previous.isSystem || previous.isOutgoing || previous.community?.sender != sender
     }
 
     /** [rows] with the [leaving] rows at their places. */

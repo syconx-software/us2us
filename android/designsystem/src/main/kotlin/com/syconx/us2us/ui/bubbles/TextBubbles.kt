@@ -9,21 +9,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.Message
+import com.syconx.us2us.domain.MessageLinks
 import com.syconx.us2us.domain.QuotedMessage
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.icons.PhosphorGlyph
@@ -46,10 +55,47 @@ internal fun bubbleInk(message: Message): Color =
  * (iOS `Text` in the bubble column), so a wrapped bubble hugs its text instead of filling 290.
  */
 @Composable
-internal fun BubbleText(text: String, color: Color, modifier: Modifier = Modifier) {
-    val layout = remember { TextLayoutHolder() }
-    U2Text(text, U2TextStyles.bubble, modifier.hugWidestLine(layout, rememberBubbleSpaceWidth()), color = color, onTextLayout = { layout.result = it })
+fun BubbleText(text: String, color: Color, modifier: Modifier = Modifier) {
+    val matches = remember(text) { MessageLinks.detect(text) }
+    if (matches.isEmpty()) {
+        val layout = remember { TextLayoutHolder() }
+        U2Text(text, U2TextStyles.bubble, modifier.hugWidestLine(layout, rememberBubbleSpaceWidth()), color = color, onTextLayout = { layout.result = it })
+        return
+    }
+    val invite = LocalMessageInviteAction.current
+    val uri = LocalUriHandler.current
+    val context = LocalContext.current
+    val linked = remember(text, color, invite, uri, context) {
+        messageLinkText(text, color, invite, matches) { address ->
+            try { uri.openUri(address) }
+            catch (_: IllegalArgumentException) {
+                android.widget.Toast.makeText(context, R.string.message_link_open_failed, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    BubbleText(linked, color, modifier)
 }
+
+/** Present only inside an unlocked conversation. A tap opens confirmation, never redeems directly. */
+val LocalMessageInviteAction = staticCompositionLocalOf<((String) -> Unit)?> { null }
+
+internal fun messageLinkText(text: String, color: Color, invite: ((String) -> Unit)?, matches: List<MessageLinks.Match> = MessageLinks.detect(text), openWeb: (String) -> Unit): AnnotatedString =
+    buildAnnotatedString {
+        append(text)
+        matches.forEachIndexed { index, match ->
+            if (match.target is MessageLinks.Target.CommunityInvite && invite == null) return@forEachIndexed
+            addLink(LinkAnnotation.Clickable(
+                tag = "message-link-$index",
+                styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
+                linkInteractionListener = {
+                    when (val target = match.target) {
+                        is MessageLinks.Target.Web -> openWeb(target.url)
+                        is MessageLinks.Target.CommunityInvite -> invite?.invoke(target.code)
+                    }
+                },
+            ), match.start, match.end)
+        }
+    }
 
 /** [BubbleText] for styled text (an underlined link): the invite sheet's preview bubble. */
 @Composable

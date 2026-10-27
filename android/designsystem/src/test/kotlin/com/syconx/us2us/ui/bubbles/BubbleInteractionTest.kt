@@ -1,6 +1,12 @@
 package com.syconx.us2us.ui.bubbles
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -19,6 +25,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.swipe
 import com.syconx.us2us.domain.DesignArtwork
 import com.syconx.us2us.domain.DesignClock
 import com.syconx.us2us.domain.MediaAvailability
@@ -176,6 +188,61 @@ class BubbleInteractionTest {
     }
 
     @Test
+    fun scrubbingTheVoiceWaveformCancelsTheMessageLongPress() {
+        val playback = FakePlayback(MessageId("t1"))
+        var actions = 0
+        show {
+            CompositionLocalProvider(LocalVoicePlayback provides playback) {
+                MessageBubbleView(message(MessageContent.Voice(42.seconds, DesignFixtures.voiceWaveform, 0.0)),
+                    onLongPress = { actions++ })
+            }
+        }
+        compose.onNodeWithTag("voice.waveform", useUnmergedTree = true).performTouchInput {
+            down(center)
+            // The waveform accepts a sideways seek before the bubble's movement threshold.
+            moveBy(Offset(21f, 0f), delayMillis = 50)
+            advanceEventTime(800)
+            up()
+        }
+        assertEquals(1, playback.scrubStarts)
+        assertEquals(0, actions)
+    }
+
+    @Test fun verticalScrollingOnAnActiveVoiceWaveformDoesNotSeekOrOpenActions() {
+        checkScrolling(MessageContent.Voice(42.seconds, DesignFixtures.voiceWaveform, 0.0), "voice.waveform")
+    }
+
+    @Test fun verticalScrollingOnALinkDoesNotOpenItOrTheMessageActions() {
+        checkScrolling(MessageContent.Text("https://example.org"))
+    }
+
+    private fun checkScrolling(content: MessageContent, tag: String? = null) {
+        val playback = FakePlayback(MessageId("t1"))
+        var actions = 0
+        var links = 0
+        var offset = { 0 }
+        show {
+            val scroll = rememberScrollState()
+            offset = { scroll.value }
+            CompositionLocalProvider(LocalVoicePlayback provides playback,
+                LocalUriHandler provides object : UriHandler { override fun openUri(uri: String) { links++ } }) {
+                Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                    Spacer(Modifier.height(250.dp))
+                    MessageBubbleView(message(content), onLongPress = { actions++ })
+                    Spacer(Modifier.height(1000.dp))
+                }
+            }
+        }
+        val target = if (tag != null) compose.onNodeWithTag(tag, useUnmergedTree = true)
+            else compose.onNodeWithText("https://example.org", useUnmergedTree = true)
+        target.performTouchInput { swipe(center, center - Offset(0f, 240f), durationMillis = 1200) }
+        assertEquals(0, actions)
+        assertEquals(0, links)
+        assertEquals(0, playback.scrubStarts)
+        org.junit.Assert.assertTrue("the parent must receive the vertical drag", offset() > 120)
+    }
+
+    @Test
     fun aKindChangeMorphsAndReportsTheEnd() {
         val before = message(MessageContent.Text("Silinecek mesaj"))
         val after = before.copy(content = MessageContent.Deleted)
@@ -183,7 +250,7 @@ class BubbleInteractionTest {
         compose.mainClock.autoAdvance = false
         show { MessageBubbleView(after, replacing = before, onReplaced = { replaced++ }) }
         compose.mainClock.advanceTimeByFrame()
-        compose.mainClock.advanceTimeBy(150)
+        compose.mainClock.advanceTimeBy(com.syconx.us2us.ui.motion.U2Motion.state.millis.toLong() / 2)
         compose.onNodeWithText("Silinecek mesaj", useUnmergedTree = true).assertExistsCompat()
         compose.onNodeWithText("Bu mesaj herkesten silindi", useUnmergedTree = true).assertExistsCompat()
         compose.mainClock.advanceTimeBy(600)
@@ -244,17 +311,18 @@ class BubbleInteractionTest {
         override var rate by mutableStateOf(VoicePlaybackRate.Normal)
         override val isPlaying = true
         override val isLoading = false
-        override val isScrubbing = false
+        override var isScrubbing by mutableStateOf(false)
+        var scrubStarts = 0
         override val duration: Duration = 42.seconds
         override val currentTime: Duration = 21.seconds
 
         override fun shownFraction(id: MessageId, fallback: Double): Double = if (id == activeId) 0.5 else fallback
 
-        override fun beginScrub(id: MessageId) = Unit
+        override fun beginScrub(id: MessageId) { isScrubbing = true; scrubStarts++ }
 
         override fun scrub(id: MessageId, fraction: Double) = Unit
 
-        override fun endScrub(id: MessageId) = Unit
+        override fun endScrub(id: MessageId) { isScrubbing = false }
 
         override fun skip(id: MessageId, by: Duration) = Unit
 

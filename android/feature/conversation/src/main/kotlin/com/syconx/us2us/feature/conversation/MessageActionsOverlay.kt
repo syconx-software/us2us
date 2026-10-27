@@ -76,8 +76,8 @@ import kotlin.math.max
  * column centred in the screen above a 30 dp bottom margin (gap 10): the reaction bar (308 × 52,
  * `surface`, r28, `shadowMd`, six emoji and “+”), the lifted bubble (shadow `0 16px 40px #000@40%`)
  * and the action menu (250 wide, rows 46). The bubble glides from where it was in the chat to its
- * place in the column on the design curve over 0.55 s; bar and menu fade and scale from 0.96,
- * anchored at the bubble. Dismissal reverses in 0.24 s.
+ * place in the column on the sheet timing; bar and menu fade and scale from 0.96,
+ * anchored at the bubble. Dismissal reverses on the micro timing.
  */
 @Composable
 internal fun MessageActionsOverlay(
@@ -97,13 +97,14 @@ internal fun MessageActionsOverlay(
     // The glide runs on its own curve: from rest over 0.55 s (open), 0.24 s back (dismiss).
     val glide by animateFloatAsState(
         if (visible) 1f else 0f,
-        if (visible) U2Motion.soft(0.55f).spec() else U2Motion.soft(0.24f).spec(),
+        if (visible) U2Motion.sheet.spec() else U2Motion.micro.spec(),
         label = "glide",
     )
     LaunchedEffect(Unit) { viewModel.liftActions() }
     val isOutgoing = message.isOutgoing
     // A trace or a photo still on this phone only takes no reaction; nothing reaches a blocked person.
-    val showsReactions = !message.isDeleted && !message.isPendingMedia && !viewModel.isBlocked
+    // Communities carry no reactions (Extension v2).
+    val showsReactions = !message.isDeleted && !message.isPendingMedia && !viewModel.isBlocked && !viewModel.isCommunity
     val items = menuItems(viewModel, message)
     var origin by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
@@ -308,6 +309,7 @@ private fun menuItems(viewModel: ConversationViewModel, message: Message): List<
             FloatingMenuItem("deleteMe", deleteMe, PhosphorGlyph.TrashSimple, tone = FloatingMenuTone.Destructive) { viewModel.deleteForMe(id) },
         )
     }
+    if (viewModel.isCommunity) return communityMenuItems(viewModel, message)
     val items = mutableListOf<FloatingMenuItem>()
     // Blocked: only what stays on this phone (no reply, no “Herkesten sil”).
     val isBlocked = viewModel.isBlocked
@@ -349,6 +351,41 @@ private fun menuItems(viewModel: ConversationViewModel, message: Message): List<
             startsGroup = items.isNotEmpty(),
         ) { viewModel.deleteForMe(id) }
     }
+    return items
+}
+
+/**
+ * A community message: Bilgi (own) · Kopyala · Dosyalara kaydet ‖ Herkesten sil (own; every
+ * message for the owner) · Benden sil (every message). No reply and no reaction (Extension v2).
+ */
+@Composable
+private fun communityMenuItems(viewModel: ConversationViewModel, message: Message): List<FloatingMenuItem> {
+    val id = message.id
+    val info = stringResource(R.string.conversation_actions_info)
+    val copy = stringResource(R.string.conversation_actions_copy)
+    val save = stringResource(R.string.conversation_file_savetofiles)
+    val deleteEveryone = stringResource(R.string.conversation_actions_deleteeveryone)
+    val deleteMe = stringResource(R.string.conversation_actions_deleteme)
+    val items = mutableListOf<FloatingMenuItem>()
+    if (!message.isDeleted) {
+        if (message.isOutgoing) items += FloatingMenuItem("info", info, PhosphorGlyph.Info) { viewModel.showInfo(id) }
+        message.copyableText?.let { items += FloatingMenuItem("copy", copy, PhosphorGlyph.Copy) { viewModel.copy(id) } }
+        if (message.content is MessageContent.File && message.mediaAvailability.isReady) {
+            items += FloatingMenuItem("saveToFiles", save, PhosphorGlyph.Export) { viewModel.saveToFiles(id) }
+        }
+        if (message.community?.canDeleteForEveryone == true) {
+            items += FloatingMenuItem(
+                "deleteEveryone", deleteEveryone, PhosphorGlyph.Trash,
+                tone = FloatingMenuTone.Destructive,
+                startsGroup = items.isNotEmpty(),
+            ) { viewModel.askDeleteForEveryone(id) }
+        }
+    }
+    items += FloatingMenuItem(
+        "deleteMe", deleteMe, PhosphorGlyph.TrashSimple,
+        tone = FloatingMenuTone.Destructive,
+        startsGroup = items.isNotEmpty() && items.none { it.id == "deleteEveryone" },
+    ) { viewModel.deleteForMe(id) }
     return items
 }
 

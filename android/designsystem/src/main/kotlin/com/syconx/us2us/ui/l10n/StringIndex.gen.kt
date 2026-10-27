@@ -75,6 +75,7 @@ internal object StringIndex {
 
     private fun findCommon(key: String): StringRef? = when (key) {
         "a11y.back" -> StringRef.Text(R.string.common_a11y_back)
+        "a11y.chatDeleted" -> StringRef.Text(R.string.common_a11y_chatdeleted)
         "a11y.clear" -> StringRef.Text(R.string.common_a11y_clear)
         "a11y.close" -> StringRef.Text(R.string.common_a11y_close)
         "a11y.code.entered" -> StringRef.Text(R.string.common_a11y_code_entered)
@@ -83,6 +84,7 @@ internal object StringIndex {
         "a11y.composer.send" -> StringRef.Text(R.string.common_a11y_composer_send)
         "a11y.composer.sticker" -> StringRef.Text(R.string.common_a11y_composer_sticker)
         "a11y.composer.timer" -> StringRef.Text(R.string.common_a11y_composer_timer)
+        "a11y.contactDeleted" -> StringRef.Text(R.string.common_a11y_contactdeleted)
         "a11y.ghost.hint" -> StringRef.Text(R.string.common_a11y_ghost_hint)
         "a11y.ghost.off" -> StringRef.Text(R.string.common_a11y_ghost_off)
         "a11y.ghost.remaining" -> StringRef.Text(R.string.common_a11y_ghost_remaining)
@@ -127,6 +129,13 @@ internal object StringIndex {
         "common.close" -> StringRef.Text(R.string.common_close)
         "common.save" -> StringRef.Text(R.string.common_save)
         "composer.placeholder" -> StringRef.Text(R.string.common_composer_placeholder)
+        "delete.chat" -> StringRef.Text(R.string.common_delete_chat)
+        "delete.chat.message" -> StringRef.Text(R.string.common_delete_chat_message)
+        "delete.chat.title" -> StringRef.Text(R.string.common_delete_chat_title)
+        "delete.contact" -> StringRef.Text(R.string.common_delete_contact)
+        "delete.contact.message" -> StringRef.Text(R.string.common_delete_contact_message)
+        "delete.contact.message.blocked" -> StringRef.Text(R.string.common_delete_contact_message_blocked)
+        "delete.contact.title" -> StringRef.Text(R.string.common_delete_contact_title)
         "disappearing.1d" -> StringRef.Text(R.string.common_disappearing_1d)
         "disappearing.1h" -> StringRef.Text(R.string.common_disappearing_1h)
         "disappearing.30s" -> StringRef.Text(R.string.common_disappearing_30s)
@@ -210,6 +219,7 @@ internal object StringIndex {
 
     private fun entriesCommon(): List<StringEntry> = listOf(
         StringEntry("a11y.back", StringRef.Text(R.string.common_a11y_back), ""),
+        StringEntry("a11y.chatDeleted", StringRef.Text(R.string.common_a11y_chatdeleted), ""),
         StringEntry("a11y.clear", StringRef.Text(R.string.common_a11y_clear), ""),
         StringEntry("a11y.close", StringRef.Text(R.string.common_a11y_close), ""),
         StringEntry("a11y.code.entered %lld %lld", StringRef.Text(R.string.common_a11y_code_entered), "dd"),
@@ -218,6 +228,7 @@ internal object StringIndex {
         StringEntry("a11y.composer.send", StringRef.Text(R.string.common_a11y_composer_send), ""),
         StringEntry("a11y.composer.sticker", StringRef.Text(R.string.common_a11y_composer_sticker), ""),
         StringEntry("a11y.composer.timer", StringRef.Text(R.string.common_a11y_composer_timer), ""),
+        StringEntry("a11y.contactDeleted", StringRef.Text(R.string.common_a11y_contactdeleted), ""),
         StringEntry("a11y.ghost.hint", StringRef.Text(R.string.common_a11y_ghost_hint), ""),
         StringEntry("a11y.ghost.off", StringRef.Text(R.string.common_a11y_ghost_off), ""),
         StringEntry("a11y.ghost.remaining %@", StringRef.Text(R.string.common_a11y_ghost_remaining), "s"),
@@ -262,6 +273,13 @@ internal object StringIndex {
         StringEntry("common.close", StringRef.Text(R.string.common_close), ""),
         StringEntry("common.save", StringRef.Text(R.string.common_save), ""),
         StringEntry("composer.placeholder", StringRef.Text(R.string.common_composer_placeholder), ""),
+        StringEntry("delete.chat", StringRef.Text(R.string.common_delete_chat), ""),
+        StringEntry("delete.chat.message", StringRef.Text(R.string.common_delete_chat_message), ""),
+        StringEntry("delete.chat.title %@", StringRef.Text(R.string.common_delete_chat_title), "s"),
+        StringEntry("delete.contact", StringRef.Text(R.string.common_delete_contact), ""),
+        StringEntry("delete.contact.message", StringRef.Text(R.string.common_delete_contact_message), ""),
+        StringEntry("delete.contact.message.blocked", StringRef.Text(R.string.common_delete_contact_message_blocked), ""),
+        StringEntry("delete.contact.title %@", StringRef.Text(R.string.common_delete_contact_title), "s"),
         StringEntry("disappearing.1d", StringRef.Text(R.string.common_disappearing_1d), ""),
         StringEntry("disappearing.1h", StringRef.Text(R.string.common_disappearing_1h), ""),
         StringEntry("disappearing.30s", StringRef.Text(R.string.common_disappearing_30s), ""),
@@ -684,6 +702,7 @@ internal object StringIndex {
         "actions.deleteMe" -> StringRef.Text(R.string.conversation_actions_deleteme)
         "actions.info" -> StringRef.Text(R.string.conversation_actions_info)
         "actions.reply" -> StringRef.Text(R.string.conversation_actions_reply)
+        "album.photo" -> StringRef.Text(R.string.conversation_album_photo)
         "attach.file" -> StringRef.Text(R.string.conversation_attach_file)
         "attach.media" -> StringRef.Text(R.string.conversation_attach_media)
         "blocked.bar" -> StringRef.Text(R.string.conversation_blocked_bar)
@@ -760,6 +779,7 @@ internal object StringIndex {
         "save.notice.title.video" -> StringRef.Text(R.string.conversation_save_notice_title_video)
         "save.photos.denied.body" -> StringRef.Text(R.string.conversation_save_photos_denied_body)
         "save.photos.denied.title" -> StringRef.Text(R.string.conversation_save_photos_denied_title)
+        "scroll.latest" -> StringRef.Text(R.string.conversation_scroll_latest)
         "sticker.pack.cups" -> StringRef.Text(R.string.conversation_sticker_pack_cups)
         "sticker.pack.mood" -> StringRef.Text(R.string.conversation_sticker_pack_mood)
         "sticker.pack.privacy" -> StringRef.Text(R.string.conversation_sticker_pack_privacy)
@@ -787,8 +807,10 @@ internal object StringIndex {
         "viewOnce.screenshot.body" -> StringRef.Text(R.string.conversation_viewonce_screenshot_body)
         "viewOnce.screenshot.title" -> StringRef.Text(R.string.conversation_viewonce_screenshot_title)
         "viewOnce.today" -> StringRef.Text(R.string.conversation_viewonce_today)
+        "viewer.next" -> StringRef.Text(R.string.conversation_viewer_next)
         "viewer.photo.a11y" -> StringRef.Text(R.string.conversation_viewer_photo_a11y)
         "viewer.photo.failed" -> StringRef.Text(R.string.conversation_viewer_photo_failed)
+        "viewer.previous" -> StringRef.Text(R.string.conversation_viewer_previous)
         "viewer.save" -> StringRef.Text(R.string.conversation_viewer_save)
         "viewer.save.failed" -> StringRef.Text(R.string.conversation_viewer_save_failed)
         "viewer.save.hint" -> StringRef.Text(R.string.conversation_viewer_save_hint)
@@ -839,6 +861,7 @@ internal object StringIndex {
         StringEntry("actions.deleteMe", StringRef.Text(R.string.conversation_actions_deleteme), ""),
         StringEntry("actions.info", StringRef.Text(R.string.conversation_actions_info), ""),
         StringEntry("actions.reply", StringRef.Text(R.string.conversation_actions_reply), ""),
+        StringEntry("album.photo %lld %lld", StringRef.Text(R.string.conversation_album_photo), "dd"),
         StringEntry("attach.file", StringRef.Text(R.string.conversation_attach_file), ""),
         StringEntry("attach.media", StringRef.Text(R.string.conversation_attach_media), ""),
         StringEntry("blocked.bar %@", StringRef.Text(R.string.conversation_blocked_bar), "s"),
@@ -915,6 +938,7 @@ internal object StringIndex {
         StringEntry("save.notice.title.video %@", StringRef.Text(R.string.conversation_save_notice_title_video), "s"),
         StringEntry("save.photos.denied.body", StringRef.Text(R.string.conversation_save_photos_denied_body), ""),
         StringEntry("save.photos.denied.title", StringRef.Text(R.string.conversation_save_photos_denied_title), ""),
+        StringEntry("scroll.latest", StringRef.Text(R.string.conversation_scroll_latest), ""),
         StringEntry("sticker.pack.cups", StringRef.Text(R.string.conversation_sticker_pack_cups), ""),
         StringEntry("sticker.pack.mood", StringRef.Text(R.string.conversation_sticker_pack_mood), ""),
         StringEntry("sticker.pack.privacy", StringRef.Text(R.string.conversation_sticker_pack_privacy), ""),
@@ -942,8 +966,10 @@ internal object StringIndex {
         StringEntry("viewOnce.screenshot.body %@", StringRef.Text(R.string.conversation_viewonce_screenshot_body), "s"),
         StringEntry("viewOnce.screenshot.title", StringRef.Text(R.string.conversation_viewonce_screenshot_title), ""),
         StringEntry("viewOnce.today %@", StringRef.Text(R.string.conversation_viewonce_today), "s"),
+        StringEntry("viewer.next", StringRef.Text(R.string.conversation_viewer_next), ""),
         StringEntry("viewer.photo.a11y", StringRef.Text(R.string.conversation_viewer_photo_a11y), ""),
         StringEntry("viewer.photo.failed", StringRef.Text(R.string.conversation_viewer_photo_failed), ""),
+        StringEntry("viewer.previous", StringRef.Text(R.string.conversation_viewer_previous), ""),
         StringEntry("viewer.save", StringRef.Text(R.string.conversation_viewer_save), ""),
         StringEntry("viewer.save.failed", StringRef.Text(R.string.conversation_viewer_save_failed), ""),
         StringEntry("viewer.save.hint", StringRef.Text(R.string.conversation_viewer_save_hint), ""),
@@ -1320,6 +1346,8 @@ internal object StringIndex {
         "settings.faceID" -> StringRef.Text(R.string.settings_faceid)
         "settings.faceID.reason" -> StringRef.Text(R.string.settings_faceid_reason)
         "settings.faceID.unavailable" -> StringRef.Text(R.string.settings_faceid_unavailable)
+        "settings.keepScreenOn" -> StringRef.Text(R.string.settings_keepscreenon)
+        "settings.keepScreenOn.footnote" -> StringRef.Text(R.string.settings_keepscreenon_footnote)
         "settings.language" -> StringRef.Text(R.string.settings_language)
         "settings.language.system" -> StringRef.Text(R.string.settings_language_system)
         "settings.presence" -> StringRef.Text(R.string.settings_presence)
@@ -1531,6 +1559,8 @@ internal object StringIndex {
         StringEntry("settings.faceID", StringRef.Text(R.string.settings_faceid), ""),
         StringEntry("settings.faceID.reason", StringRef.Text(R.string.settings_faceid_reason), ""),
         StringEntry("settings.faceID.unavailable", StringRef.Text(R.string.settings_faceid_unavailable), ""),
+        StringEntry("settings.keepScreenOn", StringRef.Text(R.string.settings_keepscreenon), ""),
+        StringEntry("settings.keepScreenOn.footnote", StringRef.Text(R.string.settings_keepscreenon_footnote), ""),
         StringEntry("settings.language", StringRef.Text(R.string.settings_language), ""),
         StringEntry("settings.language.system", StringRef.Text(R.string.settings_language_system), ""),
         StringEntry("settings.presence", StringRef.Text(R.string.settings_presence), ""),

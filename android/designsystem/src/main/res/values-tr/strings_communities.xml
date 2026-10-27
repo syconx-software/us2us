@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="message_invite_title">Gruba katılmak istiyor musunuz?</string>
+    <string name="message_invite_sent">Katılım isteği gönderildi. Yönetici onayı bekleniyor.</string>
+    <string name="message_invite_done">Tamam</string>
+    <string name="message_link_open_failed">Bağlantı açılamadı. Tarayıcının yüklü olduğunu kontrol edin.</string>
     <string name="community_title">Topluluklar</string>
     <string name="community_back">Geri</string>
-    <string name="community_privacy">Mesajlar uçtan uca şifrelidir. Bire bir sohbetlerden farklı olarak sunucu, bir toplulukta kimlerin üye olduğunu ve kimin kime gönderdiğini görür. Açık topluluk aramaları sunucuya ulaşır. Katılım her zaman yönetici onayı gerektirir. Şimdilik yalnızca metin.</string>
+    <string name="community_privacy">Mesajlar uçtan uca şifrelidir. Bire bir sohbetlerden farklı olarak sunucu, bir toplulukta kimlerin üye olduğunu ve kimin kime gönderdiğini görür. Açık topluluk aramaları sunucuya ulaşır. Katılım her zaman yönetici onayı gerektirir. Fotoğraf, video ve dosyalar bir kez yüklenir; silinene ya da 14 gün dolana kadar her üye indirebilir.</string>
     <string name="community_unsupported">Bu sunucu henüz toplulukları desteklemiyor. Bire bir sohbetler kullanılabilir.</string>
     <string name="community_error">İşlem tamamlanamadı. Bağlantını ve güncel üyeliğini kontrol edip tekrar dene. Davetin süresi dolmuş veya daha önce kullanılmış olabilir.</string>
     <string name="community_warning_title">Topluluk üyeliği doğrulanamadı</string>
@@ -67,4 +71,26 @@
     <string name="community_invites_hint">Davet kodu 24 saat geçerlidir ve bir kez kullanılabilir. Gizli topluluğun adı bu kodla taşınır; katılım yine onayını gerektirir.</string>
     <string name="community_share_invite">Daveti paylaş</string>
     <string name="community_partial">Bazı üyelere ulaşmadı</string>
+    <string name="community_message_deleted">Bu mesaj silindi</string>
+    <string name="community_message_removed">Yönetici tarafından kaldırıldı</string>
+    <plurals name="community_member_count">
+        <item quantity="one">%1$d üye</item>
+        <item quantity="other">%1$d üye</item>
+    </plurals>
+    <string name="community_header_owner">%1$s · yöneticisin</string>
+    <string name="community_delete_everyone_message">Silme isteği ulaşan her üyede yerine bir iz kalır. Önceden indirilmiş ya da kaydedilmiş kopyalar geri alınamaz.</string>
+    <string name="community_info_recipients">Alıcılar</string>
+    <string name="community_info_pending">Bekliyor</string>
+    <string name="community_info_sent">Gönderildi</string>
+    <string name="community_info_failed">Gönderilemedi</string>
+    <string name="community_info_delivered">İletildi %1$s</string>
+    <string name="community_info_read">Okundu %1$s</string>
+    <string name="community_info_left">Topluluktan ayrıldı</string>
+    <string name="community_info_none">Gönderildiğinde toplulukta başka kimse yoktu.</string>
+    <string name="community_info_note_title">Bildirimler bir nezakettir</string>
+    <string name="community_info_note_body">Her üyenin telefonu mesajı ne zaman aldığını ve, ikinizde de okundu bilgisi açıkken, ne zaman okuduğunu bildirir. Bir üye bunu göndermeyebilir ya da yanlış bildirebilir.</string>
+    <string name="community_preview_sender">%1$s: %2$s</string>
+    <string name="community_preview_caption">%1$s · %2$s</string>
+    <string name="community_entry_subtitle">Keşfet, oluştur ya da davetle katıl</string>
+    <string name="community_requests_count">%1$d katılım isteği · Kabul / Ret</string>
 </resources>

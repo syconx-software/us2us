@@ -120,7 +120,7 @@ object FloatingMenuMetrics {
     val groupBand: Dp = 7.dp
 
     /** How long a chosen row waits for the closing menu to fade before it acts. */
-    const val ACTION_DELAY_MILLIS: Long = 180L
+    val ACTION_DELAY_MILLIS: Long get() = (U2Motion.Duration.micro * 1000f).toLong()
 
     /** The height of a menu with [items] (rows 46, rules 2, group bands 7). */
     fun height(items: List<FloatingMenuItem>): Dp =

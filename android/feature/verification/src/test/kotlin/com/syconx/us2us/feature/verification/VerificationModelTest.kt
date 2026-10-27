@@ -13,6 +13,7 @@ import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.fixtures.FixturesMessengerService
 import com.syconx.us2us.ui.env.U2Haptic
 import com.syconx.us2us.ui.env.U2Haptics
+import com.syconx.us2us.ui.motion.U2Motion
 import java.time.Instant
 import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +96,7 @@ class VerificationModelTest {
         val model = VerificationModel(DENIZ, refusing)
         model.haptics = haptics
         model.load()
+        model.requestMarkVerified()
         model.markVerifiedManually()
         assertFalse(model.isVerified)
         assertFalse(model.showsVerified)
@@ -132,6 +134,77 @@ class VerificationModelTest {
         assertFalse(model.isVerified)
         assertEquals(1, exits)
         assertFalse(service.peer(DENIZ).value!!.safetyNumberChanged)
+    }
+
+    @Test
+    fun aConfirmationNeverVerifiesANumberRefreshedBehindTheSheet() = runBlocking {
+        val fixture = fixtures()
+        var current = fixture.safetyNumber(DENIZ)!!
+        var verified = false
+        val service = object : MessengerService by fixture {
+            override suspend fun safetyNumber(chat: ChatId) = current
+            override suspend fun markVerified(chat: ChatId, number: Bytes): Boolean {
+                verified = number == current.scannablePayload
+                return verified
+            }
+        }
+        val model = VerificationModel(DENIZ, service)
+        model.load()
+        model.requestMarkVerified()
+        current = current.copy(scannablePayload = Bytes.utf8("replacement-identity"))
+        model.load() // The normal identity-state observer refreshes while confirmation is open.
+        model.markVerifiedManually()
+        assertFalse("a number never compared by the user was verified", verified)
+        assertTrue(model.changedWhileOpen)
+    }
+
+    @Test
+    fun aConfirmationNeverAcceptsASecondIdentityChange() = runBlocking {
+        val fixture = fixtures()
+        var current = fixture.safetyNumber(DENIZ)!!
+        var accepted = false
+        val service = object : MessengerService by fixture {
+            override suspend fun safetyNumber(chat: ChatId) = current
+            override suspend fun acceptSafetyNumberChange(chat: ChatId, number: Bytes): Boolean {
+                accepted = number == current.scannablePayload
+                return accepted
+            }
+        }
+        val model = VerificationModel(DENIZ, service)
+        var exited = false
+        model.exitToChat = { exited = true }
+        model.load()
+        model.requestAccept()
+        current = current.copy(scannablePayload = Bytes.utf8("second-replacement-identity"))
+        model.load()
+        model.acceptChangeWithoutVerifying()
+        assertFalse("a second change was accepted by the first confirmation", accepted)
+        assertFalse(exited)
+        assertTrue(model.changedWhileOpen)
+    }
+
+    @Test
+    fun cancelledOrConsumedConfirmationCannotBeReused() = runBlocking {
+        val fixture = fixtures()
+        val model = VerificationModel(DENIZ, fixture)
+        model.load()
+        model.requestMarkVerified()
+        model.cancelMarkVerified()
+        model.markVerifiedManually()
+        assertFalse(fixture.safetyNumber(DENIZ)!!.isVerified)
+        model.requestMarkVerified()
+        model.markVerifiedManually()
+        assertTrue(model.isVerified)
+        fixture.clearVerification(DENIZ)
+        model.load()
+        model.markVerifiedManually()
+        assertFalse(fixture.safetyNumber(DENIZ)!!.isVerified)
+        fixture.setSafetyNumberChanged(DENIZ)
+        model.load()
+        model.requestAccept()
+        model.cancelAccept()
+        model.acceptChangeWithoutVerifying()
+        assertTrue(fixture.safetyNumber(DENIZ)!!.hasUnverifiedChange)
     }
 
     @Test
@@ -176,8 +249,8 @@ class VerificationModelTest {
         assertFalse(model.isScannerPresented)
         assertFalse(model.scanner.isActive)
         assertFalse(model.scanner.torchOn)
-        assertEquals(0.5f, model.scannerFadeOut)
-        assertEquals(0.5f, model.verifiedEntranceDelay)
+        assertEquals(U2Motion.Duration.screen, model.scannerFadeOut)
+        assertEquals(model.scannerFadeOut, model.verifiedEntranceDelay)
     }
 
     @Test
@@ -190,7 +263,7 @@ class VerificationModelTest {
         assertFalse(model.isScannerPresented)
         assertFalse(model.scanner.isActive)
         assertFalse(model.scanner.torchOn)
-        assertEquals(0.36f, model.scannerFadeOut, 0.001f)
+        assertEquals(U2Motion.Duration.state, model.scannerFadeOut, 0.001f)
     }
 
     @Test

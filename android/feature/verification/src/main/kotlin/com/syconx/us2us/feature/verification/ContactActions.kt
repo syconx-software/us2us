@@ -24,6 +24,8 @@ import com.syconx.us2us.feature.report.ReportMailer
 import com.syconx.us2us.feature.report.ReportModel
 import com.syconx.us2us.feature.report.ReportPresenter
 import com.syconx.us2us.ui.R
+import com.syconx.us2us.ui.common.ChatDeletion
+import com.syconx.us2us.ui.common.perform
 import com.syconx.us2us.ui.components.U2TextButton
 import com.syconx.us2us.ui.components.U2TextButtonTone
 import com.syconx.us2us.ui.env.U2Haptics
@@ -40,7 +42,7 @@ import com.syconx.us2us.ui.type.U2Text
  * The contact screen's “…” menu (proposed, App Review 1.2): the safety number to share (on
  * Doğrulama), “Bildir” (the report sheet) and “Engelle” after the request block's own confirmation
  * (“{kişi} engellensin mi?” · Engelle · Bildir · Vazgeç); “Engeli kaldır” once blocked, in the same
- * place. The blocked state itself comes from the messenger ([Peer.isBlocked]), so 4.1 and 5.1
+ * place. Below them “Sohbeti sil” and “Kişiyi sil” (on this phone only), each after its confirmation. The blocked state itself comes from the messenger ([Peer.isBlocked]), so 4.1 and 5.1
  * follow on their own.
  */
 @Stable
@@ -49,6 +51,9 @@ internal class ContactActions(val chatId: ChatId, val messenger: MessengerServic
 
     /** “{kişi} engellensin mi?” */
     var confirmsBlock by mutableStateOf(false)
+
+    /** “Sohbeti sil” / “Kişiyi sil” waiting for its confirmation. */
+    var deletion by mutableStateOf<ChatDeletion?>(null)
 
     /** Where reports are sent from; `null` is the screen's own mailer (the harness swaps it). */
     var mailer: ReportMailer? = null
@@ -92,6 +97,16 @@ internal class ContactActions(val chatId: ChatId, val messenger: MessengerServic
     suspend fun unblock(name: String) {
         if (!messenger.unblock(chatId)) return
         strings?.let { announce(it.get(R.string.contact_a11y_unblocked, name)) }
+    }
+
+    /**
+     * After its confirmation: deleted on this phone only. The chat leaves 4.1, and with it this
+     * screen and 5.1 under it (the route follows the messenger); 4.1 says what was deleted.
+     */
+    suspend fun delete(deletion: ChatDeletion): Boolean {
+        val deleted = messenger.perform(deletion)
+        if (deleted) haptics.success()
+        return deleted
     }
 
     /**
