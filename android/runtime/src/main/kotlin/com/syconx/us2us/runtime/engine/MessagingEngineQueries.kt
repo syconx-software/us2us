@@ -38,21 +38,27 @@ internal fun MessagingEngine.chatSummariesNow(): List<ChatSummary> {
 }
 
 /** The newest messages of a conversation and its system lines, oldest first. */
-internal fun MessagingEngine.messagesNow(peer: AccountId): List<MessageItem> {
+internal fun MessagingEngine.messagesNow(peer: AccountId): List<MessageItem> =
+    historyNow(peer, limit = configuration.pageSize).items
+
+/** Local keyset pages, or a refresh of the already loaded window (including new arrivals). */
+internal fun MessagingEngine.historyNow(peer: AccountId, before: Long? = null, through: Long? = null, limit: Int = 100): MessageHistory {
     val now = clock.now()
-    val (items, conversationId) = read { tx ->
-        val conversation = tx.conversations.forContact(peer) ?: return@read emptyList<MessageItem>() to null
+    return read { tx ->
+        val conversation = tx.conversations.forContact(peer) ?: return@read MessageHistory(emptyList(), null, false)
         val accepted = tx.contacts.requestState(peer) == ContactState.ACCEPTED
-        val page = tx.messages.page(conversation.id, limit = configuration.pageSize, now = now)
+        var page = tx.messages.page(conversation.id, before, if (through == null) maxOf(1, limit) else Int.MAX_VALUE, now, through)
+        if (through != null && page.isEmpty()) page = tx.messages.page(conversation.id, limit = maxOf(1, limit), now = now)
+        val oldest = page.firstOrNull()?.localId
+        val hasOlder = oldest != null && tx.messages.page(conversation.id, before = oldest, limit = 1, now = now).isNotEmpty()
         val reactions = tx.messages.reactions(page.map { it.messageId }, conversation.id)
-        page.map { item(it, tx, accepted, reactions[it.messageId].orEmpty()) } to conversation.id
+        val items = page.map { item(it, tx, accepted, reactions[it.messageId].orEmpty()) }
+        val cutoff = items.firstOrNull()?.storedAt ?: Instant.MIN
+        // Merge notices once in the refreshed window, never repeatedly into older pages.
+        val lines = if (before == null) noticesOf(conversation.id).map(MessageItem::notice)
+            .filter { !it.storedAt.isBefore(cutoff) || !hasOlder } else emptyList()
+        MessageHistory(if (lines.isEmpty()) items else (items + lines).sortedBy { it.storedAt }, oldest, hasOlder)
     }
-    conversationId ?: return emptyList()
-    val lines = noticesOf(conversationId).map(MessageItem::notice)
-    if (lines.isEmpty()) return items
-    val cutoff = items.firstOrNull()?.storedAt ?: Instant.MIN
-    return (items + lines.filter { !it.storedAt.isBefore(cutoff) || items.size < configuration.pageSize })
-        .sortedBy { it.storedAt }
 }
 
 /**

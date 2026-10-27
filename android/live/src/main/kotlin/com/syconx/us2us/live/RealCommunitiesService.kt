@@ -33,20 +33,11 @@ internal class RealCommunitiesService(private val runtime: AppRuntime) : Communi
         CommunityPage(page.communities.map { group -> CommunityCard(group.id.toString(), group.name, true, group.memberCount,
             group.ownerAccountId.toString(), group.ownerIdentityKey, group.revision) }, page.nextCursor?.toString())
     }
-    override suspend fun create(name: String, public: Boolean) { runtime.withCommunities { it.create(name, public) } }
+    override suspend fun create(name: String, public: Boolean): String = runtime.withCommunities { it.create(name, public) }.toString()
     override suspend fun request(group: CommunityCard) { runtime.withCommunities {
         it.request(CommunitySummary(AccountId.parse(group.id), group.name, "public", AccountId.parse(group.owner), group.ownerKey, group.count, group.revision))
     } }
     override suspend fun redeem(code: String) { runtime.withCommunities { it.redeem(code) } }
-    override suspend fun messages(id: String) = runtime.withCommunities { engine ->
-        val community = AccountId.parse(id)
-        val state = try { engine.communities().firstOrNull { it.id == community }?.state } catch (_: IllegalArgumentException) { null }
-        val names = state?.let(engine::memberNames).orEmpty()
-        engine.messages(community).map {
-            CommunityText("${it.sender}/${it.messageId}", it.sender.toString(), it.text, it.sentAt, it.status, names[it.sender], it.sender == engine.accountId)
-        }
-    }
-    override suspend fun send(id: String, text: String) { runtime.withCommunities { it.send(AccountId.parse(id), text) } }
     override suspend fun applications(id: String) = runtime.withCommunities { it.requests(AccountId.parse(id)).map { r -> CommunityApplication(r.accountId.toString(), r.identityKey, r.createdAt,
         // The engine has checked that every key is a 33-byte identity key.
         CommunityFormat.fingerprint(Base64Url.decode(r.identityKey, 33))) } }

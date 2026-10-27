@@ -128,6 +128,27 @@ interface MessengerService {
      */
     suspend fun unblock(chat: ChatId): Boolean = false
 
+    // MARK: Deleting (on this phone only)
+
+    /**
+     * 4.1 (long press) / the contact screen › “Sohbeti sil”, after its confirmation: the chat's
+     * messages and media are deleted from this phone only, crypto-shredded (PROTOCOL §5.3), with what
+     * still waited to go in it; a live location shared in it stops. Nothing is sent: the chat stays
+     * on the other phone, and the contact stays here (writing again continues it). `false` when
+     * nothing was deleted (and for a service that cannot delete).
+     */
+    suspend fun deleteChat(chat: ChatId): Boolean = false
+
+    /**
+     * 4.1 (long press) / the contact screen › “Kişiyi sil”, after its confirmation: the chat as in
+     * [deleteChat], and the contact itself. Nothing is sent. Deleting is not blocking (PROTOCOL
+     * §6.4): the session and identity stay, so if the contact writes again its message appears as a
+     * new request under the name it was shown under (an identity change is still flagged);
+     * searching the username again starts a new chat, a new request. Someone blocked stays blocked,
+     * kept only as the block (7.1 › Engellenenler). `false` when nothing was deleted.
+     */
+    suspend fun deleteContact(chat: ChatId): Boolean = false
+
     /**
      * 7.1 › Engellenenler: everyone blocked, by name: with a chat (read only in 4.1) or without one
      * (Ghost erased it, or it was deleted; the block stays). The default lists the blocked chats.
@@ -269,6 +290,13 @@ interface MessengerService {
     suspend fun deleteForEveryone(message: MessageId, chat: ChatId)
 
     suspend fun deleteForMe(message: MessageId, chat: ChatId)
+
+    /**
+     * Communities (5.4 › Bilgi): every recipient of an own message, with its delivered and read
+     * times (read only while read receipts are on), pending or failed sends, and members who have
+     * left with their last state. Empty for one-to-one chats.
+     */
+    suspend fun messageRecipients(message: MessageId, chat: ChatId): List<MessageRecipient> = emptyList()
 
     /** Sets (or with `null` removes) the user's reaction. */
     suspend fun setReaction(emoji: String?, message: MessageId, chat: ChatId)
@@ -524,6 +552,9 @@ interface MessengerService {
     fun scenePhaseChanged(phase: MessengerScenePhase) {}
 
     /** 5.1 is on screen: its messages load, receipts and disappearing timers start. */
+    /** Loads an older local page; false means the oldest retained message was reached. */
+    suspend fun loadOlderMessages(chat: ChatId): Boolean = false
+
     suspend fun conversationAppeared(chat: ChatId) {}
 
     fun conversationDisappeared(chat: ChatId) {}

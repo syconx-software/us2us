@@ -268,6 +268,34 @@ internal fun MessagingEngine.stopLiveLocationNow(sessionId: ByteString, peer: Ac
 }
 
 /**
+ * “Sohbeti sil” while we share a live location with [peer]: each running share still stops on the
+ * other phone (§8.3). Its stop is built from the share's latest bubble, as [stopLiveLocationNow]
+ * does, but queued without the conversation (whose items are about to be crypto-shredded) and not
+ * stored as a message. Runs inside the deletion's write, before the wipe. Returns how many were queued.
+ */
+internal fun MessagingEngine.enqueueLiveLocationStops(peer: AccountId, conversationId: ConversationId, tx: StorageTransaction, now: Instant): Int {
+    var queued = 0
+    for ((sessionId, session) in liveSessions) {
+        if (session.peer != peer) continue
+        val (current, timer) = try {
+            liveLocationOf(sessionId, conversationId, tx, now)
+        } catch (_: EngineException) {
+            continue
+        }
+        val live = current.toBuilder().setStopped(true).setSequence(current.sequence + 1).build()
+        val data = dataMessage {
+            messageId = RandomIds.make()
+            sentAt = now.toEpochMilli()
+            expireTimerSeconds = timer
+            liveLocation = live
+        }
+        tx.outbox.enqueue(content { this.data = data }, peer, now = now)
+        queued++
+    }
+    return queued
+}
+
+/**
  * Our live-location bubbles that still look live although this engine sends nothing for them: the
  * process ended while sharing or the vault was locked, so the session's memory is gone. Each one
  * gets its normal stop message now (§8.3); sharing is never resumed by itself.

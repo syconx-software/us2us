@@ -58,8 +58,10 @@ internal suspend fun MessagingEngine.startConversationNow(username: Username): A
             ContactState.BLOCKED -> tx.contacts.unblockAsOutgoingRequest(account)
             else -> Unit
         }
-        // Our own lookup proves the username belongs to this account (§3.3).
+        // Our own lookup proves the username belongs to this account (§3.3), and no longer to any
+        // other contact still showing it (a deleted account whose name someone else registered).
         tx.contacts.confirmUsername(username, account)
+        tx.contacts.noteUsernameOwner(username, account)
         tx.conversations.ensure(account, now)
     }
     emit(EngineChange.Conversations)
@@ -771,7 +773,11 @@ private fun MessagingEngine.didVerify(peer: AccountId, wasVerified: Boolean) {
 
 // MARK: Username claims (§3.3)
 
-/** Checks a contact's username claim against the directory, once, when the conversation is opened. */
+/**
+ * Checks a contact's username claim against the directory, once, when the conversation is opened:
+ * an accepted contact's, or an incoming request's whose name was kept from a deleted contact (a
+ * stranger's request carries a verified `sender_username`, so it never needs one).
+ */
 internal suspend fun MessagingEngine.verifyUsernameIfNeededNow(peer: AccountId) {
     val contact = try {
         read { it.contacts.get(peer) }
@@ -779,7 +785,7 @@ internal suspend fun MessagingEngine.verifyUsernameIfNeededNow(peer: AccountId) 
         null
     } ?: return
     val username = contact.profile.username ?: return
-    if (contact.requestState != ContactState.ACCEPTED || !contact.profile.needsUsernameCheck) return
+    if (contact.requestState !in setOf(ContactState.ACCEPTED, ContactState.INCOMING_REQUEST) || !contact.profile.needsUsernameCheck) return
     val owner = try {
         backend.usernameOwner(username)
     } catch (e: CancellationException) {

@@ -3,6 +3,7 @@ package com.syconx.us2us.runtime.vault
 import com.syconx.us2us.core.vault.BootClock
 import com.syconx.us2us.core.vault.UnlockStatus
 import com.syconx.us2us.core.vault.Vault
+import com.syconx.us2us.core.vault.VaultHardwareKey
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -17,8 +18,8 @@ import kotlin.coroutines.cancellation.CancellationException
  * creation, attempts recorded as failures *before* the code is checked ([LocalVault]), increasing
  * delays after two wrong codes, an optional wipe after 10, biometric quick unlock through a
  * Keystore key bound to the current biometric enrollment, re-wrapping on a code change, and
- * crypto-shredding for "forgot code" / "erase everything". Vaults are format v1 on Android (the
- * hardware step of v2 is not implemented yet).
+ * crypto-shredding for "forgot code" / "erase everything". Verified secure hardware enables
+ * vault format v2; v1 moves after a successful code unlock without changing the DEK.
  *
  * The controller never keeps the DEK: every successful unlock returns a fresh [SecretKeyMaterial]
  * that the caller wipes when the app locks.
@@ -39,6 +40,7 @@ class VaultController(
     private val configuration: Configuration = Configuration(),
     private val bootClock: BootClock = AndroidBootClock,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val hardwareKey: VaultHardwareKey? = (secureItems as? KeystoreItemStore)?.vaultHardwareKey(),
 ) {
     data class Configuration(val iterations: Int = Vault.ITERATIONS)
 
@@ -55,6 +57,7 @@ class VaultController(
         configuration = LocalVault.Configuration(configuration.iterations, sidecar.wipeAfterTenFailures),
         clock = clock,
         bootClock = bootClock,
+        hardwareKey = hardwareKey,
     )
 
     /** Whether a vault file exists; a file check that never waits for a running unlock. */
@@ -76,7 +79,8 @@ class VaultController(
         val dek = vault().create(code, confirmation)
         sidecar = VaultSidecar(lastCodeEntry = clock.instant())
         saveSidecar()
-        VaultLog.info("vault created, format 1")
+        maintainWrappingKey()
+        VaultLog.info("vault created, format ${vault().formatVersion}")
         dek
     }
 
@@ -114,6 +118,7 @@ class VaultController(
             )
             refreshQuickUnlockWrap(dek)
             saveSidecar()
+            maintainWrappingKey()
             return dek
         } finally {
             unlockInFlight = false
@@ -218,7 +223,10 @@ class VaultController(
                 if (dek.size != Vault.DEVICE_SECRET_LENGTH) {
                     throw serialized { refuseBiometricUnlock(BiometricException(BiometricError.KEY_FAILURE), previousFailures) }
                 }
-                serialized { updateRecord { it.copy(failures = 0) } }
+                serialized {
+                    updateRecord { it.copy(failures = 0) }
+                    maintainWrappingKey()
+                }
                 return SecretKeyMaterial(dek)
             } finally {
                 dek.fill(0)
@@ -267,6 +275,15 @@ class VaultController(
 
     // Settings and code change
 
+    /** A failed optional copy/cleanup must not turn a correct PIN or biometric into a refusal. */
+    private fun maintainWrappingKey() {
+        try {
+            secureItems.migrateAfterSuccessfulUnlock()
+        } catch (_: IOException) {
+            VaultLog.notice("secure item wrapping migration deferred")
+        }
+    }
+
     val wipeAfterTenFailures: Boolean get() = sidecar.wipeAfterTenFailures
 
     /** The optional "wipe after 10 wrong codes" (default off). The UI offers it only while unlocked. */
@@ -293,6 +310,7 @@ class VaultController(
         }
         sidecar = sidecar.copy(lastCodeEntry = clock.instant())
         saveSidecar()
+        maintainWrappingKey()
         VaultLog.info("code changed")
     }
 
@@ -315,6 +333,11 @@ class VaultController(
     }
 
     private fun removeLeftovers() {
+        try {
+            hardwareKey?.deleteKey()
+        } catch (_: IOException) {
+            VaultLog.error("vault hardware key not deleted")
+        }
         try {
             secureItems.deleteAll()
         } catch (_: IOException) {
