@@ -10,6 +10,7 @@ import com.syconx.us2us.domain.AvatarPalette
 import com.syconx.us2us.domain.BackupContents
 import com.syconx.us2us.domain.BackupEstimate
 import com.syconx.us2us.domain.BackupFileError
+import com.syconx.us2us.domain.DeviceProtection
 import com.syconx.us2us.domain.BackupFileInfo
 import com.syconx.us2us.domain.BackupOpenResult
 import com.syconx.us2us.domain.BackupPasswordError
@@ -499,6 +500,14 @@ class RealMessengerService(
     // MARK: Restore access (§5.5 step 3.4)
 
     override val restoreAccessPending: StateFlow<Boolean> get() = runtime.tokenRotationPending
+
+    // The runtime's pasteboard (audit 2026-10-28 L-8): cleared on lock and background, not only by a timer.
+    override fun copyToClipboard(text: String): Boolean =
+        runtime.pasteboard.copy(text, com.syconx.us2us.runtime.support.SecurePasteboard.Sensitivity.ORDINARY)
+
+    override val deviceProtection: StateFlow<DeviceProtection> by lazy {
+        runtime.deviceProtection.mapState(LiveMapping::deviceProtection)
+    }
 
     override suspend fun checkRestoreAccess(): RestoreAccessCheck = LiveOutcomes.restoreAccess(runtime.checkPendingTokenRotation())
 
@@ -1381,26 +1390,26 @@ class RealMessengerService(
         if (decoded.username == ownUsername.value) return ContactCodeAddition.Failed
         val entry = valueOr(null) { runtime.lookupAccount(decoded.username) } ?: return ContactCodeAddition.Failed
         val fingerprint = decoded.keyFingerprint
+        val peer = entry.account
         if (fingerprint == null) {
             // A code without the key's fingerprint (older versions) names the user but proves nothing about the key: added, not verified.
-            val peer = valueOr(null) { runtime.startConversation(decoded.username) } ?: return ContactCodeAddition.Failed
+            valueOr(null) { runtime.addContactFromCode(decoded.username, entry, pinKey = false) } ?: return ContactCodeAddition.Failed
             return ContactCodeAddition.Added(listed(ChatId(peer.toString())))
         }
         // The relay must serve the very key the code commits to; otherwise nobody is added.
         if (!LiveMapping.fingerprintMatches(fingerprint, Bytes.wrap(entry.identityKey))) return ContactCodeAddition.Mismatch
-        val peer = valueOr(null) { runtime.startConversation(decoded.username) } ?: return ContactCodeAddition.Failed
-        // The conversation is with the account whose key was checked, or nothing is verified.
-        if (peer != entry.account) return ContactCodeAddition.Mismatch
-        return try {
-            // Pins that key: a different one later (from a bundle or a message) is a safety-number
-            // change, so a relay that swaps keys at first contact is caught.
-            val verified = runtime.verifyContactCode(peer, entry.identityKey)
-            if (verified) ContactCodeAddition.Verified(listed(ChatId(peer.toString()))) else ContactCodeAddition.Mismatch
+        // One lookup only: the contact is created for the account whose key was just checked, and
+        // that key is pinned (a different one later, from a bundle or a message, is a safety-number
+        // change) before anything is created. Another key already stored for that account adds
+        // nothing (§5, audit 2026-10-28 M-10).
+        val added = try {
+            runtime.addContactFromCode(decoded.username, entry, pinKey = true)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            ContactCodeAddition.Added(listed(ChatId(peer.toString())))
+            return ContactCodeAddition.Failed
         }
+        return if (added) ContactCodeAddition.Verified(listed(ChatId(peer.toString()))) else ContactCodeAddition.Mismatch
     }
 
     // MARK: Settings & backup

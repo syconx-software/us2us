@@ -44,6 +44,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.theme.onMediaGlass
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -185,10 +187,16 @@ fun VideoPlayer(
             playback.refresh()
         }
     }
-    // Playing: the controls fade after 3 s without a touch.
+    // Playing: the controls fade after 3 s without a touch, or after the user's “time to take
+    // action” (Accessibility settings) when that is longer. With TalkBack they stay: a control that
+    // disappears cannot be found by touch exploration.
+    val accessibility = LocalAccessibilityManager.current
+    val exploresByTouch = remember(context) {
+        context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
+    }
     LaunchedEffect(playback.isPlaying, hideRequest) {
-        if (!playback.isPlaying) return@LaunchedEffect
-        delay(3.seconds)
+        if (!playback.isPlaying || exploresByTouch) return@LaunchedEffect
+        delay(accessibility?.calculateRecommendedTimeoutMillis(3_000, containsIcons = true, containsControls = true) ?: 3_000)
         if (playback.isPlaying && !playback.isScrubbing) controlsVisible = false
     }
     DisposableEffect(playback) { onDispose { playback.close() } }
@@ -463,7 +471,7 @@ private fun CentreButton(item: ViewerItem, message: Message?, playback: VideoPla
                 MediaGlassCircle(diameter = 64.dp) {
                     MediaStateGlyph(loadingState(message), diameter = 64.dp, readyGlyph = ReadyGlyph.None)
                 }
-                U2Text(stringResource(R.string.conversation_player_preparing), U2TextStyles.caption, color = colors.onMedia.copy(alpha = 0.72f))
+                U2Text(stringResource(R.string.conversation_player_preparing), U2TextStyles.caption, Modifier.onMediaCaption(), color = colors.onMedia)
             }
             CentreKind.Failed -> Column(
                 Modifier.testTag(VideoPlayerTags.FAILED).semantics(mergeDescendants = true) {},
@@ -473,7 +481,7 @@ private fun CentreButton(item: ViewerItem, message: Message?, playback: VideoPla
                 MediaGlassCircle(diameter = 64.dp) {
                     PhosphorIcon(PhosphorGlyph.WarningCircle, 26.dp, Modifier.alpha(0.72f), tint = colors.onMedia)
                 }
-                U2Text(stringResource(R.string.conversation_player_failed), U2TextStyles.label15Emphasis, color = colors.onMedia.copy(alpha = 0.72f))
+                U2Text(stringResource(R.string.conversation_player_failed), U2TextStyles.label15Emphasis, Modifier.onMediaCaption(), color = colors.onMedia)
             }
             CentreKind.Controls -> {
                 val label = stringResource(
@@ -583,4 +591,14 @@ internal fun VideoScrubber(playback: VideoPlaybackModel, onInteraction: () -> Un
             U2Text(total, U2TextStyles.monoMeta, color = colors.onMedia.copy(alpha = 0.75f))
         }
     }
+}
+
+/**
+ * A caption over the video's frame: on the media glass, so it stays readable over a bright picture
+ * (white at 72 % straight on a sunset measured 1.2 : 1).
+ */
+@Composable
+private fun Modifier.onMediaCaption(): Modifier {
+    val colors = U2Theme.colors
+    return background(colors.onMediaGlass(0.4f), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp)
 }

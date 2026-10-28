@@ -13,6 +13,11 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Never asked for: saving to the gallery on Android 9 only writes (WRITE_EXTERNAL_STORAGE,
+         maxSdkVersion 28, in feature/media). The manifest merger would otherwise add it. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -36,12 +41,14 @@
     </queries>
 
     <!-- Nothing leaves the phone through Android's backup or device transfer: the backup is the
-         app's own encrypted file (7.2). -->
+         app's own encrypted file (7.2). Predictive back is on from Android 13: the screens follow the
+         back gesture as it moves, as they already do on Android 16. -->
     <application
         android:name=".app.Us2usApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher"
         android:label="us2us"

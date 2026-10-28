@@ -16,6 +16,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -62,9 +64,13 @@ internal fun GhostSettingsSheet(
     var period by rememberSaveable(chat.id.value) { mutableStateOf(chat.ghost.period) }
     var disappearing by rememberSaveable(chat.id.value) { mutableStateOf(chat.disappearing) }
     val hasChanges = isEnabled != chat.ghost.isEnabled || (isEnabled && period != chat.ghost.period) || disappearing != chat.disappearing
+    // As tall as its content; with a large system font or on a small phone it scrolls, so “Kaydet”
+    // is always reachable.
+    val scroll = rememberScrollState()
     Column(
         modifier
             .fillMaxWidth()
+            .verticalScroll(scroll, enabled = scroll.maxValue > 0)
             .padding(start = 18.dp, top = 20.dp, end = 18.dp)
             .u2Bottom(40.dp)
             .testTag("ghost.sheet"),

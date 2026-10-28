@@ -5,7 +5,10 @@ import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.feature.chats.invite.InviteTags
 import com.syconx.us2us.shot.ShotHost
@@ -100,6 +103,31 @@ class ChatsStatesShotTest {
         shootAll(listOf("invite:link", "invite:link-unknown")) { route ->
             val tag = if (route == "invite:link") NewChatTags.WRITE else NewChatTags.INVITE
             host.compose.onNodeWithTag(tag).assertIsDisplayed()
+        }
+    }
+
+    /** The review matrix (`UX_PHASE`): 4.1, the long-press menu and both deletion confirmations. */
+    @Test
+    fun uxScenes() {
+        org.junit.Assume.assumeTrue(com.syconx.us2us.shot.UxMatrix.enabled)
+        for (variant in com.syconx.us2us.shot.UxMatrix.variants) {
+            fun show() { host.render(variant.theme, variant.lang, variant.options()) { ChatsApp("chats:4.1") } }
+            fun press() {
+                host.compose.onNodeWithTag(ChatsTags.chat(ChatId("deniz")), useUnmergedTree = true).performTouchInput { longClick() }
+                host.advance(1_000)
+            }
+            show()
+            host.captureUx("chats_list", variant)
+            press()
+            host.captureUx("chats_row_menu", variant)
+            host.compose.onNodeWithTag("menu.${com.syconx.us2us.ui.common.ChatDeletionTags.DELETE_CHAT}", useUnmergedTree = true).performClick()
+            host.advance(1_500)
+            host.captureUx("chats_delete_chat", variant)
+            show()
+            press()
+            host.compose.onNodeWithTag("menu.${com.syconx.us2us.ui.common.ChatDeletionTags.DELETE_CONTACT}", useUnmergedTree = true).performClick()
+            host.advance(1_500)
+            host.captureUx("chats_delete_contact", variant)
         }
     }
 }

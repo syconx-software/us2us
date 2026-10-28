@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         )
         if (savedInstanceState == null) {
             // Invite links (https://us2us.app/u/<username>) and the debug `U2OpenURL`; 4.1 opens them after the unlock.
-            intent?.dataString?.let(InviteLinkInbox::handle)
+            intent?.inviteLink()?.let(InviteLinkInbox::handle)
             app.launchConfig.openUrl?.let(InviteLinkInbox::handle)
         }
         setContent {
@@ -61,8 +61,14 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.dataString?.let(InviteLinkInbox::handle)
+        intent.inviteLink()?.let(InviteLinkInbox::handle)
     }
+
+    /**
+     * The link of a view intent only: the activity is exported, and other apps may start it with
+     * any action and data (audit 2026-10-28 L-14). The inbox still checks the link itself.
+     */
+    private fun Intent.inviteLink(): String? = dataString?.takeIf { action == Intent.ACTION_VIEW }
 
     /**
      * Edge to edge with transparent bars; the icons are light on the dark theme (and on screens that

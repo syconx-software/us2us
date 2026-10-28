@@ -119,7 +119,7 @@ internal fun MessageActionsOverlay(
             val frame = context.sourceFrame.translate(-origin)
             DpRect(frame.left.toDp(), frame.top.toDp(), frame.width.toDp(), frame.height.toDp())
         }
-        val layout = ActionsLayout.of(maxWidth, maxHeight, safeTop, source, isOutgoing, showsReactions, FloatingMenuMetrics.height(items))
+        val layout = ActionsLayout.of(maxWidth, maxHeight, safeTop, source, isOutgoing, showsReactions, FloatingMenuMetrics.measuredHeight(items))
         // A tap outside closes the menu.
         Box(
             Modifier

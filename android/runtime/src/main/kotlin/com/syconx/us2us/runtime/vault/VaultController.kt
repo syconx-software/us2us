@@ -63,6 +63,19 @@ class VaultController(
     /** Whether a vault file exists; a file check that never waits for a running unlock. */
     val hasVault: Boolean get() = File(directories.vault, LocalVault.FILE_NAME).exists()
 
+    /**
+     * What the secure hardware adds to the code on this phone (M-6): the vault format (a failed
+     * hardware upgrade leaves v1), the Android version and the device-secret key's security level.
+     */
+    suspend fun deviceProtection(sdk: Int = android.os.Build.VERSION.SDK_INT): DeviceProtection = serialized {
+        val level = try {
+            (secureItems as? KeystoreItemStore)?.securityLevel()
+        } catch (_: Exception) {
+            null // Unknown is not proof of software: only a known software key reads as basic.
+        }
+        DeviceProtection.of(vault().formatVersion, sdk, level)
+    }
+
     // Create
 
     /**

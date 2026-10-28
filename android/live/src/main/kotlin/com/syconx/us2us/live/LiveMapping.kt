@@ -241,6 +241,13 @@ enum class LiveConnection {
 // MARK: - Mapping
 
 object LiveMapping {
+    /** The runtime's reading of the vault's hardware protection, for 7.1 › Güvenlik (M-6). */
+    fun deviceProtection(level: com.syconx.us2us.runtime.vault.DeviceProtection): com.syconx.us2us.domain.DeviceProtection = when (level) {
+        com.syconx.us2us.runtime.vault.DeviceProtection.FULL -> com.syconx.us2us.domain.DeviceProtection.Full
+        com.syconx.us2us.runtime.vault.DeviceProtection.LIMITED -> com.syconx.us2us.domain.DeviceProtection.Limited
+        com.syconx.us2us.runtime.vault.DeviceProtection.BASIC -> com.syconx.us2us.domain.DeviceProtection.Basic
+    }
+
     // MARK: Ids
 
     /** Message ids are 16 random bytes; the UI keys them as lower-case hex. */

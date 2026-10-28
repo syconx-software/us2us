@@ -30,12 +30,15 @@ class VaultV2MigrationTest {
         var failAt = -1
         var inconsistent = false
         var failDeletion = false
+        /** From this call on the key gives other output than before (a key that changed under the vault). */
+        var driftFrom = -1
         override fun createKey() { generation++; key = ByteArray(32) { generation.toByte() } }
         override fun evaluate(codeKey: ByteArray): ByteArray {
             calls++
             if (calls == failAt) throw VaultHardwareKeyException("temporary test failure")
             val current = key ?: throw VaultHardwareKeyMissingException()
             if (inconsistent) return ByteArray(32) { calls.toByte() }
+            if (driftFrom in 1..calls) return ByteArray(32) { 0x55 }
             return Mac.getInstance("HmacSHA256").run { init(SecretKeySpec(current, "HmacSHA256")); doFinal(codeKey) }
         }
         override fun deleteKey() {
@@ -68,7 +71,8 @@ class VaultV2MigrationTest {
         val upgraded = controller().unlock(CODE)
         assertTrue(original.matches(upgraded))
         assertEquals(2, local(fixture, hardware).formatVersion)
-        assertEquals(2, hardware.calls)
+        // Sealing evaluates twice (reproducible?), then the candidate is opened once before it replaces v1 (M-6).
+        assertEquals(3, hardware.calls)
         assertArrayEquals(conversationKey, upgraded.withDataKey { slots.conversationKey(id, it) })
         assertTrue(original.matches(controller().unlockWithBiometrics("unlock", "code")))
         assertTrue(original.matches(controller().unlock(CODE)))
@@ -94,6 +98,45 @@ class VaultV2MigrationTest {
         assertTrue(original.matches(vault.unlock(CODE)))
         assertEquals(2, vault.formatVersion)
         assertEquals(2, hardware.generation)
+    }
+
+    @Test
+    fun aV2CandidateThatDoesNotOpenAgainNeverReplacesV1() = runBlocking {
+        // M-6: the move is checked by opening the candidate before the atomic replacement.
+        val fixture = VaultFixture(temporary.newFolder())
+        val original = fixture.vault.create(CODE, CODE)
+        val bytes = fixture.vaultFile.readBytes()
+        val hardware = Hardware().also { it.driftFrom = 3 }
+        assertTrue(original.matches(local(fixture, hardware).unlock(CODE)))
+        assertArrayEquals("v1 kept", bytes, fixture.vaultFile.readBytes())
+        assertEquals(1, local(fixture, hardware).formatVersion)
+        assertEquals(DeviceProtection.BASIC, DeviceProtection.of(local(fixture, hardware).formatVersion, 36, null))
+        // The next unlock tries again, now with a well-behaved key.
+        hardware.driftFrom = -1
+        assertTrue(original.matches(local(fixture, hardware).unlock(CODE)))
+        assertEquals(2, local(fixture, hardware).formatVersion)
+        assertTrue(original.matches(local(fixture, hardware).unlock(CODE)))
+    }
+
+    @Test
+    fun theControllerReportsBasicProtectionWhileTheUpgradeFailsAndFullOnceItWorked() = runBlocking {
+        val fixture = VaultFixture(temporary.newFolder())
+        val hardware = Hardware().also { it.isAvailable = false }
+        val controller = VaultController(
+            fixture.directories, fixture.items, fixture.biometrics, fixture.clock,
+            VaultController.Configuration(1000), fixture.bootClock, Dispatchers.Unconfined, hardware,
+        )
+        controller.create(CODE, CODE)
+        assertEquals(DeviceProtection.BASIC, controller.deviceProtection(sdk = 36))
+        hardware.isAvailable = true
+        hardware.failAt = 1
+        controller.unlock(CODE).wipe()
+        assertEquals("a failed upgrade is never silent", DeviceProtection.BASIC, controller.deviceProtection(sdk = 36))
+        controller.unlock(CODE).wipe()
+        assertEquals(DeviceProtection.FULL, controller.deviceProtection(sdk = 36))
+        assertEquals(DeviceProtection.FULL, controller.deviceProtection(sdk = 35))
+        assertEquals("below Android 15 the key also works while locked", DeviceProtection.LIMITED, controller.deviceProtection(sdk = 34))
+        assertEquals(DeviceProtection.LIMITED, controller.deviceProtection(sdk = 28))
     }
 
     @Test

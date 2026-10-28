@@ -147,9 +147,11 @@ fun GroupedRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    /** The trailing view has a fixed size (a switch): the title always leaves room for it, at any text size. */
+    fixedTrailing: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val asDrawn = LocalDensity.current.fontScale <= 1f
+    val asDrawn = fixedTrailing || LocalDensity.current.fontScale <= 1f
     Row(
         modifier
             .fillMaxWidth()
@@ -163,10 +165,17 @@ fun GroupedRow(
             GroupedRowTitle(title, subtitle, Modifier.weight(1f))
         } else {
             GroupedRowTitle(title, subtitle, Modifier)
-            Spacer(Modifier.weight(1f, fill = false))
+            // Pushes a trailing check or switch to the edge; a weighted detail (DisclosureDetail)
+            // takes nearly all of what the title leaves, so its value is not halved.
+            Spacer(Modifier.weight(GroupedRowMetrics.SPACER_WEIGHT))
         }
         trailing()
     }
+}
+
+internal object GroupedRowMetrics {
+    /** The large-text spacer's share against a weighted trailing detail (1): next to nothing. */
+    const val SPACER_WEIGHT = 0.001f
 }
 
 @Composable
@@ -186,8 +195,8 @@ private fun GroupedRowTitle(title: String, subtitle: String?, modifier: Modifier
 fun RowScope.DisclosureDetail(detail: String? = null, showsChevron: Boolean = true) {
     val asDrawn = LocalDensity.current.fontScale <= 1f
     Row(
-        if (asDrawn) Modifier else Modifier.weight(1f, fill = false),
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
+        if (asDrawn) Modifier else Modifier.weight(1f),
+        horizontalArrangement = Arrangement.spacedBy(13.dp, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (detail != null) {
@@ -247,6 +256,7 @@ fun GroupedToggleRow(
         tile = tile,
         title = title,
         subtitle = subtitle,
+        fixedTrailing = true,
         modifier = modifier
             .toggleable(
                 value = checked,

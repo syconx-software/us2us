@@ -259,6 +259,8 @@ private fun VoiceBubbleWaveform(id: MessageId, bars: List<Double>, fallback: Dou
     val fraction = playback?.shownFraction(id, fallback) ?: fallback
     val current by rememberUpdatedState(playback)
     val positionLabel = stringResource(R.string.conversation_player_position)
+    val forwardLabel = stringResource(R.string.android_ux_voice_forward)
+    val backLabel = stringResource(R.string.android_ux_voice_back)
     val time = U2Format.voiceDuration(playback?.currentTime ?: Duration.ZERO)
     val gestures = if (isActive && playback != null) {
         Modifier.pointerInput(id) {
@@ -315,8 +317,8 @@ private fun VoiceBubbleWaveform(id: MessageId, bars: List<Double>, fallback: Dou
                     contentDescription = positionLabel
                     stateDescription = time
                     customActions = listOf(
-                        CustomAccessibilityAction("+5") { current?.skip(id, 5.seconds); true },
-                        CustomAccessibilityAction("−5") { current?.skip(id, (-5).seconds); true },
+                        CustomAccessibilityAction(forwardLabel) { current?.skip(id, 5.seconds); true },
+                        CustomAccessibilityAction(backLabel) { current?.skip(id, (-5).seconds); true },
                     )
                 }
             },

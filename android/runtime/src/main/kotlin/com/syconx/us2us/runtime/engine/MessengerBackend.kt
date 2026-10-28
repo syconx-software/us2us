@@ -6,7 +6,6 @@ import com.syconx.us2us.core.contacts.Contact
 import com.syconx.us2us.core.contacts.ContactState
 import com.syconx.us2us.core.contacts.ContactStore
 import com.syconx.us2us.core.contacts.MessageRequests
-import com.syconx.us2us.core.contacts.UsernameStatus
 import com.syconx.us2us.core.messenger.AvatarRecordStatus as CoreAvatarRecordStatus
 import com.syconx.us2us.core.messenger.ConnectionRejectedException
 import com.syconx.us2us.core.messenger.ConnectionState
@@ -42,7 +41,6 @@ import org.signal.libsignal.protocol.InvalidKeyException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -65,13 +63,13 @@ internal object ReceivePath {
  * verified `sender_username`, an access key, a profile) *before* it hands the message over. Here
  * the engine applies all of that itself, in the one transaction that stores the message (as the
  * iOS engine does), so those writes are not passed on: the table keeps the state before the
- * message, and [takeVerifiedUsername] tells the stream whether a verified `sender_username` came
- * with it. Bookkeeping of the core's own sends on the receive path (which contact holds our access
- * key and profile, an access key the relay refused) is written through.
+ * message. The verified `sender_username` of a message travels with it
+ * (`IncomingMessage.verifiedSenderUsername`), also when the name was verified before, so the
+ * §6.4 re-accept rule fires every time (audit 2026-10-28 M-9). Bookkeeping of the core's own sends
+ * on the receive path (which contact holds our access key and profile, an access key the relay
+ * refused) is written through.
  */
 internal class ReceiveGuardedContactStore(private val delegate: ContactStore) : ContactStore {
-    private val verified = ConcurrentHashMap<AccountId, Username>()
-
     override fun get(accountId: AccountId): Contact? = delegate.get(accountId)
 
     override fun all(): List<Contact> = delegate.all()
@@ -84,17 +82,8 @@ internal class ReceiveGuardedContactStore(private val delegate: ContactStore) : 
             return
         }
         val stored = delegate.get(contact.accountId)
-        if (stored != null && isBookkeeping(stored, contact)) {
-            delegate.put(contact)
-            return
-        }
-        val username = contact.username?.takeIf { contact.usernameStatus == UsernameStatus.VERIFIED }?.let(Username::parse)
-        val alreadyKnown = stored != null && stored.usernameStatus == UsernameStatus.VERIFIED && stored.username == contact.username
-        if (username != null && !alreadyKnown) verified[contact.accountId] = username else verified.remove(contact.accountId)
+        if (stored != null && isBookkeeping(stored, contact)) delegate.put(contact)
     }
-
-    /** The `sender_username` verified with the message being handed over now, if one came with it. */
-    fun takeVerifiedUsername(account: AccountId): Username? = verified.remove(account)
 
     /** Only which keys and profiles the contact holds changed, or an access key the relay refused was dropped. */
     private fun isBookkeeping(stored: Contact, new: Contact): Boolean {
@@ -132,18 +121,29 @@ internal class MessengerStream(
             val receive: Deferred<Unit> = async(ReceivePath.element(), start = CoroutineStart.LAZY) {
                 storage.protocolStorage.withStagedInboundWrites {
                     messenger.runReceiveLoop { message ->
-                        val username = contacts.takeVerifiedUsername(message.sender)
-                        deliver(
-                            IncomingMessage(
-                                envelopeId = message.envelopeId,
-                                serverTimestamp = message.serverTimestamp,
-                                sender = message.sender,
-                                senderUsername = username?.value,
-                                content = message.content,
-                                contactState = message.contactState,
-                                identityChanged = message.identityChanged,
-                            ),
-                        )
+                        val username = message.verifiedSenderUsername
+                        try {
+                            deliver(
+                                IncomingMessage(
+                                    envelopeId = message.envelopeId,
+                                    serverTimestamp = message.serverTimestamp,
+                                    sender = message.sender,
+                                    senderUsername = username?.value,
+                                    content = message.content,
+                                    contactState = message.contactState,
+                                    identityChanged = message.identityChanged,
+                                    verifiedSenderUsername = username,
+                                ),
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            // The vault closed under the message: it waits for the next connection
+                            // without counting as a failed attempt (only a message the engine cannot
+                            // take counts, and is dropped after a few, H-1).
+                            if (isStoreUnavailable(e)) throw IOException("local store unavailable")
+                            throw e
+                        }
                     }
                 }
             }
@@ -409,4 +409,12 @@ class MessengerBackend internal constructor(
             CoreAvatarRecordStatus.UNAVAILABLE -> AvatarRecordStatus.UNAVAILABLE
         }
     }
+}
+
+/** Whether [error] means the engine or its storage is closed (the vault locked), not that the message is bad. */
+internal fun isStoreUnavailable(error: Throwable): Boolean = when (error) {
+    is EngineException -> error.error == EngineError.STOPPED
+    is com.syconx.us2us.runtime.storage.StorageException -> error.error == com.syconx.us2us.runtime.storage.StorageError.Closed
+    is IOException -> true
+    else -> false
 }

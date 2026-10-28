@@ -31,6 +31,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
@@ -368,24 +370,54 @@ private fun Modifier.welcomeSwipe(pager: WelcomePagerModel, width: Float): Modif
 internal fun WelcomeKarsilamaPage() {
     Box(Modifier.fillMaxSize()) {
         DotGridBackdrop(mask = DotGridMask.Welcome, color = U2Theme.colors.dotGrid)
-        WelcomeScene(dark = U2Theme.isDark, frozenSeconds = null, modifier = Modifier.u2Top(84.dp))
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = U2Spacing.screenGutterL)
-                .u2Bottom(206.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Bottom),
-        ) {
-            U2DisplayText(R.string.onboarding_welcome_title, U2TextStyles.displayHero, modifier = Modifier.testTag(OnboardingTags.WELCOME_TITLE))
-            U2Text(
-                stringResource(R.string.onboarding_welcome_body),
-                U2TextStyles.bodyL,
-                color = U2Theme.colors.textSecondary,
-                modifier = Modifier.fillMaxWidth().testTag(OnboardingTags.WELCOME_BODY),
-            )
+        // The text sits on the CTA block; the scene takes the room above it. On a short screen or
+        // with a large system font the scene shrinks toward the top (and gives way when too small to
+        // read) instead of being drawn over the title.
+        Layout(
+            contents = listOf(
+                { WelcomeScene(dark = U2Theme.isDark, frozenSeconds = null, modifier = Modifier.u2Top(84.dp)) },
+                {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = U2Spacing.screenGutterL)
+                            .u2Bottom(206.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        U2DisplayText(R.string.onboarding_welcome_title, U2TextStyles.displayHero, modifier = Modifier.testTag(OnboardingTags.WELCOME_TITLE))
+                        U2Text(
+                            stringResource(R.string.onboarding_welcome_body),
+                            U2TextStyles.bodyL,
+                            color = U2Theme.colors.textSecondary,
+                            modifier = Modifier.fillMaxWidth().testTag(OnboardingTags.WELCOME_BODY),
+                        )
+                    }
+                },
+            ),
+            modifier = Modifier.fillMaxSize(),
+        ) { (sceneMeasurables, textMeasurables), constraints ->
+            val loose = constraints.copy(minWidth = 0, minHeight = 0)
+            val text = textMeasurables.first().measure(loose.copy(minWidth = constraints.maxWidth))
+            val scene = sceneMeasurables.first().measure(loose)
+            val room = (constraints.maxHeight - text.height - 16.dp.roundToPx()).coerceAtLeast(0)
+            val scale = if (scene.height <= room) 1f else room.toFloat() / scene.height.coerceAtLeast(1)
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                scene.placeWithLayer((constraints.maxWidth - scene.width) / 2, 0) {
+                    if (scale < 1f) {
+                        scaleX = scale
+                        scaleY = scale
+                        transformOrigin = TransformOrigin(0.5f, 0f)
+                        alpha = if (scale < WELCOME_SCENE_MIN_SCALE) 0f else 1f
+                    }
+                }
+                text.place(0, constraints.maxHeight - text.height)
+            }
         }
     }
 }
+
+/** Below this the shrunken 1.1 scene is too small to read and is left out. */
+private const val WELCOME_SCENE_MIN_SCALE = 0.45f
 
 // MARK: - 1.2 · Bildirim yok. Bilerek.
 

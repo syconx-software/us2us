@@ -63,6 +63,7 @@ import java.util.Locale
 /** Test tags of section 07 (the iOS accessibility identifiers, plus the layout ids the shots gate on). */
 object SettingsTags {
     const val ROOT = "settings.root"
+    const val DEVICE_PROTECTION = "settings.deviceProtection"
     const val BACK = "settings.back"
     const val TITLE = "settings.title"
     const val PROFILE = "settings.profile"

@@ -111,9 +111,18 @@ private fun MessagingEngine.applyInbound(message: InboundMessage, tx: StorageTra
         tx.envelopes.record(message.envelopeId, now)
     }
 
-    val previous = tx.contacts.requestState(sender)
+    var previous = tx.contacts.requestState(sender)
     // §6.4: messages from a blocked account are dropped locally.
     if (previous == ContactState.BLOCKED) return outcome
+    if (previous == ContactState.OUTGOING_REQUEST && !tx.contacts.requestSent(sender)) {
+        // We only opened this handle (search, contact code, invite link); nothing of ours reached
+        // it. Its messages count as a stranger's: a visible one is its own request to us, anything
+        // else (a bare ACCEPT, receipts, typing, settings) is ignored (audit 2026-10-28 M-9).
+        if (!content.hasData() || !InboundRules.opensRequest(content.data)) return outcome
+        tx.contacts.turnUnsentRequestIntoIncoming(sender)
+        previous = ContactState.INCOMING_REQUEST
+        outcome.listChanged = true
+    }
     if (previous == null) {
         if (!content.hasData() || !InboundRules.opensRequest(content.data)) return outcome
         outcome.listChanged = true
@@ -122,13 +131,12 @@ private fun MessagingEngine.applyInbound(message: InboundMessage, tx: StorageTra
     val username = message.senderUsername?.let(Username::parse)
     // Verified against the directory by the core (§6.3).
     if (username != null) tx.contacts.confirmUsername(username, sender)
-    if (previous == ContactState.OUTGOING_REQUEST && state == ContactState.OUTGOING_REQUEST &&
+    if (previous == ContactState.OUTGOING_REQUEST && state == ContactState.OUTGOING_REQUEST && username != null &&
         content.hasData() && InboundRules.opensRequest(content.data)
     ) {
-        // §6.4 crossing requests: we wrote first, and so did they (only an OUTGOING_REQUEST
-        // carries `sender_username`, and nothing else shows us a bubble before their ACCEPT).
-        // Neither side could ever accept, so both treat this as mutual acceptance; our ACCEPT
-        // makes the other phone agree in any case.
+        // §6.4 crossing requests: we wrote first (the relay took it), and so did they (only an
+        // OUTGOING_REQUEST carries `sender_username`). Neither side could ever accept, so both
+        // treat this as mutual acceptance; our ACCEPT makes the other phone agree in any case.
         tx.contacts.acceptCrossingRequest(sender)
         state = ContactState.ACCEPTED
         tx.outbox.enqueue(MessageRequests.acceptContent(), sender, now = now)

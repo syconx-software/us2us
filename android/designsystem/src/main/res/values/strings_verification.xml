@@ -28,6 +28,8 @@
     <string name="verification_safety_confirm_message">Only mark it if you compared the numbers with %s over another channel and every group matches.</string>
     <!-- safety.confirm.title — Confirmation before marking a chat verified manually. -->
     <string name="verification_safety_confirm_title">Mark as verified?</string>
+    <!-- safety.explainer %@ — 6.1 under the digits while the chat is not verified; the argument is the possessive name (deniz'in / deniz’s). -->
+    <string name="verification_safety_explainer">If these numbers match the ones on %s phone, your messages are end-to-end encrypted and nobody is in between. Scan the QR code side by side, or compare the numbers over another channel.</string>
     <!-- safety.markVerified — 6.1 text button: mark the chat verified after comparing digits elsewhere. -->
     <string name="verification_safety_markverified">Mark as verified</string>
     <!-- safety.remove.confirm — Removal confirmation: destructive button. -->

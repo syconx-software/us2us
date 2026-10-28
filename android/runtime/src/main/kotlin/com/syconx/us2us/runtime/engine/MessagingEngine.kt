@@ -320,6 +320,14 @@ class MessagingEngine(
     /** Finds [username] (exact match, §4.4) and opens a conversation as an outgoing request. Nothing is sent until the first message. */
     suspend fun startConversation(username: Username): AccountId = serialized { startConversationNow(username) }
 
+    /**
+     * A contact code: opens the conversation with the account of [entry] (the lookup the code was
+     * checked against, no second one) and, with [pinKey], first pins its key as verified. `false`
+     * when another key is stored for that account: then nothing is created.
+     */
+    suspend fun addContactFromCode(username: Username, entry: DirectoryEntry, pinKey: Boolean): Boolean =
+        serialized { addContactFromCodeNow(username, entry, pinKey) }
+
     /** Accepts an incoming request (§6.4): `ACCEPT` first, the state changes only after the relay answered. */
     suspend fun acceptRequest(peer: AccountId) = serialized { acceptRequestNow(peer) }
 

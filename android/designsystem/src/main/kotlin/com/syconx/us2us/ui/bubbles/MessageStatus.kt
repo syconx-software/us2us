@@ -15,6 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -110,24 +114,39 @@ fun MessageStatusSentence(
     val text = statusText(title, rest)
     val style = U2TextStyles.statusLine.textStyle()
     Row(
-        modifier.fillMaxWidth().padding(end = 4.dp).semantics(mergeDescendants = true) {},
+        modifier.fillMaxWidth().padding(end = 4.dp).semantics(mergeDescendants = true) {
+            // A message that could not be delivered is said when it turns so, with its “Tekrar gönder”.
+            if (status == MessageStatus.Failed) liveRegion = LiveRegionMode.Polite
+        },
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MessageStatusIcon(status, size = 14.dp)
-        BasicText(
-            text,
-            Modifier.weight(1f, fill = false),
-            style = style.merge(color = colors.textSecondary),
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Clip,
-            autoSize = TextAutoSize.StepBased(
-                minFontSize = style.fontSize * 0.85f,
-                maxFontSize = style.fontSize,
-                stepSize = 0.1.sp,
-            ),
-        )
+        if (LocalDensity.current.fontScale > 1f) {
+            // With a large system font the sentence wraps instead of being cut mid-word (“Alıcı
+            // uygulamayı aç…” would read as an instruction).
+            BasicText(
+                text,
+                Modifier.weight(1f, fill = false),
+                style = style.merge(color = colors.textSecondary, textAlign = TextAlign.End),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else {
+            BasicText(
+                text,
+                Modifier.weight(1f, fill = false),
+                style = style.merge(color = colors.textSecondary),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = style.fontSize * 0.85f,
+                    maxFontSize = style.fontSize,
+                    stepSize = 0.1.sp,
+                ),
+            )
+        }
         if (status == MessageStatus.Failed && onResend != null) {
             U2Text(
                 stringResource(R.string.common_status_failed_resend),
