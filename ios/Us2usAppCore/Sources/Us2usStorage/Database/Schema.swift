@@ -9,7 +9,21 @@
 /// is additionally an item under the conversation key CK (§5.3), so
 /// crypto-shredding a conversation leaves only unreadable ciphertext.
 enum Schema {
-    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10]
+    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11]
+
+    /// Message requests (audit 2026-10-28 M-9, PROTOCOL.md §6.4): when the
+    /// relay first accepted (`202`) a visible message of ours to an outgoing
+    /// request. Opening a handle (search, contact code, invite link) makes an
+    /// outgoing request row before anything is sent; until this is set, an
+    /// `ACCEPT` does not end that request and a stranger's message with
+    /// `sender_username` is its own incoming request, not a crossing one.
+    /// Outgoing requests from before keep the old behaviour (`created_at`),
+    /// so nobody waiting for an answer is stranded by the upgrade. The same
+    /// step as Android's schema v11.
+    static let v11 = Migration(version: 11, statements: [
+        "ALTER TABLE contacts ADD COLUMN request_sent_at INTEGER",
+        "UPDATE contacts SET request_sent_at = created_at WHERE request_state = 'outgoingRequest'",
+    ])
 
     /// “Kişiyi sil” (§6.4): a deleted contact keeps only its session and
     /// identity (protocol store) and the username it was shown under, so a

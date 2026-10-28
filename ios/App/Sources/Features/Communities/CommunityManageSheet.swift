@@ -77,6 +77,15 @@ struct CommunityManageSheet: View {
                     .foregroundStyle(Color.u2.textSecondary)
                     .padding(.horizontal, 16)
             } else {
+                // A queue filled with requests (audit M-14) is cleared in one step, confirmed first.
+                if pending.count > 1 {
+                    Button { confirmation = .rejectAll(communityID) } label: {
+                        Text("community.rejectAll")
+                    }
+                    .buttonStyle(U2TextButtonStyle(tone: .danger, height: U2Size.iconButton))
+                    .disabled(!busy.isEmpty)
+                    .accessibilityIdentifier("manage.rejectAll")
+                }
                 if isFull {
                     Text("manage.full", table: .communities)
                         .u2Font(.captionCompact)
@@ -231,7 +240,7 @@ struct CommunityManageSheet: View {
                 confirmation = nil
                 switch item {
                 case .leave, .delete, .forget, .withdraw: onGone()
-                case .removeMember: break
+                case .removeMember, .rejectAll: break
                 }
             } catch {
                 confirmation = nil

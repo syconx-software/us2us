@@ -4,19 +4,30 @@ import { pipeline } from 'node:stream/promises'
 import { getRequestHeader, setResponseStatus } from 'h3'
 import { defineApiRoute, isClientAbort, limitByAccount, requireAccount } from '../../../http/api'
 import { random, sha256 } from '../../../lib/crypto'
-import { encodeB64u } from '../../../lib/encoding'
-import { ApiError, badRequest, payloadTooLarge, unauthorized, unavailable } from '../../../lib/errors'
+import { encodeB64u, utcDate } from '../../../lib/encoding'
+import { ApiError, badRequest, payloadTooLarge, rateLimited, unauthorized, unavailable } from '../../../lib/errors'
 import { useRelay } from '../../../relay'
 
 const UNAVAILABLE_RETRY_SECONDS = 60
+/** The relay-wide upload budget is used up; asking again sooner would not help. */
+const GLOBAL_BUDGET_MAX_RETRY_SECONDS = 3600
+const STORED_FULL_RETRY_SECONDS = 3600
+const GLOBAL_KEY = 'relay'
+const DAY_MS = 86_400_000
 /** Mobile uploads stream through nginx unbuffered, so they may pause longer than other requests (nginx allows 60 s). */
 const UPLOAD_STALL_TIMEOUT_MS = 60_000
 
 /**
  * §4.9 Upload an encrypted blob. The body is streamed to disk, never held in
- * memory. A Content-Length is required so that size limits, the daily byte
- * quota and the free-space floor are checked before a single byte is
- * accepted.
+ * memory. A Content-Length is required so that size limits, the quotas and
+ * the free-space floor are checked before a single byte is accepted:
+ *
+ * - per account: uploads per hour and bytes per day (lower while the
+ *   account is new), and the unexpired bytes it has stored (429);
+ * - for the whole relay: bytes per day (503), so that many accounts cannot
+ *   fill the disk faster than the operator can react;
+ * - free space: media stop at the floor plus a reserve that only envelopes
+ *   may use (503), so uploads can never stop message delivery.
  */
 export default defineApiRoute({
   POST: async (event) => {
@@ -32,13 +43,29 @@ export default defineApiRoute({
     if (size === 0) throw badRequest('the blob must not be empty')
     limitByAccount(accountId, 'media-uploads', rateLimits.mediaUploads)
     limitByAccount(accountId, 'media-bytes', rateLimits.mediaBytes, size)
-    if (!relay.disk.reserve(size)) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
+    const now = Date.now()
+    const uploader = await relay.media.uploader(accountId, now)
+    if (!uploader) throw unauthorized()
+    const isNew = relay.config.newAccountDays > 0 && uploader.createdOn > utcDate(now - relay.config.newAccountDays * DAY_MS)
+    const maxStored = isNew ? relay.config.mediaStoredMaxNewBytes : relay.config.mediaStoredMaxBytes
+    if (uploader.storedBytes + size > maxStored) throw rateLimited(STORED_FULL_RETRY_SECONDS, 'too much media is stored for this account')
+    if (isNew) limitByAccount(accountId, 'media-bytes-new', rateLimits.mediaBytesNew, size)
+    const global = relay.limiter.take('media-bytes-global', GLOBAL_KEY, rateLimits.mediaBytesGlobal, size)
+    if (!global.ok) throw unavailable(Math.min(GLOBAL_BUDGET_MAX_RETRY_SECONDS, global.retryAfterSeconds))
+    if (!relay.disk.reserve(size, 'media')) {
+      relay.limiter.refund('media-bytes-global', GLOBAL_KEY, rateLimits.mediaBytesGlobal, size)
+      throw unavailable(UNAVAILABLE_RETRY_SECONDS)
+    }
 
     const id = random(16)
     const deleteToken = random(32)
-    const expiresAt = Date.now() + mediaTtlMs
+    const expiresAt = now + mediaTtlMs
+    const created = await relay.media.create(id, accountId, sha256(deleteToken), size, expiresAt, maxStored, now)
+    if (created !== 'created') relay.limiter.refund('media-bytes-global', GLOBAL_KEY, rateLimits.mediaBytesGlobal, size)
     // Deleted while this request waited for it.
-    if (!await relay.media.create(id, accountId, sha256(deleteToken), size, expiresAt)) throw unauthorized()
+    if (created === 'gone') throw unauthorized()
+    // Another upload of the same account was admitted meanwhile.
+    if (created === 'full') throw rateLimited(STORED_FULL_RETRY_SECONDS, 'too much media is stored for this account')
     try {
       await receive(event.node.req, relay.media.partPathOf(id), size)
       // Deleted while the body arrived.

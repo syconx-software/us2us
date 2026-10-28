@@ -27,6 +27,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.type.textStyle
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.testTag
@@ -122,9 +128,34 @@ object FloatingMenuMetrics {
     /** How long a chosen row waits for the closing menu to fade before it acts. */
     val ACTION_DELAY_MILLIS: Long get() = (U2Motion.Duration.micro * 1000f).toLong()
 
-    /** The height of a menu with [items] (rows 46, rules 2, group bands 7). */
+    /** The height of a menu with [items] (rows 46, rules 2, group bands 7), as drawn at the design's text size. */
     fun height(items: List<FloatingMenuItem>): Dp =
-        rowHeight * items.size + items.drop(1).fold(0.dp) { sum, item -> sum + if (item.startsGroup) groupBand else ruleHeight }
+        rowHeight * items.size + separators(items)
+
+    private fun separators(items: List<FloatingMenuItem>): Dp =
+        items.drop(1).fold(0.dp) { sum, item -> sum + if (item.startsGroup) groupBand else ruleHeight }
+
+    /**
+     * The height the menu will really have: [height] at the design's text size; with a larger system
+     * font each row as tall as its title and hint (two lines each at most) and its padding, so a
+     * placement made from it (5.3, the chat-row menu) leaves room for every row.
+     */
+    @Composable
+    fun measuredHeight(items: List<FloatingMenuItem>, width: Dp = 250.dp): Dp {
+        val density = LocalDensity.current
+        if (density.fontScale <= 1f) return height(items)
+        val measurer = rememberTextMeasurer()
+        val title = U2TextStyles.rowTitle.textStyle()
+        val hint = U2TextStyles.menuHint.textStyle()
+        // Row padding 16 + 16, glyph 19, gap 12.
+        val textWidth = with(density) { (width - 16.dp * 2 - 19.dp - 12.dp).roundToPx().coerceAtLeast(1) }
+        val rows = items.sumOf { item ->
+            val titleHeight = measurer.measure(item.title, title, maxLines = 2, constraints = Constraints(maxWidth = textWidth)).size.height
+            val hintHeight = item.hint?.let { measurer.measure(it, hint, maxLines = 2, constraints = Constraints(maxWidth = textWidth)).size.height + with(density) { 1.dp.roundToPx() } } ?: 0
+            maxOf(with(density) { rowHeight.roundToPx() }, titleHeight + hintHeight + with(density) { 12.dp.roundToPx() })
+        }
+        return with(density) { rows.toDp() } + separators(items)
+    }
 }
 
 @Composable
@@ -145,7 +176,8 @@ private fun FloatingMenuRow(item: FloatingMenuItem) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(FloatingMenuMetrics.rowHeight)
+            // 46 as drawn; a larger system font grows the row instead of clipping its title and hint.
+            .heightIn(min = FloatingMenuMetrics.rowHeight)
             .background(colors.text.copy(alpha = highlight))
             .clickable(source, indication = null, enabled = item.isEnabled, role = Role.Button, onClick = item.action)
             .semantics(mergeDescendants = true) {}
@@ -154,9 +186,11 @@ private fun FloatingMenuRow(item: FloatingMenuItem) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            U2Text(item.title, U2TextStyles.rowTitle, color = ink, maxLines = 1)
-            if (item.hint != null) U2Text(item.hint, U2TextStyles.menuHint, color = colors.textSecondary, maxLines = 1)
+        // Vertical breathing room only once the row has grown past its drawn 46 dp (title and hint fill it as drawn).
+        val grown = LocalDensity.current.fontScale > 1f
+        Column(Modifier.weight(1f).padding(vertical = if (grown) 6.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            U2Text(item.title, U2TextStyles.rowTitle, color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (item.hint != null) U2Text(item.hint, U2TextStyles.menuHint, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         PhosphorIcon(item.glyph, size = 19.dp, weight = item.glyphWeight, tint = ink)
     }

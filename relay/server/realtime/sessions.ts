@@ -4,7 +4,7 @@ import { describeError } from '../lib/errors'
 import type { Logger } from '../lib/logger'
 import { MAX_ACK_IDS } from '../lib/validation'
 import type { Mailbox, StoredEnvelope } from '../services/mailbox'
-import type { EnvelopePersister, HeldUsage, PendingEnvelope } from './persister'
+import { countHeld, type EnvelopePersister, type HeldUsage, type PendingEnvelope } from './persister'
 
 /** The parts of a WebSocket the session logic needs; adapted from a crossws peer. */
 export interface SessionSocket {
@@ -165,7 +165,13 @@ export class SessionManager {
   inMemory(recipientKey: string): HeldUsage {
     const live = this.held(recipientKey)
     const queued = this.deps.persister.held(recipientKey)
-    return { count: live.count + queued.count, bytes: live.bytes + queued.bytes }
+    const usage: HeldUsage = { count: live.count + queued.count, bytes: live.bytes + queued.bytes }
+    const powCount = (live.powCount ?? 0) + (queued.powCount ?? 0)
+    if (powCount > 0) {
+      usage.powCount = powCount
+      usage.powBytes = (live.powBytes ?? 0) + (queued.powBytes ?? 0)
+    }
+    return usage
   }
 
   /** True while so much is held in memory that new sealed envelopes must be refused. */
@@ -361,13 +367,7 @@ export class SessionManager {
     if (session.pending.has(entry.idKey)) return
     session.pending.set(entry.idKey, entry)
     const holdUntil = entry.holdUntil ??= Date.now() + (this.deps.maxHoldMs ?? this.deps.ackTimeoutMs + STALL_TIMEOUT_MS)
-    const usage = this.perRecipient.get(entry.recipientKey)
-    if (usage) {
-      usage.count++
-      usage.bytes += entry.body.length
-    } else {
-      this.perRecipient.set(entry.recipientKey, { count: 1, bytes: entry.body.length })
-    }
+    countHeld(this.perRecipient, entry, 1)
     this.totalBytes += entry.body.length
     this.arm(session, entry, holdUntil - Date.now())
   }
@@ -377,9 +377,7 @@ export class SessionManager {
     if (session.pending.get(entry.idKey) !== entry) return false
     session.pending.delete(entry.idKey)
     clearTimeout(entry.ackTimer)
-    const usage = this.perRecipient.get(entry.recipientKey)!
-    if (--usage.count === 0) this.perRecipient.delete(entry.recipientKey)
-    else usage.bytes -= entry.body.length
+    countHeld(this.perRecipient, entry, -1)
     this.totalBytes -= entry.body.length
     return true
   }

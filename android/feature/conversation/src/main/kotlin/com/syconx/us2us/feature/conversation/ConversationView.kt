@@ -45,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.type.U2FontScaleCap
+import com.syconx.us2us.ui.type.U2_HEADER_CHIP_FONT_SCALE_CAP
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
@@ -372,14 +374,18 @@ private fun Header(viewModel: ConversationViewModel, backdrop: U2BackdropSource)
             // Blocked: shown as it is, but nothing can be changed (nothing reaches them).
             val blocked = peer.isBlocked
             val alpha by animateFloatAsState(if (blocked) U2Opacity.disabled else 1f, U2Motion.resolve(U2Motion.state, LocalReduceMotion.current).spec(), label = "ghostChipBlocked")
-            GhostChip(
-                chat.ghost,
-                onClick = { if (!viewModel.isBlocked) viewModel.openGhostSettings() },
-                modifier = Modifier
-                    .graphicsLayer { this.alpha = alpha }
-                    .semantics { if (blocked) disabled() }
-                    .testTag("conversation.ghost"),
-            )
+            // A large system font keeps the chip near its drawn size, so the name beside it stays readable
+            // (the time is also in the Ghost sheet and read in full by TalkBack).
+            U2FontScaleCap(U2_HEADER_CHIP_FONT_SCALE_CAP) {
+                GhostChip(
+                    chat.ghost,
+                    onClick = { if (!viewModel.isBlocked) viewModel.openGhostSettings() },
+                    modifier = Modifier
+                        .graphicsLayer { this.alpha = alpha }
+                        .semantics { if (blocked) disabled() }
+                        .testTag("conversation.ghost"),
+                )
+            }
         },
     )
 }
@@ -539,8 +545,8 @@ private fun AttachMenuLayer(viewModel: ConversationViewModel, composerBottom: Fl
     val safeArea = currentSafeArea
     val keyboard = with(density) { WindowInsets.ime.getBottom(density).toDp() }
     val items = attachItems(viewModel)
-    val height = FloatingMenuMetrics.height(items)
     val width = 220.dp
+    val height = FloatingMenuMetrics.measuredHeight(items, width)
     val bottomPadding = if (keyboard > 0.dp) 8.dp else safeArea.bottom(36.dp)
     val plusTop = with(density) { composerBottom.toDp() } - bottomPadding - U2Size.composer
     val shown = viewModel.showsAttachMenu

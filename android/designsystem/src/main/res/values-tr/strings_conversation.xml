@@ -64,7 +64,7 @@
     <!-- bubble.saved.a11y -->
     <string name="conversation_bubble_saved_a11y">Karşı taraf kaydetti</string>
     <!-- confirm.deleteEveryone.message -->
-    <string name="conversation_confirm_deleteeveryone_message">Yerinde “Bu mesaj herkesten silindi” izi kalır.</string>
+    <string name="conversation_confirm_deleteeveryone_message">Mesaj onun telefonundan da silinir; yerinde “Bu mesaj herkesten silindi” yazar. Görmüş ya da kaydetmiş olabilir.</string>
     <!-- confirm.deleteEveryone.title -->
     <string name="conversation_confirm_deleteeveryone_title">Mesaj iki taraftan da silinsin mi?</string>
     <!-- disappearing.caption -->

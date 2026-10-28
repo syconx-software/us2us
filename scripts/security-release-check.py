@@ -108,7 +108,7 @@ def run(args):
         package_file = args.relay_output / "package.json"
         if package_file.is_file():
             packages = json.loads(package_file.read_text()).get("dependencies", {})
-            check("Relay output manifest excludes known build-only advisory packages", not {"node-forge", "braces"} & set(packages))
+            check("Relay output manifest excludes known build-only advisory packages", not {"node-forge", "braces", "deepmerge", "undici", "serialize-javascript"} & set(packages))
         else:
             check("Relay output package exists", False)
     if args.relay_release:

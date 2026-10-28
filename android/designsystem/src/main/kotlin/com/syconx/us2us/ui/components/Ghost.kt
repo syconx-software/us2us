@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
@@ -98,7 +99,8 @@ fun GhostPill(ghost: GhostState, modifier: Modifier = Modifier) {
     val description = stringResource(R.string.common_a11y_ghost_remaining, label)
     Row(
         modifier
-            .height(22.dp)
+            // 22 as drawn; with a large system font the pill grows instead of cutting its digits.
+            .heightIn(min = 22.dp)
             .background(fill, CircleShape)
             .padding(horizontal = 8.dp)
             .clearAndSetSemantics { contentDescription = description },

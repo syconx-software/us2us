@@ -164,6 +164,8 @@ struct ChatsView: View {
                                     ChatListRow(chat: chat)
                                 }
                                 .buttonStyle(GroupedRowButtonStyle())
+                                // The long press lifts the row as a rounded card, not a raw strip.
+                                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: U2Radius.card, style: .continuous))
                                 .modifier(ChatRowDeletion(chat: chat, deletion: $deletion))
                                 .accessibilityIdentifier("chat.\(chat.id)")
                             }
@@ -207,15 +209,11 @@ struct ChatsView: View {
         .padding(.horizontal, U2Spacing.screenGutter)
     }
 
-    /// No chats yet (proposed copy): a short instruction and the way to start.
+    /// No chats yet (proposed copy): a short instruction and the ways to
+    /// start — write to a username, show the own code to someone nearby,
+    /// or share the invitation with someone who is not.
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Text("list.empty", table: .chats)
-                .u2Font(.callout)
-                .foregroundStyle(Color.u2.textSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 290)
-                .fixedSize(horizontal: false, vertical: true)
+        U2EmptyState(glyph: .chatCircleDots, message: Text("list.empty", table: .chats)) {
             Button {
                 newChat = NewChatPresentation()
             } label: {
@@ -224,12 +222,24 @@ struct ChatsView: View {
                     Text("list.empty.action", table: .chats)
                 }
             }
-            .buttonStyle(U2TextButtonStyle(tone: .accent, fillsWidth: false))
+            .buttonStyle(.u2PrimaryInCard)
+            .frame(maxWidth: 280)
+            .padding(.top, 24)
             .accessibilityIdentifier("chats.empty.new")
+            Button {
+                showMyCode()
+            } label: {
+                HStack(spacing: 8) {
+                    PhosphorIcon(.qrCode, size: 20)
+                    Text("qr.mine", table: .chats)
+                }
+            }
+            .buttonStyle(U2TextButtonStyle(tone: .accent, fillsWidth: false))
+            .padding(.top, 10)
+            .accessibilityIdentifier("chats.empty.myCode")
+            InviteShareButton(username: model.messenger.ownUsername)
+                .accessibilityIdentifier("chats.empty.invite")
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 120)
-        .padding(.horizontal, U2Spacing.screenGutterL)
     }
 
     // MARK: Top bar

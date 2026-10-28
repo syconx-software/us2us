@@ -290,6 +290,14 @@ public final class CommunityService {
         resolved(request, in: id)
         await refresh()
     }
+    /// Owner: rejects every pending join request of `id` at once.
+    public func rejectAll(in id: AccountId) async throws {
+        try await perform { try await engine.rejectAll(in: id) }
+        requestsRevision += 1
+        ownerRequests[id] = []
+        if selected == id { requests = [] }
+        await refresh()
+    }
     public func remove(_ member: CommunityMember, from id: AccountId) async throws {
         try await perform { try await engine.remove(member, from: id) }
         await refresh()
@@ -414,6 +422,8 @@ actor CommunityEngine {
     private var flushAgain = false
     /// Recipients whose community mail is full, until the relay's `Retry-After`.
     private var fullInboxes: [AccountId: Date] = [:]
+    /// Per community, members whose delivery the relay refused as gone (`404`).
+    private var departed: [AccountId: Set<AccountId>] = [:]
     /// Community state fetches made (one per community and pass; for tests).
     private(set) var stateFetches = 0
     /// Whether READ receipts may leave (the user's setting, kept current by the service).
@@ -594,12 +604,25 @@ actor CommunityEngine {
         return try await relay.communityRequests(id).requests
     }
 
+    /// Admits a pending request with the key it asked to add. A member who
+    /// left stays listed in the signed roster, and the relay admits only
+    /// accounts new to the roster (audit 2026-10-28 M-11): such a request is
+    /// a re-admission, done as two signed states, first without the account,
+    /// then with it (its request stays valid in between).
     func approve(_ request: CommunityJoinRequest, in id: AccountId) async throws {
-        let state = try await current(id)
-        guard state.owner.accountId == backend.accountId, state.members.count < CommunityState.maxMembers,
-              state.member(request.accountId) == nil,
-              try await relay.communityRequests(id).requests.contains(request) else { throw CommunityError.invalidState }
+        var state = try await current(id)
+        guard state.owner.accountId == backend.accountId, request.accountId != backend.accountId,
+              try await relay.communityRequests(id).requests.contains(where: {
+                  $0.accountId == request.accountId && $0.identityKey == request.identityKey
+              }) else { throw CommunityError.invalidState }
         try check()
+        if state.member(request.accountId) != nil {
+            let without = try state.replacingMembers(state.members.filter { $0.accountId != request.accountId })
+            let signed = try await backend.messenger.signCommunityState(without)
+            try check()
+            state = try accept(await relay.updateCommunity(id, state: signed))
+        }
+        guard state.members.count < CommunityState.maxMembers else { throw CommunityError.invalidState }
         let next = try state.replacingMembers(state.members + [request.member])
         let signed = try await backend.messenger.signCommunityState(next)
         try check()
@@ -607,6 +630,25 @@ actor CommunityEngine {
     }
 
     func reject(_ request: CommunityJoinRequest, in id: AccountId) async throws { try check(); try await relay.rejectCommunityRequest(id, account: request.accountId) }
+
+    /// Owner: rejects every pending request at once (audit 2026-10-28 M-14);
+    /// one by one on a relay without the bulk route (`404` / `405`).
+    func rejectAll(in id: AccountId) async throws {
+        let state = try await current(id)
+        guard state.owner.accountId == backend.accountId else { throw CommunityError.invalidState }
+        do {
+            try await relay.rejectAllCommunityRequests(id)
+        } catch RelayError.server(let status, _, _) where status == 404 || status == 405 {
+            for pending in try await relay.communityRequests(id).requests.prefix(CommunityState.maxMembers) {
+                try check()
+                do {
+                    try await relay.rejectCommunityRequest(id, account: pending.accountId)
+                } catch let failure as RelayError where failure.isNotFound {
+                    // Withdrawn or expired meanwhile.
+                }
+            }
+        }
+    }
 
     func remove(_ member: CommunityMember, from id: AccountId) async throws {
         let state = try await current(id)
@@ -769,7 +811,33 @@ actor CommunityEngine {
                 memberships.insert(state.id)
             } catch let failure as CommunityError {
                 pass.note(CommunityIssue(failure))
-                if let id = try? CommunityState(bytes: signed.state).id { pass.gone.insert(id) }
+                // A record that does not verify (stale, forked, another key)
+                // ends nothing here: its community stays as it is and its
+                // mail waits (audit 2026-10-28 L-22).
+                if let id = try? CommunityState(bytes: signed.state).id {
+                    pass.unavailable.insert(id)
+                    memberships.insert(id)
+                }
+            }
+        }
+        // A community missing from `/mine` ends only when the relay confirms
+        // it: `GET /{id}` answers 404 (`current` then deactivates it) or a
+        // roster without this account. An unreachable relay changes nothing.
+        let missing = try storage.read { try $0.communities.all() }
+            .filter { $0.isActive && $0.signedState != nil && !memberships.contains($0.id) }
+        for group in missing {
+            try check()
+            do {
+                pass.states[group.id] = try await current(group.id)
+                memberships.insert(group.id)
+            } catch let failure as RelayError where failure.isNotFound {
+                pass.gone.insert(group.id)
+            } catch CommunityError.identityMismatch {
+                pass.gone.insert(group.id)
+            } catch {
+                pass.note(CommunityIssue(error))
+                pass.unavailable.insert(group.id)
+                memberships.insert(group.id)
             }
         }
         try storage.write { try $0.communities.markCurrentMemberships(memberships) }
@@ -896,6 +964,42 @@ actor CommunityEngine {
             resealed = await flushOnce(&next)
             if let issue = next.issue { pass.note(issue) }
         }
+        await dropDepartedMembers(&pass)
+    }
+
+    /// A member who left stays listed in the signed roster until the owner
+    /// signs one without it (audit 2026-10-28 M-11). The owner's phone does
+    /// that as soon as a delivery to it was refused as gone, if the fresh
+    /// roster still lists it, and once the community's own messages queued
+    /// under the current roster went out (a new roster would cancel them).
+    /// A failure waits for the next refused delivery.
+    private func dropDepartedMembers(_ pass: inout CommunityPass) async {
+        let found = departed
+        departed = [:]
+        let waiting = Set(((try? storage.read { try $0.communities.pending() }) ?? []).filter { $0.event == nil }.map(\.communityId))
+        for (id, leavers) in found {
+            guard isActive else { return }
+            // Only the owner signs rosters; members never fetch for this.
+            guard (try? storage.read({ try $0.communities.get(id)?.state?.owner.accountId })) == backend.accountId
+            else { continue }
+            if waiting.contains(id) {
+                departed[id, default: []].formUnion(leavers)
+                continue
+            }
+            pass.states[id] = nil
+            do {
+                let state = try await current(id)
+                guard state.owner.accountId == backend.accountId else { continue }
+                let listed = leavers.filter { $0 != backend.accountId && state.member($0) != nil }
+                guard !listed.isEmpty else { continue }
+                let next = try state.replacingMembers(state.members.filter { !listed.contains($0.accountId) })
+                let signed = try await backend.messenger.signCommunityState(next)
+                try check()
+                _ = try accept(await relay.updateCommunity(id, state: signed))
+            } catch {
+                RuntimeLog.messaging.info("community roster not updated: \(error.logLabel, privacy: .public)")
+            }
+        }
     }
 
     /// Seals a queued receipt or delete again for its member under `state`'s
@@ -979,10 +1083,11 @@ actor CommunityEngine {
                     return resealNeeded
                 case .server(404, _, _):
                     // The member left, was removed or deleted the account: skip them;
-                    // the next pass reads the roster again.
+                    // the next pass reads the roster again (the owner drops them from it).
                     try? storage.write { tx in
                         if item.event != nil { try tx.communities.discard(item) } else { try tx.communities.dropRecipient(item) }
                     }
+                    departed[item.communityId, default: []].insert(item.recipient)
                 case .server(409, _, _):
                     // The roster moved (or the ID clashed): the community's other
                     // items wait for the next pass's roster. A message stops (it

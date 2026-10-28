@@ -642,7 +642,9 @@ class ConversationViewModel(
 
     fun openActions(message: Message, isTail: Boolean) {
         if (!canOpenActions(message) || actions != null) return
-        val frame = frames[message.id] ?: return
+        // A long press by touch has recorded the bubble's frame; TalkBack's action (or a switch
+        // access long press) arrives without one, so the frame is asked for and the menu follows.
+        val frame = frames[message.id] ?: return openActionsWhenReady(message.id)
         dismissAttachMenu()
         // The keyboard goes down; the menu needs the whole screen.
         platform.dismissKeyboard()
@@ -728,7 +730,8 @@ class ConversationViewModel(
         if (message.isDisappearing) return
         val text = message.copyableText ?: return
         dismissActions {
-            platform.copy(text)
+            // The messenger's clipboard clears itself when the app locks or leaves (L-8).
+            if (!messenger.copyToClipboard(text)) platform.copy(text)
             platform.haptics.success()
         }
     }
@@ -741,10 +744,12 @@ class ConversationViewModel(
         val id = deleteForEveryoneCandidate ?: return
         deleteForEveryoneCandidate = null
         if (replyTo != null && message(id) == null) replyTo = null
+        platform.haptics.success()
         scope.launch { messenger.deleteForEveryone(id, chatId) }
     }
 
     fun deleteForMe(id: MessageId) {
+        platform.haptics.selection()
         dismissActions { scope.launch { messenger.deleteForMe(id, chatId) } }
     }
 

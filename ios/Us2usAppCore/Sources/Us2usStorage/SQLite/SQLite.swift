@@ -22,6 +22,11 @@ public struct SQLiteError: Error, Equatable, Sendable, CustomStringConvertible {
     public var isNotADatabase: Bool { code == SQLITE_NOTADB }
     public var isConstraintViolation: Bool { code == SQLITE_CONSTRAINT }
     public var isBusy: Bool { code == SQLITE_BUSY || code == SQLITE_LOCKED }
+    /// The device, not the data: disk full, I/O failure, out of memory, a
+    /// read-only or unopenable file, or a busy database.
+    public var isResourceFailure: Bool {
+        isBusy || [SQLITE_FULL, SQLITE_IOERR, SQLITE_NOMEM, SQLITE_READONLY, SQLITE_CANTOPEN].contains(code)
+    }
 }
 
 /// A value bound to or read from a statement.

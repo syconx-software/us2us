@@ -32,6 +32,8 @@ import org.signal.libsignal.protocol.ecc.ECKeyPair
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.state.IdentityKeyStore.Direction
 import org.signal.libsignal.protocol.state.IdentityKeyStore.IdentityChange
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.time.Instant
 
 /**
@@ -268,6 +270,49 @@ class ProtocolStorageTest {
         assertTrue(row.bool("previous_verified"))
         assertEquals(verifiedAt.toEpochMilli(), row.long("previous_verified_at"))
         assertEquals(IdentityVerificationMethod.QR_CODE.raw.toLong(), row.long("previous_verified_method"))
+    }
+
+    @Test
+    fun aReturnToTheApprovedKeyRestoresItsVerification() {
+        // M-8 (PROTOCOL §5, iOS PersistentProtocolStore): a key injected once, then the real one again.
+        val verified = newKey()
+        val injected = newKey()
+        assertTrue(storage2.pinVerifiedIdentity(verified, contact, byQr))
+        store.saveIdentity(address, injected)
+        assertEquals(ContactIdentity.Changed(verified, injected), storage2.identityTrust(contact))
+        store.saveIdentity(address, verified)
+        assertEquals(ContactIdentity.Trusted(verified, true), storage2.identityTrust(contact))
+        assertEquals(byQr, storage2.identityVerification(contact))
+        assertEquals(IdentityTrust.TRUSTED, store.identity(contact)?.trust)
+        assertTrue(store.isTrustedIdentity(address, verified, Direction.SENDING))
+        reopen()
+        assertEquals(ContactIdentity.Trusted(verified, true), storage2.identityTrust(contact))
+        assertEquals(byQr, storage2.identityVerification(contact))
+    }
+
+    @Test
+    fun aReturnAfterSeveralChangesStillFindsTheApprovedKey() {
+        val approved = newKey()
+        store.saveIdentity(address, approved)
+        store.saveIdentity(address, newKey())
+        store.saveIdentity(address, newKey())
+        store.saveIdentity(address, approved)
+        // Approved, never verified: it comes back approved and unverified, with nothing to accept.
+        assertEquals(ContactIdentity.Trusted(approved, false), storage2.identityTrust(contact))
+        assertNull(storage2.identityVerification(contact))
+    }
+
+    @Test
+    fun aReturnToTheApprovedKeyIsNotAnnouncedAsAChange() = runBlocking {
+        val approved = newKey()
+        store.saveIdentity(address, approved)
+        val announced = mutableListOf<com.syconx.us2us.core.AccountId>()
+        val watcher = launch(kotlinx.coroutines.Dispatchers.Unconfined) { store.identityChanges.collect { announced += it } }
+        store.saveIdentity(address, newKey())
+        store.saveIdentity(address, approved)
+        kotlinx.coroutines.yield()
+        watcher.cancel()
+        assertEquals(listOf(contact), announced)
     }
 
     @Test

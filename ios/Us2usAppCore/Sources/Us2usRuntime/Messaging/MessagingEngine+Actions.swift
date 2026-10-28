@@ -37,6 +37,36 @@ extension MessagingEngine {
             throw EngineError.usernameNotFound
         }
         guard account != me else { throw EngineError.ownAccount }
+        try openOutgoingConversation(username: username, account: account)
+        return account
+    }
+
+    /// “QR kodla ekle” with the directory answer the caller already checked
+    /// against the code (`account` and `identityKey`): no second lookup, so
+    /// a relay that answers two lookups differently cannot slip in another
+    /// account (audit 2026-10-28 M-10). With `pinKey` the key is pinned as
+    /// verified *before* anything is created: if another key is already
+    /// stored for that account nothing is created and `false` is returned
+    /// (§5: a mismatch must not add the contact).
+    public func addContactFromCode(
+        username: NormalizedUsername, account: AccountId, identityKey: Data, pinKey: Bool
+    ) async throws -> Bool {
+        guard account != me else { throw EngineError.ownAccount }
+        let wasVerified = pinKey ? await isIdentityVerified(account) : false
+        if pinKey {
+            let verification = IdentityVerification(method: .qrCode, verifiedAt: clock.now())
+            guard try await backend.pinVerifiedIdentity(identityKey, for: account, verification: verification) else {
+                return false
+            }
+        }
+        try openOutgoingConversation(username: username, account: account)
+        if pinKey { didVerify(account, wasVerified: wasVerified) }
+        return true
+    }
+
+    /// The rows of an opened (not yet sent) outgoing request; a blocked
+    /// account gets its read-only chat back.
+    private func openOutgoingConversation(username: NormalizedUsername, account: AccountId) throws {
         let now = clock.now()
         try write { tx in
             switch try tx.contacts.requestState(of: account) {
@@ -51,7 +81,6 @@ extension MessagingEngine {
             _ = try tx.conversations.ensure(for: account, now: now)
         }
         emit(.conversations)
-        return account
     }
 
     /// A directory lookup (4.2) found `username` at `owner`: other contacts

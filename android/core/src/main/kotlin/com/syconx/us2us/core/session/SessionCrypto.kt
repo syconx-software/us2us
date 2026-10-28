@@ -60,10 +60,12 @@ class SessionCrypto(
     }
 
     /**
-     * Decrypts a ciphertext of the given libsignal [type], strips the padding and parses `Content`.
+     * Decrypts a ciphertext of the given libsignal [type], strips the padding, parses `Content` and
+     * checks its structure ([ContentRules]). A structurally invalid content has still advanced the
+     * ratchet: the caller drops it like any other undecryptable message.
      *
      * @throws InvalidMessageException and the other libsignal decryption exceptions,
-     *   [InvalidPaddingException], or `InvalidProtocolBufferException`.
+     *   [InvalidPaddingException], `InvalidProtocolBufferException`, or [InvalidContentException].
      * @throws StoreUnavailableException if the store failed meanwhile: the message itself may be fine.
      */
     fun decrypt(peer: AccountId, type: Int, ciphertext: ByteArray): Content {
@@ -74,7 +76,9 @@ class SessionCrypto(
                 else -> throw InvalidMessageException("unsupported ciphertext type $type")
             }
         }
-        return Content.parseFrom(ContentPadding.unpad(padded))
+        val content = Content.parseFrom(ContentPadding.unpad(padded))
+        ContentRules.validateStructure(content)
+        return content
     }
 
     private fun cipher(peer: AccountId) =

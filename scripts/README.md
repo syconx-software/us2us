@@ -166,7 +166,12 @@ username is lost for good. Keep it out of the web root.
 | `US2US_BOT_JAVA_HOME` | `/usr/lib/jvm/java-21-openjdk-amd64` (`apt install openjdk-21-jre-headless`) |
 | `US2US_BOT_JVM_OPTS` | `-Xmx512m -XX:+ExitOnOutOfMemoryError` (an attachment is held in memory, up to the relay's limit, 64 MiB by default) |
 
-They can also live in `scripts/deploy.local.env`. On the server:
+They can also live in `scripts/deploy.local.env` (git-ignored). Since
+2026-10-28 both deploy scripts read that file as data through
+`scripts/deploy-local-env.sh`: it must be yours and private (`chmod 600`),
+only `US2US_NAME=value` lines count, values are never executed (only a
+leading `~/` or `$HOME/` is expanded), and a setting in the environment wins
+over the file. On the server:
 `pm2 logs us2us-echo` (one line per message, never its contents),
 `pm2 describe us2us-echo`.
 

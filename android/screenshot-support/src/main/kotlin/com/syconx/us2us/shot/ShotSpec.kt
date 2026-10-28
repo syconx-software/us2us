@@ -26,7 +26,20 @@ data class ShotOptions(
      * and looping animations stand where the references caught them (CSS paused at t = 2 s).
      */
     val settleMillis: Long = DesignMoment.ANIMATION_MILLIS,
+    /** The system font size (Settings › Display › Font size): 1, 1.3, 2 … */
+    val fontScale: Float = 1f,
+    /** The screen in dp: the design's iPhone by default, [ShotScreen.SmallPhone] for a compact Android phone. */
+    val screen: ShotScreen = ShotScreen.Phone,
 )
+
+/** A screen size and its system bars, for the shot's window. */
+enum class ShotScreen(val widthDp: Int, val heightDp: Int, val statusBarDp: Int, val navigationBarDp: Int) {
+    /** The design's iPhone 17 Pro: 402 × 874 with the Dynamic Island (62) and home indicator (34). */
+    Phone(DesignMoment.WIDTH_DP, DesignMoment.HEIGHT_DP, DesignMoment.SAFE_TOP_DP, DesignMoment.SAFE_BOTTOM_DP),
+
+    /** A compact Android phone: 360 × 640 with a 24 dp status bar and the 48 dp three-button navigation bar. */
+    SmallPhone(360, 640, 24, 48),
+}
 
 /** One rendered screen: theme, language and the environment it was given. */
 data class ShotSpec(
@@ -49,7 +62,8 @@ data class ShotSpec(
         get() {
             val language = if (lang == "tr") "tr-rTR" else "en-rUS"
             val night = if (isDark) "night" else "notnight"
-            return "$language-w${DesignMoment.WIDTH_DP}dp-h${DesignMoment.HEIGHT_DP}dp-port-$night-xxhdpi"
+            val screen = options.screen
+            return "$language-w${screen.widthDp}dp-h${screen.heightDp}dp-port-$night-xxhdpi"
         }
 }
 

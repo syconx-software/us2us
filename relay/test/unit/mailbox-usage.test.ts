@@ -242,6 +242,65 @@ describe('Mailbox usage', () => {
   })
 })
 
+describe('Mailbox proof-of-work share (audit M-1)', () => {
+  function powSetup() {
+    const database = new ScriptedDatabase()
+    const mailbox = new Mailbox(database as unknown as Database, { maxEnvelopes: 10, maxBytes: 10 * ENVELOPE, powMaxEnvelopes: 2, powMaxBytes: 2 * ENVELOPE })
+    const recipient = randomBytes(16)
+    return { database, mailbox, recipient, key: recipient.toString('hex') }
+  }
+  const powRow = (recipient: Buffer): MailboxRow => ({ ...row(recipient), viaPow: true })
+
+  it('admits proof-of-work envelopes only within their share, and access-key ones up to the whole mailbox', async () => {
+    const { database, mailbox, recipient, key } = powSetup()
+    const loading = mailbox.load()
+    await tick()
+    // One stored proof-of-work envelope before the restart, three others.
+    database.take('count').resolve([{ recipient, count: 4, bytes: 4 * ENVELOPE, powCount: 1, powBytes: ENVELOPE }])
+    await loading
+    expect(mailbox.admits(key, ENVELOPE, { count: 0, bytes: 0 }, true)).toBe(true)
+    // In memory, not written yet: counts towards the share too.
+    expect(mailbox.admits(key, ENVELOPE, { count: 1, bytes: ENVELOPE, powCount: 1, powBytes: ENVELOPE }, true)).toBe(false)
+    const inserting = mailbox.insert([powRow(recipient)])
+    database.take('insert').resolve(undefined)
+    await inserting
+    expect(mailbox.usageOf(key)).toEqual({ count: 5, bytes: 5 * ENVELOPE, powCount: 2, powBytes: 2 * ENVELOPE })
+    expect(mailbox.admits(key, 1, undefined, true)).toBe(false)
+    expect(mailbox.admits(key, ENVELOPE)).toBe(true)
+    expect(room(mailbox, key)).toBe(5)
+  })
+
+  it('counts exactly which deleted rows were proof-of-work envelopes, in one locked transaction', async () => {
+    const { database, mailbox, recipient, key } = powSetup()
+    const loading = mailbox.load()
+    await tick()
+    database.take('count').resolve([{ recipient, count: 4, bytes: 4 * ENVELOPE, powCount: 2, powBytes: 2 * ENVELOPE }])
+    await loading
+    // Two ids acknowledged, one of them a proof-of-work envelope.
+    const deleting = mailbox.delete(recipient, [randomBytes(16), randomBytes(16)])
+    await tick()
+    expect(database.waiting('delete')).toBe(0)
+    database.take('expire').resolve({ deleted: 2, pow: [{ bytes: ENVELOPE }] })
+    await deleting
+    expect(mailbox.usageOf(key)).toEqual({ count: 2, bytes: 2 * ENVELOPE, powCount: 1, powBytes: ENVELOPE })
+    expect(mailbox.admits(key, ENVELOPE, undefined, true)).toBe(true)
+
+    // Expiry reports the share of each expired row (-1: not proof-of-work).
+    const expiring = mailbox.deleteArrivedBefore(Date.now(), 100)
+    await tick()
+    database.take('expire').resolve([{ recipient, id: randomBytes(16), powBytes: ENVELOPE }])
+    await expiring
+    expect(mailbox.usageOf(key)).toEqual({ count: 1, bytes: ENVELOPE, powCount: 0, powBytes: 0 })
+
+    // Without proof-of-work envelopes, a delete is a single statement again.
+    const plain = mailbox.delete(recipient, [randomBytes(16)])
+    await tick()
+    database.take('delete').resolve([{ affectedRows: 1 }])
+    await plain
+    expect(mailbox.usageOf(key)).toEqual({ count: 0, bytes: 0, powCount: 0, powBytes: 0 })
+  })
+})
+
 describe('Relay.countMailboxes', () => {
   it('logs a failed count once for every send that waited, without ids, and counts again on the next send', async () => {
     const relay = new Relay(loadConfig({ DATABASE_URL: 'mysql://u:p@127.0.0.1:9/none', POW_SECRET: 'x'.repeat(32) }))

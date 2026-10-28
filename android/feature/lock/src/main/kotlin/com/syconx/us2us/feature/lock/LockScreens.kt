@@ -35,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.env.currentSafeArea
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -63,6 +65,9 @@ import com.syconx.us2us.ui.components.KeypadBottomLeading
 import com.syconx.us2us.ui.components.LineMark
 import com.syconx.us2us.ui.components.LineMarkMetrics
 import com.syconx.us2us.ui.components.NumericKeypad
+import com.syconx.us2us.ui.components.NumericKeypadMetrics
+import com.syconx.us2us.ui.components.KeypadScreenLayout
+import com.syconx.us2us.ui.components.U2LiveAnnouncement
 import com.syconx.us2us.ui.components.OptionCard
 import com.syconx.us2us.ui.components.OptionCardTone
 import com.syconx.us2us.ui.components.PulseRings
@@ -214,7 +219,12 @@ internal fun LockCodeScreen(flow: LockFlowModel, prompt: BiometricPromptText, sh
     val code = flow.code
     val colors = U2Theme.colors
     U2Screen(background = Color.Transparent) {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // The keypad and “Kodu unuttum” take the room the top leaves; a short screen shrinks the keys.
+        KeypadScreenLayout(
+            Modifier.fillMaxSize(),
+            minimumBottom = NumericKeypadMetrics.minimumHeight + 14.dp + U2Size.textButtonS * LocalDensity.current.fontScale.coerceAtLeast(1f) + currentSafeArea.bottom(U2Spacing.ctaBottomOnboarding),
+            top = {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -245,18 +255,20 @@ internal fun LockCodeScreen(flow: LockFlowModel, prompt: BiometricPromptText, sh
                     shakeTrigger = code.shakeTrigger,
                     modifier = Modifier.testTag(LockTags.DOTS),
                 )
+                // Each sentence is its own live region (LockSentence); the lock-out wait is said once, not every second.
                 Box(
                     Modifier
                         .widthIn(max = 300.dp)
-                        .heightIn(min = 42.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
+                        .heightIn(min = 42.dp),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     LockMessage(code, frozen = flow.isFrozenForHarness)
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Spacer(Modifier.weight(1f))
+        }
+            },
+            bottom = {
             // Behind the 3.3 sheets only the top block and the dots stay (dimmed by the backdrop); the
             // keypad and “Kodu unuttum” fade out with it, so the shorter “Her şey silinsin mi?” sheet
             // shows nothing else above it.
@@ -270,7 +282,9 @@ internal fun LockCodeScreen(flow: LockFlowModel, prompt: BiometricPromptText, sh
                     onDelete = code::deleteLast,
                     bottomLeading = if (flow.biometry == Biometry.None) KeypadBottomLeading.Empty else KeypadBottomLeading.FaceId { flow.useBiometrics(prompt) },
                     enabled = !code.isThrottled,
+                    // Measured after “Kodu unuttum”, so a short screen shrinks the keys, never the button off-screen.
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .padding(bottom = 14.dp)
                         .testTag(LockTags.KEYPAD),
                 )
@@ -285,7 +299,8 @@ internal fun LockCodeScreen(flow: LockFlowModel, prompt: BiometricPromptText, sh
                         .testTag(LockTags.FORGOT),
                 )
             }
-        }
+            },
+        )
         if (showsDemoHint) {
             // The fixtures' demo code, outside the layout (hidden in design-comparison runs with a frozen clock).
             U2Text(
@@ -334,7 +349,12 @@ private fun LockMessage(code: LockCodeModel, frozen: Boolean) {
                 ),
             )
             is LockCodeModel.Message.Throttled -> LockCountdown(message.until, frozen, code.now) { remaining ->
-                LockSentence(stringResource(R.string.lock_code_throttled, U2Format.minutesSeconds(remaining)))
+                val sentence = stringResource(R.string.lock_code_throttled, U2Format.minutesSeconds(remaining))
+                val first = remember(message.until) { sentence }
+                Box(contentAlignment = Alignment.TopCenter) {
+                    LockSentence(sentence, live = false)
+                    U2LiveAnnouncement(first, Modifier.align(Alignment.TopStart))
+                }
             }
             LockCodeModel.Message.Unavailable -> LockSentence(stringResource(R.string.lock_code_unavailable))
             LockCodeModel.Message.Unusable -> LockSentence(stringResource(R.string.lock_code_unusable))
@@ -343,13 +363,15 @@ private fun LockMessage(code: LockCodeModel, frozen: Boolean) {
 }
 
 @Composable
-private fun LockSentence(text: String) {
+private fun LockSentence(text: String, live: Boolean = true) {
     U2Text(
         text,
         U2TextStyles.calloutL,
         color = U2Theme.colors.danger,
         textAlign = TextAlign.Center,
-        modifier = Modifier.testTag(LockTags.MESSAGE),
+        modifier = Modifier
+            .testTag(LockTags.MESSAGE)
+            .then(if (live) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier),
     )
 }
 

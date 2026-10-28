@@ -99,6 +99,7 @@ struct AppConfiguration: Sendable {
 /// | `settings` · `settings:<state>` | 7.1–7.3, pickers, code change, Hakkında (`7.2`, `7.3-wrong`, `code-new`, `theme` …) |
 /// | `backup` | 7.2 over 7.1 |
 /// | `invite` · `invite:<state>` | the invite sheet over 4.1 (`edit` `edited` `copied` `sent` · `link` `link-unknown`: an invite link arrives; see `InviteHarness`) |
+/// | `communities` · `community:<id>` | DEBUG with `-U2Communities YES`: Topluluklar · a community's conversation (`DesignFixtureCommunities`) |
 ///
 /// Without `-U2Start` the route picks the start: `onboarding` → welcome,
 /// `lock` → locked, everything else → chats. The full state lists are in
@@ -107,6 +108,8 @@ struct AppConfiguration: Sendable {
 struct LaunchRoute: Equatable, Sendable {
     enum Feature: String, Sendable, CaseIterable {
         case onboarding, lock, chats, newChat, requests, request, conversation, safety, settings, backup, invite
+        /// DEBUG, with `-U2Communities YES`: Topluluklar · one community's conversation.
+        case communities, community
     }
 
     let feature: Feature
@@ -136,13 +139,13 @@ struct LaunchRoute: Equatable, Sendable {
         guard let name = parts.first, let feature = Feature(rawValue: name) else { return nil }
         let rest = parts.count == 2 && !parts[1].isEmpty ? parts[1] : nil
         switch feature {
-        case .conversation, .safety, .request:
+        case .conversation, .safety, .request, .community:
             guard let rest else { return nil }
             let pieces = rest.split(separator: "/", maxSplits: 1).map(String.init)
             self.init(feature: feature, target: pieces[0], state: pieces.count == 2 ? pieces[1] : nil)
         case .newChat:
             self.init(feature: feature, target: rest ?? "")
-        case .onboarding, .lock, .chats, .requests, .settings, .backup, .invite:
+        case .onboarding, .lock, .chats, .requests, .settings, .backup, .invite, .communities:
             self.init(feature: feature, state: rest)
         }
     }
@@ -169,6 +172,8 @@ struct LaunchRoute: Equatable, Sendable {
         case .request: target.map { [.requests, .requestPreview($0)] } ?? []
         case .settings: [.settings]
         case .backup: [.settings, .backupExport]
+        case .communities: [.communities]
+        case .community: target.map { [.communities, .community($0)] } ?? []
         case .onboarding, .lock, .chats, .newChat, .invite: []
         }
     }

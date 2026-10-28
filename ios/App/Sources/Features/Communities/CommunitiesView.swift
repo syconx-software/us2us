@@ -52,6 +52,9 @@ struct CommunitiesView: View {
         }
         .onAppear { service?.screenAppeared() }
         .onDisappear { service?.screenDisappeared() }
+        #if DEBUG
+            .task { await applyHarnessState() }
+        #endif
         .task(id: query) { await searchAfterPause() }
         .u2Sheet(isPresented: $showsCreate) {
             CommunityCreateSheet { showsCreate = false }
@@ -171,6 +174,19 @@ struct CommunitiesView: View {
                     }
                     .buttonStyle(.u2TextAccent)
                 }
+            } else if isSearching {
+                // The first search of a query: say it is under way (the
+                // relay can take a moment) instead of showing nothing.
+                HStack(spacing: 8) {
+                    SpinningGlyph(size: 16)
+                    Text("search.searching", table: .communities)
+                }
+                .u2Font(.callout)
+                .foregroundStyle(Color.u2.textSecondary)
+                .padding(.horizontal, 16)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("communities.searching")
+                .transition(.u2Fade)
             } else if let searched = searchedQuery, !isSearching {
                 Text("search.none \(searched)", table: .communities)
                     .u2Font(.callout)
@@ -180,6 +196,22 @@ struct CommunitiesView: View {
         }
         .disabled(!service.isSupported)
     }
+
+    #if DEBUG
+        /// `-U2Route communities:<state>` (with `-U2Communities YES`): `create`
+        /// `redeem` `search` (“moda” searched) `withdraw` (the confirmation).
+        private func applyHarnessState() async {
+            guard let state = LaunchRoute.current?.state(for: .communities), let service else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            switch state {
+            case "create": showsCreate = true
+            case "redeem": showsRedeem = true
+            case "search": query = "moda"
+            case "withdraw": if let row = service.rows.first(where: { $0.phase == .pending }) { confirmation = .withdraw(row.id) }
+            default: break
+            }
+        }
+    #endif
 
     // MARK: Actions
 

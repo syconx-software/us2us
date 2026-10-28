@@ -78,6 +78,7 @@ internal object CommunityManageTags {
     const val INVITE = "communities.invite"
     const val ERROR = "communities.error"
     const val MANAGE = "communities.manage"
+    const val REJECT_ALL = "communities.rejectAll"
     fun request(account: String) = "communities.request.$account"
     fun remove(account: String) = "communities.remove.$account"
 }
@@ -89,6 +90,7 @@ internal sealed interface CommunityConfirmation {
     data class Leave(override val group: String) : CommunityConfirmation
     data class Forget(override val group: String) : CommunityConfirmation
     data class Delete(override val group: String) : CommunityConfirmation
+    data class RejectAll(override val group: String) : CommunityConfirmation
 }
 
 /** The confirmation's title, message and button. */
@@ -97,12 +99,15 @@ internal fun CommunityConfirmation.texts(): Triple<Int, Int, Int> = when (this) 
     is CommunityConfirmation.Leave -> Triple(R.string.community_leave_title, R.string.community_leave_message, R.string.community_leave)
     is CommunityConfirmation.Forget -> Triple(R.string.community_forget_title, R.string.community_forget_message, R.string.community_forget)
     is CommunityConfirmation.Delete -> Triple(R.string.community_delete_title, R.string.community_delete_message, R.string.community_delete_confirm)
+    is CommunityConfirmation.RejectAll -> Triple(
+        R.string.common_community_rejectall_title, R.string.common_community_rejectall_message, R.string.common_community_rejectall_confirm,
+    )
 }
 
 internal val CommunityConfirmation.glyph: PhosphorGlyph
     get() = when (this) {
         is CommunityConfirmation.Leave -> PhosphorGlyph.LinkBreak
-        is CommunityConfirmation.RemoveMember -> PhosphorGlyph.Prohibit
+        is CommunityConfirmation.RemoveMember, is CommunityConfirmation.RejectAll -> PhosphorGlyph.Prohibit
         is CommunityConfirmation.Forget, is CommunityConfirmation.Delete -> PhosphorGlyph.Trash
     }
 
@@ -157,6 +162,7 @@ fun CommunityManageHost(service: CommunitiesService, id: String, title: String, 
             is CommunityConfirmation.Leave -> { service.leave(step.group); onGone() }
             is CommunityConfirmation.Forget -> { service.forget(step.group); onGone() }
             is CommunityConfirmation.Delete -> { service.delete(step.group); onGone() }
+            is CommunityConfirmation.RejectAll -> service.rejectAll(step.group)
         }
     }
 
@@ -298,7 +304,9 @@ private fun ManagePage(
             verticalArrangement = Arrangement.spacedBy(U2Spacing.sectionGap),
         ) {
             if (failed) ErrorText()
-            if (owner) Requests(applications, full = group.count >= 100, busy, onApprove, onReject)
+            if (owner) {
+                Requests(applications, full = group.count >= 100, busy, onApprove, onReject, onRejectAll = { onConfirm(CommunityConfirmation.RejectAll(group.id)) })
+            }
             Members(group, busy, onRemove = { onConfirm(CommunityConfirmation.RemoveMember(group.id, it.account)) })
             if (owner) Invitations(invite, busy, onInvite, onRevoke)
             when {
@@ -327,6 +335,7 @@ private fun Requests(
     busy: Boolean,
     onApprove: (CommunityApplication) -> Unit,
     onReject: (CommunityApplication) -> Unit,
+    onRejectAll: () -> Unit,
 ) {
     val colors = U2Theme.colors
     Column(verticalArrangement = Arrangement.spacedBy(U2Spacing.sectionLabelGap)) {
@@ -334,6 +343,16 @@ private fun Requests(
         if (applications.isEmpty()) {
             U2Text(stringResource(R.string.community_requests_empty), U2TextStyles.callout, Modifier.padding(horizontal = 16.dp), color = colors.textSecondary)
             return@Column
+        }
+        // A queue filled with requests (M-14) is cleared in one step, confirmed first.
+        if (applications.size > 1) {
+            U2TextButton(
+                stringResource(R.string.common_community_rejectall),
+                onClick = onRejectAll,
+                tone = U2TextButtonTone.Danger,
+                enabled = !busy,
+                modifier = Modifier.testTag(CommunityManageTags.REJECT_ALL),
+            )
         }
         if (full) U2Text(stringResource(R.string.community_full), U2TextStyles.captionCompact, Modifier.padding(horizontal = 16.dp), color = colors.danger)
         applications.forEach { application ->

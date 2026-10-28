@@ -1,6 +1,6 @@
 import type { Hooks, Peer } from 'crossws'
 import { authenticateToken } from '../http/auth'
-import { forwardedFor } from '../lib/client-address'
+import { resolveClientAddress } from '../lib/client-address'
 import { ApiError, describeError, internalError, notFound, rateLimited } from '../lib/errors'
 import { ipRateKey } from '../lib/rate-limit'
 import { envelopeIds } from '../lib/validation'
@@ -31,12 +31,9 @@ function refuse(error: ApiError): Response {
 }
 
 function upgradeAddress(request: UpgradeRequest): string {
-  if (useRelay().config.trustProxy) {
-    const forwarded = forwardedFor(request.headers.get('x-forwarded-for'))
-    if (forwarded) return forwarded
-  }
   // crossws 0.3.5 (pinned) hands hooks a proxy that keeps the Node request as `_req`.
-  return (request as { _req?: { socket?: { remoteAddress?: string } } })._req?.socket?.remoteAddress ?? 'unknown'
+  const peer = (request as { _req?: { socket?: { remoteAddress?: string } } })._req?.socket?.remoteAddress
+  return resolveClientAddress(useRelay().config, peer, name => request.headers.get(name))
 }
 
 function socketOf(peer: Peer): SessionSocket {

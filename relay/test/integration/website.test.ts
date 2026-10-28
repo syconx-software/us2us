@@ -513,6 +513,23 @@ describe('website', () => {
     expect((await get('/logo.svg')).status).toBe(404)
   })
 
+  it('never serves a page or asset without its headers under another letter case (GHSA-vjh5-4x84-xrqp)', async () => {
+    const variants = ['/TR', '/Tr/', '/EN', '/En/Privacy', '/tr/GIZLILIK', '/TR/index.html', '/EN/index.html.br', '/en/PRIVACY/index.html',
+      '/CSS/site.css', '/Js/site.js', '/FONTS/inter-v20-tr.woff2', '/Robots.txt', '/LICENSES/']
+    for (const path of variants) {
+      const response = await get(path, { 'accept-encoding': 'br, gzip' })
+      await response.arrayBuffer()
+      // A case variant is either refused or served with the same headers as the canonical path.
+      if (response.status === 404 || (response.status >= 300 && response.status < 400)) continue
+      expect(response.status, path).toBe(200)
+      expect(response.headers.get('x-content-type-options'), path).toBe('nosniff')
+      if (/html/.test(response.headers.get('content-type') ?? '')) {
+        expect(response.headers.get('content-security-policy'), path).toContain('frame-ancestors \'none\'')
+        expect(response.headers.get('referrer-policy'), path).toBe('no-referrer')
+      }
+    }
+  })
+
   it('preloads only the small Turkish cut of Inter on Turkish pages', async () => {
     const tr = await html('/tr')
     const en = await html('/en')

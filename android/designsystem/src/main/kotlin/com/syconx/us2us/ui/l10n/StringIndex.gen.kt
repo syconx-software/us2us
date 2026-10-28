@@ -91,6 +91,8 @@ internal object StringIndex {
         "a11y.keypad.delete" -> StringRef.Text(R.string.common_a11y_keypad_delete)
         "a11y.keypad.faceID" -> StringRef.Text(R.string.common_a11y_keypad_faceid)
         "a11y.media.open" -> StringRef.Text(R.string.common_a11y_media_open)
+        "a11y.messageDeletedForEveryone" -> StringRef.Text(R.string.common_a11y_messagedeletedforeveryone)
+        "a11y.messageDeletedForMe" -> StringRef.Text(R.string.common_a11y_messagedeletedforme)
         "a11y.myCode" -> StringRef.Text(R.string.common_a11y_mycode)
         "a11y.newChat" -> StringRef.Text(R.string.common_a11y_newchat)
         "a11y.off" -> StringRef.Text(R.string.common_a11y_off)
@@ -128,6 +130,10 @@ internal object StringIndex {
         "common.cancel" -> StringRef.Text(R.string.common_cancel)
         "common.close" -> StringRef.Text(R.string.common_close)
         "common.save" -> StringRef.Text(R.string.common_save)
+        "community.rejectAll" -> StringRef.Text(R.string.common_community_rejectall)
+        "community.rejectAll.confirm" -> StringRef.Text(R.string.common_community_rejectall_confirm)
+        "community.rejectAll.message" -> StringRef.Text(R.string.common_community_rejectall_message)
+        "community.rejectAll.title" -> StringRef.Text(R.string.common_community_rejectall_title)
         "composer.placeholder" -> StringRef.Text(R.string.common_composer_placeholder)
         "delete.chat" -> StringRef.Text(R.string.common_delete_chat)
         "delete.chat.message" -> StringRef.Text(R.string.common_delete_chat_message)
@@ -191,6 +197,8 @@ internal object StringIndex {
         "request.block" -> StringRef.Text(R.string.common_request_block)
         "request.delete" -> StringRef.Text(R.string.common_request_delete)
         "request.title" -> StringRef.Text(R.string.common_request_title)
+        "security.deviceProtection.basic" -> StringRef.Text(R.string.common_security_deviceprotection_basic)
+        "security.deviceProtection.limited" -> StringRef.Text(R.string.common_security_deviceprotection_limited)
         "status.delivered" -> StringRef.Text(R.string.common_status_delivered)
         "status.delivered.legend" -> StringRef.Text(R.string.common_status_delivered_legend)
         "status.delivered.sentence" -> StringRef.Text(R.string.common_status_delivered_sentence)
@@ -235,6 +243,8 @@ internal object StringIndex {
         StringEntry("a11y.keypad.delete", StringRef.Text(R.string.common_a11y_keypad_delete), ""),
         StringEntry("a11y.keypad.faceID", StringRef.Text(R.string.common_a11y_keypad_faceid), ""),
         StringEntry("a11y.media.open", StringRef.Text(R.string.common_a11y_media_open), ""),
+        StringEntry("a11y.messageDeletedForEveryone", StringRef.Text(R.string.common_a11y_messagedeletedforeveryone), ""),
+        StringEntry("a11y.messageDeletedForMe", StringRef.Text(R.string.common_a11y_messagedeletedforme), ""),
         StringEntry("a11y.myCode", StringRef.Text(R.string.common_a11y_mycode), ""),
         StringEntry("a11y.newChat", StringRef.Text(R.string.common_a11y_newchat), ""),
         StringEntry("a11y.off", StringRef.Text(R.string.common_a11y_off), ""),
@@ -272,6 +282,10 @@ internal object StringIndex {
         StringEntry("common.cancel", StringRef.Text(R.string.common_cancel), ""),
         StringEntry("common.close", StringRef.Text(R.string.common_close), ""),
         StringEntry("common.save", StringRef.Text(R.string.common_save), ""),
+        StringEntry("community.rejectAll", StringRef.Text(R.string.common_community_rejectall), ""),
+        StringEntry("community.rejectAll.confirm", StringRef.Text(R.string.common_community_rejectall_confirm), ""),
+        StringEntry("community.rejectAll.message", StringRef.Text(R.string.common_community_rejectall_message), ""),
+        StringEntry("community.rejectAll.title", StringRef.Text(R.string.common_community_rejectall_title), ""),
         StringEntry("composer.placeholder", StringRef.Text(R.string.common_composer_placeholder), ""),
         StringEntry("delete.chat", StringRef.Text(R.string.common_delete_chat), ""),
         StringEntry("delete.chat.message", StringRef.Text(R.string.common_delete_chat_message), ""),
@@ -335,6 +349,8 @@ internal object StringIndex {
         StringEntry("request.block", StringRef.Text(R.string.common_request_block), ""),
         StringEntry("request.delete", StringRef.Text(R.string.common_request_delete), ""),
         StringEntry("request.title", StringRef.Text(R.string.common_request_title), ""),
+        StringEntry("security.deviceProtection.basic", StringRef.Text(R.string.common_security_deviceprotection_basic), ""),
+        StringEntry("security.deviceProtection.limited", StringRef.Text(R.string.common_security_deviceprotection_limited), ""),
         StringEntry("status.delivered", StringRef.Text(R.string.common_status_delivered), ""),
         StringEntry("status.delivered.legend", StringRef.Text(R.string.common_status_delivered_legend), ""),
         StringEntry("status.delivered.sentence", StringRef.Text(R.string.common_status_delivered_sentence), ""),
@@ -581,6 +597,8 @@ internal object StringIndex {
 
     private fun findChats(key: String): StringRef? = when (key) {
         "a11y.more" -> StringRef.Text(R.string.chats_a11y_more)
+        "a11y.request.accept.hint" -> StringRef.Text(R.string.chats_a11y_request_accept_hint)
+        "a11y.request.delete.hint" -> StringRef.Text(R.string.chats_a11y_request_delete_hint)
         "a11y.request.open" -> StringRef.Text(R.string.chats_a11y_request_open)
         "access.card.subtitle" -> StringRef.Text(R.string.chats_access_card_subtitle)
         "access.card.title" -> StringRef.Text(R.string.chats_access_card_title)
@@ -633,6 +651,8 @@ internal object StringIndex {
 
     private fun entriesChats(): List<StringEntry> = listOf(
         StringEntry("a11y.more", StringRef.Text(R.string.chats_a11y_more), ""),
+        StringEntry("a11y.request.accept.hint", StringRef.Text(R.string.chats_a11y_request_accept_hint), ""),
+        StringEntry("a11y.request.delete.hint", StringRef.Text(R.string.chats_a11y_request_delete_hint), ""),
         StringEntry("a11y.request.open", StringRef.Text(R.string.chats_a11y_request_open), ""),
         StringEntry("access.card.subtitle", StringRef.Text(R.string.chats_access_card_subtitle), ""),
         StringEntry("access.card.title", StringRef.Text(R.string.chats_access_card_title), ""),
@@ -1056,6 +1076,7 @@ internal object StringIndex {
         "safety.confirm.mark" -> StringRef.Text(R.string.verification_safety_confirm_mark)
         "safety.confirm.message" -> StringRef.Text(R.string.verification_safety_confirm_message)
         "safety.confirm.title" -> StringRef.Text(R.string.verification_safety_confirm_title)
+        "safety.explainer" -> StringRef.Text(R.string.verification_safety_explainer)
         "safety.markVerified" -> StringRef.Text(R.string.verification_safety_markverified)
         "safety.remove.confirm" -> StringRef.Text(R.string.verification_safety_remove_confirm)
         "safety.remove.message" -> StringRef.Text(R.string.verification_safety_remove_message)
@@ -1115,6 +1136,7 @@ internal object StringIndex {
         StringEntry("safety.confirm.mark", StringRef.Text(R.string.verification_safety_confirm_mark), ""),
         StringEntry("safety.confirm.message %@", StringRef.Text(R.string.verification_safety_confirm_message), "s"),
         StringEntry("safety.confirm.title", StringRef.Text(R.string.verification_safety_confirm_title), ""),
+        StringEntry("safety.explainer %@", StringRef.Text(R.string.verification_safety_explainer), "s"),
         StringEntry("safety.markVerified", StringRef.Text(R.string.verification_safety_markverified), ""),
         StringEntry("safety.remove.confirm", StringRef.Text(R.string.verification_safety_remove_confirm), ""),
         StringEntry("safety.remove.message", StringRef.Text(R.string.verification_safety_remove_message), ""),

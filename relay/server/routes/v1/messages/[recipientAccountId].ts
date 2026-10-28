@@ -1,8 +1,9 @@
 import { getQuery, getRequestHeader, setResponseStatus, type H3Event } from 'h3'
-import { defineApiRoute, limitByIp, readBytes, uuidParam } from '../../../http/api'
+import { clientAddress, defineApiRoute, limitByIp, readBytes, uuidParam } from '../../../http/api'
 import { decodeB64uExact, encodeB64u, formatUuid } from '../../../lib/encoding'
 import { accessDenied, badRequest, notFound, powInvalid, rateLimited, unavailable } from '../../../lib/errors'
 import { parsePowHeader } from '../../../lib/pow'
+import { ipRateKey } from '../../../lib/rate-limit'
 import { ACCESS_KEY_LENGTH } from '../../../lib/validation'
 import type { PendingEnvelope } from '../../../realtime/persister'
 import { useRelay } from '../../../relay'
@@ -19,6 +20,12 @@ const UNAVAILABLE_RETRY_SECONDS = 30
  * way the envelope is only handed over in memory before the answer, and
  * every check runs for both, so the answer does not tell whether the
  * recipient is online.
+ *
+ * Stored sends are also limited per recipient and client address (a keyed
+ * MAC of the two, in memory only): proof-of-work sends by count, all of
+ * them by bytes, so one address cannot fill a mailbox quickly; and
+ * proof-of-work envelopes may take only their share of a mailbox, so
+ * strangers cannot lock out the recipient's contacts.
  *
  * `ephemeral=1` (typing, presence, live-location ticks) is never stored and
  * needs the access key. The answer must not tell whether the recipient is
@@ -49,7 +56,10 @@ export default defineApiRoute({
       return accepted(event, id, now)
     }
 
-    await authorize(event, recipient, target)
+    const pairKey = relay.pairKeys.of(recipientKey, ipRateKey(clientAddress(event)))
+    const viaPow = await authorize(event, recipient, target, pairKey)
+    const pairBytes = relay.limiter.take('send-pair-bytes', pairKey, relay.config.rateLimits.sendPairBytes, body.length)
+    if (!pairBytes.ok) throw rateLimited(pairBytes.retryAfterSeconds)
     // Storage limits apply to every send and count the recipient's envelopes
     // wherever they are (live session, persister, mailbox), so a refusal
     // says nothing about the recipient being online.
@@ -61,13 +71,13 @@ export default defineApiRoute({
     }
     // From here on nothing waits, so the checks and the hand-over see the same state.
     if (relay.sessions.overloaded) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
-    if (!relay.mailbox.admits(recipientKey, body.length, relay.sessions.inMemory(recipientKey))) {
+    if (!relay.mailbox.admits(recipientKey, body.length, relay.sessions.inMemory(recipientKey), viaPow)) {
       throw rateLimited(MAILBOX_FULL_RETRY_SECONDS, 'the recipient’s mailbox is full')
     }
     // Last, so that a refused envelope takes nothing from the free space.
     if (!relay.disk.reserve(body.length)) throw unavailable(UNAVAILABLE_RETRY_SECONDS)
-    const id = relay.envelopeIds.next(now)
-    const envelope: PendingEnvelope = { recipient, recipientKey, id, idKey: id.toString('hex'), serverTimestamp: now, body, acked: false }
+    const id = relay.envelopeIds.next(now, false, recipientKey)
+    const envelope: PendingEnvelope = { recipient, recipientKey, id, idKey: id.toString('hex'), serverTimestamp: now, body, acked: false, viaPow }
     if (!relay.sessions.deliver(envelope)) relay.persister.enqueue([envelope])
     return accepted(event, id, now)
   },
@@ -78,12 +88,19 @@ function accepted(event: H3Event, id: Buffer, serverTimestamp: number) {
   return { id: encodeB64u(id), serverTimestamp }
 }
 
-async function authorize(event: H3Event, recipient: Buffer, target: Recipient): Promise<void> {
+/** True when the send is authorized by proof-of-work rather than the access key. */
+async function authorize(event: H3Event, recipient: Buffer, target: Recipient, pairKey: string): Promise<boolean> {
   const accessKey = decodeB64uExact(getRequestHeader(event, 'x-access-key'), ACCESS_KEY_LENGTH)
-  if (accessKey && accessKeyMatches(target, accessKey)) return
+  if (accessKey && accessKeyMatches(target, accessKey)) return false
 
   const powHeader = getRequestHeader(event, 'x-pow')
   if (powHeader === undefined) throw accessDenied()
   const solution = parsePowHeader(powHeader)
-  if (!solution || !await useRelay().redeemPow(solution, 'message', formatUuid(recipient))) throw powInvalid()
+  if (!solution) throw powInvalid()
+  const relay = useRelay()
+  // Before redeeming, so that a refused send does not burn the solution.
+  const pair = relay.limiter.take('send-pair-pow', pairKey, relay.config.rateLimits.sendPairPow)
+  if (!pair.ok) throw rateLimited(pair.retryAfterSeconds)
+  if (!await relay.redeemPow(solution, 'message', formatUuid(recipient))) throw powInvalid()
+  return true
 }

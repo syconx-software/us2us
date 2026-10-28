@@ -82,7 +82,7 @@ class CommunityConversationTest {
 
     /** A hang fails the test instead of blocking the run. */
     @get:Rule
-    val deadline = Deadline(seconds = 120)
+    val deadline = Deadline(seconds = if (com.syconx.us2us.shot.UxMatrix.enabled) 1_800 else 120)
 
     private fun open() {
         host.render(lang = "en") { ConversationScreen(messenger.chatId) }
@@ -140,6 +140,16 @@ class CommunityConversationTest {
         host.compose.onNodeWithTag("conversation.deleteEveryone.confirm", useUnmergedTree = true).performClick()
         host.advance(1_000)
         assertEquals(listOf(MessageId("own1")), messenger.deletedForEveryone)
+    }
+
+    @Test fun talkBacksActionOpensTheMenuWithoutATouch() {
+        open()
+        // TalkBack's custom action arrives with no press, so no frame was recorded for the bubble.
+        val node = host.compose.onNodeWithTag("message.own1", useUnmergedTree = true).fetchSemanticsNode()
+        val action = node.config[androidx.compose.ui.semantics.SemanticsActions.CustomActions].first()
+        host.compose.runOnIdle { action.action() }
+        host.advance(1_500)
+        assertTrue("the menu opens all the same", tagged("actions.overlay"))
     }
 
     @Test fun anIncomingMessageOffersOnlyDeleteForMeToAMember() {
@@ -201,6 +211,12 @@ class CommunityConversationTest {
     private fun clickVisible(node: SemanticsNodeInteraction) {
         val height = host.compose.onAllNodes(isRoot()).onFirst().fetchSemanticsNode().boundsInRoot.height
         val sheet = host.compose.onAllNodesWithTag(CommunityManageTags.SHEET).fetchSemanticsNodes().firstOrNull()?.boundsInRoot
+        // A node scrolled wholly out of the sheet has empty bounds: bring the sheet's end into view first.
+        if (sheet != null && node.fetchSemanticsNode().boundsInRoot.isEmpty) {
+            host.compose.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag(CommunityManageTags.SHEET)))
+                .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, sheet.height) }
+            host.advance(1_000)
+        }
         val bounds = node.fetchSemanticsNode().boundsInRoot
         val delta = when {
             sheet == null -> 0f
@@ -247,6 +263,21 @@ class CommunityConversationTest {
         confirm()
         assertEquals(DENIZ, messenger.service.removed)
         assertTrue("the sheet stays open after removing", tagged(CommunityManageTags.SHEET))
+    }
+
+    @Test fun theOwnerRejectsAllRequestsOnlyAfterConfirming() {
+        messenger.isOwner = true
+        open()
+        manage()
+        assertFalse("one request needs no bulk action", tagged(CommunityManageTags.REJECT_ALL))
+        messenger.service.applicationList += CommunityApplication("second", messenger.service.identity, 2, CommunityFormat.fingerprint(KEY))
+        host.advance(10_100)
+        tapTag(CommunityManageTags.REJECT_ALL)
+        assertNull("rejecting all needs a confirmation", messenger.service.rejectedAll)
+        confirm()
+        assertEquals("owned", messenger.service.rejectedAll)
+        assertFalse(tagged(CommunityManageTags.REJECT_ALL))
+        assertTrue("the sheet stays open", tagged(CommunityManageTags.SHEET))
     }
 
     @Test fun anInvitationIsHiddenOnceUsedOrWhenTheSheetCloses() {
@@ -296,6 +327,33 @@ class CommunityConversationTest {
         host.capture("communities_actions")
         menu("info")
         host.capture("communities_info")
+    }
+
+    /** The review matrix (`UX_PHASE`): the conversation, its menu, info, the members sheet and the confirmations. */
+    @Test fun uxScenes() {
+        org.junit.Assume.assumeTrue(com.syconx.us2us.shot.UxMatrix.enabled)
+        messenger.isOwner = true
+        for (variant in com.syconx.us2us.shot.UxMatrix.variants) {
+            fun show() {
+                host.render(variant.theme, variant.lang, variant.options()) { ConversationScreen(messenger.chatId) }
+                host.advance(600)
+            }
+            show()
+            host.captureUx("community_conversation", variant)
+            longPress("own1")
+            host.captureUx("community_actions", variant)
+            menu("deleteEveryone")
+            host.captureUx("community_delete_everyone", variant)
+            show()
+            longPress("own1")
+            menu("info")
+            host.captureUx("community_info", variant)
+            show()
+            manage()
+            host.captureUx("community_manage", variant)
+            tapTag(CommunityManageTags.remove(DENIZ))
+            host.captureUx("community_remove_confirm", variant)
+        }
     }
 
     /** Interrupts the test thread once [seconds] have passed, so a test that never settles fails. */
@@ -408,6 +466,11 @@ class CommunityConversationTest {
             applicationList.removeAll { it.account == application.account }
         }
         override suspend fun reject(id: String, account: String) = Unit
+        var rejectedAll: String? = null
+        override suspend fun rejectAll(id: String) {
+            rejectedAll = id
+            applicationList.clear()
+        }
         override suspend fun remove(id: String, account: String) { removed = account }
         override suspend fun invite(id: String) = "us2us-community:v1:invite"
         override suspend fun revokeInvites(id: String) = Unit

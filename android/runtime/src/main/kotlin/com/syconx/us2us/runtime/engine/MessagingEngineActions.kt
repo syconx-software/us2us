@@ -49,8 +49,33 @@ import java.time.Instant
  */
 internal suspend fun MessagingEngine.startConversationNow(username: Username): AccountId {
     val entry = backend.findAccount(username) ?: engineFailure(EngineError.USERNAME_NOT_FOUND)
+    if (entry.account == me) engineFailure(EngineError.OWN_ACCOUNT)
+    openOutgoingConversation(username, entry.account)
+    return entry.account
+}
+
+/**
+ * "QR kodla ekle" with the directory answer the caller already checked against the code ([entry]):
+ * no second lookup, so a relay that answers two lookups differently cannot slip in another
+ * account (audit 2026-10-28 M-10). With [pinKey] the key is pinned as verified *before* anything is
+ * created: if another key is already stored for that account nothing is created and `false` is
+ * returned (§5: a mismatch must not add the contact).
+ */
+internal suspend fun MessagingEngine.addContactFromCodeNow(username: Username, entry: DirectoryEntry, pinKey: Boolean): Boolean {
     val account = entry.account
     if (account == me) engineFailure(EngineError.OWN_ACCOUNT)
+    val wasVerified = pinKey && isIdentityVerified(account)
+    if (pinKey) {
+        val verification = IdentityVerification(IdentityVerificationMethod.QR_CODE, clock.now())
+        if (!backend.pinVerifiedIdentity(entry.identityKey, account, verification)) return false
+    }
+    openOutgoingConversation(username, account)
+    if (pinKey) didVerify(account, wasVerified)
+    return true
+}
+
+/** The rows of an opened (not yet sent) outgoing request; a blocked account gets its read-only chat back. */
+private fun MessagingEngine.openOutgoingConversation(username: Username, account: AccountId) {
     val now = clock.now()
     write { tx ->
         when (tx.contacts.requestState(account)) {
@@ -65,7 +90,6 @@ internal suspend fun MessagingEngine.startConversationNow(username: Username): A
         tx.conversations.ensure(account, now)
     }
     emit(EngineChange.Conversations)
-    return account
 }
 
 /**

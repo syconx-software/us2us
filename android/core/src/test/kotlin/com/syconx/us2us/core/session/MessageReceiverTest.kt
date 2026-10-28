@@ -183,6 +183,32 @@ class MessageReceiverTest {
     }
 
     @Test
+    fun `a blocked sender's message is dropped before decryption (L-18)`() = runBlocking {
+        val blocking = MessageReceiver(bob.accountId, bob.store, bob.sessions, SenderVerifier(bob.store, directory), Mutex()) { it == alice.accountId }
+        val result = blocking.receive(envelopeFromAlice(alice.encryptTo(bob, "let me in"), username = "alice_01"))
+        assertEquals(DropReason.BLOCKED, (result as ReceiveResult.Dropped).reason)
+        assertNull(bob.store.identity(alice.accountId), "no identity row is created for it")
+        assertTrue(!bob.sessions.hasUsableSession(alice.accountId), "no session either")
+        assertEquals(0, directory.identityLookups, "not even looked up")
+    }
+
+    @Test
+    fun `a decryptable message with a malformed structure is dropped and the session goes on (H-1)`() = runBlocking {
+        val malformed = com.syconx.us2us.core.proto.content {
+            data = com.syconx.us2us.core.proto.dataMessage {
+                messageId = byteArrayOf(1, 2, 3).toByteString()
+                sentAt = 1
+                text = com.syconx.us2us.core.proto.text { body = "three-byte id" }
+            }
+        }
+        val bad = receiver.receive(envelopeFromAlice(alice.sessions.encrypt(bob.accountId, malformed), username = "alice_01"))
+        assertEquals(DropReason.INVALID_CONTENT, (bad as ReceiveResult.Dropped).reason)
+        // The ratchet step of the dropped message stands: the next message decrypts normally.
+        val next = receiver.receive(envelopeFromAlice(alice.encryptTo(bob, "after"), username = "alice_01")) as ReceiveResult.Decrypted
+        assertEquals("after", next.content.data.text.body)
+    }
+
+    @Test
     fun `duplicates, self-sent, garbage and spoofed senders are dropped`() = runBlocking {
         val envelope = envelopeFromAlice(alice.encryptTo(bob, "once"))
         receiver.receive(envelope) as ReceiveResult.Decrypted

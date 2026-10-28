@@ -28,6 +28,8 @@
     <string name="verification_safety_confirm_message">Yalnızca numaraları %s ile başka bir kanaldan karşılaştırdıysan ve hepsi aynıysa işaretle.</string>
     <!-- safety.confirm.title -->
     <string name="verification_safety_confirm_title">Doğrulandı olarak işaretlensin mi?</string>
+    <!-- safety.explainer %@ -->
+    <string name="verification_safety_explainer">Bu numaralar %s telefonundakilerle aynıysa mesajlarınız uçtan uca şifrelidir ve araya kimse girmemiştir. Yan yanayken QR kodu okut ya da numaraları başka bir kanaldan karşılaştır.</string>
     <!-- safety.markVerified -->
     <string name="verification_safety_markverified">Doğrulandı olarak işaretle</string>
     <!-- safety.remove.confirm -->

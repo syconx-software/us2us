@@ -30,6 +30,9 @@ struct ContactTests {
             #expect(try tx.contacts.noteVerifiedMessage(.text("hi"), from: bob) == .outgoingRequest)
             #expect(try tx.contacts.noteVerifiedMessage(.accessKeyUpdate(Data(repeating: 1, count: 16)), from: bob)
                 == .outgoingRequest)
+            // Only once the relay took a visible message of ours is it a request bob can accept (M-9).
+            #expect(try tx.contacts.noteVerifiedMessage(.messageRequestResponse(.accept), from: bob) == .outgoingRequest)
+            try tx.contacts.markRequestSent(to: bob, now: t0)
             #expect(try tx.contacts.noteVerifiedMessage(.messageRequestResponse(.accept), from: bob) == .accepted)
         }
     }

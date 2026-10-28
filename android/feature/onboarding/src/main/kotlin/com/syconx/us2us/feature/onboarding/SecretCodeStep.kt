@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.env.currentSafeArea
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
@@ -25,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.components.CodeDots
 import com.syconx.us2us.ui.components.NumericKeypad
+import androidx.compose.foundation.layout.fillMaxSize
+import com.syconx.us2us.ui.components.NumericKeypadMetrics
+import com.syconx.us2us.ui.components.KeypadScreenLayout
 import com.syconx.us2us.ui.components.SetupHeader
 import com.syconx.us2us.ui.components.text.SetupTitle
 import com.syconx.us2us.ui.env.u2Bottom
@@ -50,7 +54,13 @@ internal fun SecretCodeStep(model: SecretCodeStepModel, step: SetupStepLabel, on
     // Back on the confirm step returns to the set step (the stack does not pop it, flows.md › Back behaviour).
     BackHandler(enabled = LocalIsLayerVisible.current && model.step == SecretCodeStepModel.Step.Confirm) { model.backToSet() }
     U2Screen {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // The keypad takes the room the text leaves (shrinking on a short screen); only when even
+        // its smallest size does not fit does the step scroll.
+        KeypadScreenLayout(
+            Modifier.fillMaxSize(),
+            minimumBottom = NumericKeypadMetrics.minimumHeight + currentSafeArea.bottom(56.dp),
+            top = {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             SetupHeader(step = step.step, onBack = onBack, stepCount = step.count, modifier = Modifier.testTag(OnboardingTags.header(2)))
             CodeTitleBlock(
                 model.step,
@@ -68,8 +78,13 @@ internal fun SecretCodeStep(model: SecretCodeStepModel, step: SetupStepLabel, on
                         .testTag(OnboardingTags.CODE_DOTS),
                 )
                 ProblemSentence(model.problem, Modifier.overlayAt(44.dp + U2Size.codeDot + 16.dp))
+                // The sentence's room, kept in the layout (invisible): on a short screen the keypad
+                // yields it instead of sitting under the sentence.
+                ProblemSentenceRoom(Modifier.padding(top = 44.dp + U2Size.codeDot + 16.dp))
             }
-            Spacer(Modifier.weight(1f))
+        }
+            },
+            bottom = {
             NumericKeypad(
                 onDigit = model::type,
                 onDelete = model::delete,
@@ -77,7 +92,8 @@ internal fun SecretCodeStep(model: SecretCodeStepModel, step: SetupStepLabel, on
                     .u2Bottom(56.dp)
                     .testTag(OnboardingTags.KEYPAD),
             )
-        }
+            },
+        )
     }
 }
 
@@ -130,6 +146,16 @@ private fun ProblemSentence(problem: SecretCodeStepModel.Problem?, modifier: Mod
                         .testTag(OnboardingTags.CODE_PROBLEM),
                 )
             }
+        }
+    }
+}
+
+/** As tall as the longer of the two sentences, drawing nothing. */
+@Composable
+private fun ProblemSentenceRoom(modifier: Modifier = Modifier) {
+    Box(modifier.width(300.dp).alpha(0f).clearAndSetSemantics {}) {
+        for (text in listOf(R.string.onboarding_code_weak, R.string.onboarding_code_mismatch)) {
+            U2Text(stringResource(text), U2TextStyles.calloutL, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }

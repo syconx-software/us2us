@@ -14,11 +14,16 @@ import androidx.core.view.WindowInsetsCompat
  * insets pass through.
  */
 @SuppressLint("ViewConstructor")
-internal class DesignInsetsLayout(context: Context, private val enabled: Boolean) : FrameLayout(context) {
+internal class DesignInsetsLayout(
+    context: Context,
+    private val enabled: Boolean,
+    private val topDp: Int = DesignMoment.SAFE_TOP_DP,
+    private val bottomDp: Int = DesignMoment.SAFE_BOTTOM_DP,
+) : FrameLayout(context) {
     private val designInsets: WindowInsets by lazy {
         val density = resources.displayMetrics.density
-        val top = Math.round(DesignMoment.SAFE_TOP_DP * density)
-        val bottom = Math.round(DesignMoment.SAFE_BOTTOM_DP * density)
+        val top = Math.round(topDp * density)
+        val bottom = Math.round(bottomDp * density)
         WindowInsetsCompat.Builder()
             .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, top, 0, 0))
             .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, bottom))

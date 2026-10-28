@@ -54,7 +54,9 @@ final class ChatDeletionUITests: XCTestCase {
             alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "yalnızca bu telefondan")).count > 0,
             "it says: on this phone only")
         snap("02 confirmation")
-        alert.buttons["Sil"].tap()
+        let confirm = alert.buttons["Sohbeti sil"].firstMatch
+        XCTAssertTrue(confirm.exists, "the button names what goes")
+        confirm.tap()
         XCTAssertTrue(element(app, "contact.more").waitForNonExistence(timeout: 6), "the contact screen went")
         XCTAssertTrue(element(app, "chats.list").waitForExistence(timeout: 6), "back on 4.1")
         XCTAssertTrue(element(app, "chat.deniz").waitForNonExistence(timeout: 6), "no deniz row")
@@ -94,7 +96,7 @@ final class ChatDeletionUITests: XCTestCase {
         chooseDeleteContact(app, on: row)
         alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 4))
-        alert.buttons["Sil"].tap()
+        alert.buttons["Kişiyi sil"].firstMatch.tap()
         XCTAssertTrue(row.waitForNonExistence(timeout: 6), "the row went")
         snap("02 4.1 without mert_k")
     }

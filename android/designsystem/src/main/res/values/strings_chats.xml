@@ -4,6 +4,10 @@
 <resources>
     <!-- a11y.more — VoiceOver label of the “…” header buttons (4.3, 4.4). -->
     <string name="chats_a11y_more">More</string>
+    <!-- a11y.request.accept.hint — VoiceOver hint of a request's “Kabul et”. -->
+    <string name="chats_a11y_request_accept_hint">Opens the chat. Depending on your settings, they can then see your reads and activity.</string>
+    <!-- a11y.request.delete.hint — VoiceOver hint of a request's “Sil”. -->
+    <string name="chats_a11y_request_delete_hint">Removes the request. The sender won\'t know.</string>
     <!-- a11y.request.open — VoiceOver hint of a request card. -->
     <string name="chats_a11y_request_open">Opens the request</string>
     <!-- access.card.subtitle — 4.1 card subtitle: 7.1 explains and has “Şimdi kontrol et”. -->
@@ -33,7 +37,7 @@
     <!-- newChat.invalid.turkish — 4.2 result for a name that breaks a username rule (PROTOCOL §3.1): nobody can have it, so it is not searched. After “·” the rule, as on 2.1. -->
     <string name="chats_newchat_invalid_turkish">Not a valid username · Turkish characters can\'t be used.</string>
     <!-- newChat.notFound — 4.2 not found (proposed). -->
-    <string name="chats_newchat_notfound">User not found · Type the full username.</string>
+    <string name="chats_newchat_notfound">User not found · Check that you typed the full username.</string>
     <!-- newChat.openChat — 4.2 primary button for an existing contact (proposed). -->
     <string name="chats_newchat_openchat">Go to chat</string>
     <!-- newChat.own — 4.2 when the user types their own name (proposed). -->
@@ -80,7 +84,7 @@
     <!-- requests.age.minutes %lld — 4.3 request age under an hour. -->
     <string name="chats_requests_age_minutes">%d min</string>
     <!-- requests.banner — 4.3 privacy banner. -->
-    <string name="chats_requests_banner">The chat won\'t open until you accept. They can\'t see your activity or reads.</string>
+    <string name="chats_requests_banner">The chat won\'t open until you accept, and they can\'t see your activity or reads. If you delete or block, they won\'t know.</string>
     <!-- requests.block.message — Block confirmation message of 4.3/4.4 and of the contact screen (proposed). -->
     <string name="chats_requests_block_message">They can\'t message you again. They won\'t know they were blocked.</string>
     <!-- requests.block.title %@ — Block confirmation of 4.3/4.4 and of the contact screen (proposed). %@ = username. -->

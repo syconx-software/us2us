@@ -101,6 +101,8 @@ struct MessageStatusSentence: View {
                     Text("status.failed.resend")
                         .u2Font(.statusLineEmphasis, matchLineBox: false)
                         .foregroundStyle(Color.u2.accent300)
+                        // A one-line caption; it answers to a 44 pt band.
+                        .u2ExpandedHitArea(horizontal: 8, vertical: 14)
                 }
                 .buttonStyle(.plain)
             }

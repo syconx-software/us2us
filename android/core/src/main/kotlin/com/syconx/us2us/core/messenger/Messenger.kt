@@ -164,7 +164,10 @@ class Messenger(
         RelaySenderDirectory.DEFAULT_MIN_REFRESH_INTERVAL,
         RelaySenderDirectory.DEFAULT_CACHE_SIZE,
     )
-    private val receiver = MessageReceiver(account.accountId, store, sessions, SenderVerifier(store, directory), cryptoLock)
+    private val receiver = MessageReceiver(account.accountId, store, sessions, SenderVerifier(store, directory), cryptoLock) { sender ->
+        // A store that cannot answer is no reason to drop: the decryption below then meets it too.
+        runCatching { contacts.get(sender)?.state == ContactState.BLOCKED }.getOrDefault(false)
+    }
     private val preKeys = PreKeyManager(store, config.preKeyPolicy, config.clock)
     private val handledEnvelopes = Collections.synchronizedSet(
         Collections.newSetFromMap(
@@ -173,6 +176,9 @@ class Messenger(
             },
         ),
     )
+
+    /** Failed handler attempts per envelope id in this process (bounded, see [process]). */
+    private val handlerFailures = AttemptCounter(HANDLED_ENVELOPE_MEMORY)
 
     private val receiptLock = Any()
     private val pendingReceipts = LinkedHashMap<AccountId, MutableList<ByteArray>>()
@@ -903,6 +909,9 @@ class Messenger(
         }
         val mediaId = attachment.mediaId.toByteArray()
         val blobSize = AttachmentCipher.blobSize(attachment.size)
+        // The sender declares the size (up to 2^40): no relay stores a blob above 1 GiB, so nothing
+        // larger is ever fetched or staged (audit 2026-10-28 L-20).
+        if (blobSize > MAX_DOWNLOAD_BLOB_BYTES) throw AttachmentIntegrityException("declared size above any relay's limit")
         val received = progress?.let { report -> { bytes: Long -> report(if (blobSize > 0) minOf(1.0, bytes.toDouble() / blobSize) else 0.0) } }
         val staged = withContext(Dispatchers.IO) { File.createTempFile("us2us-", ".blob", config.tempDirectory) }
         try {
@@ -936,9 +945,12 @@ class Messenger(
      * §5.5 step 3.4): while its outcome stays unknown nothing connects and it is asked again with
      * the backoff; `401` for both tokens ends the loop like a refused token (HTTP `401`).
      *
-     * The envelope is acknowledged after [handler] returns. If the handler throws, the loop stops
-     * and the envelope stays at the relay; libsignal has already consumed its message key, though,
-     * so the handler must store messages reliably.
+     * The envelope is acknowledged after [handler] returns. If the handler throws an [IOException]
+     * (its store is unavailable), the loop stops and the envelope stays at the relay. Any other
+     * exception leaves that envelope at the relay while the loop goes on with the next ones; after
+     * [MAX_HANDLER_ATTEMPTS] failures on one envelope it is dropped and acknowledged. libsignal has
+     * already consumed the message key, so the handler must store messages reliably (or roll the
+     * decryption back with the message, as the app's staged inbound writes do).
      */
     suspend fun runReceiveLoop(handler: MessageHandler) {
         var backoff = config.reconnectMinDelay
@@ -1151,7 +1163,7 @@ class Messenger(
             }
         }
         val challenge = publicRelay.messageChallenge(to)
-        val solution = ProofOfWork.solve(challenge.token, challenge.difficulty, config.powParallelism)
+        val solution = ProofOfWork.solveRelayChallenge(challenge.token, challenge.difficulty, config.powParallelism, config.powTimeout)
         return publicRelay.sendEnvelope(to, envelope, DeliveryAuthorization.WithProofOfWork(solution))
     }
 
@@ -1679,9 +1691,26 @@ class Messenger(
             return true // Community content is never a personal request/contact/profile.
         }
         if (result is ReceiveResult.Decrypted) {
-            val message = recordIncoming(stored, result)
+            val message = try {
+                recordIncoming(stored, result)?.also { handler.onMessage(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                // The local store is unavailable (the vault closed): not the message's fault. The
+                // loop stops and the envelope waits for the next connection, as before.
+                throw e
+            } catch (_: Exception) {
+                // The handler could not take this message. It stays at the relay (not acknowledged)
+                // and the envelopes behind it are handled now; it is tried again at the next
+                // connection, and after MAX_HANDLER_ATTEMPTS failures dropped and acknowledged, so
+                // one bad envelope can never block the mailbox (audit 2026-10-28 H-1).
+                if (handlerFailures.record(stored.id) < MAX_HANDLER_ATTEMPTS) return false
+                handlerFailures.forget(stored.id)
+                handledEnvelopes += stored.id
+                return true
+            }
+            handlerFailures.forget(stored.id)
             if (message != null) {
-                handler.onMessage(message)
                 queueDeliveryReceipt(message)
                 val content = message.content
                 if (content.hasPresence()) onPresence(message.sender, content.presence)
@@ -1723,6 +1752,7 @@ class Messenger(
             content = result.content,
             contactState = contact.state,
             identityChanged = store.identity(result.sender)?.trust == IdentityTrust.CHANGED,
+            verifiedSenderUsername = result.senderUsername,
         )
     }
 
@@ -1884,10 +1914,19 @@ class Messenger(
         /** Ids per `ReceiptMessage`: about 18 KiB of ids, well inside one 64 KiB envelope. */
         const val MAX_RECEIPT_IDS = 1000
         private const val MEDIA_ID_LENGTH = 16
+
+        /** The relay's `MEDIA_MAX_BYTES` cannot be set above 1 GiB. */
+        const val MAX_DOWNLOAD_BLOB_BYTES = 1L shl 30
         private const val DIGEST_LENGTH = 32
         private const val BACKUP_VERSION = 1
         private const val IDENTITY_KEY_LENGTH = 33
         private const val HANDLED_ENVELOPE_MEMORY = 2048
+
+        /**
+         * How often the handler may fail on one envelope before it is dropped and acknowledged.
+         * Each attempt after the first waits for a new connection (with backoff).
+         */
+        const val MAX_HANDLER_ATTEMPTS = 3
         private const val MAX_AVATAR_SEEDS = 16
         private const val MAX_SEARCH_PICTURES = 64
         private const val MAX_SEARCH_VERSIONS = 1024
@@ -1950,7 +1989,7 @@ class Messenger(
             val keys = withContext(Dispatchers.Default) { preKeys.generateFullSet() }
             val registered = try {
                 val challenge = relay.registrationChallenge()
-                val solution = ProofOfWork.solve(challenge.token, challenge.difficulty, config.powParallelism)
+                val solution = ProofOfWork.solveRelayChallenge(challenge.token, challenge.difficulty, config.powParallelism, config.powTimeout)
                 relay.register(
                     RegistrationRequest(
                         usernameHash = usernameHash,

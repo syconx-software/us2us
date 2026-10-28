@@ -196,6 +196,7 @@ struct SafetyNumberTab: View {
     let model: VerificationModel
     /// The contact screen's block state and “Engeli kaldır”.
     var contact: ContactActionsModel? = nil
+    @Environment(\.locale) private var locale
 
     var body: some View {
         FitOrScroll { content }
@@ -219,6 +220,20 @@ struct SafetyNumberTab: View {
                 VerifiedSincePill(info: info)
                     .padding(.top, 24)
                     .transition(.u2Rise)
+            } else if model.info != nil, !model.numberChanged, !model.changedWhileOpen, contact?.isBlocked != true {
+                // What comparing the numbers proves, and how (proposed). Not
+                // under a changed-number or blocked note: those already say
+                // what to do, and the actions must stay on screen.
+                Text("safety.explainer \(L10n.possessive(model.peerName, locale: locale))", table: .verification)
+                    .u2Font(.captionCompact)
+                    .foregroundStyle(Color.u2.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 330)
+                    .padding(.horizontal, U2Spacing.screenGutterL)
+                    .padding(.top, 20)
+                    .accessibilityIdentifier("safety.explainer")
+                    .transition(.u2Fade)
             }
             Spacer(minLength: 24)
             actions

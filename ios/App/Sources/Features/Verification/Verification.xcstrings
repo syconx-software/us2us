@@ -990,6 +990,24 @@
           }
         }
       }
+    },
+    "safety.explainer %@": {
+      "comment": "6.1 under the digits while the chat is not verified; the argument is the possessive name (deniz'in / deniz’s).",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu numaralar %@ telefonundakilerle aynıysa mesajlarınız uçtan uca şifrelidir ve araya kimse girmemiştir. Yan yanayken QR kodu okut ya da numaraları başka bir kanaldan karşılaştır."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If these numbers match the ones on %@ phone, your messages are end-to-end encrypted and nobody is in between. Scan the QR code side by side, or compare the numbers over another channel."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

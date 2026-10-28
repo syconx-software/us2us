@@ -18,6 +18,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -118,10 +120,11 @@ fun ChatHeader(
                         U2Text(
                             username,
                             U2TextStyles.monoUsername,
-                            Modifier.weight(1f, fill = false).testTag("chatHeader.name"),
+                            Modifier.weight(1f, fill = false).testTag("chatHeader.name").semantics { heading() },
                             color = colors.text,
                             maxLines = 1,
                             softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (isVerified) {
                             PhosphorIcon(
@@ -155,7 +158,7 @@ fun ChatHeader(
 @Composable
 internal fun HeaderStatusText(text: String, modifier: Modifier = Modifier) {
     val style = LocalU2LabelStyle.current
-    U2Text(text, style.style, modifier, color = style.color, maxLines = 1, softWrap = false)
+    U2Text(text, style.style, modifier, color = style.color, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
 }
 
 /** The header status line: “Aktif” with the 7 dp dot, “Az önce aktifti”, “3 dk önce aktifti”, “Bugün 16:40 aktifti”. */

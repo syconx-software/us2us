@@ -84,7 +84,10 @@ class ContactStoreTest {
         storage.contactStore.put(Contact(peer, null, ContactState.OUTGOING_REQUEST))
         val raw = storage.read { it.connection.scalar("SELECT request_state FROM contacts") }
         assertEquals("outgoingRequest", raw)
-        storage.write { tx -> tx.contacts.noteVerifiedMessage(com.syconx.us2us.core.contacts.MessageRequests.acceptContent(), peer) }
+        storage.write { tx ->
+            tx.contacts.markRequestSent(peer)
+            tx.contacts.noteVerifiedMessage(com.syconx.us2us.core.contacts.MessageRequests.acceptContent(), peer)
+        }
         assertEquals(ContactState.ACCEPTED, storage.contactStore.get(peer)?.state)
     }
 

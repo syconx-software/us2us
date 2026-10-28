@@ -440,6 +440,19 @@ class SqlProtocolStorage internal constructor(
         val approvedVerified = if (existing.approved) existing.verified else existing.previousVerified
         val approvedAt = if (existing.approved) existing.verifiedAt else existing.previousVerifiedAt
         val approvedMethod = if (existing.approved) existing.verifiedMethod else existing.previousVerifiedMethod
+        if (key == approvedKey) {
+            // Back to the key the user already approved (a key injected once, then the real one):
+            // nothing is left to approve, and its verification stands (§5; iOS PersistentProtocolStore,
+            // audit 2026-10-28 M-8).
+            return IdentityRow(
+                key = key,
+                previous = null,
+                approved = true,
+                verified = approvedVerified,
+                verifiedAt = if (approvedVerified) approvedAt else null,
+                verifiedMethod = if (approvedVerified) approvedMethod else null,
+            )
+        }
         val keeps = approvedKey != null && approvedVerified
         return IdentityRow(
             key = key,

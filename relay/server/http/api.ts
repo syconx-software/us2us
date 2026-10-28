@@ -8,7 +8,7 @@ import {
   type EventHandlerRequest,
   type H3Event,
 } from 'h3'
-import { forwardedFor } from '../lib/client-address'
+import { resolveClientAddress } from '../lib/client-address'
 import type { Rate } from '../lib/config'
 import { decodeB64uExact, parseUuid } from '../lib/encoding'
 import { ApiError, badRequest, describeError, internalError, notFound, payloadTooLarge, rateLimited } from '../lib/errors'
@@ -99,13 +99,9 @@ export const unknownEndpoint = defineApiHandler(() => {
   throw notFound('endpoint')
 })
 
-/** The client address, from X-Forwarded-For only when TRUST_PROXY is set. */
+/** The client address: the proxy's header only with TRUST_PROXY and from a TRUST_PROXY_FROM peer. */
 export function clientAddress(event: H3Event): string {
-  if (useRelay().config.trustProxy) {
-    const forwarded = forwardedFor(getRequestHeader(event, 'x-forwarded-for'))
-    if (forwarded) return forwarded
-  }
-  return event.node.req.socket.remoteAddress ?? 'unknown'
+  return resolveClientAddress(useRelay().config, event.node.req.socket.remoteAddress, name => getRequestHeader(event, name))
 }
 
 export function limitByIp(event: H3Event, name: string, rate: Rate, cost = 1): void {

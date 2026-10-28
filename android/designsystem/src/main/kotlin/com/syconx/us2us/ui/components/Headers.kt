@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -161,23 +163,44 @@ fun HeaderSpacer(modifier: Modifier = Modifier) {
  */
 @Composable
 fun SheetBar(title: String, cancelTitle: String, onCancel: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier
+    // The title is centred over the full width, but never under “Vazgeç”: with a long title or a
+    // large system font it keeps clear of the button on both sides and ends in an ellipsis.
+    Layout(
+        contents = listOf(
+            {
+                U2TextButton(
+                    title = cancelTitle,
+                    onClick = onCancel,
+                    tone = U2TextButtonTone.Accent,
+                    height = 48.dp,
+                    fillsWidth = false,
+                )
+            },
+            {
+                U2Text(
+                    title,
+                    U2TextStyles.navTitle,
+                    color = U2Theme.colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() },
+                )
+            },
+        ),
+        modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        U2Text(title, U2TextStyles.navTitle, color = U2Theme.colors.text, modifier = Modifier.semantics { heading() })
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            U2TextButton(
-                title = cancelTitle,
-                onClick = onCancel,
-                tone = U2TextButtonTone.Accent,
-                height = 48.dp,
-                fillsWidth = false,
-            )
-            Spacer(Modifier.weight(1f))
+    ) { (cancelMeasurables, titleMeasurables), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val cancel = cancelMeasurables.first().measure(loose)
+        val gap = 8.dp.roundToPx()
+        val titleRoom = (constraints.maxWidth - 2 * (cancel.width + gap)).coerceAtLeast(0)
+        val titlePlaceable = titleMeasurables.first().measure(loose.copy(maxWidth = titleRoom))
+        val height = maxOf(constraints.minHeight, cancel.height, titlePlaceable.height)
+        layout(constraints.maxWidth, height) {
+            cancel.place(0, (height - cancel.height) / 2)
+            titlePlaceable.place((constraints.maxWidth - titlePlaceable.width) / 2, (height - titlePlaceable.height) / 2)
         }
     }
 }

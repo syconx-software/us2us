@@ -152,6 +152,8 @@ struct GroupedRow<Trailing: View>: View {
 struct DisclosureDetail: View {
     var detail: Text? = nil
     var showsChevron = true
+    /// Never truncates (a row that measures whether it fits beside the title).
+    var keepsFullWidth = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -162,7 +164,7 @@ struct DisclosureDetail: View {
                 // (EN “Activity status · People I've accepted”). Larger text:
                 // the detail gives way (one line, truncated) so the title never
                 // breaks inside a word.
-                if dynamicTypeSize <= .large {
+                if dynamicTypeSize <= .large || keepsFullWidth {
                     detailText(detail).fixedSize()
                 } else {
                     detailText(detail).truncationMode(.tail)
@@ -190,17 +192,42 @@ struct GroupedNavigationRow: View {
     var subtitle: Text? = nil
     var detail: Text? = nil
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
-            GroupedRow(tile: tile, title: title, subtitle: subtitle) {
-                DisclosureDetail(detail: detail)
+            Group {
+                if let detail, dynamicTypeSize > .large {
+                    // Larger text: the detail stays beside the title while both
+                    // fit whole; otherwise it moves under the title instead of
+                    // shrinking to “2…” (“Varsayılan Ghost süresi · 24 saat”).
+                    ViewThatFits(in: .horizontal) {
+                        GroupedRow(tile: tile, title: title, subtitle: subtitle) {
+                            DisclosureDetail(detail: detail, keepsFullWidth: true)
+                        }
+                        GroupedRow(tile: tile, title: title, subtitle: stacked(detail)) {
+                            DisclosureDetail()
+                        }
+                    }
+                } else {
+                    GroupedRow(tile: tile, title: title, subtitle: subtitle) {
+                        DisclosureDetail(detail: detail)
+                    }
+                }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(GroupedRowButtonStyle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+extension GroupedNavigationRow {
+    /// The detail as the subtitle's last line.
+    private func stacked(_ detail: Text) -> Text {
+        guard let subtitle else { return detail }
+        return subtitle + Text(verbatim: "\n") + detail
     }
 }
 

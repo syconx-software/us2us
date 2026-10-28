@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-only copy from the 1.1.6 usability pass, to move into the shared catalogues. -->
+<resources>
+    <!-- A voice message's TalkBack actions: skip forward or back. -->
+    <string name="android_ux_voice_forward">Forward 5 seconds</string>
+    <string name="android_ux_voice_back">Back 5 seconds</string>
+</resources>
