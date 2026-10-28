@@ -36,6 +36,10 @@
     <string name="common_a11y_keypad_faceid">Face ID ile aç</string>
     <!-- a11y.media.open -->
     <string name="common_a11y_media_open">Aç</string>
+    <!-- a11y.messageDeletedForEveryone -->
+    <string name="common_a11y_messagedeletedforeveryone">Mesaj herkesten silindi.</string>
+    <!-- a11y.messageDeletedForMe -->
+    <string name="common_a11y_messagedeletedforme">Mesaj bu telefondan silindi.</string>
     <!-- a11y.myCode -->
     <string name="common_a11y_mycode">QR kodun</string>
     <!-- a11y.newChat -->
@@ -116,6 +120,14 @@
     <string name="common_close">Kapat</string>
     <!-- common.save -->
     <string name="common_save">Kaydet</string>
+    <!-- community.rejectAll -->
+    <string name="common_community_rejectall">Tümünü reddet</string>
+    <!-- community.rejectAll.confirm -->
+    <string name="common_community_rejectall_confirm">Tümünü reddet</string>
+    <!-- community.rejectAll.message -->
+    <string name="common_community_rejectall_message">Bekleyen herkes geri çevrilir, kullandıkları davetler de geçersiz olur. Daha sonra yeniden isteyebilirler.</string>
+    <!-- community.rejectAll.title -->
+    <string name="common_community_rejectall_title">Tüm katılım istekleri reddedilsin mi?</string>
     <!-- composer.placeholder -->
     <string name="common_composer_placeholder">Mesaj</string>
     <!-- delete.chat -->
@@ -248,6 +260,10 @@
     <string name="common_request_delete">Sil</string>
     <!-- request.title -->
     <string name="common_request_title">Mesaj isteği</string>
+    <!-- security.deviceProtection.basic -->
+    <string name="common_security_deviceprotection_basic">Cihaz koruması: temel. Bu telefonun güvenli donanımı gizli kodunu korumak için kurulamadı; kodun yalnızca bu telefonda saklanan anahtarla korunuyor. Ekran kilidi kullanmayı sürdür ve Android\'i güncel tut; uygulama her kodla kilit açışında yeniden dener.</string>
+    <!-- security.deviceProtection.limited -->
+    <string name="common_security_deviceprotection_limited">Cihaz koruması: donanım. Bu Android sürümünde gizli kodunu koruyan donanım anahtarı telefon kilitliyken de çalışır. Android 15 ve sonrasında yalnızca telefonun kilidi açıldıktan sonra çalışır.</string>
     <!-- status.delivered -->
     <string name="common_status_delivered">İletildi</string>
     <!-- status.delivered.legend -->

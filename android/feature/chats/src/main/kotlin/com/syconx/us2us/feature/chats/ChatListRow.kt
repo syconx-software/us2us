@@ -24,6 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -379,7 +382,8 @@ private fun CardRow(onClick: () -> Unit, modifier: Modifier, content: @Composabl
 @Composable
 fun ConnectionStatusLine(state: ConnectionState, modifier: Modifier = Modifier) {
     Row(
-        modifier.semantics(mergeDescendants = true) {},
+        // A change of the line (connecting, closed) is said as it happens.
+        modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -392,8 +396,10 @@ fun ConnectionStatusLine(state: ConnectionState, modifier: Modifier = Modifier) 
                 ConnectionState.Revoked -> R.string.common_chats_line_revoked
             },
         )
+        // One line as drawn; with a large system font it wraps rather than cutting “yeniden deneniyor”.
+        val wraps = LocalDensity.current.fontScale > 1f
         CrossFadeText(text, label = "connectionLine") {
-            U2Text(it, U2TextStyles.monoMeta, color = U2Theme.colors.textSecondary, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            U2Text(it, U2TextStyles.monoMeta, color = U2Theme.colors.textSecondary, maxLines = if (wraps) 2 else 1, softWrap = wraps, overflow = TextOverflow.Ellipsis)
         }
     }
 }

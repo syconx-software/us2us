@@ -188,12 +188,25 @@ class LocalVault(
         }
     }
 
-    /** No operation after the atomic replacement can fail and delete a committed v2 key. */
+    /**
+     * Moves to v2. The candidate is opened with the same code, device secret and hardware key and
+     * must give back the same DEK *before* it replaces the v1 file (atomically): a v2 file that
+     * could not be opened would lose the vault for good. No operation after the replacement can
+     * fail and delete a committed v2 key. A failure leaves v1 in place, is retried at the next code
+     * unlock, and shows as [DeviceProtection.BASIC] (audit 2026-10-28 M-6), never silently.
+     */
     private fun writeWithHardwareStep(dek: DataKey, code: String, deviceSecret: ByteArray): Boolean {
         val hardware = hardwareKey?.takeIf { it.isAvailable } ?: return false
         return try {
             hardware.createKey()
             val candidate = Vault.create(code, deviceSecret, dek, configuration.iterations, hardware)
+            val reopened = Vault.open(candidate, code, deviceSecret, hardware)
+            val same = try {
+                java.security.MessageDigest.isEqual(reopened.toBytes(), dek.toBytes())
+            } finally {
+                reopened.wipe()
+            }
+            if (!same) throw IOException("vault v2 candidate does not open")
             VaultFiles.write(vaultFile, candidate)
             true
         } catch (_: Exception) {

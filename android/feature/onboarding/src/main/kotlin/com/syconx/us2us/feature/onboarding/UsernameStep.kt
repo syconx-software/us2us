@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -163,7 +164,8 @@ private fun UsernameStatusRow(model: UsernameStepModel) {
         Box(
             Modifier
                 .weight(1f)
-                .height(20.15.dp)
+                // One caption line as drawn; a larger system font grows the line instead of clipping it.
+                .heightIn(min = 20.15.dp)
                 .semantics { liveRegion = LiveRegionMode.Polite },
             contentAlignment = Alignment.TopStart,
         ) {

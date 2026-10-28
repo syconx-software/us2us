@@ -43,6 +43,11 @@ interface CommunitiesService {
     suspend fun applications(id: String): List<CommunityApplication>
     suspend fun approve(id: String, application: CommunityApplication)
     suspend fun reject(id: String, account: String)
+
+    /** Owner: rejects every pending join request at once (and the invitations they used). */
+    suspend fun rejectAll(id: String) {
+        for (application in applications(id)) reject(id, application.account)
+    }
     suspend fun remove(id: String, account: String)
     suspend fun invite(id: String): String
     suspend fun revokeInvites(id: String)

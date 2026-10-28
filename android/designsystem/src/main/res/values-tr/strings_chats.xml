@@ -4,6 +4,10 @@
 <resources>
     <!-- a11y.more -->
     <string name="chats_a11y_more">Diğer</string>
+    <!-- a11y.request.accept.hint -->
+    <string name="chats_a11y_request_accept_hint">Sohbeti açar. Ayarlarına göre okuduğunu ve aktif olduğunu görebilir.</string>
+    <!-- a11y.request.delete.hint -->
+    <string name="chats_a11y_request_delete_hint">İsteği kaldırır. Gönderen bunu bilmez.</string>
     <!-- a11y.request.open -->
     <string name="chats_a11y_request_open">İsteği açar</string>
     <!-- access.card.subtitle -->
@@ -33,7 +37,7 @@
     <!-- newChat.invalid.turkish -->
     <string name="chats_newchat_invalid_turkish">Geçersiz kullanıcı adı · Türkçe karakter kullanılamaz.</string>
     <!-- newChat.notFound -->
-    <string name="chats_newchat_notfound">Kullanıcı bulunamadı · Kullanıcı adını eksiksiz yaz.</string>
+    <string name="chats_newchat_notfound">Kullanıcı bulunamadı · Adı eksiksiz yazdığından emin ol.</string>
     <!-- newChat.openChat -->
     <string name="chats_newchat_openchat">Sohbete git</string>
     <!-- newChat.own -->
@@ -80,7 +84,7 @@
     <!-- requests.age.minutes %lld -->
     <string name="chats_requests_age_minutes">%d dk</string>
     <!-- requests.banner -->
-    <string name="chats_requests_banner">Kabul edene kadar sohbet açılmaz. Okuduğunu ve aktif olduğunu göremezler.</string>
+    <string name="chats_requests_banner">Kabul edene kadar sohbet açılmaz; okuduğunu ve aktif olduğunu göremezler. Silersen ya da engellersen bunu bilmezler.</string>
     <!-- requests.block.message -->
     <string name="chats_requests_block_message">Sana bir daha yazamaz. Engellendiğini bilmez.</string>
     <!-- requests.block.title %@ -->

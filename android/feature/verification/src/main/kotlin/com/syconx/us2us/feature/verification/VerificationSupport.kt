@@ -27,6 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.type.textStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -187,15 +189,23 @@ val DesignMockQrModules: QrModules by lazy {
 fun SafetyDigitsGrid(groups: List<String>, modifier: Modifier = Modifier, color: Color = U2Theme.colors.textSafetyDigits) {
     val label = stringResource(R.string.verification_safety_a11y_digits)
     val spoken = remember(groups) { VerificationText.spokenDigits(groups) }
+    // Four groups a row as drawn; with a large system font or a narrow phone, three or two, so no
+    // digit of the number ever runs off the screen (the order reads the same, row by row).
+    val measurer = rememberTextMeasurer()
+    val digitStyle = U2TextStyles.monoSafetyDigits.textStyle()
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        val gap = 18.dp
+        val groupWidth = with(LocalDensity.current) { measurer.measure(groups.firstOrNull() ?: "00000", digitStyle).size.width.toDp() }
+        val perRow = listOf(4, 3, 2).firstOrNull { groupWidth * it + gap * (it - 1) <= maxWidth } ?: 1
     Column(
-        modifier.clearAndSetSemantics {
+        Modifier.clearAndSetSemantics {
             contentDescription = label
             stateDescription = spoken
         },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        groups.chunked(4).forEachIndexed { row, cells ->
+        groups.chunked(perRow).forEachIndexed { row, cells ->
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 cells.forEachIndexed { column, group ->
                     U2Text(
@@ -204,11 +214,12 @@ fun SafetyDigitsGrid(groups: List<String>, modifier: Modifier = Modifier, color:
                         color = color,
                         maxLines = 1,
                         softWrap = false,
-                        modifier = Modifier.testTag(VerificationTags.digits(row * 4 + column)),
+                        modifier = Modifier.testTag(VerificationTags.digits(row * perRow + column)),
                     )
                 }
             }
         }
+    }
     }
 }
 

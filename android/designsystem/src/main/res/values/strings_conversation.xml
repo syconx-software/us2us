@@ -64,7 +64,7 @@
     <!-- bubble.saved.a11y — VoiceOver: the “Kaydetti” chip. -->
     <string name="conversation_bubble_saved_a11y">They saved this</string>
     <!-- confirm.deleteEveryone.message -->
-    <string name="conversation_confirm_deleteeveryone_message">A “This message was deleted for everyone” trace stays in its place.</string>
+    <string name="conversation_confirm_deleteeveryone_message">It is removed from their phone too, and “This message was deleted for everyone” takes its place. They may already have seen or saved it.</string>
     <!-- confirm.deleteEveryone.title -->
     <string name="conversation_confirm_deleteeveryone_title">Delete this message for everyone?</string>
     <!-- disappearing.caption -->

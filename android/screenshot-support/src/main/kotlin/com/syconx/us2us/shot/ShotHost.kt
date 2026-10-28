@@ -105,13 +105,14 @@ class ShotHost(
         val spec = ShotSpec(theme, lang, options)
         this.spec = spec
         RuntimeEnvironment.setQualifiers(spec.qualifiers)
+        RuntimeEnvironment.setFontScale(options.fontScale)
         Locale.setDefault(spec.locale)
         compose.mainClock.autoAdvance = false
 
         val launched = ActivityScenario.launch(activity)
         scenario = launched
         launched.onActivity { activity ->
-            val frame = DesignInsetsLayout(activity, options.designInsets)
+            val frame = DesignInsetsLayout(activity, options.designInsets, options.screen.statusBarDp, options.screen.navigationBarDp)
             val view = ComposeView(activity)
             view.setContent {
                 CompositionLocalProvider(LocalShotSpec provides spec) {
@@ -163,6 +164,15 @@ class ShotHost(
         compose.waitForIdle()
         captureScreenRoboImage(file, RoborazziOptions(taskType = RoborazziTaskType.Record))
         writeSidecar(file, name, spec, design)
+        return file
+    }
+
+    /** Captures the screen as it is now into [variant]'s folder of the review matrix ([UxMatrix]). */
+    fun captureUx(name: String, variant: UxMatrix.Variant): File {
+        val file = UxMatrix.file(variant, name)
+        file.parentFile?.mkdirs()
+        compose.waitForIdle()
+        captureScreenRoboImage(file, RoborazziOptions(taskType = RoborazziTaskType.Record))
         return file
     }
 

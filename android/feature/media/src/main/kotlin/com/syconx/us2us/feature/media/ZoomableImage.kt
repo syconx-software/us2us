@@ -186,6 +186,11 @@ internal fun ZoomableImage(
     val currentOnDismissProgress by rememberUpdatedState(onDismissProgress)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     val currentOnNavigate by rememberUpdatedState(onNavigate)
+    // The gesture handlers below live as long as the photo's pointer input (keyed on the state, not
+    // the image) and start at the first touch: they read the photo through this, not the parameter,
+    // so a touch made before the photo was decoded does not leave double-tap, pinch and swipe-away
+    // off for good once it has arrived.
+    val currentImage by rememberUpdatedState(image)
     var appliedStartZoom by remember { mutableStateOf(false) }
 
     // The image and its proportions: the full photo replaces the thumbnail in place.
@@ -318,7 +323,7 @@ internal fun ZoomableImage(
             .pointerInput(state) {
                 detectTapGestures(
                     onDoubleTap = { position ->
-                        if (state.isDismissing || image == null) return@detectTapGestures
+                        if (state.isDismissing || currentImage == null) return@detectTapGestures
                         val focus = position - Offset(size.width / 2f, size.height / 2f)
                         if (state.isZoomed) {
                             animateTo(1f, Offset.Zero)
@@ -358,11 +363,11 @@ internal fun ZoomableImage(
                         if (centroid.isSpecified()) focus = centroid - center
                         if (mode == GestureMode.Undecided) {
                             mode = when {
-                                pressed > 1 && image != null -> GestureMode.Transform
+                                pressed > 1 && currentImage != null -> GestureMode.Transform
                                 moved.getDistance() <= viewConfiguration.touchSlop -> GestureMode.Undecided
                                 state.isZoomed -> GestureMode.Transform
                                 pressed == 1 && currentOnNavigate != null && abs(moved.x) > abs(moved.y) * 1.2f -> GestureMode.Navigate
-                                image != null && abs(moved.y) > abs(moved.x) * 1.2f -> GestureMode.Dismiss
+                                currentImage != null && abs(moved.y) > abs(moved.x) * 1.2f -> GestureMode.Dismiss
                                 else -> GestureMode.Ignored
                             }
                         }

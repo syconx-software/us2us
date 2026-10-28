@@ -67,4 +67,23 @@ class ProofOfWorkTest {
         assertNull(result)
         assertTrue(started.elapsedNow() < 5000.milliseconds, "workers did not stop promptly")
     }
+
+    @Test
+    fun `a relay challenge above 28 bits is refused without solving (L-10)`() = runBlocking {
+        val started = TimeSource.Monotonic.markNow()
+        val error = runCatching { ProofOfWork.solveRelayChallenge("hostile", 29, parallelism = 1, timeout = 60_000.milliseconds) }.exceptionOrNull()
+        assertTrue(error is PowAbandonedException)
+        assertTrue(error is java.io.IOException, "retried like a network failure")
+        assertTrue(started.elapsedNow() < 1000.milliseconds)
+    }
+
+    @Test
+    fun `a relay challenge that takes too long is given up (L-10)`() = runBlocking {
+        val started = TimeSource.Monotonic.markNow()
+        val error = runCatching { ProofOfWork.solveRelayChallenge("slow", 28, parallelism = 2, timeout = 200.milliseconds) }.exceptionOrNull()
+        assertTrue(error is PowAbandonedException)
+        assertTrue(started.elapsedNow() < 5000.milliseconds, "workers did not stop promptly")
+        val easy = ProofOfWork.solveRelayChallenge("easy", 4, parallelism = 2, timeout = 60_000.milliseconds)
+        assertTrue(ProofOfWork.isValid("easy", easy.nonce, 4))
+    }
 }

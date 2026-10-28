@@ -34,6 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -276,7 +279,10 @@ private fun SheetContainer(
                     .background(backdropColor)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                         if (isDismissible && style != U2SheetStyle.FullHeight && isPresented) currentRequest()
-                    },
+                    }
+                    // A tap outside is a touch shortcut; TalkBack closes with back or the sheet's own buttons,
+                    // never on a nameless full-screen element.
+                    .clearAndSetSemantics {},
             )
             val shape = sheetShape(style)
             Column(
@@ -342,6 +348,19 @@ private fun SheetContainer(
                 CompositionLocalProvider(LocalSheetSettled provides isSettled) {
                     if (style == U2SheetStyle.FullHeight) {
                         Column(Modifier.weight(1f, fill = false).fillMaxWidth(), content = content)
+                    } else if (style == U2SheetStyle.Floating) {
+                        // A floating sheet is as tall as its content; when that is more than the
+                        // screen (a large system font, a small phone) it scrolls instead of pushing
+                        // its buttons off the bottom. It only takes drags when it has somewhere to go,
+                        // so a sheet that fits still follows the finger down.
+                        val scroll = rememberScrollState()
+                        Column(
+                            Modifier
+                                .weight(1f, fill = false)
+                                .fillMaxWidth()
+                                .verticalScroll(scroll, enabled = scroll.maxValue > 0),
+                            content = content,
+                        )
                     } else {
                         content()
                     }
@@ -359,10 +378,17 @@ private fun placement(style: U2SheetStyle): Modifier = when (style) {
         .fillMaxHeight()
         .fillMaxWidth()
     U2SheetStyle.Content -> Modifier.fillMaxWidth()
-    U2SheetStyle.Floating -> Modifier
-        .padding(horizontal = 8.dp)
-        .padding(bottom = 8.dp)
-        .fillMaxWidth()
+    U2SheetStyle.Floating -> {
+        // 8 dp above the screen's bottom, as on the design's iPhone and with Android's gesture bar;
+        // above a three-button navigation bar it floats over the bar, never under its buttons.
+        val safe = windowSafeArea()
+        val bottom = if (safe.bottom > U2Size.designHomeIndicator) safe.bottom + 8.dp else 8.dp
+        Modifier
+            .padding(top = safe.top + 8.dp)
+            .padding(horizontal = 8.dp)
+            .padding(bottom = bottom)
+            .fillMaxWidth()
+    }
 }
 
 /** Top-rounded (and, floating, bottom-rounded) sheet outline. */

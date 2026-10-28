@@ -8,6 +8,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
+/** A relay challenge that was not solved: too hard, or it took too long. Retry later with a fresh one. */
+class PowAbandonedException(message: String) : java.io.IOException(message)
+
 /** A solved challenge, submitted as `{"token","nonce"}` or as the `X-PoW` header. */
 class PowSolution(val token: String, val nonce: ULong) {
     /** `X-PoW: <token>:<nonce>` (PROTOCOL.md §4.2). */
@@ -22,6 +25,23 @@ class PowSolution(val token: String, val nonce: ULong) {
  */
 object ProofOfWork {
     const val MAX_DIFFICULTY = 256
+
+    /**
+     * The highest difficulty a relay ever issues (28 bits; registration rises to at most 26 under
+     * load). A challenge above it is refused instead of burning the battery (audit 2026-10-28 L-10).
+     */
+    const val MAX_RELAY_DIFFICULTY = 28
+
+    /**
+     * Solves a challenge the relay issued: refused above [MAX_RELAY_DIFFICULTY], given up after
+     * [timeout]. Both failures are [PowAbandonedException] (an [java.io.IOException]): the caller
+     * retries later with a fresh challenge, as after a network error.
+     */
+    suspend fun solveRelayChallenge(token: String, difficulty: Int, parallelism: Int, timeout: kotlin.time.Duration): PowSolution {
+        if (difficulty !in 0..MAX_RELAY_DIFFICULTY) throw PowAbandonedException("difficulty above the relay maximum")
+        return kotlinx.coroutines.withTimeoutOrNull(timeout) { solve(token, difficulty, parallelism) }
+            ?: throw PowAbandonedException("proof-of-work timed out")
+    }
 
     /** How many hashes a worker computes between cancellation checks. */
     private const val CHECK_INTERVAL = 4096

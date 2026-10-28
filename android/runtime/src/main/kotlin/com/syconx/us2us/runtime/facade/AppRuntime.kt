@@ -238,6 +238,24 @@ class AppRuntime(
      */
     val tokenRotationPending: StateFlow<Boolean> = tokenRotationPendingFlow.asStateFlow()
 
+    private val deviceProtectionFlow = MutableStateFlow(com.syconx.us2us.runtime.vault.DeviceProtection.FULL)
+
+    /**
+     * What the secure hardware adds to the code on this phone (PROTOCOL §5.2, audit M-6), read at
+     * every unlock: a hardware upgrade that failed (vault still v1) shows as `BASIC`, never silently.
+     */
+    val deviceProtection: StateFlow<com.syconx.us2us.runtime.vault.DeviceProtection> = deviceProtectionFlow.asStateFlow()
+
+    private suspend fun refreshDeviceProtection() {
+        deviceProtectionFlow.value = try {
+            vault.deviceProtection()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return
+        }
+    }
+
     private val privacyCoverFlow = MutableStateFlow(false)
 
     /** Cover the UI (recents snapshot, inactive states). */
@@ -706,6 +724,7 @@ class AppRuntime(
         ownUsernameFlow.value = opened.backend.username().value
         ownAvatarFlow.value = opened.backend.ownAvatar()
         refreshTokenRotationState(opened)
+        refreshDeviceProtection()
         pendingRefresh = PendingRefresh(all = true)
         performRefresh()
         startTicking()
@@ -1428,6 +1447,16 @@ class AppRuntime(
 
     /** Opens a conversation with [username] (exact match only, §4.4). */
     suspend fun startConversation(username: String): AccountId = engine().startConversation(normalizedUsername(username))
+
+    /**
+     * "QR kodla ekle": opens the conversation with [entry]'s account (the [lookupAccount] answer the
+     * scanned code was checked against) and, with [pinKey], pins its key as verified first. `false`
+     * when another key is stored for that account; then nothing was created (M-10).
+     */
+    suspend fun addContactFromCode(username: String, entry: DirectoryEntry, pinKey: Boolean): Boolean =
+        engine().addContactFromCode(normalizedUsername(username), entry, pinKey).also { added ->
+            if (added && pinKey) withContext(main) { safetyNumberChangesFlow.value -= entry.account }
+        }
 
     suspend fun contact(peer: AccountId): ContactInfo? = try {
         session?.engine?.contactInfo(peer)

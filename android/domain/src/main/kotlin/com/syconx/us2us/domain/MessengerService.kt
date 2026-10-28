@@ -572,6 +572,16 @@ interface MessengerService {
     /** “Şimdi kontrol et”: asks the server now (§5.5 step 3.4). Never a false all-clear: a service that cannot ask says it got no answer. */
     suspend fun checkRestoreAccess(): RestoreAccessCheck = RestoreAccessCheck.Unanswered
 
+    /**
+     * Copies a message's text under the app's clipboard rules (this phone only, cleared when the app
+     * locks or leaves the foreground, and when it expires). `false` when the service keeps no such
+     * clipboard; the screen then copies by itself.
+     */
+    fun copyToClipboard(text: String): Boolean = false
+
+    /** What the phone's secure hardware adds to the secret code (PROTOCOL §5.2); 7.1 › Güvenlik says so when it is less than full. */
+    val deviceProtection: StateFlow<DeviceProtection> get() = FullDeviceProtection
+
     // MARK: Conveniences
 
     /** The user's own username (“sen”); empty before onboarding finished. */
@@ -588,6 +598,19 @@ private val DefaultOwnAvatar: StateFlow<OwnAvatarState> = constantStateFlow(OwnA
 private val EmptyLiveLocations: StateFlow<LiveLocationSnapshot> = constantStateFlow(LiveLocationSnapshot.Empty)
 private val ZeroRevision: StateFlow<Int> = constantStateFlow(0)
 private val NotPending: StateFlow<Boolean> = constantStateFlow(false)
+private val FullDeviceProtection: StateFlow<DeviceProtection> = constantStateFlow(DeviceProtection.Full)
+
+/** How much the phone's secure hardware adds to the secret code (PROTOCOL §5.2). */
+enum class DeviceProtection {
+    /** Every guess needs the hardware key, which works only while the phone is unlocked (Android 15+). */
+    Full,
+
+    /** Every guess needs the hardware key, which also works while the phone is locked (below Android 15). */
+    Limited,
+
+    /** The hardware upgrade failed or is not possible: the code and the stored device secret only. */
+    Basic,
+}
 
 /** The app phases the messenger cares about. */
 enum class MessengerScenePhase { Active, Inactive, Background }

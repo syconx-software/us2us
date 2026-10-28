@@ -216,7 +216,7 @@ fun ChatRowMenu(
                 onChoose(deletion)
             }
         }
-        val menuHeight = with(density) { FloatingMenuMetrics.height(items).toPx() }
+        val menuHeight = with(density) { FloatingMenuMetrics.measuredHeight(items).toPx() }
         val windowHeight = LocalWindowInfo.current.containerSize.height.toFloat()
         val below = with(density) {
             ChatRowMenuPlacement.opensBelow(actions.anchor, menuHeight, windowHeight, ChatRowMenuPlacement.gap.toPx(), ChatRowMenuPlacement.margin.toPx())

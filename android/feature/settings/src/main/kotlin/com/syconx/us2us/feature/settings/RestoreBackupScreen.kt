@@ -32,6 +32,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
@@ -577,7 +581,17 @@ private fun RestoreContent(
 @Composable
 private fun ProgressSlot(vm: RestoreBackupModel, modifier: Modifier) {
     val rise = U2Transitions.rise()
-    Box(modifier, contentAlignment = Alignment.Center) {
+    // Centred in the room between the password and the note; when the block is taller than that
+    // (a large system font, a small phone) it scrolls there instead of running over both.
+    BoxWithConstraints(modifier) {
+    val scroll = rememberScrollState()
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(scroll, enabled = scroll.maxValue > 0)
+            .heightIn(min = maxHeight),
+        contentAlignment = Alignment.Center,
+    ) {
         val progress = vm.progress
         var shown by remember { mutableStateOf(progress) }
         if (progress != null) shown = progress
@@ -592,6 +606,7 @@ private fun ProgressSlot(vm: RestoreBackupModel, modifier: Modifier) {
                 )
             }
         }
+    }
     }
 }
 

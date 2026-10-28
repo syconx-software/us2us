@@ -11,6 +11,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.Layout
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -34,6 +40,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.env.LocalHaptics
@@ -209,43 +216,47 @@ fun NumericKeypad(
     enabled: Boolean = true,
 ) {
     val alpha by animateFloatAsState(if (enabled) 1f else U2Opacity.disabled, u2Spec(U2Motion.state), label = "keypadEnabled")
-    Column(
-        modifier.u2Opacity { alpha },
-        verticalArrangement = Arrangement.spacedBy(U2Size.keypadRowGap),
-    ) {
-        for (row in listOf(listOf(1, 2, 3), listOf(4, 5, 6), listOf(7, 8, 9))) {
-            Row(horizontalArrangement = Arrangement.spacedBy(U2Size.keypadColumnGap)) {
-                row.forEach { DigitKey(it, enabled, onDigit) }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(U2Size.keypadColumnGap)) {
-            when (bottomLeading) {
-                KeypadBottomLeading.Empty -> Spacer(Modifier.size(U2Size.keypadKey))
-                is KeypadBottomLeading.FaceId -> IconKey(
-                    description = stringResource(R.string.android_biometric_unlock),
-                    enabled = enabled,
-                    onClick = bottomLeading.onClick,
-                ) {
-                    FaceIdGlyph(size = 30.dp, lineWidth = 1.6f, color = U2Theme.colors.text)
+    // On a short screen (a compact phone, a large system font pushing the text above it down) the
+    // pad shrinks to the height it is given instead of pushing the keys below the screen's edge.
+    BoxWithConstraints(modifier.u2Opacity { alpha }) {
+        val scale = NumericKeypadMetrics.scale(if (constraints.hasBoundedHeight) maxHeight else Dp.Infinity)
+        val key = U2Size.keypadKey * scale
+        Column(verticalArrangement = Arrangement.spacedBy(U2Size.keypadRowGap * scale)) {
+            for (row in listOf(listOf(1, 2, 3), listOf(4, 5, 6), listOf(7, 8, 9))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(U2Size.keypadColumnGap)) {
+                    row.forEach { DigitKey(it, enabled, onDigit, key) }
                 }
             }
-            DigitKey(0, enabled, onDigit)
-            IconKey(description = stringResource(R.string.common_a11y_keypad_delete), enabled = enabled, onClick = onDelete) {
-                PhosphorIcon(PhosphorGlyph.Backspace, size = 28.dp, tint = U2Theme.colors.text)
+            Row(horizontalArrangement = Arrangement.spacedBy(U2Size.keypadColumnGap)) {
+                when (bottomLeading) {
+                    KeypadBottomLeading.Empty -> Spacer(Modifier.size(key))
+                    is KeypadBottomLeading.FaceId -> IconKey(
+                        description = stringResource(R.string.android_biometric_unlock),
+                        enabled = enabled,
+                        onClick = bottomLeading.onClick,
+                        size = key,
+                    ) {
+                        FaceIdGlyph(size = 30.dp, lineWidth = 1.6f, color = U2Theme.colors.text)
+                    }
+                }
+                DigitKey(0, enabled, onDigit, key)
+                IconKey(description = stringResource(R.string.common_a11y_keypad_delete), enabled = enabled, onClick = onDelete, size = key) {
+                    PhosphorIcon(PhosphorGlyph.Backspace, size = 28.dp, tint = U2Theme.colors.text)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DigitKey(digit: Int, enabled: Boolean, onDigit: (Int) -> Unit) {
+private fun DigitKey(digit: Int, enabled: Boolean, onDigit: (Int) -> Unit, size: Dp) {
     val colors = U2Theme.colors
     val haptics = LocalHaptics.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     Box(
         Modifier
-            .size(U2Size.keypadKey)
+            .size(size)
             .u2PressEffect(source)
             .background(colors.text.copy(alpha = if (pressed) 0.14f else 0.09f), CircleShape)
             .clickable(source, indication = null, enabled = enabled, role = Role.Button) {
@@ -260,12 +271,12 @@ private fun DigitKey(digit: Int, enabled: Boolean, onDigit: (Int) -> Unit) {
 }
 
 @Composable
-private fun IconKey(description: String, enabled: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun IconKey(description: String, enabled: Boolean, onClick: () -> Unit, size: Dp, content: @Composable () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     Box(
         Modifier
-            .size(U2Size.keypadKey)
+            .size(size)
             .u2PressEffect(source)
             .alpha(if (pressed) 0.55f else 1f)
             .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
@@ -281,4 +292,52 @@ object NumericKeypadMetrics {
     /** The keypad's size: 286 × 360. */
     val width = U2Size.keypadKey * 3 + U2Size.keypadColumnGap * 2
     val height = U2Size.keypadKey * 4 + U2Size.keypadRowGap * 3
+
+    /** The smallest a key gets on a short screen: still over the 48 dp touch target. */
+    val minimumKey = 56.dp
+
+    /** The pad at its smallest. */
+    val minimumHeight: Dp get() = height * (minimumKey / U2Size.keypadKey)
+
+    /** How much the keys and row gaps shrink to fit [available] height: 1 when the pad fits. */
+    fun scale(available: Dp): Float {
+        if (available == Dp.Infinity || available >= height) return 1f
+        return (available / height).coerceIn(minimumKey / U2Size.keypadKey, 1f)
+    }
+}
+
+/**
+ * A code screen: [top] (header, title, dots) at the top and [bottom] (the keypad, and what goes
+ * under it) at the bottom, as a column with a flexible gap between them. The bottom gets the room
+ * the top leaves, so the keypad shrinks to it ([NumericKeypad]); only when even
+ * [minimumBottom] does not fit (a small phone with a very large system font) does the screen
+ * scroll, instead of cutting keys off.
+ */
+@Composable
+fun KeypadScreenLayout(
+    modifier: Modifier = Modifier,
+    minimumBottom: Dp = NumericKeypadMetrics.minimumHeight,
+    top: @Composable () -> Unit,
+    bottom: @Composable () -> Unit,
+) {
+    BoxWithConstraints(modifier) {
+        val viewport = constraints.maxHeight
+        val scroll = rememberScrollState()
+        Layout(
+            contents = listOf(top, bottom),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll, enabled = scroll.maxValue > 0),
+        ) { (topMeasurables, bottomMeasurables), constraints ->
+            val width = constraints.maxWidth
+            val topPlaceable = topMeasurables.first().measure(Constraints(minWidth = width, maxWidth = width))
+            val room = if (viewport == Constraints.Infinity) Constraints.Infinity else (viewport - topPlaceable.height).coerceAtLeast(minimumBottom.roundToPx())
+            val bottomPlaceable = bottomMeasurables.first().measure(Constraints(maxWidth = width, maxHeight = room))
+            val height = maxOf(if (viewport == Constraints.Infinity) 0 else viewport, topPlaceable.height + bottomPlaceable.height)
+            layout(width, height) {
+                topPlaceable.place(0, 0)
+                bottomPlaceable.place((width - bottomPlaceable.width) / 2, height - bottomPlaceable.height)
+            }
+        }
+    }
 }

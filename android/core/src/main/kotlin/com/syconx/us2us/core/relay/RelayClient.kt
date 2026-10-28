@@ -80,6 +80,9 @@ class RelayClient private constructor(
     suspend fun requestCommunity(id: AccountId) = executeNoContent(post(url("v1", "communities", id.toString(), "requests"), "{}".toRequestBody(JSON)))
     suspend fun communityRequests(id: AccountId): CommunityRequests = execute(get(url("v1", "communities", id.toString(), "requests")))
     suspend fun rejectCommunityRequest(id: AccountId, account: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "requests", account.toString())).delete().build())
+
+    /** Owner: rejects every pending request (and the invitations they redeemed); `204`. Relays before 2026-10-28 answer `404`/`405`. */
+    suspend fun rejectAllCommunityRequests(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "requests")).delete().build())
     suspend fun createCommunityInvite(id: AccountId, expiresInSeconds: Int = 86400): CommunityInviteToken =
         execute(post(url("v1", "communities", id.toString(), "invites"), json(CommunityInviteRequest(expiresInSeconds))))
     suspend fun revokeCommunityInvites(id: AccountId) = executeNoContent(request(url("v1", "communities", id.toString(), "invites")).delete().build())

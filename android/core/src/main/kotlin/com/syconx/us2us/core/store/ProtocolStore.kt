@@ -81,7 +81,10 @@ class ProtocolStore(
             }
         }
         if (!changed) return IdentityChange.NEW_OR_UNCHANGED
-        runCatching { AccountId.fromAddress(address) }.onSuccess { changes.tryEmit(it) }
+        // A storage that remembers the approved key a pending change replaced (the app's) stores a
+        // return to that key as approved, with its verification (§5): nothing to announce then.
+        val stillChanged = synchronized(lock) { storage.loadIdentity(address.name) }?.trust == IdentityTrust.CHANGED
+        if (stillChanged) runCatching { AccountId.fromAddress(address) }.onSuccess { changes.tryEmit(it) }
         return IdentityChange.REPLACED_EXISTING
     }
 
