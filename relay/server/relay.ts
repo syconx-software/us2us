@@ -5,8 +5,8 @@ import { DiskSpace } from './lib/disk-space'
 import { describeError } from './lib/errors'
 import { EnvelopeIdGenerator } from './lib/envelope-id'
 import { Logger } from './lib/logger'
-import { PowAuthority, type PowPurpose } from './lib/pow'
-import { ConcurrencyLimiter, RateLimiter } from './lib/rate-limit'
+import { PowAuthority, RegistrationLoad, type PowPurpose } from './lib/pow'
+import { ConcurrencyLimiter, PairKeys, RateLimiter } from './lib/rate-limit'
 import type { PowSolution } from './lib/validation'
 import { EnvelopePersister } from './realtime/persister'
 import { CLOSE_UNAUTHORIZED, SessionManager } from './realtime/sessions'
@@ -39,7 +39,10 @@ export class Relay {
   readonly persister: EnvelopePersister
   readonly sessions: SessionManager
   readonly pow: PowAuthority
+  readonly registrationLoad: RegistrationLoad
   readonly disk: DiskSpace
+  /** Keys for limits on pairs (recipient and client address) that must never be stored in clear. */
+  readonly pairKeys = new PairKeys()
   readonly limiter = new RateLimiter()
   readonly inFlight = new ConcurrencyLimiter()
   readonly envelopeIds = new EnvelopeIdGenerator()
@@ -55,14 +58,22 @@ export class Relay {
     this.accountCache = new AccountCache(this.accounts, this.logger)
     this.avatars = new AvatarStore(this.database)
     this.preKeys = new PreKeyStore(this.database)
-    this.mailbox = new Mailbox(this.database, { maxEnvelopes: config.mailboxMaxEnvelopes, maxBytes: config.mailboxMaxBytes })
+    this.mailbox = new Mailbox(this.database, {
+      maxEnvelopes: config.mailboxMaxEnvelopes,
+      maxBytes: config.mailboxMaxBytes,
+      powMaxEnvelopes: config.mailboxPowMaxEnvelopes,
+      powMaxBytes: config.mailboxPowMaxBytes,
+    })
     this.media = new MediaStore(this.database, config.mediaDir)
-    this.disk = new DiskSpace(config.mediaDir, config.diskMinFreeBytes)
-    this.communities = new CommunityStore(this.database, bytes => this.disk.reserve(bytes))
+    this.disk = new DiskSpace(config.mediaDir, config.diskMinFreeBytes, config.diskEnvelopeReserveBytes)
+    this.communities = new CommunityStore(this.database, bytes => this.disk.reserve(bytes, 'envelope'),
+      (sender, recipient) => this.limiter.take('community-pair', `${sender.toString('hex')}:${recipient.toString('hex')}`, config.rateLimits.communityPair),
+      (recipient, now) => this.envelopeIds.next(now, false, recipient.toString('hex')))
     this.pow = new PowAuthority(config.powSecret, config.powTtlMs, {
       register: config.powDifficultyRegister,
       message: config.powDifficultyMessage,
     })
+    this.registrationLoad = new RegistrationLoad(config.powDifficultyRegister, config.powDifficultyRegisterMax, config.powRegisterAdaptPerHour)
     this.persister = new EnvelopePersister(this.mailbox, this.logger)
     this.sessions = new SessionManager({
       mailbox: this.mailbox,

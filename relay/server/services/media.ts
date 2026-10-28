@@ -1,13 +1,30 @@
 import { lstat, mkdir, readdir, rename, rm, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { and, eq, gt, inArray, lt } from 'drizzle-orm'
-import type { Database } from '../db/client'
-import { media } from '../db/schema'
+import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
+import type { Database, Db } from '../db/client'
+import { accounts, media } from '../db/schema'
 import { lockAccount } from './accounts'
 
 export interface MediaRecord {
   size: number
   deleteTokenHash: Buffer
+}
+
+export interface Uploader {
+  /** UTC registration date, `YYYY-MM-DD`. */
+  createdOn: string
+  /** Bytes of the account's uploads that have not expired or been deleted. */
+  storedBytes: number
+}
+
+/** `full`: the upload would take the uploader past its stored-media cap. */
+export type MediaCreation = 'created' | 'gone' | 'full'
+
+/** Unexpired upload bytes of one account (the `media_uploader` index, then the rows it points to). */
+async function storedBytes(db: Db, uploader: Buffer, now: number): Promise<number> {
+  const [row] = await db.select({ bytes: sql<number>`coalesce(sum(${media.size}), 0)`.mapWith(Number) }).from(media)
+    .where(and(eq(media.uploader, uploader), gt(media.expiresAt, now)))
+  return row?.bytes ?? 0
 }
 
 /** Ids per lookup query. */
@@ -57,12 +74,27 @@ export class MediaStore {
    * account is gone. The account row is locked so that an account deletion
    * running at the same time cannot miss the new row.
    */
-  async create(id: Buffer, uploader: Buffer, deleteTokenHash: Buffer, size: number, expiresAt: number): Promise<boolean> {
+  async create(id: Buffer, uploader: Buffer, deleteTokenHash: Buffer, size: number, expiresAt: number,
+    maxStoredBytes = Number.POSITIVE_INFINITY, now = Date.now()): Promise<MediaCreation> {
     return this.database.transaction(async (tx) => {
-      if (!await lockAccount(tx, uploader)) return false
+      if (!await lockAccount(tx, uploader)) return 'gone'
+      // Under the account's lock, so concurrent uploads cannot each pass the cap.
+      if (Number.isFinite(maxStoredBytes) && await storedBytes(tx, uploader, now) + size > maxStoredBytes) return 'full'
       await tx.insert(media).values({ id, uploader, deleteTokenHash, size, expiresAt })
-      return true
+      return 'created'
     })
+  }
+
+  /**
+   * The uploader's registration date and what it has stored, read without a
+   * lock before an upload is admitted; `create` checks the cap again. Null
+   * if the account is gone.
+   */
+  async uploader(uploader: Buffer, now = Date.now()): Promise<Uploader | null> {
+    const { db } = this.database
+    const [account] = await db.select({ createdOn: accounts.createdOn }).from(accounts).where(eq(accounts.id, uploader)).limit(1)
+    if (!account) return null
+    return { createdOn: account.createdOn, storedBytes: await storedBytes(db, uploader, now) }
   }
 
   async find(id: Buffer, now: number): Promise<MediaRecord | null> {

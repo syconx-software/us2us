@@ -48,6 +48,12 @@ export const accounts = mysqlTable('accounts', {
   kyberLastResortKey: varbinary('kyber_last_resort_key', { length: 2048 }).notNull(),
   kyberLastResortSignature: binary('kyber_last_resort_signature', { length: 64 }).notNull(),
   lastSeen: date('last_seen', { mode: 'string' }).notNull(),
+  /**
+   * The coarse (UTC) date of registration, for the lower limits of new
+   * accounts. Accounts from before the column existed read 1970-01-01, i.e.
+   * not new.
+   */
+  createdOn: date('created_on', { mode: 'string' }).notNull().default('1970-01-01'),
 }, table => [
   uniqueIndex('accounts_auth_token_hash').on(table.authTokenHash),
   index('accounts_last_seen').on(table.lastSeen),
@@ -89,13 +95,17 @@ export const oneTimePreKeys = mysqlTable('one_time_pre_keys', {
 /**
  * Mailbox. Ids sort by arrival (see envelope-id.ts), so fetching a mailbox
  * in order is a primary-key range scan. Envelopes are at most 64 KiB, one
- * byte more than BLOB holds, hence MEDIUMBLOB.
+ * byte more than BLOB holds, hence MEDIUMBLOB. `viaPow` is 1 for an envelope
+ * that was authorized by proof-of-work rather than the recipient's access
+ * key (a first contact): such envelopes may fill only a share of the
+ * mailbox (§4.6). Nothing about the sender is stored.
  */
 export const envelopes = mysqlTable('envelopes', {
   recipient: binary('recipient', { length: 16 }).notNull(),
   id: binary('id', { length: 16 }).notNull(),
   serverTimestamp: bigint('server_ts', { mode: 'number', unsigned: true }).notNull(),
   body: mediumblob('body').notNull(),
+  viaPow: tinyint('via_pow', { unsigned: true }).notNull().default(0),
 }, table => [
   primaryKey({ name: 'envelopes_pk', columns: [table.recipient, table.id] }),
   index('envelopes_server_ts').on(table.serverTimestamp),
@@ -157,7 +167,12 @@ export const communityRequests = mysqlTable('community_requests', {
   communityId: binary('community_id', { length: 16 }).notNull().references(() => communities.id, { onDelete: 'cascade' }),
   accountId: binary('account_id', { length: 16 }).notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   createdAt: bigint('created_at', { mode: 'number', unsigned: true }).notNull(),
-}, table => [primaryKey({ columns: [table.communityId, table.accountId] })])
+}, table => [
+  primaryKey({ columns: [table.communityId, table.accountId] }),
+  // Pending requests per account (also the account foreign key), and the expiry sweep.
+  index('community_requests_account').on(table.accountId, table.createdAt),
+  index('community_requests_created').on(table.createdAt),
+])
 
 export const communityInvites = mysqlTable('community_invites', {
   tokenHash: binary('token_hash', { length: 32 }).primaryKey(),
@@ -169,10 +184,12 @@ export const communityInvites = mysqlTable('community_invites', {
 /**
  * Community deliveries. `size` is the stored body's length, and 0 once the
  * body is gone (acknowledged, or obsolete after a roster change); the row
- * stays as a retry tombstone until it expires. Quotas count only live rows
- * (size > 0, not expired) from the two covering indexes, without reading
- * bodies: per recipient (`community_inbox`) and per community, sender and
- * recipient (`community_sender`, which also serves the sender's foreign key).
+ * stays as a retry tombstone for a few days. Quotas count only live rows
+ * (size > 0, not expired), all in one read of `community_inbox`, which puts
+ * `size` before the time so that a recipient's tombstones are skipped by
+ * the index instead of scanned; it also covers the community and sender
+ * columns the quotas group by. `community_sender` serves the sender's
+ * foreign key and purges, `community_tombstones` the tombstone sweep.
  */
 export const communityEnvelopes = mysqlTable('community_envelopes', {
   id: binary('id', { length: 16 }).primaryKey(),
@@ -187,7 +204,8 @@ export const communityEnvelopes = mysqlTable('community_envelopes', {
   body: mediumblob('body'),
 }, table => [
   uniqueIndex('community_delivery').on(table.communityId, table.sender, table.recipient, table.messageId),
-  index('community_inbox').on(table.recipient, table.serverTimestamp, table.size),
+  index('community_inbox').on(table.recipient, table.size, table.serverTimestamp, table.communityId, table.sender),
   index('community_sender').on(table.sender, table.communityId, table.recipient, table.serverTimestamp, table.size),
   index('community_expiry').on(table.serverTimestamp),
+  index('community_tombstones').on(table.size, table.serverTimestamp),
 ])

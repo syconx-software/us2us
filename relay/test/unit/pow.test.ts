@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { leadingZeroBits, parseNonce, parsePowHeader, powDigest, PowAuthority } from '../../server/lib/pow'
+import { createHmac } from 'node:crypto'
+import { leadingZeroBits, parseNonce, parsePowHeader, powDigest, PowAuthority, RegistrationLoad } from '../../server/lib/pow'
 import { solvePow } from '../support/client'
 
 const authority = new PowAuthority(Buffer.from('unit-test-secret-unit-test-secret-1234'), 600_000, { register: 8, message: 6 })
@@ -14,7 +15,36 @@ describe('PowAuthority', () => {
     const challenge = authority.issue('message', target, now)
     expect(challenge.difficulty).toBe(6)
     expect(challenge.expiresAt).toBe(now + 600_000)
-    expect(challenge.token).toMatch(new RegExp(`^v1\\.message\\.${target}\\.${(now + 600_000) / 1000}\\.[\\w-]{22}\\.[\\w-]{43}$`))
+    expect(challenge.token).toMatch(new RegExp(`^v2\\.message\\.${target}\\.${(now + 600_000) / 1000}\\.6\\.[\\w-]{22}\\.[\\w-]{43}$`))
+  })
+
+  it('carries a raised difficulty in the signed token, so it can be neither lowered nor changed under a client', () => {
+    const challenge = authority.issue('register', null, now, 11)
+    expect(challenge.difficulty).toBe(11)
+    expect(challenge.token.split('.')[4]).toBe('11')
+    // A solution for the configured 8 bits is not enough for this token ...
+    let weak = 0n
+    for (;;) {
+      const bits = leadingZeroBits(powDigest(challenge.token, weak))
+      if (bits >= 8 && bits < 11) break
+      weak++
+    }
+    expect(authority.verify(challenge.token, weak.toString(), 'register', null, now)).toBeNull()
+    expect(authority.verify(challenge.token, solvePow(challenge.token, 11), 'register', null, now)).not.toBeNull()
+    // ... and lowering the field breaks the MAC.
+    const lowered = challenge.token.replace('.11.', '.8.')
+    expect(authority.verify(lowered, solvePow(lowered, 8), 'register', null, now)).toBeNull()
+    // Never below the configured difficulty, never above the ceiling a phone can solve.
+    expect(authority.issue('register', null, now, 2).difficulty).toBe(8)
+    expect(authority.issue('register', null, now, 60).difficulty).toBe(28)
+  })
+
+  it('still accepts v1 tokens issued before the update, at the configured difficulty', () => {
+    const secret = Buffer.from('unit-test-secret-unit-test-secret-1234')
+    const body = `v1.message.${target}.${(now + 600_000) / 1000}.${Buffer.alloc(16, 7).toString('base64url')}`
+    const token = `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`
+    expect(authority.verify(token, solvePow(token, 6), 'message', target, now)).not.toBeNull()
+    expect(authority.verify(token.replace(/^v1/, 'v2'), solvePow(token, 6), 'message', target, now)).toBeNull()
   })
 
   it('accepts a correct solution and returns the token hash for single use', () => {
@@ -43,6 +73,30 @@ describe('PowAuthority', () => {
     expect(authority.verify(token, weak.toString(), 'message', target, now)).toBeNull()
     expect(authority.verify('garbage', '1', 'message', target, now)).toBeNull()
     expect(authority.verify(`${token}x`.repeat(30), '1', 'message', target, now)).toBeNull()
+  })
+})
+
+describe('RegistrationLoad', () => {
+  it('keeps the base difficulty under the threshold, then adds a bit per doubling up to the ceiling', () => {
+    const load = new RegistrationLoad(22, 26, 100)
+    const start = 1_760_000_000_000
+    for (let i = 0; i < 99; i++) load.record(start + i * 1000)
+    expect(load.difficulty(start + 100_000)).toBe(22)
+    load.record(start + 100_000)
+    expect(load.difficulty(start + 100_000)).toBe(23)
+    for (let i = 0; i < 100; i++) load.record(start + 100_000)
+    expect(load.difficulty(start + 100_000)).toBe(24)
+    for (let i = 0; i < 10_000; i++) load.record(start + 200_000)
+    expect(load.difficulty(start + 200_000)).toBe(26)
+    // An hour later the flood is forgotten.
+    expect(load.recent(start + 200_000 + 3_600_000)).toBe(0)
+    expect(load.difficulty(start + 200_000 + 3_600_000)).toBe(22)
+  })
+
+  it('stays fixed when adaptation is off', () => {
+    const load = new RegistrationLoad(22, 26, 0)
+    for (let i = 0; i < 10_000; i++) load.record(1000)
+    expect(load.difficulty(1000)).toBe(22)
   })
 })
 

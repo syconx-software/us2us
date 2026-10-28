@@ -48,4 +48,31 @@ describe('EnvelopeIdGenerator', () => {
     expect(generator.next(now).readUInt16BE(6)).toBe(0)
     expect(generator.next(now).readUInt16BE(6)).toBe(1)
   })
+
+  it('counts per recipient, so two recipients cannot tell they were sent to in the same burst (audit L-6)', () => {
+    const generator = new EnvelopeIdGenerator()
+    const now = 1_760_000_000_000
+    const a = [generator.next(now, false, 'a'), generator.next(now, false, 'a')]
+    const b = [generator.next(now, false, 'b'), generator.next(now, false, 'b')]
+    const a3 = generator.next(now, false, 'a')
+    expect(a.map(id => id.readUInt16BE(6))).toEqual([0, 1])
+    expect(b.map(id => id.readUInt16BE(6))).toEqual([0, 1])
+    expect(a3.readUInt16BE(6)).toBe(2)
+    expect(Buffer.compare(a[1]!, a3)).toBe(-1)
+    // A recipient's ids stay ordered when the clock steps back.
+    const later = generator.next(now + 5, false, 'b')
+    const stepped = generator.next(now + 1, false, 'b')
+    expect(Buffer.compare(later, stepped)).toBe(-1)
+  })
+
+  it('forgets recipients from earlier milliseconds once it tracks many, and stays ordered', () => {
+    const generator = new EnvelopeIdGenerator()
+    let previous = generator.next(1000, false, 'keep')
+    for (let i = 0; i < 20_000; i++) generator.next(1000 + Math.floor(i / 100), false, `r${i}`)
+    const next = generator.next(500, false, 'keep')
+    expect(Buffer.compare(previous, next)).toBe(-1)
+    previous = next
+    expect(Buffer.compare(previous, generator.next(500, false, 'keep'))).toBe(-1)
+    expect((generator as unknown as { counters: Map<string, unknown> }).counters.size).toBeLessThanOrEqual(10_001)
+  })
 })

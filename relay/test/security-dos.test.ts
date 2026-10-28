@@ -374,9 +374,42 @@ describe('relay DoS (integration)', () => {
       const full = await groups.deliver(owner, member, group)
       expect([full.status, full.body.error?.code]).toEqual([429, 'community_inbox_full'])
       await db.query('DELETE FROM community_envelopes WHERE recipient = ?', [uuidBytes(member.accountId)])
-      await seed(group.id, other.accountId, member.accountId, 1, { size: 50 * 1024 * 1024 - 50, serverTimestamp: Date.now() })
+      // Since 2026-10-28 one community may hold at most 12.5 MiB of a recipient's
+      // inbox, so the 50 MiB are spread over four other communities.
+      const quarter = 12.5 * 1024 * 1024
+      for (const size of [quarter, quarter, quarter, quarter - 50]) {
+        await seed((await groups.created(other)).id, other.accountId, member.accountId, 1, { size, serverTimestamp: Date.now() })
+      }
       expect((await groups.deliver(owner, member, group, undefined, randomBytes(50))).status).toBe(202)
-      expect((await groups.deliver(owner, member, group, undefined, randomBytes(1))).status).toBe(429)
+      const over = await groups.deliver(owner, member, group, undefined, randomBytes(1))
+      expect([over.status, over.body.error?.message]).toEqual([429, 'the recipient’s community inbox is full'])
+    }, 60_000)
+
+    it('gives one community at most a quarter of an inbox, and one sender at most 8 MiB per community and 16 MiB in all', async () => {
+      const groups = communityApi(api)
+      const owner = await register(api), member = await register(api), spammer = await register(api), friend = await register(api)
+      const group = await groups.approve(owner, await groups.created(owner), [member, spammer, friend])
+      const quarter = 12.5 * 1024 * 1024
+      // One community's share: the owner's friend can no longer reach the member here ...
+      await seed(group.id, spammer.accountId, member.accountId, 1, { size: quarter - 10, serverTimestamp: Date.now() })
+      const shared = await groups.deliver(friend, member, group, undefined, randomBytes(11))
+      expect([shared.status, shared.body.error?.code, shared.body.error?.message])
+        .toEqual([429, 'community_inbox_full', 'this community’s share of the recipient’s inbox is full'])
+      // ... but still in another community.
+      const elsewhere = await groups.approve(owner, await groups.created(owner), [member, friend, spammer])
+      expect((await groups.deliver(friend, member, elsewhere)).status).toBe(202)
+      await db.query('DELETE FROM community_envelopes WHERE recipient = ?', [uuidBytes(member.accountId)])
+
+      // One sender's share in one community, by bytes.
+      await seed(group.id, spammer.accountId, member.accountId, 1, { size: 8 * 1024 * 1024 - 10, serverTimestamp: Date.now() })
+      const share = await groups.deliver(spammer, member, group, undefined, randomBytes(11))
+      expect([share.status, share.body.error?.message]).toEqual([429, 'too many undelivered messages from this sender to this recipient'])
+      expect((await groups.deliver(friend, member, group)).status).toBe(202)
+      // One sender over all communities: 16 MiB, even where its own share is empty.
+      await seed(elsewhere.id, spammer.accountId, member.accountId, 1, { size: 8 * 1024 * 1024, serverTimestamp: Date.now() })
+      const third = await groups.approve(owner, await groups.created(owner), [member, spammer])
+      expect((await groups.deliver(spammer, member, third, undefined, randomBytes(11))).status).toBe(429)
+      expect((await groups.deliver(owner, member, third)).status).toBe(202)
     }, 60_000)
   })
 

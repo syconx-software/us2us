@@ -88,8 +88,9 @@ export const communityHandler = defineApiHandler(async (event) => {
       return done(event)
     }
     if (path.length !== 2) throw notFound('endpoint')
-    method(event, ['GET', 'POST'])
+    method(event, ['GET', 'POST', 'DELETE'])
     if (event.method === 'GET') return store.pending(actor, id)
+    if (event.method === 'DELETE') { await store.rejectAll(actor, id); return done(event) }
     limitByAccount(actor, 'community-join', rates.communityJoin)
     await store.request(actor, id); return done(event, 202)
   }

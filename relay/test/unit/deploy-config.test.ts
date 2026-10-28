@@ -46,3 +46,40 @@ describe('dependency audit settings', () => {
     for (const selector of Object.keys(manifest.pnpm.overrides)) expect(dependencies).toContain(`| \`${selector}\` →`)
   })
 })
+
+describe('deploy/nginx/us2us.conf', () => {
+  const conf = read('../../deploy/nginx/us2us.conf')
+  const code = conf.replace(/#.*$/gm, '')
+
+  /** The `map $remote_addr $us2us_client` block, applied as nginx does: regexes in order, else the default. */
+  function clientKey(address: string): string {
+    const block = /map \$remote_addr \$us2us_client \{([\s\S]*?)\n\}/.exec(code)![1]!
+    const entries = [...block.matchAll(/^\s*"~(.+?)"\s+(\S+);/gm)].map(([, pattern, value]) => [new RegExp(pattern!), value!] as const)
+    expect(entries.length).toBeGreaterThan(0)
+    for (const [pattern, value] of entries) {
+      const match = pattern.exec(address)
+      if (match) return value.replace('$g', match.groups!.g!)
+    }
+    return `raw:${address}`
+  }
+
+  it('limits an IPv6 client by its /64 under every compressed spelling, and IPv4 by address', () => {
+    // Addresses of one /64, as nginx prints them (RFC 5952 compression).
+    const sameNet = ['2001:db8:1:2::1', '2001:db8:1:2::ffff:9', '2001:db8:1:2:a:b:c:d', '2001:db8:1:2:0:0:0:1']
+    expect(new Set(sameNet.map(clientKey))).toEqual(new Set(['2001:db8:1:2']))
+    expect(new Set(['2001:db8:0:0:1::1', '2001:db8::1', '2001:db8::1:2:3:4'].map(clientKey)).size).toBeLessThanOrEqual(2)
+    expect(clientKey('2001:db8::1')).toBe('2001:db8:0:0')
+    expect(clientKey('2001:db8:1::5')).toBe('2001:db8:1:0')
+    expect(clientKey('2001:db8:1:3::1')).not.toBe(clientKey('2001:db8:1:2::1'))
+    expect(clientKey('198.51.100.7')).toBe('raw:198.51.100.7')
+  })
+
+  it('keys connection and request limits by that client, sends both address headers, and covers subdomains in HSTS', () => {
+    expect(code).toMatch(/limit_conn_zone \$us2us_client zone=us2us_media/)
+    expect(code).toMatch(/limit_req_zone \$us2us_client zone=us2us_api/)
+    expect(code).not.toMatch(/limit_(conn|req)_zone \$binary_remote_addr/)
+    const forwarded = code.match(/proxy_set_header X-Forwarded-For \$remote_addr;/g)!.length
+    expect(code.match(/proxy_set_header X-Real-IP \$remote_addr;/g)!.length).toBe(forwarded)
+    for (const hsts of code.match(/Strict-Transport-Security "[^"]*"/g)!) expect(hsts).toContain('includeSubDomains')
+  })
+})

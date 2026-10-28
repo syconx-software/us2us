@@ -97,9 +97,26 @@ Things worth knowing:
   count like stored ones. Stored rows are counted in MySQL once, at
   start-up, for all mailboxes together (sends arriving meanwhile wait for
   that count; if it fails, they get `503` and the next send counts again),
-  so a send never reads the mailbox, whoever it is for. Above
-  128 MiB of envelopes in memory, or below `DISK_MIN_FREE_MB` of free disk,
-  stored envelopes get `503` (uploads too, for the disk).
+  so a send never reads the mailbox, whoever it is for. Envelopes authorized
+  by proof-of-work (first contacts) may take only a share of a mailbox
+  (`MAILBOX_POW_MAX_ENVELOPES` / `_BYTES`, 500 / 8 MiB, at most half), so
+  strangers cannot lock out the recipient's contacts; the share is stored
+  per envelope (`via_pow`) and counted across restarts. Per recipient and
+  client address (an IPv6 /64), keyed by a MAC that exists only in memory,
+  proof-of-work sends (60/hour) and stored bytes (32 MiB/hour) are limited
+  too. Above 128 MiB of envelopes in memory, or below `DISK_MIN_FREE_MB` of
+  free disk, stored envelopes get `503`. Media uploads stop
+  `DISK_ENVELOPE_RESERVE_MB` earlier, so uploads can never stop message
+  delivery, and are capped per account (unexpired bytes stored, lower for
+  accounts younger than `NEW_ACCOUNT_DAYS`) and for the whole relay (bytes
+  per day, then `503`).
+- **Account creation.** The registration proof-of-work gets one bit harder
+  each time registrations in the last hour double past
+  `POW_REGISTER_ADAPT_PER_HOUR` (up to `POW_DIFFICULTY_REGISTER_MAX`); the
+  difficulty a challenge was issued with is signed into its token.
+  Registrations are also limited per IPv6 /48 and for the whole relay. When
+  the in-memory limiter is full, the buckets closest to full are dropped
+  first, so a penalty (such as the failed-token one) cannot be pushed out.
 - **Failed tokens.** Every `401` counts against the client address
   (`RATE_LIMIT_AUTH_FAIL`, 30/min, §4.11); an address over the limit gets
   `429` for all its authenticated requests and WebSocket upgrades before
@@ -353,6 +370,8 @@ range, so it does nothing once upstream requires a fixed version:
 | `@nuxt/devtools>simple-git@<4.0.2` → 4.0.2 | GHSA-x6jw-m9v5-85vh, GHSA-g4wm-2vf7-vfgr, GHSA-858h-whjf-mvg5 | @nuxt/devtools 3.4 asks for simple-git ^3.36, but devtools is off (`nuxt.config.ts`) and never loaded | a stable @nuxt/devtools depends on simple-git ≥ 4.0.2 |
 | `simple-git>@simple-git/argv-parser@<2.0.1` → 2.0.1 | GHSA-v5rq-49vh-5v5c | simple-git 4.0.2 already pins 2.0.1; this keeps it that way | together with the simple-git override |
 | `@esbuild-kit/core-utils>esbuild@<0.25.0` → 0.25.12 | GHSA-67mh-4wv8-2f99 (esbuild's dev server) | drizzle-kit 0.31 still depends on the deprecated @esbuild-kit packages but loads TypeScript with its bundled tsx; 0.25.12 is the esbuild it uses anyway | drizzle-kit no longer depends on @esbuild-kit (1.0) |
+| `undici@>=8.0.0 <8.12.2` → 8.12.3 | GHSA-xjj6-f33q-929c, GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472, GHSA-9fm3-97px-rjf6, GHSA-55wc-3pg8-jfw6 | nuxt asks for undici ^8.12; this pins the fixed release so an older lockfile entry can never come back. undici is a build tool dependency and is not in `.output/server` | nuxt requires undici ≥ 8.12.2 |
+| `serialize-javascript@<7.1.3` → 7.1.3 | GHSA-m5mm-p8h7-m29v | @rollup/plugin-terser serializes its own worker options at build time only | @rollup/plugin-terser depends on serialize-javascript ≥ 7.1.3 |
 
 `pnpm.auditConfig.ignoreGhsas` lists advisories that have no fixed release
 and that our use cannot trigger:
@@ -360,7 +379,7 @@ and that our use cannot trigger:
 | Advisory | Package (path) | Why it is ignored | Remove when |
 |---|---|---|---|
 | GHSA-86w9-cpqp-85rv | node-forge ≤ 1.4.0 (nuxt → nitropack → listhen) | It concerns RSA PKCS#1 v1.5 signature verification; listhen only creates self-signed certificates for the dev server and verifies nothing | a node-forge release after 1.4.0 exists (then update) |
-| GHSA-vfj7-8cjw-p6xm | braces ≤ 3.0.3 (nitropack → globby → micromatch) | Stack exhaustion through deeply nested patterns; only the build globs, with the project's own fixed patterns | a braces release after 3.0.3 exists (then update) |
+| GHSA-gcqx-w48m-w2h4 | deepmerge 4.3.1 (nuxt → nitropack → @rollup/plugin-node-resolve) | Prototype poisoning of objects merged from attacker-controlled input; the plugin merges only the build's own resolver options, at build time | a deepmerge release after 4.3.1 exists (then update) |
 
 Ignore an advisory only by its id, after checking that it cannot be
 triggered here, and add a row to this table; never lower `--audit-level`.
@@ -566,10 +585,13 @@ stop the relay at startup with a list of every problem.
 | `DB_POOL_SIZE` | 10 | MySQL connections |
 | `POW_SECRET` | — | HMAC key for PoW challenges, ≥ 32 characters |
 | `POW_DIFFICULTY_REGISTER` / `_MESSAGE` | 22 / 18 | Leading zero bits required |
+| `POW_DIFFICULTY_REGISTER_MAX` | 26 | Ceiling of the adaptive registration difficulty (≤ 28) |
+| `POW_REGISTER_ADAPT_PER_HOUR` | 120 | Registrations per hour above which the registration difficulty rises one bit per doubling (0: fixed) |
 | `POW_TTL_SECONDS` | 600 | Challenge lifetime |
 | `ENVELOPE_MAX_BYTES` | 65536 | Max sealed envelope |
 | `ENVELOPE_TTL_DAYS` | 14 | Mailbox retention |
 | `MAILBOX_MAX_ENVELOPES` / `MAILBOX_MAX_BYTES` | 10000 / 52428800 | Per recipient; beyond, sends get 429 |
+| `MAILBOX_POW_MAX_ENVELOPES` / `MAILBOX_POW_MAX_BYTES` | 500 / 8388608 | The share of a mailbox that proof-of-work (first-contact) envelopes may take; at most half of the above |
 | `WS_ACK_TIMEOUT_MS` | 10000 | Fast path: store if not acked within this |
 | `WS_IDLE_TIMEOUT_MS` | 90000 | Drop sockets silent this long |
 | `WS_MAX_FRAME_BYTES` | 32768 | Max client frame |
@@ -577,12 +599,19 @@ stop the relay at startup with a list of every problem.
 | `MEDIA_MAX_BYTES` | 67108864 | Max blob (64 MiB) |
 | `MEDIA_TTL_DAYS` | 14 | Media retention |
 | `DISK_MIN_FREE_MB` | 1024 | Free space floor of `MEDIA_DIR`'s file system; below it uploads and stored envelopes get 503 (0: off) |
+| `DISK_ENVELOPE_RESERVE_MB` | 2048 | Free space above the floor that only envelopes may use: uploads get 503 below floor + reserve |
+| `MEDIA_STORED_MAX_MB` / `MEDIA_STORED_MAX_NEW_MB` | 2048 / 256 | Unexpired media one account may have stored (429 beyond); the second while the account is new |
+| `NEW_ACCOUNT_DAYS` | 7 | Accounts younger than this get the new-account media limits (0: none) |
 | `USERNAME_HOLD_DAYS` | 14 | Old username reserved after a change |
 | `INACTIVE_ACCOUNT_DAYS` | 180 | Delete accounts without connection |
 | `RETENTION_INTERVAL_SECONDS` | 300 | Sweep interval |
 | `RATE_LIMIT_POW` | 30/min | per IP |
 | `RATE_LIMIT_REGISTER` | 5/hour | per IP, failed attempts included |
+| `RATE_LIMIT_REGISTER_PREFIX` | 20/hour | per IPv6 /48 (an IPv4 address: its own bucket) |
+| `RATE_LIMIT_REGISTER_GLOBAL` | 1000/hour | the whole relay; spent only by registrations with a valid proof-of-work |
 | `RATE_LIMIT_SEND` | 600/min | per IP |
+| `RATE_LIMIT_SEND_PAIR_POW` | 60/hour | per recipient and IP, proof-of-work sends |
+| `RATE_LIMIT_SEND_PAIR_BYTES` | 33554432/hour | per recipient and IP, bytes of stored (non-ephemeral) sends |
 | `RATE_LIMIT_EPHEMERAL` | 3000/min | per IP, envelopes in ephemeral batches (at least 200) |
 | `RATE_LIMIT_MEDIA_FETCH` | 600/min | per IP, media download and delete |
 | `RATE_LIMIT_WS_CONNECT` | 60/min | per IP |
@@ -591,8 +620,11 @@ stop the relay at startup with a list of every problem.
 | `RATE_LIMIT_AVATAR_WRITE` | 30/day | per account, `PUT /v1/accounts/me/avatar` |
 | `RATE_LIMIT_AVATAR_DELETE` | 200/day | per account, `DELETE /v1/accounts/me/avatar`; separate, so a used-up store budget never delays taking a picture out of search |
 | `RATE_LIMIT_KEY_FETCH` | 120/hour | per account |
+| `RATE_LIMIT_KEY_TARGET` | 60/hour | per target account, bundles with one-time keys; beyond, bundles carry the signed and last-resort keys only |
 | `RATE_LIMIT_MEDIA_UPLOADS` | 60/hour | per account |
 | `RATE_LIMIT_MEDIA_BYTES` | 2147483648/day | per account, bytes |
+| `RATE_LIMIT_MEDIA_BYTES_NEW` | 536870912/day | per account younger than `NEW_ACCOUNT_DAYS`, bytes |
+| `RATE_LIMIT_MEDIA_BYTES_GLOBAL` | 25769803776/day | the whole relay, bytes; beyond, uploads get 503 (messages are not affected) |
 | `RATE_LIMIT_USERNAME_CHANGES` | 5/day | per account (each change holds a name for 14 days) |
 | `RATE_LIMIT_WS_FRAMES` | 1200/min | per account |
 | `RATE_LIMIT_ACCOUNT` | 1200/min | per account, any authenticated request |
@@ -601,8 +633,11 @@ stop the relay at startup with a list of every problem.
 | `RATE_LIMIT_COMMUNITY_CREATE` | 5/hour | per account, community creations |
 | `RATE_LIMIT_COMMUNITY_JOIN` | 20/min | per account, join requests and invitation redemptions |
 | `RATE_LIMIT_COMMUNITY_SEND` | 6000/min | per account, community deliveries (one per recipient) |
+| `RATE_LIMIT_COMMUNITY_PAIR` | 5000/day | per sender and recipient over all communities, deliveries (tombstones are rows too) |
 | `RATE_LIMIT_COMMUNITY_API` | 600/min | per account, every other community request |
-| `TRUST_PROXY` | 0 | Take the client IP from `X-Forwarded-For` (right-most entry) |
+| `TRUST_PROXY` | 0 | Take the client IP from the proxy's header |
+| `TRUST_PROXY_FROM` | `127.0.0.1,::1` | Only connections from these addresses may set it; from anyone else the socket address counts |
+| `TRUST_PROXY_HEADER` | `x-forwarded-for` | `x-forwarded-for` (right-most entry) or `x-real-ip`; a value that is not an IP address is ignored |
 | `LOG_IPS` | 0 | Log the client IP of requests refused by a per-IP rate limit (abuse investigations); otherwise IPs are never logged |
 | `LOG_LEVEL` | info | error, warn, info, debug |
 
@@ -669,7 +704,7 @@ uyarılarına karşı denetler. Şu anki uyarıların hiçbiri çalışan relay'
 yoktur; hepsi derleme ve geliştirme araçlarındadır. Düzeltmesi olanlar
 `package.json` içindeki `pnpm.overrides` ile kapatılır. Düzeltilmiş sürümü
 henüz çıkmamış ve bizim kullanımımızda tetiklenemeyen iki uyarı (node-forge,
-braces) `pnpm.auditConfig.ignoreGhsas` listesindedir. Gerekçeler ve ne zaman
+deepmerge) `pnpm.auditConfig.ignoreGhsas` listesindedir. Gerekçeler ve ne zaman
 kaldırılacakları İngilizce *Dependencies* bölümündedir.
 
 **Canlı sunucuya güncelleme (pm2).** `relay.us2us.app` başka sitelerle aynı
