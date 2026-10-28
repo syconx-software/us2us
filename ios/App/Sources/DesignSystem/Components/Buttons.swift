@@ -98,19 +98,34 @@ struct U2TextButtonStyle: ButtonStyle {
     var fillsWidth = true
 
     func makeBody(configuration: Configuration) -> some View {
+        TextButtonBody(configuration: configuration, tone: tone, height: height, fillsWidth: fillsWidth)
+    }
+}
+
+/// C3's drawing; disabled (“Vazgeç” while an erase runs, an unsupported
+/// relay's community actions) it is drawn at 45 % like C1 and C2.
+private struct TextButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let tone: U2TextButtonStyle.Tone
+    let height: CGFloat
+    let fillsWidth: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         let color: Color =
             switch tone {
             case .quiet: Color.u2.textQuiet
             case .accent: Color.u2.accent300
             case .danger: Color.u2.danger
             }
-        return configuration.label
+        configuration.label
             .u2Font(.rowTitle, matchLineBox: false)
             .foregroundStyle(color)
             .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: height)
             .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.55 : 1)
+            .opacity(configuration.isPressed ? 0.55 : isEnabled ? 1 : U2Opacity.disabled)
             .animation(configuration.isPressed ? U2Motion.press : U2Motion.release, value: configuration.isPressed)
+            .u2Animation(U2Motion.state, value: isEnabled)
     }
 }
 
@@ -182,6 +197,20 @@ private struct GlassIconButtonStyle: ButtonStyle {
     let surface: U2GlassIconButton.Surface
 
     func makeBody(configuration: Configuration) -> some View {
+        GlassIconButtonBody(configuration: configuration, diameter: diameter, tint: tint, surface: surface)
+    }
+}
+
+/// C4's drawing; a disabled button (the viewer's first / last photo, a
+/// community action the relay does not offer) is drawn at 35 %.
+private struct GlassIconButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let diameter: CGFloat
+    let tint: Color?
+    let surface: U2GlassIconButton.Surface
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         let fill: Color
         let ink: Color
         switch surface {
@@ -200,8 +229,12 @@ private struct GlassIconButtonStyle: ButtonStyle {
             .frame(width: diameter, height: diameter)
             .background(Circle().fill(fill))
             .u2InnerStroke(Color.u2.strokeGlass, width: 0.5, in: Circle())
-            .contentShape(Circle())
+            // The 40 pt chat-header and 36 pt sheet buttons keep their drawn
+            // size but answer to a 44 pt circle (HIG minimum hit target).
+            .contentShape(Circle().inset(by: -max(0, (U2Size.minimumHitTarget - diameter) / 2)))
+            .opacity(isEnabled ? 1 : 0.35)
             .modifier(U2PressEffect(isPressed: configuration.isPressed))
+            .u2Animation(U2Motion.state, value: isEnabled)
     }
 }
 
@@ -227,6 +260,19 @@ struct U2DecisionButtonStyle: ButtonStyle {
     var size: Size = .card
 
     func makeBody(configuration: Configuration) -> some View {
+        DecisionButtonBody(configuration: configuration, kind: kind, size: size)
+    }
+}
+
+/// The decision button's drawing; a disabled one (a full community, a
+/// request being answered) is drawn at 45 % like the other buttons.
+private struct DecisionButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let kind: U2DecisionButtonStyle.Kind
+    let size: U2DecisionButtonStyle.Size
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         let radius = size == .card ? U2Radius.buttonS : U2Radius.buttonSheet
         let height = size == .card ? U2Size.buttonSmall : U2Size.buttonBar
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -243,7 +289,7 @@ struct U2DecisionButtonStyle: ButtonStyle {
             case .neutral: Color.u2.text
             case .accept: Color.u2.accent300
             }
-        return configuration.label
+        configuration.label
             .u2Font(style, matchLineBox: false)
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
@@ -265,8 +311,11 @@ struct U2DecisionButtonStyle: ButtonStyle {
                     Color.clear.u2BoxShadow(.glowButtonAccept, in: shape)
                 }
             }
-            .contentShape(shape)
+            // The 40 pt card buttons answer to 44 pt (HIG minimum hit target).
+            .contentShape(shape.inset(by: -max(0, (U2Size.minimumHitTarget - height) / 2)))
+            .opacity(isEnabled ? 1 : U2Opacity.disabled)
             .modifier(U2PressEffect(isPressed: configuration.isPressed))
+            .u2Animation(U2Motion.state, value: isEnabled)
     }
 }
 
@@ -282,7 +331,7 @@ struct U2InlinePillButtonStyle: ButtonStyle {
             .padding(.horizontal, 13)
             .frame(height: 32)
             .background(Capsule().fill(Color.u2.inlineButtonFill))
-            .contentShape(Capsule())
+            .contentShape(Capsule().inset(by: -6))
             .opacity(configuration.isPressed ? 0.7 : 1)
             .modifier(U2PressEffect(isPressed: configuration.isPressed))
     }
@@ -300,6 +349,21 @@ struct U2CameraPillButtonStyle: ButtonStyle {
             .background(Capsule().fill(Color.u2.onMedia.opacity(configuration.isPressed ? 0.2 : 0.12)))
             .contentShape(Capsule())
             .modifier(U2PressEffect(isPressed: configuration.isPressed))
+    }
+}
+
+// MARK: - Hit areas
+
+extension View {
+    /// Answers taps `horizontal` / `vertical` points beyond what it draws,
+    /// without changing the layout — for glyph buttons smaller than the
+    /// 44 pt minimum (HIG) that sit inside a larger control.
+    func u2ExpandedHitArea(horizontal: CGFloat, vertical: CGFloat) -> some View {
+        padding(.horizontal, horizontal)
+            .padding(.vertical, vertical)
+            .contentShape(Rectangle())
+            .padding(.horizontal, -horizontal)
+            .padding(.vertical, -vertical)
     }
 }
 

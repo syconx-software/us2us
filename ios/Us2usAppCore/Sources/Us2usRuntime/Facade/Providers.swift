@@ -48,8 +48,19 @@ public struct RelayBackendFactory: BackendFactory {
         let messenger = try await Messenger.register(
             username: username, store: protocolStore, relay: relay, configuration: Self.configuration(for: storage),
             saveAccount: storage.accountSaver)
+        Self.dropBlockedSenders(of: messenger, storage: storage)
         return MessengerBackend(
             messenger: messenger, accountId: await messenger.account.accountId, protocolStore: protocolStore)
+    }
+
+    /// Blocked accounts' one-to-one envelopes are dropped before decryption
+    /// (§6.4, audit 2026-10-28 L-18). A store that cannot answer (locked)
+    /// says "not blocked": the message then fails to store and waits.
+    static func dropBlockedSenders(of messenger: Messenger, storage: LocalStorage) {
+        messenger.dropMessages { [weak storage] account in
+            guard let storage else { return false }
+            return (try? storage.read { try $0.contacts.requestState(of: account) }) == .blocked
+        }
     }
 
     public func open(account: LocalAccount, storage: LocalStorage) throws -> any MessagingBackend {
@@ -58,6 +69,7 @@ public struct RelayBackendFactory: BackendFactory {
         let messenger = Messenger(
             account: account, store: protocolStore, relay: relay, configuration: Self.configuration(for: storage),
             saveAccount: storage.accountSaver)
+        Self.dropBlockedSenders(of: messenger, storage: storage)
         return MessengerBackend(messenger: messenger, accountId: account.accountId, protocolStore: protocolStore)
     }
 
@@ -66,6 +78,7 @@ public struct RelayBackendFactory: BackendFactory {
         let messenger = try await AccountBackupService.restore(
             backup, storage: storage, relay: relay, configuration: Self.configuration(for: storage))
         guard let protocolStore = storage.protocolStore else { throw StorageError.invalidState("no identity") }
+        Self.dropBlockedSenders(of: messenger, storage: storage)
         return MessengerBackend(
             messenger: messenger, accountId: await messenger.account.accountId, protocolStore: protocolStore)
     }

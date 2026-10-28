@@ -102,6 +102,14 @@ struct ConversationScreen: View {
                 MessageInfoSheet(viewModel: viewModel, messageID: item.id)
             }
         }
+        #if DEBUG
+            .task {
+                if ConversationHarness.screen == .communityManage, viewModel.community != nil {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    showsManage = true
+                }
+            }
+        #endif
         .u2Sheet(isPresented: $showsManage) {
             if let community = viewModel.community {
                 CommunityManageSheet(communityID: community.communityID) { showsManage = false } onGone: {

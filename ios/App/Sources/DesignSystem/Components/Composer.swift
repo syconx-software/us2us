@@ -116,12 +116,18 @@ struct Composer: View {
             if showsFieldKeys {
                 HStack(spacing: 12) {
                     // 2/3 pt lower than centred, like the design's icon font.
+                    // 21 pt glyphs that answer to 33 × 44 pt (the field's
+                    // height; half the 12 pt gap on each side).
                     if showsTimer {
-                        Button(action: onTimer) { PhosphorIcon(.timer, size: 21).offset(y: 2.0 / 3.0) }
-                            .accessibilityLabel(Text("a11y.composer.timer"))
+                        Button(action: onTimer) {
+                            PhosphorIcon(.timer, size: 21).offset(y: 2.0 / 3.0).u2ExpandedHitArea(horizontal: 6, vertical: 11.5)
+                        }
+                        .accessibilityLabel(Text("a11y.composer.timer"))
                     }
-                    Button(action: onSticker) { PhosphorIcon(.sticker, size: 21).offset(y: 2.0 / 3.0) }
-                        .accessibilityLabel(Text("a11y.composer.sticker"))
+                    Button(action: onSticker) {
+                        PhosphorIcon(.sticker, size: 21).offset(y: 2.0 / 3.0).u2ExpandedHitArea(horizontal: 6, vertical: 11.5)
+                    }
+                    .accessibilityLabel(Text("a11y.composer.sticker"))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.u2.textComposerIcon)

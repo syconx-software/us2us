@@ -325,6 +325,26 @@ extension AppRuntime {
         return verified
     }
 
+    /// “QR kodla ekle” (audit 2026-10-28 M-10): opens the conversation with
+    /// `account`, the directory answer whose `identityKey` the caller
+    /// checked against the contact code — no second lookup — and, with
+    /// `pinKey`, pins that key as verified first. `false` when this phone
+    /// holds another key for the account: then nothing is created.
+    public func addContactFromCode(
+        username rawUsername: String, account: AccountId, identityKey: Data, pinKey: Bool
+    ) async throws -> Bool {
+        let username: NormalizedUsername
+        do {
+            username = try NormalizedUsername(rawUsername)
+        } catch {
+            throw RuntimeError.invalidUsername(error)
+        }
+        let added = try await engine().addContactFromCode(
+            username: username, account: account, identityKey: identityKey, pinKey: pinKey)
+        if added, pinKey { safetyNumberChanges.remove(account) }
+        return added
+    }
+
     /// “Doğrulamayı kaldır”.
     public func clearVerification(_ peer: AccountId) async throws {
         try await engine().clearVerification(peer)

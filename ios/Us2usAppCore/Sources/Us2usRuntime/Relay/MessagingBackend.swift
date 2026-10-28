@@ -189,8 +189,31 @@ struct MessengerStream: RelayStream {
     ) async throws {
         try await protocolStore.withStagedInboundWrites {
             try await messenger.run(
-                connection, deliver: { message in try await deliver(InboundMessage(message)) },
+                connection,
+                deliver: { message in
+                    do {
+                        try await deliver(InboundMessage(message))
+                    } catch where Self.isStoreUnavailable(error) {
+                        // Not the message's fault: the loop stops, the envelope waits (H-1).
+                        throw DeliveryDeferral.storeUnavailable
+                    }
+                },
                 onQueueEmpty: onQueueEmpty)
+        }
+    }
+
+    /// The vault locked or the database cannot be written right now: a
+    /// message that fails for these reasons is never counted against itself.
+    static func isStoreUnavailable(_ error: any Error) -> Bool {
+        switch error {
+        case EngineError.stopped, RuntimeError.locked: return true
+        case let error as StorageError:
+            switch error {
+            case .closed, .io: return true
+            case .database(let sqlite): return sqlite.isResourceFailure
+            default: return false
+            }
+        default: return false
         }
     }
 

@@ -78,7 +78,8 @@ public final class RelayClient: Sendable {
 
     /// The two sessions of a client (see the type documentation). Each gets
     /// its own copy of `configuration`; `delegate` exists for tests that talk
-    /// to a TLS server with a self-signed certificate.
+    /// to a TLS server with a self-signed certificate. Both sessions refuse
+    /// HTTP redirects (``RedirectRefusingDelegate``).
     static func makeSessions(
         configuration: URLSessionConfiguration, delegate: (any URLSessionDelegate)? = nil
     ) -> (authenticated: URLSession, anonymous: URLSession) {
@@ -90,8 +91,8 @@ public final class RelayClient: Sendable {
         anonymous.urlCache = nil
         anonymous.urlCredentialStorage = nil
         return (
-            URLSession(configuration: authenticated, delegate: delegate, delegateQueue: nil),
-            URLSession(configuration: anonymous, delegate: delegate, delegateQueue: nil)
+            URLSession(configuration: authenticated, delegate: RedirectRefusingDelegate(inner: delegate), delegateQueue: nil),
+            URLSession(configuration: anonymous, delegate: RedirectRefusingDelegate(inner: delegate), delegateQueue: nil)
         )
     }
 
@@ -140,6 +141,11 @@ public final class RelayClient: Sendable {
     public func communityRequests(_ id: AccountId) async throws -> CommunityRequests { try await json(request("GET", "communities/\(id.string)/requests", auth: true)) }
     public func rejectCommunityRequest(_ id: AccountId, account: AccountId) async throws {
         try await perform(request("DELETE", "communities/\(id.string)/requests/\(account.string)", auth: true))
+    }
+    /// Owner: rejects every pending request (and the invitations they
+    /// redeemed); `204`. Relays before 2026-10-28 answer `404` or `405`.
+    public func rejectAllCommunityRequests(_ id: AccountId) async throws {
+        try await perform(request("DELETE", "communities/\(id.string)/requests", auth: true))
     }
     public func createCommunityInvite(_ id: AccountId) async throws -> CommunityInviteToken {
         try await json(request("POST", "communities/\(id.string)/invites", auth: true, body: Data("{\"expiresInSeconds\":86400}".utf8)))
@@ -614,5 +620,36 @@ public final class RelayClient: Sendable {
             return .rateLimited(retryAfter: retryAfter)
         }
         return .server(status: status, code: detail.map { RelayErrorCode(rawValue: $0.code) }, message: detail?.message)
+    }
+}
+
+/// The relay never redirects (§4). URLSession follows a `3xx` by default and
+/// strips only `Authorization` when the origin changes, so a redirect from a
+/// compromised relay or an open redirect on its domain would carry
+/// `X-Auth-Token`, `X-Access-Key`, `X-Delete-Token` or `X-PoW` elsewhere.
+/// Every redirect is refused: the request ends with the `3xx` answer, which
+/// the client reports as a relay error (audit 2026-10-28 L-7). An `inner`
+/// delegate (tests only) still answers authentication challenges.
+final class RedirectRefusingDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let inner: (any URLSessionDelegate)?
+
+    init(inner: (any URLSessionDelegate)? = nil) {
+        self.inner = inner
+    }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
+    func urlSession(
+        _ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard let inner, inner.responds(to: #selector(URLSessionDelegate.urlSession(_:didReceive:completionHandler:)))
+        else { return completionHandler(.performDefaultHandling, nil) }
+        inner.urlSession?(session, didReceive: challenge, completionHandler: completionHandler)
     }
 }

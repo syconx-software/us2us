@@ -155,6 +155,7 @@ struct UsernameField: View {
                 } label: {
                     PhosphorIcon(.xCircle, weight: .fill, size: 20)
                         .foregroundStyle(Color.u2.textTertiary)
+                        .u2ExpandedHitArea(horizontal: 12, vertical: 12)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("a11y.clear"))

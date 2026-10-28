@@ -451,6 +451,22 @@ struct CommunitiesV2Tests {
         #expect(CommunityRecipientRow.detail(for: left, showsRead: true, locale: en) == "Left · Not sent · no longer a member")
     }
 
+    @Test("Bilgi lists who read it first, then delivered, waiting and failed; names keep their order within each")
+    func infoOrder() {
+        func info(_ id: String, _ state: CommunityRecipientInfo.State, delivered: Bool = false, read: Bool = false) -> CommunityRecipientInfo {
+            CommunityRecipientInfo(
+                id: id, username: id, shortID: id, state: state, deliveredAt: delivered ? Self.t0 : nil,
+                readAt: read ? Self.t0 : nil, hasLeft: false)
+        }
+        let roster = [
+            info("ali", .failed), info("bora", .accepted, delivered: true), info("cem", .accepted),
+            info("deniz", .accepted, delivered: true, read: true), info("ece", .pending), info("fatih", .accepted, delivered: true, read: true),
+        ]
+        #expect(CommunityRecipientRow.ordered(roster, showsRead: true).map(\.id) == ["deniz", "fatih", "bora", "cem", "ece", "ali"])
+        // Read receipts off: read counts as delivered only.
+        #expect(CommunityRecipientRow.ordered(roster, showsRead: false).map(\.id) == ["bora", "deniz", "fatih", "cem", "ece", "ali"])
+    }
+
     @Test("recipient infos: names, local times, members who left, sorted by name")
     func recipientInfos() {
         let a = AccountId(uuid: UUID()), b = AccountId(uuid: UUID())
@@ -483,6 +499,7 @@ struct CommunitiesV2Tests {
         "status.sent.sentence", "status.delivered.sentence", "status.failed.sentence", "message.deleted", "message.removedByOwner",
         "confirm.deleteEveryone.message", "newChat.subtitle", "info.recipients.none", "info.note.title", "info.note.body",
         "info.recipient.pending", "info.recipient.waiting", "info.recipient.skipped", "info.recipient.failed", "info.recipient.left",
+        "search.searching",
     ]
 
     @Test(arguments: newKeys)

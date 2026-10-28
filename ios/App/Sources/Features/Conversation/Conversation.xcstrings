@@ -570,13 +570,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A “This message was deleted for everyone” trace stays in its place."
+            "value": "It is removed from their phone too, and “This message was deleted for everyone” takes its place. They may already have seen or saved it."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yerinde “Bu mesaj herkesten silindi” izi kalır."
+            "value": "Mesaj onun telefonundan da silinir; yerinde “Bu mesaj herkesten silindi” yazar. Görmüş ya da kaydetmiş olabilir."
           }
         }
       }

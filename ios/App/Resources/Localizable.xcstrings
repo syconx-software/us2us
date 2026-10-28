@@ -975,6 +975,78 @@
         }
       }
     },
+    "community.rejectAll" : {
+      "comment" : "Community management (owner): rejects every pending join request at once; shown with two or more requests. Also the Android generator's common_community_rejectall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reject all"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tümünü reddet"
+          }
+        }
+      }
+    },
+    "community.rejectAll.confirm" : {
+      "comment" : "The confirmation of “Tümünü reddet”: its destructive button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reject all"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tümünü reddet"
+          }
+        }
+      }
+    },
+    "community.rejectAll.message" : {
+      "comment" : "The confirmation of “Tümünü reddet”: what happens.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone waiting is turned away, and invitations they used stop working. They can ask again later."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bekleyen herkes geri çevrilir, kullandıkları davetler de geçersiz olur. Daha sonra yeniden isteyebilirler."
+          }
+        }
+      }
+    },
+    "community.rejectAll.title" : {
+      "comment" : "The confirmation of “Tümünü reddet”: its title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reject all join requests?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tüm katılım istekleri reddedilsin mi?"
+          }
+        }
+      }
+    },
     "composer.placeholder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2107,6 +2179,42 @@
         }
       }
     },
+    "security.deviceProtection.basic" : {
+      "comment" : "Android only (7.1 › Security footnote, red): the vault could not use the phone's secure hardware (vault v1, or a software key store). iOS never shows it: its vault is always bound to the Secure Enclave.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device protection: basic. This phone's secure hardware could not be set up to guard your secret code, so the code is protected by this phone's stored key only. Keep a screen lock and Android up to date; the app tries again every time you unlock with your code."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cihaz koruması: temel. Bu telefonun güvenli donanımı gizli kodunu korumak için kurulamadı; kodun yalnızca bu telefonda saklanan anahtarla korunuyor. Ekran kilidi kullanmayı sürdür ve Android'i güncel tut; uygulama her kodla kilit açışında yeniden dener."
+          }
+        }
+      }
+    },
+    "security.deviceProtection.limited" : {
+      "comment" : "Android only (7.1 › Security footnote, below Android 15): the hardware key also works while the phone is locked. iOS never shows it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device protection: hardware. On this Android version the hardware key that guards your secret code also works while the phone is locked. From Android 15 it works only after the phone is unlocked."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cihaz koruması: donanım. Bu Android sürümünde gizli kodunu koruyan donanım anahtarı telefon kilitliyken de çalışır. Android 15 ve sonrasında yalnızca telefonun kilidi açıldıktan sonra çalışır."
+          }
+        }
+      }
+    },
     "status.delivered" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2495,6 +2603,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tek görüntülemelik · açmak için dokun"
+          }
+        }
+      }
+    },
+    "a11y.messageDeletedForMe" : {
+      "comment" : "VoiceOver announcement after “Benden sil”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesaj bu telefondan silindi."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message deleted from this phone."
+          }
+        }
+      }
+    },
+    "a11y.messageDeletedForEveryone" : {
+      "comment" : "VoiceOver announcement after “Herkesten sil” is confirmed.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesaj herkesten silindi."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message deleted for everyone."
           }
         }
       }

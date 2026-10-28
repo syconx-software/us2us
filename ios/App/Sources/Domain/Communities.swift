@@ -245,6 +245,8 @@ protocol CommunitiesService: AnyObject, Observable {
     func send(_ text: String, to id: CommunityID) async throws(CommunityProblem)
     func approve(_ request: CommunityID, in id: CommunityID) async throws(CommunityProblem)
     func reject(_ request: CommunityID, in id: CommunityID) async throws(CommunityProblem)
+    /// Owner: rejects every pending join request at once (confirmed first).
+    func rejectAll(in id: CommunityID) async throws(CommunityProblem)
     func removeMember(_ member: String, from id: CommunityID) async throws(CommunityProblem)
     func invite(_ id: CommunityID) async throws(CommunityProblem) -> String
     func revokeInvites(_ id: CommunityID) async throws(CommunityProblem)
@@ -281,6 +283,9 @@ protocol CommunitiesService: AnyObject, Observable {
 }
 
 extension CommunitiesService {
+    func rejectAll(in id: CommunityID) async throws(CommunityProblem) {
+        for request in requests(in: id) { try await reject(request.id, in: id) }
+    }
     func loadOlderMessages(in id: CommunityID) async throws -> Bool { false }
     func send(sticker: BrandStickerSelection, to id: CommunityID) async {}
     func send(voice: VoiceRecording, to id: CommunityID) async -> Bool { false }

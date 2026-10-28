@@ -351,6 +351,7 @@ struct RequestPreviewView: View {
             U2FlexRow(spacing: 8) {
                 Button { confirmsBlock = true } label: { Text("request.block") }
                     .buttonStyle(U2DecisionButtonStyle(kind: .destructive, size: .bar))
+                    .accessibilityHint(Text("requests.block.message", table: .chats))
                     .accessibilityIdentifier("preview.block")
                 Button {
                     leave(then: { await model.messenger.delete(request) })
@@ -358,9 +359,11 @@ struct RequestPreviewView: View {
                     Text("request.delete")
                 }
                 .buttonStyle(U2DecisionButtonStyle(kind: .neutral, size: .bar))
+                .accessibilityHint(Text("a11y.request.delete.hint", table: .chats))
                 .accessibilityIdentifier("preview.delete")
                 Button { accept(request) } label: { Text("request.accept") }
                     .buttonStyle(U2DecisionButtonStyle(kind: .accept, size: .bar))
+                    .accessibilityHint(Text("a11y.request.accept.hint", table: .chats))
                     .accessibilityIdentifier("preview.accept")
                     .u2Flex(1.4, border: 2)
             }
