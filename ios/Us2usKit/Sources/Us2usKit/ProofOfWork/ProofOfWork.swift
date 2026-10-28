@@ -33,6 +33,10 @@ public enum ProofOfWorkError: Error, Equatable, Sendable {
     case invalidDifficulty(Int)
     /// The nonce space was exhausted (never happens for sane difficulties).
     case unsolvable
+    /// A relay challenge was not solved: harder than any relay issues, or it
+    /// took longer than the time allowed. Like a network failure, the caller
+    /// retries later with a fresh challenge.
+    case abandoned
 }
 
 /// Anti-spam proof-of-work (PROTOCOL.md §4.2): find a 64-bit nonce such that
@@ -40,6 +44,12 @@ public enum ProofOfWorkError: Error, Equatable, Sendable {
 /// leading zero bits. Solving runs on the phone; the relay verifies with one hash.
 public enum ProofOfWork {
     public static let maxDifficulty = 256
+    /// The highest difficulty a relay ever issues (28 bits; registration
+    /// rises to at most 26 under load). A harder challenge is refused instead
+    /// of burning the battery (audit 2026-10-28 L-10).
+    public static let maxRelayDifficulty = 28
+    /// How long one relay challenge may take before it is given up.
+    public static let relayTimeout: TimeInterval = 180
 
     public static func isValid(token: String, nonce: UInt64, difficulty: Int) -> Bool {
         guard (0...maxDifficulty).contains(difficulty) else { return false }
@@ -53,6 +63,31 @@ public enum ProofOfWork {
     /// stops every worker promptly and throws `CancellationError`.
     public static func solve(_ challenge: PowChallenge) async throws -> PowSolution {
         let nonce = try await solve(token: challenge.token, difficulty: challenge.difficulty)
+        return PowSolution(token: challenge.token, nonce: nonce)
+    }
+
+    /// Solves a challenge the relay issued: refused above
+    /// ``maxRelayDifficulty`` and given up after `timeout` seconds, both as
+    /// ``ProofOfWorkError/abandoned``. Cancelling the calling task still
+    /// throws `CancellationError`.
+    public static func solveRelayChallenge(
+        _ challenge: PowChallenge, timeout: TimeInterval = relayTimeout
+    ) async throws -> PowSolution {
+        guard (0...maxRelayDifficulty).contains(challenge.difficulty) else { throw ProofOfWorkError.abandoned }
+        let nonce = try await withThrowingTaskGroup(of: UInt64?.self) { group in
+            group.addTask { try await solve(token: challenge.token, difficulty: challenge.difficulty) }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(max(0, timeout) * 1_000_000_000))
+                return nil
+            }
+            defer { group.cancelAll() }
+            // The first to finish decides: a nonce, or the timer.
+            guard let first = try await group.next(), let nonce = first else {
+                try Task.checkCancellation()
+                throw ProofOfWorkError.abandoned
+            }
+            return nonce
+        }
         return PowSolution(token: challenge.token, nonce: nonce)
     }
 

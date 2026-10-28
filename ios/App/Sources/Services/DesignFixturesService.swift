@@ -16,8 +16,10 @@ import Us2usKit
 @Observable
 @MainActor
 final class DesignFixturesService: MessengerService {
-    /// The design draws no communities.
-    var communities: (any CommunitiesService)? { nil }
+    /// The design draws no communities (DEBUG: `-U2Communities YES` adds
+    /// `DesignFixtureCommunities` for screenshots and checks).
+    var communities: (any CommunitiesService)? { fixtureCommunities }
+    @ObservationIgnored private var fixtureCommunities: (any CommunitiesService)?
     private(set) var account: OwnAccount?
     private(set) var connection: ConnectionState = .open
     private(set) var chats: [ChatSummary]
@@ -126,6 +128,11 @@ final class DesignFixturesService: MessengerService {
             groups: DesignFixtures.safetyNumberGroups,
             scannablePayload: Data(DesignFixtures.safetyNumberGroups.joined().utf8),
             verifiedAt: nil, method: nil)
+        #if DEBUG
+            if DesignFixtureCommunities.isRequested {
+                fixtureCommunities = DesignFixtureCommunities(english: english, now: now)
+            }
+        #endif
     }
 
     // MARK: Account & onboarding

@@ -91,9 +91,19 @@ extension MessagingEngine {
             try tx.envelopes.record(message.relayId, at: now)
         }
 
-        let previous = try tx.contacts.requestState(of: sender)
+        var previous = try tx.contacts.requestState(of: sender)
         // §6.4: messages from a blocked account are dropped locally.
         if previous == .blocked { return outcome }
+        if previous == .outgoingRequest, try !tx.contacts.requestSent(to: sender) {
+            // We only opened this handle (search, contact code, invite link);
+            // nothing of ours reached it. Its messages count as a stranger's:
+            // a visible one is its own request to us, anything else (a bare
+            // ACCEPT, receipts, typing, settings) is ignored (audit 2026-10-28 M-9).
+            guard case .data(let data) = content.body, Self.opensRequest(data) else { return outcome }
+            try tx.contacts.turnUnsentRequestIntoIncoming(sender)
+            previous = .incomingRequest
+            outcome.listChanged = true
+        }
         if previous == nil {
             guard case .data(let data) = content.body, Self.opensRequest(data) else { return outcome }
             outcome.listChanged = true
@@ -106,8 +116,8 @@ extension MessagingEngine {
         if previous == .outgoingRequest, state == .outgoingRequest, message.senderUsername != nil,
             case .data(let data) = content.body, Self.opensRequest(data)
         {
-            // §6.4 crossing requests: we wrote first, and so did they (only an
-            // OUTGOING_REQUEST carries `sender_username`). Neither side could
+            // §6.4 crossing requests: we wrote first (the relay took it), and
+            // so did they (only an OUTGOING_REQUEST carries `sender_username`). Neither side could
             // ever accept, so both treat this as mutual acceptance; our
             // ACCEPT makes the other phone agree in any case.
             try tx.contacts.acceptCrossingRequest(from: sender)

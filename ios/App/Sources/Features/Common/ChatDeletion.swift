@@ -40,6 +40,14 @@ struct ChatDeletion: Identifiable, Equatable {
         }
     }
 
+    /// The confirming button names what goes (HIG: a specific verb, not a bare “Sil”).
+    var confirmTitle: Text {
+        switch kind {
+        case .chat: Text("delete.chat")
+        case .contact: Text("delete.contact")
+        }
+    }
+
     var message: Text {
         switch kind {
         case .chat: Text("delete.chat.message")
@@ -94,8 +102,9 @@ private struct ChatDeletionAlert: ViewModifier {
                 Button(role: .destructive) {
                     confirm()
                 } label: {
-                    Text("request.delete")
+                    (deletion ?? shown)?.confirmTitle ?? Text("request.delete")
                 }
+                .accessibilityIdentifier("delete.confirm")
                 Button(role: .cancel) {} label: { Text("common.cancel") }
             } message: {
                 (deletion ?? shown)?.message ?? Text(verbatim: "")

@@ -133,14 +133,14 @@ struct MediaViewer: View {
                         HStack(spacing: 20) {
                             U2GlassIconButton(.caretLeft, glyphSize: 21, surface: .media,
                                 label: Text("viewer.previous", table: .conversation), action: { onPrevious?() })
-                                .disabled(onPrevious == nil).opacity(onPrevious == nil ? 0.35 : 1)
+                                .disabled(onPrevious == nil)
                                 .accessibilityIdentifier("mediaViewer.previous")
                             Text("album.photo \(photoPosition + 1) \(photoCount)", table: .conversation)
                                 .u2Font(.label15Emphasis).foregroundStyle(Color.u2.onMedia)
                                 .accessibilityIdentifier("mediaViewer.position")
                             U2GlassIconButton(.caretRight, glyphSize: 21, surface: .media,
                                 label: Text("viewer.next", table: .conversation), action: { onNext?() })
-                                .disabled(onNext == nil).opacity(onNext == nil ? 0.35 : 1)
+                                .disabled(onNext == nil)
                                 .accessibilityIdentifier("mediaViewer.next")
                         }
                     }

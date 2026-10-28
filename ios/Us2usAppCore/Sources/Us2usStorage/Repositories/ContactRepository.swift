@@ -11,11 +11,14 @@ import Us2usKit
 /// |---|---|---|
 /// | none | we send | `outgoingRequest` |
 /// | none | verified message received | `incomingRequest` |
-/// | `outgoingRequest` | `MessageRequestResponse{ACCEPT}` received | `accepted` |
+/// | `outgoingRequest` (sent) | `MessageRequestResponse{ACCEPT}` received | `accepted` |
+/// | `outgoingRequest` (not sent) | verified visible message received | `incomingRequest` |
 /// | `incomingRequest` | user accepts and the relay answered 202 | `accepted` |
 /// | any | Block | `blocked` |
 ///
 /// No other event ends a request. Unblocking returns to the state before the block.
+/// An outgoing request counts as *sent* only once the relay accepted (`202`)
+/// a visible message of ours (`request_sent_at`, audit 2026-10-28 M-9).
 public struct ContactRepository {
     let tx: StorageTransaction
 
@@ -87,6 +90,8 @@ public struct ContactRepository {
     ) throws -> ConversationRequestState {
         try tx.requireWritable()
         let current = try requestState(of: account)
+        // An outgoing request nothing was sent for yet is no request the peer could accept (M-9).
+        if current == .outgoingRequest, try !requestSent(to: account) { return .outgoingRequest }
         let next = MessageRequestPolicy.state(afterReceiving: content, current: current)
         if current == nil {
             try insert(account, state: next, now: now)
@@ -94,6 +99,35 @@ public struct ContactRepository {
             try setState(next, of: account)
         }
         return next
+    }
+
+    /// Whether the relay accepted (`202`) a visible message of ours to
+    /// `account` while it was an outgoing request. Opening a handle makes
+    /// the row before anything is sent (audit 2026-10-28 M-9).
+    public func requestSent(to account: AccountId) throws -> Bool {
+        try tx.connection.queryOne("SELECT request_sent_at FROM contacts WHERE account = ?", [account.bytes])?
+            .date("request_sent_at") != nil
+    }
+
+    /// The relay answered `202` for a visible message of ours to `account`:
+    /// our outgoing request now exists on the other phone.
+    public func markRequestSent(to account: AccountId, now: Date = Date()) throws {
+        try tx.requireWritable()
+        try tx.connection.run(
+            "UPDATE contacts SET request_sent_at = ? WHERE account = ? AND request_state = ? AND request_sent_at IS NULL",
+            [now.storageMilliseconds, account.bytes, ConversationRequestState.outgoingRequest.rawValue])
+    }
+
+    /// A verified visible message from `account` while our outgoing request
+    /// to it was opened but never sent: nothing of ours reached it, so this
+    /// is its own request to us (audit 2026-10-28 M-9). Returns whether the
+    /// state changed.
+    @discardableResult
+    public func turnUnsentRequestIntoIncoming(_ account: AccountId) throws -> Bool {
+        try tx.requireWritable()
+        guard try requestState(of: account) == .outgoingRequest, try !requestSent(to: account) else { return false }
+        try setState(.incomingRequest, of: account)
+        return true
     }
 
     /// The user accepted an incoming request and the relay answered 202 for

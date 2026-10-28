@@ -173,6 +173,11 @@ final class RealCommunitiesService: CommunitiesService {
         try await run { try await service.reject(pending, in: account) }
     }
 
+    func rejectAll(in id: CommunityID) async throws(CommunityProblem) {
+        let account = try account(id)
+        try await run { try await service.rejectAll(in: account) }
+    }
+
     func removeMember(_ member: String, from id: CommunityID) async throws(CommunityProblem) {
         let account = try account(id)
         guard let state = service.joined.first(where: { $0.id == account })?.state,

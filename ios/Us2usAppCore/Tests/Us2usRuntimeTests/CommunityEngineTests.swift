@@ -34,6 +34,8 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
         private var _leaveStatus = 204
         private var _applications: [AccountId: [CommunityJoinRequest]] = [:]
         private var _applicationStatus: [AccountId: Int] = [:]
+        /// A relay with `DELETE /v1/communities/{id}/requests` (2026-10-28 and later).
+        private var _bulkReject = false
         private var _summaries: [AccountId: Data] = [:]
         private var _direct: [DirectEnvelope] = []
         private var _media: [Data: (blob: Data, token: Data)] = [:]
@@ -62,6 +64,9 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
         func setRedeemSummary(_ json: String, for id: AccountId) { with { $0._summaries[id] = Data(json.utf8) } }
         func setApplications(_ applications: [CommunityJoinRequest], in id: AccountId) { with { $0._applications[id] = applications } }
         func setApplicationStatus(_ status: Int, in id: AccountId) { with { $0._applicationStatus[id] = status } }
+        func setBulkReject(_ supported: Bool) { with { $0._bulkReject = supported } }
+        func applications(in id: AccountId) -> [CommunityJoinRequest] { with { $0._applications[id] ?? [] } }
+        func state(of id: AccountId) -> CommunityState? { with { $0._states[id].flatMap { try? CommunityState(bytes: $0.state) } } }
         var acked: [String] { with { $0._acked } }
         var inbox: [Envelope] { with { $0._inbox } }
         var sent: [Sent] { with { $0._sent } }
@@ -137,6 +142,10 @@ final class FakeCommunityRelay: URLProtocol, @unchecked Sendable {
                 if let status = _applicationStatus[id], status != 200 { return error(status, "unavailable") }
                 struct Applications: Encodable { let requests: [CommunityJoinRequest] }
                 return json(200, Applications(requests: _applications[id] ?? []))
+            case ("DELETE", let p) where p.count == 4 && p[3] == "requests" && _bulkReject:
+                guard let id = AccountId(string: p[2]) else { return error(400, "bad_request") }
+                _applications[id] = []
+                return (204, Data())
             case ("DELETE", let p) where p.count == 5 && p[3] == "requests" && p[4] != "me":
                 guard let id = AccountId(string: p[2]), let account = AccountId(string: p[4]) else { return error(400, "bad_request") }
                 _applications[id]?.removeAll { $0.accountId == account }

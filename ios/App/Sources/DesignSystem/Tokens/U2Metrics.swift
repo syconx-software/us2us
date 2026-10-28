@@ -91,6 +91,8 @@ enum U2Size {
     static let textButton: CGFloat = 44
     static let textButtonS: CGFloat = 46
     static let iconButton: CGFloat = 44
+    /// The smallest area a control answers to (HIG: 44 × 44 pt), whatever it draws.
+    static let minimumHitTarget: CGFloat = 44
     static let iconButtonChat: CGFloat = 40
     static let iconButtonSheet: CGFloat = 36
     static let composer: CGFloat = 44

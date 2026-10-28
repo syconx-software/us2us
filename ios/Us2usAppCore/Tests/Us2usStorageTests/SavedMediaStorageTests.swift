@@ -215,6 +215,7 @@ struct SavedMediaStorageTests {
                 try connection.execute("DROP INDEX messages_attachments")
                 try connection.execute("ALTER TABLE messages DROP COLUMN saved_by_peer_at")
                 try connection.execute("ALTER TABLE messages DROP COLUMN saved_by_me_at")
+                try connection.execute("ALTER TABLE contacts DROP COLUMN request_sent_at")
                 try connection.execute("PRAGMA user_version = 5")
             }
             storage.close()

@@ -1160,27 +1160,31 @@ final class RealMessengerService: MessengerService {
         guard let decoded = ContactCode.decode(code), decoded.username != ownUsername,
             let entry = try? await runtime.lookupAccount(username: decoded.username)
         else { return .failed }
+        // The conversation is opened with the account of this very lookup —
+        // never a second one, which a relay could answer differently
+        // (audit 2026-10-28 M-10).
         guard let fingerprint = decoded.keyFingerprint else {
             // A code without the key's fingerprint (older versions) names the
             // user but proves nothing about the key: added, not verified.
-            guard let peer = try? await runtime.startConversation(username: decoded.username) else { return .failed }
-            return .added(peer.string)
+            guard (try? await runtime.addContactFromCode(
+                username: decoded.username, account: entry.account, identityKey: entry.identityKey, pinKey: false))
+                == true
+            else { return .failed }
+            return .added(entry.account.string)
         }
         // The relay must serve the very key the code commits to; otherwise
         // nobody is added.
         guard LiveMapping.fingerprintMatches(fingerprint, identityKey: entry.identityKey) else { return .mismatch }
-        guard let peer = try? await runtime.startConversation(username: decoded.username) else { return .failed }
-        // The conversation is with the account whose key was checked, or
-        // nothing is verified.
-        guard peer == entry.account else { return .mismatch }
         do {
-            // Pins that key: a different one later — from a bundle or a
-            // message — is a safety-number change, so a relay that swaps
-            // keys at first contact is caught.
-            let verified = try await runtime.verifyContactCode(peer, identityKey: entry.identityKey)
-            return verified ? .verified(peer.string) : .mismatch
+            // Pins that key first, then creates the contact: a different key
+            // later — from a bundle or a message — is a safety-number change,
+            // so a relay that swaps keys at first contact is caught. Another
+            // key already held for the account adds nothing (§5).
+            let added = try await runtime.addContactFromCode(
+                username: decoded.username, account: entry.account, identityKey: entry.identityKey, pinKey: true)
+            return added ? .verified(entry.account.string) : .mismatch
         } catch {
-            return .added(peer.string)
+            return .failed
         }
     }
 
