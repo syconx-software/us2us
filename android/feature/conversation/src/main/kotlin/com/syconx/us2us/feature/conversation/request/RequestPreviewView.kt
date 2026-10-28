@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -386,7 +387,7 @@ private fun Profile(request: MessageRequest, avatar: AvatarPicture, reveal: Avat
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Avatar(request.sender, AvatarPalette.C, Modifier.testTag("preview.avatar"), size = AvatarSize.Profile, picture = avatar)
-            U2Text(request.sender, U2TextStyles.monoUsernameXL, Modifier.testTag("preview.name"), color = colors.text, maxLines = 1, softWrap = false)
+            U2Text(request.sender, U2TextStyles.monoUsernameXL, Modifier.testTag("preview.name"), color = colors.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             U2Text(
                 stringResource(R.string.chats_preview_intro),
                 U2TextStyles.callout,

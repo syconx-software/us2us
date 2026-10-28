@@ -110,6 +110,14 @@
             case voiceHint = "5.1-voice-hint"
             case voicePermission = "5.1-voice-permission"
             case voiceUnplayed = "5.1-voice-unplayed"
+            /// `community:<id>/…` with `-U2Communities YES` (DesignFixtureCommunities):
+            /// the menu on an own text · on a photo · its “Bilgi” · the delete confirmation.
+            case communityActions = "c-actions"
+            case communityActionsIncoming = "c-actions-incoming"
+            case communityInfo = "c-info"
+            case communityConfirm = "c-confirm"
+            /// The header's “…”: members and management.
+            case communityManage = "c-manage"
         }
 
         enum Demo: String, Sendable {
@@ -129,7 +137,9 @@
 
         /// `-U2Route conversation:<chat>/<id>`, or `-U2ConversationScreen <id>`.
         static var screen: Screen? {
-            let id = UserDefaults.standard.string(forKey: "U2ConversationScreen") ?? LaunchRoute.current?.state(for: .conversation)
+            let id =
+                UserDefaults.standard.string(forKey: "U2ConversationScreen") ?? LaunchRoute.current?.state(for: .conversation)
+                ?? LaunchRoute.current?.state(for: .community)
             return id.flatMap(Screen.init(rawValue:))
         }
 
@@ -207,6 +217,17 @@
                 if screen != .liveMap { await fixtures.stopLiveLocation("m4", in: viewModel.chatID) }
                 try? await Task.sleep(for: .milliseconds(300))
                 if let share = viewModel.message(screen == .liveMap ? "m4" : peerShare) { viewModel.openLiveMap(share) }
+            case .communityActions:
+                viewModel.openActionsWhenReady(for: "c4")
+            case .communityActionsIncoming:
+                viewModel.openActionsWhenReady(for: "c3")
+            case .communityInfo:
+                viewModel.info = .init(id: "c4")
+            case .communityConfirm:
+                try? await Task.sleep(for: .milliseconds(600))
+                viewModel.deleteForEveryoneCandidate = "c4"
+            case .communityManage:
+                break
             case .actions:
                 viewModel.openActionsWhenReady(for: "d6")
             case .actionsIncoming:

@@ -71,13 +71,7 @@ struct BlockedPeopleView: View {
     }
 
     private var emptyState: some View {
-        Text("blocked.empty", table: .settings)
-            .u2Font(.callout)
-            .foregroundStyle(Color.u2.textSecondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 120)
-            .accessibilityIdentifier("blocked.empty")
+        U2EmptyState(glyph: .prohibit, message: Text("blocked.empty", table: .settings), identifier: "blocked.empty")
     }
 
     /// No confirmation: it can be undone at once (Engelle on the contact

@@ -761,14 +761,24 @@ final class ConversationViewModel {
         guard let id = deleteForEveryoneCandidate else { return }
         deleteForEveryoneCandidate = nil
         if replyTo != nil, message(id) == nil { replyTo = nil }
+        U2Haptics.success()
+        announce("a11y.messageDeletedForEveryone")
         Task { await messenger.deleteForEveryone(id, in: chatID) }
     }
 
+    /// Irreversible but local (nothing is sent), so no confirmation: the
+    /// haptic and, for VoiceOver, the announcement say it happened.
     func deleteForMe(_ id: MessageID) {
         dismissActions { [weak self] in
             guard let self else { return }
+            U2Haptics.selection()
+            self.announce("a11y.messageDeletedForMe")
             Task { await self.messenger.deleteForMe(id, in: self.chatID) }
         }
+    }
+
+    private func announce(_ key: String.LocalizationValue) {
+        AccessibilityNotification.Announcement(L10n.string(key, locale: presentationLocale)).post()
     }
 
     // MARK: 5.2 · Live location

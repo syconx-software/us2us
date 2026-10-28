@@ -70,6 +70,8 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
     fun noteVerifiedMessage(content: Content, account: AccountId, now: Instant = Instant.now()): ContactState {
         tx.requireWritable()
         val current = requestState(account)
+        // An outgoing request nothing was sent for yet is no request the peer could accept (M-9).
+        if (current == ContactState.OUTGOING_REQUEST && !requestSent(account)) return current
         val next = MessageRequests.afterIncoming(current, content)
         if (current == null) {
             insert(account, next, now)
@@ -77,6 +79,35 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
             setState(next, account)
         }
         return next
+    }
+
+    /**
+     * Whether the relay accepted (`202`) a visible message of ours to [account] while it was an
+     * outgoing request. Opening a handle makes the row before anything is sent (audit M-9).
+     */
+    fun requestSent(account: AccountId): Boolean =
+        tx.connection.queryOne("SELECT request_sent_at FROM contacts WHERE account = ?", account.toBytes())
+            ?.long("request_sent_at") != null
+
+    /** The relay answered `202` for a visible message of ours to [account]: its outgoing request now exists on the other phone. */
+    fun markRequestSent(account: AccountId, now: Instant = Instant.now()) {
+        tx.requireWritable()
+        tx.connection.run(
+            "UPDATE contacts SET request_sent_at = ? WHERE account = ? AND request_state = ? AND request_sent_at IS NULL",
+            now.toEpochMilli(),
+            account.toBytes(),
+            ContactState.OUTGOING_REQUEST.raw,
+        )
+    }
+
+    /**
+     * A verified visible message from [account], while our outgoing request to it was opened but
+     * never sent: nothing of ours reached it, so this is its own request to us (audit M-9).
+     */
+    fun turnUnsentRequestIntoIncoming(account: AccountId) {
+        tx.requireWritable()
+        if (requestState(account) != ContactState.OUTGOING_REQUEST || requestSent(account)) return
+        setState(ContactState.INCOMING_REQUEST, account)
     }
 
     /** The user accepted an incoming request and the relay answered 202 for our `ACCEPT` (§6.4). Before that the state must not change. */

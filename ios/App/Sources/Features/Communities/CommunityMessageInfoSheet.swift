@@ -42,7 +42,8 @@ struct CommunityMessageInfoSheet: View {
                 } else {
                     summary(recipients)
                     GroupedCard(fill: Color.u2.bg) {
-                        ForEach(Array(recipients.enumerated()), id: \.element.id) { index, recipient in
+                        ForEach(Array(CommunityRecipientRow.ordered(recipients, showsRead: showsRead).enumerated()), id: \.element.id) {
+                            index, recipient in
                             if index > 0 { GroupedSeparator() }
                             CommunityRecipientRow(recipient: recipient, showsRead: showsRead)
                         }
@@ -105,6 +106,23 @@ struct CommunityRecipientRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("community.info.recipient.\(recipient.id)")
+    }
+
+    /// Who read it first, then whom it reached, then who is still waiting,
+    /// then the sends that could not be made — so “kimin okuduğu” reads from
+    /// the top. The order within each group stays the roster's.
+    static func ordered(_ recipients: [CommunityRecipientInfo], showsRead: Bool) -> [CommunityRecipientInfo] {
+        func rank(_ recipient: CommunityRecipientInfo) -> Int {
+            if showsRead, recipient.readAt != nil { return 0 }
+            if recipient.deliveredAt != nil { return 1 }
+            switch recipient.state {
+            case .accepted, .pending: return 2
+            case .skipped, .failed: return 3
+            }
+        }
+        return recipients.enumerated()
+            .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
+            .map(\.element)
     }
 
     private var name: String {

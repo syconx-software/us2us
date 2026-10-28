@@ -61,7 +61,7 @@ describe('proof-of-work challenges', () => {
   it('issues register and message challenges', async () => {
     const register = await api.get('/v1/pow?purpose=register')
     expect(register.status).toBe(200)
-    expect(register.body).toEqual({ token: expect.stringMatching(/^v1\.register\.-\.\d+\.[\w-]+\.[\w-]+$/), difficulty: 4, expiresAt: expect.any(Number) })
+    expect(register.body).toEqual({ token: expect.stringMatching(/^v2\.register\.-\.\d+\.4\.[\w-]+\.[\w-]+$/), difficulty: 4, expiresAt: expect.any(Number) })
     expect(register.body.expiresAt).toBeGreaterThan(Date.now())
 
     const to = '0f5b1d2c-8c55-4c39-9b7b-3a7f5e0c9d11'

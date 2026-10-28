@@ -247,6 +247,73 @@ class MessengerTest : ConversationScenario() {
     }
 
     @Test
+    fun `a handler failure leaves only that envelope at the relay and the ones behind it are handled (H-1)`() = runBlocking {
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val bob = Messenger.register(Username("bob"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.findByUsername("bob")
+        alice.sendText(bob.accountId, "refused")
+        alice.sendText(bob.accountId, "behind it")
+        val received = mutableListOf<String>()
+        val handled = bob.fetchPending {
+            val body = it.content.data.text.body
+            check(body != "refused") { "the app cannot take this one" }
+            received += body
+        }
+        assertEquals(1, handled)
+        assertEquals(listOf("behind it"), received)
+        assertEquals(1, relay.mailboxSize(bob.accountId), "only the refused envelope stays")
+
+        // Without staged writes (the app has them) its message key is spent: the redelivery is a
+        // duplicate, dropped and acknowledged, so it never blocks the mailbox either.
+        assertEquals(1, bob.fetchPending { received += it.content.data.text.body })
+        assertEquals(0, relay.mailboxSize(bob.accountId))
+        assertEquals(listOf("behind it"), received)
+
+        // A store that is unavailable (an IOException) is not the message's fault: it stays at the relay.
+        alice.sendText(bob.accountId, "later")
+        assertThrows<IOException> { runBlocking { bob.fetchPending { throw IOException("vault closed") } } }
+        assertEquals(1, relay.mailboxSize(bob.accountId))
+    }
+
+    @Test
+    fun `a malformed message from a stranger is dropped and acknowledged, the next one arrives (H-1)`() = runBlocking {
+        val alice = Messenger.register(Username("alice"), RelayClient(relayUrl), config = TestClient.testConfig)
+        val bob = Messenger.register(Username("bob"), RelayClient(relayUrl), config = TestClient.testConfig)
+        alice.findByUsername("bob")
+        alice.send(
+            bob.accountId,
+            content {
+                data = com.syconx.us2us.core.proto.dataMessage {
+                    messageId = byteArrayOf(1, 2, 3).toByteString()
+                    sentAt = 1
+                    text = com.syconx.us2us.core.proto.text { body = "wedge" }
+                }
+            },
+        )
+        alice.sendText(bob.accountId, "selam")
+        val received = mutableListOf<String>()
+        assertEquals(2, bob.fetchPending { received += it.content.data.text.body }, "both acknowledged")
+        assertEquals(listOf("selam"), received)
+        assertEquals(0, relay.mailboxSize(bob.accountId))
+    }
+
+    @Test
+    fun `every request message carries its verified sender username, also one already known (M-9)`() = runBlocking {
+        coroutineScope {
+            val alice = TestClient.register(relayUrl, "alice", this)
+            val bob = TestClient.register(relayUrl, "bob", this)
+            alice.awaitUpToDate()
+            bob.awaitUpToDate()
+            alice.messenger.findByUsername("bob")
+            alice.messenger.sendText(bob.accountId, "bir")
+            alice.messenger.sendText(bob.accountId, "iki")
+            assertEquals("alice", bob.nextData().verifiedSenderUsername?.value)
+            assertEquals("alice", bob.nextData().verifiedSenderUsername?.value)
+            listOf(alice, bob).forEach { it.job.cancelAndJoin() }
+        }
+    }
+
+    @Test
     fun `backup and restore keep the identity, so contacts see no safety-number change`() = runBlocking {
         coroutineScope {
             val (alice, bob) = acceptedPair(this)
@@ -416,6 +483,9 @@ class MessengerTest : ConversationScenario() {
             assertThrows<IOException> { runBlocking { bob.messenger.downloadAttachment(lying, ByteArrayOutputStream()) } }
             val malformed = upload.toBuilder().setKey(ByteArray(10).toByteString()).build()
             assertThrows<AttachmentIntegrityException> { runBlocking { bob.messenger.downloadAttachment(malformed, ByteArrayOutputStream()) } }
+            // L-20: a declared size no relay can store is refused before anything is fetched.
+            val huge = upload.toBuilder().setSize(2L shl 30).build()
+            assertThrows<AttachmentIntegrityException> { runBlocking { bob.messenger.downloadAttachment(huge, ByteArrayOutputStream()) } }
 
             val honest = ByteArrayOutputStream()
             val fractions = CopyOnWriteArrayList<Double>()

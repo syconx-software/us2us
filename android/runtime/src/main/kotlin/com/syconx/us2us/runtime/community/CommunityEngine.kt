@@ -177,18 +177,45 @@ class CommunityEngine(
         relay.communityRequests(id).requests.also { list -> require(list.size <= 100); list.forEach { CommunityMember(it.accountId, it.identityKey).keyBytes() } }
     }
 
+    /**
+     * Admits a pending request. A member who left stays listed in the signed roster, and the relay
+     * admits only accounts new to the roster (M-11): such a request is a re-admission, done as two
+     * signed states, first without the account, then with it (its request stays valid in between).
+     */
     suspend fun approve(id: AccountId, request: CommunityRequest) = mutex.withLock {
         prepare()
-        val state = current(id)
-        require(state.ownerAccountId == accountId && state.members.size < 100)
+        var state = current(id)
+        require(state.ownerAccountId == accountId && request.accountId != accountId)
         val pending = relay.communityRequests(id).requests.single { it.accountId == request.accountId }
         require(pending.identityKey == request.identityKey) { "request identity changed; review again" }
-        require(state.member(pending.accountId) == null)
         val added = CommunityMember(pending.accountId, pending.identityKey).also { it.keyBytes() }
+        if (state.member(pending.accountId) != null) {
+            state = state.copy(revision = state.revision + 1, members = state.members.filter { it.accountId != pending.accountId })
+            update(state)
+        }
+        require(state.members.size < 100)
         update(state.copy(revision = state.revision + 1, members = (state.members + added).sortedBy { it.accountId.toString() }))
     }
 
     suspend fun reject(id: AccountId, account: AccountId) = mutex.withLock { prepare(); relay.rejectCommunityRequest(id, account) }
+
+    /** Owner: rejects every pending request at once (M-14); one by one on a relay without the bulk route. */
+    suspend fun rejectAll(id: AccountId) = mutex.withLock {
+        prepare()
+        require(current(id).ownerAccountId == accountId)
+        try {
+            relay.rejectAllCommunityRequests(id)
+        } catch (e: RelayException) {
+            if (e.httpStatus != HTTP_NOT_FOUND && e.httpStatus != HTTP_METHOD_NOT_ALLOWED) throw e
+            for (pending in relay.communityRequests(id).requests.take(100)) {
+                try {
+                    relay.rejectCommunityRequest(id, pending.accountId)
+                } catch (gone: RelayException) {
+                    if (gone.httpStatus != HTTP_NOT_FOUND) throw gone
+                }
+            }
+        }
+    }
     suspend fun removeMember(id: AccountId, member: AccountId) = mutex.withLock {
         prepare()
         val state = current(id)
@@ -804,6 +831,7 @@ class CommunityEngine(
     private suspend fun flush() {
         val stopped = HashSet<Pair<AccountId, AccountId>>()
         val gone = HashSet<AccountId>()
+        val departed = HashMap<AccountId, MutableSet<AccountId>>()
         val now = System.currentTimeMillis()
         deferredUntil.values.removeAll { it <= now }
         for (queued in repository.pending()) {
@@ -860,6 +888,7 @@ class CommunityEngine(
                         // Left, removed or deleted: there is no one to deliver to any more.
                         if (event != null) repository.drop(delivery) else repository.skipped(delivery)
                         gone += delivery.communityId
+                        departed.getOrPut(delivery.communityId) { HashSet() } += delivery.recipient
                     }
                     e.httpStatus in 400..499 -> if (event != null) repository.drop(delivery) else repository.failed(delivery)
                     else -> throw e
@@ -869,7 +898,13 @@ class CommunityEngine(
         changed()
         for (id in gone) {
             try {
-                current(id)
+                val state = current(id)
+                // M-11: a member who left stays listed until the owner signs a roster without it;
+                // the owner's phone does that as soon as a delivery to it is refused as gone.
+                val leavers = departed[id].orEmpty().filter { it != accountId && state.member(it) != null }
+                if (state.ownerAccountId == accountId && leavers.isNotEmpty()) {
+                    update(state.copy(revision = state.revision + 1, members = state.members.filter { it.accountId !in leavers }))
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: IllegalArgumentException) {
@@ -881,6 +916,7 @@ class CommunityEngine(
 
     private companion object {
         const val HTTP_NOT_FOUND = 404
+        const val HTTP_METHOD_NOT_ALLOWED = 405
         const val HTTP_CONFLICT = 409
         const val HTTP_TOO_MANY_REQUESTS = 429
         const val MAX_RETRY_AFTER_SECONDS = 3600L

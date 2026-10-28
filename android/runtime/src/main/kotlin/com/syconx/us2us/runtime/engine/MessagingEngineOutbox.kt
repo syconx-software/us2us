@@ -229,7 +229,13 @@ private fun MessagingEngine.record(result: SendResult, entries: List<OutboxEntry
         write { tx ->
             for (entry in entries) {
                 when (result) {
-                    SendResult.Sent -> tx.outbox.markSent(entry.id, now)
+                    SendResult.Sent -> {
+                        tx.outbox.markSent(entry.id, now)
+                        // §6.4: our outgoing request now exists on the other phone (M-9).
+                        if (entry.content.hasData() && InboundRules.opensRequest(entry.content.data)) {
+                            tx.contacts.markRequestSent(entry.recipient, now)
+                        }
+                    }
                     is SendResult.Retry -> {
                         var policy = configuration.retryPolicy
                         result.retryAfterSeconds?.let { retryAfter ->

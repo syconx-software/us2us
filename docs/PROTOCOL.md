@@ -8,6 +8,48 @@ them is a bug — fix it in the same change.
 Key words MUST, SHOULD, MAY are used as in RFC 2119.
 
 > **Change log**
+> * 2026-10-28: **Android client fixes of the security audit** (§4.2, §5,
+>   §5.2, §6.3, §6.4, §7, §9; client only, no wire change). Every decrypted
+>   `Content` passes the structural checks iOS already applied (16-byte ids,
+>   fixed-size keys and tokens, the ghost timeout range, one valid community
+>   kind) before anything acts on it; one that fails is dropped and
+>   acknowledged (§6.3). A message the app could not store is left at the
+>   relay while the envelopes behind it are handled, and is dropped and
+>   acknowledged after 3 failed attempts; an unavailable local store never
+>   counts. A blocked sender's envelope is dropped before decryption.
+>   `OUTGOING_REQUEST` counts for `ACCEPT` and crossing requests only once
+>   the relay accepted a visible message of ours (§6.4); the crossing rule
+>   needs `sender_username`. "Delete contact" now rotates our access key when
+>   the deleted contact held it (§6.4). Adding a contact from a contact code
+>   uses the one directory answer the code was checked against and pins its
+>   key before anything is created (§5). A return to the approved key
+>   restores its verification (§5). Proof-of-work challenges above 28 bits
+>   are refused and a solve gives up after 3 minutes (§4.2). Attachment
+>   downloads refuse a declared size whose blob exceeds 1 GiB (§7). The
+>   Android vault statement of §5.2 and §9 is corrected (format v2 binds the
+>   hardware key to device unlock only from API 35).
+> * 2026-10-28: **relay abuse limits** (§4.2, §4.3, §4.5, §4.6, §4.9,
+>   §4.10, §4.11; relay only, additive, no client change and no new error
+>   code; clients 1.1.4 and 1.1.5 work unchanged). Envelopes authorized by
+>   proof-of-work may fill only a share of a mailbox (500 envelopes / 8 MiB
+>   by default, at most half), so strangers cannot lock out the recipient's
+>   contacts; a send past it is the same `429 rate_limited` as a full
+>   mailbox. The relay stores one bit per stored envelope (authorized by
+>   proof-of-work or not) and nothing about the sender. Stored sends are
+>   also limited per recipient and client address (§4.11), in memory under
+>   a key that exists only in the running process. Media uploads must leave
+>   a reserve of free disk that only envelopes may use, are capped per
+>   account (unexpired bytes stored, lower for accounts in their first 7
+>   days) and per relay per day (`503` with `Retry-After`); messages are not
+>   affected. The registration difficulty rises with the recent
+>   registration rate; challenge tokens carry the difficulty they were
+>   issued with (still opaque; clients already solve the `difficulty` of the
+>   response). Registrations are limited per IPv6 /48 and per relay too.
+>   The relay stores each account's registration date (UTC day only).
+>   A bundle fetch beyond a per-target hourly budget carries no one-time
+>   keys (as if none were left) instead of consuming them. Stored envelope
+>   ids count per recipient within a millisecond, not relay-wide. Rate limits
+>   use the proxy's address header only from configured proxy peers.
 > * 2026-10-27: **deleting a chat or a contact on one phone** (§3.3, §6.4;
 >   client only, no wire change). "Delete chat" crypto-shreds the
 >   conversation (§5.3) and keeps the contact, its session and its state;
@@ -558,9 +600,17 @@ is consumed even when registration then fails with `409 username_taken`, so
 usernames cannot be probed for free.
 
 Defaults (configurable): `register` difficulty 22, `message` difficulty 18,
-token lifetime 10 minutes. Token format is relay-internal; clients treat it
-as opaque. Reference format:
-`v1.<purpose>.<target|->.<expiresAtSeconds>.<random16 b64u>.<hmac b64u>`.
+token lifetime 10 minutes. The `register` difficulty rises by one bit each
+time the registrations of the last hour double past a threshold (default
+120 per hour), up to 26 bits; it falls back as the rate does. Clients MUST
+solve the `difficulty` of the response, never a remembered one. Token format
+is relay-internal; clients treat it as opaque. Reference format (since
+2026-10-28; it carries the difficulty the challenge was issued with, so a
+difficulty that changes before redemption never fails a correct solution,
+and the HMAC keeps it from being lowered):
+`v2.<purpose>.<target|->.<expiresAtSeconds>.<difficulty>.<random16 b64u>.<hmac b64u>`.
+Tokens of the earlier format `v1.<purpose>.<target|->.<expiresAtSeconds>.<random16 b64u>.<hmac b64u>`
+are accepted at the configured difficulty until they expire.
 
 ### 4.3 Accounts
 
@@ -580,7 +630,11 @@ as opaque. Reference format:
 ```
 
 `201 {"accountId": "<uuid>", "authToken": "<b64u 32>"}` · `409 username_taken`
-(the PoW is still consumed, §4.2) · `403 pow_invalid`.
+(the PoW is still consumed, §4.2) · `403 pow_invalid` · `429 rate_limited`
+(§4.11: per address, per IPv6 /48, or for the whole relay; the relay-wide
+limit is spent only by registrations with a valid PoW). The relay records
+the UTC date of registration (the day, as for last-seen) for the lower
+limits of new accounts (§4.9).
 
 Validation: `registrationId` 1..16380; key ids 1..16777215 (24 bit); at most
 100 entries per one-time list; identity key 33 bytes starting with `0x05`;
@@ -684,7 +738,11 @@ of both types (used after a restore, when the old private keys are gone).
 The relay MUST consume one EC one-time pre-key and one Kyber one-time pre-key
 atomically (each handed out at most once). If no Kyber one-time key is left,
 it returns the Kyber last-resort key (which is not consumed). If no EC
-one-time key is left, `oneTimePreKey` is `null`.
+one-time key is left, `oneTimePreKey` is `null`. One-time keys of one
+account are handed out at most at a per-target rate (§4.11), whoever asks;
+beyond it the relay answers as if none were left (last-resort Kyber key,
+`oneTimePreKey: null`) and consumes nothing, so many accounts together
+cannot drain them. Clients already handle such a bundle.
 
 ### 4.6 Messages (mailbox)
 
@@ -721,7 +779,17 @@ Each mailbox has limits (relay defaults: 10 000 envelopes, 50 MiB). They
 count every envelope accepted for the recipient and not yet acknowledged,
 whether it is stored or still held in memory on the fast path (§1.1), so a
 send to a full mailbox is `429 rate_limited` with `Retry-After` whether or
-not the recipient is online. A relay that cannot take more right now (disk
+not the recipient is online. Envelopes authorized by PoW rather than the
+access key may take only a share of the mailbox (relay defaults: 500
+envelopes, 8 MiB; at most half of each limit), so that anyone who can solve
+a PoW cannot fill it and lock out the recipient's contacts; a PoW send past
+that share gets the same `429`. The relay stores, per stored envelope,
+whether it was authorized by PoW, and nothing about its sender. Stored
+sends are also limited per recipient and client address (§4.11); the
+relay keeps that pair only in memory, as a MAC under a key that never
+leaves the running process. The relay does not raise the message PoW
+difficulty as a mailbox fills: the difficulty would tell anyone how much
+mail waits for an account, i.e. how long it has been offline. A relay that cannot take more right now (disk
 almost full, too many envelopes waiting in memory, or, right after a
 restart, its database not answering) answers `503` with
 `Retry-After`, also for every recipient alike. Ephemeral sends are never
@@ -822,7 +890,12 @@ contacts Apple, Google or any other third party (§1, §5.4).
 → `201 {"mediaId": "<b64u 16>", "deleteToken": "<b64u 32>", "expiresAt": …}`.
 `Content-Length` is required (a chunked body is `400`). The daily byte
 quota (§4.11) is charged with the declared length when the upload starts,
-even if the upload then fails. An upload whose account is deleted (§4.3)
+even if the upload then fails. An account may have at most 2 GiB of
+unexpired, undeleted blobs stored (256 MiB in its first 7 days); an upload
+past it is `429 rate_limited` with `Retry-After` until older blobs are
+deleted or expire. The relay also has a daily upload budget of its own,
+and keeps a reserve of free disk that only envelopes may use; past either,
+uploads are `503` with `Retry-After` while messages are still accepted. An upload whose account is deleted (§4.3)
 before it completes is `401 unauthorized`, and nothing of it is kept.
 
 **Download** — `GET /v1/media/{mediaId}` (no auth; the id is a 128-bit random
@@ -845,6 +918,8 @@ complete; senders MAY send it to unsend.
 | Mailbox envelope | until acknowledged, max 14 days |
 | Media blob | until deleted, max 14 days |
 | Used PoW tokens | until token expiry |
+| Whether a stored envelope came with a PoW (one bit, §4.6) | with the envelope |
+| Account registration date (UTC day) | with the account |
 | Account without any connection | deleted after 180 days (only a coarse last-seen *date* is stored) |
 | Avatar record (§4.12) | until replaced or deleted, or the account is deleted (also by the 180-day rule) |
 
@@ -861,21 +936,27 @@ in clear (§9); it MUST NOT log, store or look up the name.
 | Endpoint | Limit |
 |---|---|
 | `GET /v1/pow` | 30 / min |
-| `POST /v1/accounts` | 5 / hour |
+| `POST /v1/accounts` | 5 / hour; 20 / hour per IPv6 /48; 1000 / hour for the whole relay |
 | `PUT /v1/accounts/me/username` | 5 / day / account |
 | `GET /v1/directory/*` | 60 / hour / account |
 | `GET /v1/accounts/{id}/avatar` | 60 / hour / account (a `304` counts) |
 | `PUT /v1/accounts/me/avatar` | 30 / day / account |
 | `DELETE /v1/accounts/me/avatar` | 200 / day / account, a budget of its own: a used-up `PUT` budget never delays taking a picture out of search |
-| `GET /v1/keys/{id}` | 120 / hour / account |
-| `PUT /v1/messages/*` | 600 / min |
+| `GET /v1/keys/{id}` | 120 / hour / account; one-time keys of one target: 60 / hour, whoever asks (then a bundle without them, §4.5) |
+| `PUT /v1/messages/*` | 600 / min; per recipient and IP: 60 PoW sends / hour and 32 MiB of stored envelopes / hour |
 | `POST /v1/messages/ephemeral` | 3000 envelopes / min (each item counts) |
 | `GET /v1/ws` (upgrades) | 60 / min |
 | WebSocket frames, C→S | 1200 / min / account (then close `1008`) |
-| `POST /v1/media` | 60 / hour / account, 2 GiB / day / account |
+| `POST /v1/media` | 60 / hour / account, 2 GiB / day / account (512 MiB in the account's first 7 days); 24 GiB / day for the whole relay (then `503`) |
 | `GET` / `DELETE /v1/media/{id}` (together) | 600 / min |
 | any authenticated request | 1200 / min / account |
 | failed `X-Auth-Token` checks | 30 / min |
+
+IPv6 clients are limited per /64 (and registrations also per /48). The
+relay takes the client address from its own proxy's header only when the
+connection comes from a configured proxy address. When the limiter's memory
+is full, the buckets closest to full are forgotten first, so a client
+cannot shed a penalty by touching many other keys.
 
 A request over a limit gets `429 rate_limited` with `Retry-After`. Every
 request answered `401` (and every WebSocket upgrade refused for its token)
@@ -1134,6 +1215,17 @@ The key has an installation-specific alias separate from the secure-item
 wrapping and biometric keys, and is deleted on wipe/erase. Its output and
 the PIN-derived input are never persisted. An unavailable/failed hardware
 upgrade leaves v1 usable and is retried after a later successful code unlock.
+*2026-10-28:* below API 35 the HMAC key is usable while the phone is locked,
+so v2 there protects against a copied vault file, not against code running as
+the app on a phone that was unlocked once since boot: that code can evaluate
+the key once per guess without the app's delays (the binding is not used on
+API 28–30 either, because a key keeps its flags through an upgrade to
+31–34). The v2 candidate MUST be opened with the same code, device secret and
+hardware key, giving back the same DEK, before it replaces the v1 file. The
+app shows what the hardware adds in Settings: nothing when v2 and API 35+,
+"device protection: hardware" with this limit below API 35, and "device
+protection: basic" while the vault is v1 (upgrade failed or impossible) or
+the device-secret wrapping key is not in secure hardware.
 
 **Android secure-item wrapping (separate from the HWPRF).** New wrapping
 keys use unlocked-device-required only on API 35+. Existing items are moved
@@ -1653,6 +1745,19 @@ Transitions:
   under way changes nothing. This rule never answers with `ACCEPT`, and the
   one above answers only a message with `sender_username`, which an
   `ACCEPTED` phone never sends, so the two cannot loop.
+
+*2026-10-28 (Android and iOS):* opening a handle (search, contact
+code, invite link) may create an `OUTGOING_REQUEST` row before anything is
+sent. Such a request counts only once the relay answered `202` for a visible
+message of ours to that contact: before that, `MessageRequestResponse{ACCEPT}`
+from it changes nothing, and a verified visible message from it opens
+`INCOMING_REQUEST` (it wrote first) instead of the crossing rule, which in any
+case needs `sender_username`. "Delete contact" rotates our access key (new key
+to all other accepted contacts, as for Block) when the deleted contact held
+it: the contact can still write, but only with proof-of-work, so its messages
+arrive as a new request and count against the relay's proof-of-work share of
+the mailbox (§4.6), not the contacts' share. Other contacts' sends fall back
+to proof-of-work until the new key reaches them.
 
 Delivery: in `OUTGOING_REQUEST` every message includes `sender_username`
 and is delivered with PoW, even if the contact's access key has already
@@ -2360,7 +2465,12 @@ as that memory (§9).
   for all 10^6 codes can be computed anywhere beforehand, and the cost left
   on the phone is one Secure Enclave operation per guess — the whole code
   space in hours, not years, on a compromised, unlocked phone. iOS has no
-  hardware attempt counter for an app's code. Android vaults are still v1. A strong phone passcode
+  hardware attempt counter for an app's code. Android (corrected 2026-10-28):
+  vaults move to v2 where a TEE or StrongBox key is available, but only from
+  API 35 is that key unusable while the phone is locked; below API 35, and for
+  vaults that stayed v1 (the app then says "device protection: basic"), the
+  remaining cost is the PBKDF2 step plus, for v2, one TEE operation per guess
+  from code running as the app. A strong phone passcode
   and an up-to-date OS are the defence. The backup file (§5.5) needs no
   device secret at all: it is protected only by its separate backup password
   (at least 10 characters and a strength check; the app offers a generated

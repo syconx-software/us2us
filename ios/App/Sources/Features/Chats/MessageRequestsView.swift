@@ -32,14 +32,9 @@ struct MessageRequestsView: View {
                         InfoBanner(message: Text("requests.banner", table: .chats))
                             .padding(EdgeInsets(top: 16, leading: 16, bottom: 0, trailing: 16))
                         if requests.isEmpty {
-                            Text("requests.empty", table: .chats)
-                                .u2Font(.callout)
-                                .foregroundStyle(Color.u2.textSecondary)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 120)
+                            U2EmptyState(
+                                glyph: .tray, message: Text("requests.empty", table: .chats), identifier: "requests.empty")
                                 .transition(.u2Fade)
-                                .accessibilityIdentifier("requests.empty")
                         } else {
                             // Gap 10 lives under each card, so a removed card
                             // collapses together with its gap.
@@ -220,12 +215,15 @@ struct RequestCard: View {
             U2FlexRow(spacing: 8) {
                 Button(action: onBlock) { Text("request.block") }
                     .buttonStyle(U2DecisionButtonStyle(kind: .destructive))
+                    .accessibilityHint(Text("requests.block.message", table: .chats))
                     .accessibilityIdentifier("request.\(request.id).block")
                 Button(action: onDelete) { Text("request.delete") }
                     .buttonStyle(U2DecisionButtonStyle(kind: .neutral))
+                    .accessibilityHint(Text("a11y.request.delete.hint", table: .chats))
                     .accessibilityIdentifier("request.\(request.id).delete")
                 Button(action: onAccept) { Text("request.accept") }
                     .buttonStyle(U2DecisionButtonStyle(kind: .accept))
+                    .accessibilityHint(Text("a11y.request.accept.hint", table: .chats))
                     .accessibilityIdentifier("request.\(request.id).accept")
                     .u2Flex(1.3, border: 2)
             }

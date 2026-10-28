@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
@@ -394,7 +395,7 @@ fun UsernameSearchField(
                         .semantics { contentDescription = description },
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (text.isEmpty()) U2Text(placeholder, style, color = colors.textPlaceholder)
+                            if (text.isEmpty()) U2Text(placeholder, style, color = colors.textPlaceholder, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             inner()
                         }
                     },

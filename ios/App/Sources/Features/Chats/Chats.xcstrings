@@ -278,13 +278,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "User not found · Type the full username."
+            "value": "User not found · Check that you typed the full username."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kullanıcı bulunamadı · Kullanıcı adını eksiksiz yaz."
+            "value": "Kullanıcı bulunamadı · Adı eksiksiz yazdığından emin ol."
           }
         }
       }
@@ -698,13 +698,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The chat won't open until you accept. They can't see your activity or reads."
+            "value": "The chat won't open until you accept, and they can't see your activity or reads. If you delete or block, they won't know."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kabul edene kadar sohbet açılmaz. Okuduğunu ve aktif olduğunu göremezler."
+            "value": "Kabul edene kadar sohbet açılmaz; okuduğunu ve aktif olduğunu göremezler. Silersen ya da engellersen bunu bilmezler."
           }
         }
       }
@@ -885,6 +885,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tümünü sil"
+          }
+        }
+      }
+    },
+    "a11y.request.delete.hint": {
+      "comment": "VoiceOver hint of a request's “Sil”.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İsteği kaldırır. Gönderen bunu bilmez."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removes the request. The sender won't know."
+          }
+        }
+      }
+    },
+    "a11y.request.accept.hint": {
+      "comment": "VoiceOver hint of a request's “Kabul et”.",
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbeti açar. Ayarlarına göre okuduğunu ve aktif olduğunu görebilir."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the chat. Depending on your settings, they can then see your reads and activity."
           }
         }
       }

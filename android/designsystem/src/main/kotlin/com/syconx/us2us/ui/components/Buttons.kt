@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.type.U2FontScaleCap
+import com.syconx.us2us.ui.type.U2_COMPACT_FONT_SCALE_CAP
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -244,17 +246,26 @@ private fun OutlineButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(height)
+            // As drawn at the design's text size; a label that wraps (large system font, a long
+            // translation) grows the button instead of being cut by it.
+            .heightIn(min = height)
             .u2PressEffect(source)
             .u2Opacity { alpha }
             .u2BoxShadow(shape, glow)
             .background(if (pressed) pressFill else Color.Transparent, shape)
             .u2InnerStroke(outline, 1.dp, shape)
-            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = U2ButtonMetrics.labelInset, vertical = U2ButtonMetrics.labelInsetVertical),
         contentAlignment = Alignment.Center,
     ) {
         CompositionLocalProvider(LocalU2LabelStyle provides label, content = content)
     }
+}
+
+/** Insets of a full-width button's label: it only meets them when it wraps. */
+object U2ButtonMetrics {
+    val labelInset: Dp = 16.dp
+    val labelInsetVertical: Dp = 8.dp
 }
 
 // MARK: - C2 · Secondary button
@@ -278,12 +289,13 @@ fun U2SecondaryButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(U2Size.buttonPrimary)
+            .heightIn(min = U2Size.buttonPrimary)
             .u2PressEffect(source)
             .u2Opacity(if (enabled) 1f else U2Opacity.disabled)
             .background(colors.text.copy(alpha = if (pressed) 0.07f else 0f), shape)
             .u2InnerStroke(colors.divider, 1.dp, shape)
-            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = U2ButtonMetrics.labelInset, vertical = U2ButtonMetrics.labelInsetVertical),
         contentAlignment = Alignment.Center,
     ) {
         CompositionLocalProvider(LocalU2LabelStyle provides U2LabelStyle(U2TextStyles.button, colors.text), content = content)
@@ -501,7 +513,7 @@ fun U2DecisionButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(if (card) U2Size.buttonSmall else U2Size.buttonBar)
+            .heightIn(min = if (card) U2Size.buttonSmall else U2Size.buttonBar)
             .u2PressEffect(source)
             .then(if (accept && !card) Modifier.u2BoxShadow(shape, U2BoxShadows.glowButtonAccept) else Modifier)
             .background(fill, shape)
@@ -509,7 +521,11 @@ fun U2DecisionButton(
             .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        CompositionLocalProvider(LocalU2LabelStyle provides U2LabelStyle(style, ink), content = content)
+        // Three buttons share one row: past 1.3 the labels keep that size rather than clip mid-word
+        // (“Engell”); TalkBack reads them in full.
+        U2FontScaleCap(U2_COMPACT_FONT_SCALE_CAP) {
+            CompositionLocalProvider(LocalU2LabelStyle provides U2LabelStyle(style, ink), content = content)
+        }
     }
 }
 

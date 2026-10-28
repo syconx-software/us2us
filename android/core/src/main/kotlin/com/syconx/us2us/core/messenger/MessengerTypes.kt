@@ -21,6 +21,7 @@ import java.io.File
 import java.io.IOException
 import java.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** The local account. Holds secrets; persist it only inside the vault-protected database. */
@@ -144,8 +145,11 @@ data class MessengerConfig(
      * sender's only sign that the recipient opened the app. Read receipts stay with the app.
      */
     val sendDeliveryReceipts: Boolean = true,
+    /** How long one proof-of-work may run before it is given up (and the send retried later). */
+    val powTimeout: Duration = 3.minutes,
 ) {
     init {
+        require(powTimeout.isPositive()) { "invalid proof-of-work timeout" }
         require(keepAliveInterval.isPositive() && keepAliveInterval <= 30.seconds) { "PROTOCOL.md §4.7: ping at least every 30 s" }
         require(setupRetryMinDelay.isPositive() && setupRetryMinDelay <= setupRetryMaxDelay) { "invalid setup retry backoff" }
     }
@@ -164,9 +168,21 @@ class IncomingMessage(
     val contactState: ContactState,
     /** The sender's safety number changed and the user has not accepted it yet (PROTOCOL.md §5). */
     val identityChanged: Boolean,
+    /**
+     * The `sender_username` that came with this very message, checked against the directory
+     * (§6.3); `null` when the message carried none. Unlike [senderUsername] it is never a name
+     * known from before, so the §6.4 rules that hinge on "the message carried `sender_username`"
+     * read it (audit 2026-10-28 M-9).
+     */
+    val verifiedSenderUsername: Username? = null,
 )
 
-/** Receives decrypted messages. The envelope is acknowledged only after this returns normally. */
+/**
+ * Receives decrypted messages. The envelope is acknowledged only after this returns normally.
+ * Throw an [java.io.IOException] when the local store is unavailable (the message waits for the
+ * next connection); any other exception counts as a failed attempt for that envelope, which is
+ * dropped and acknowledged after [Messenger.MAX_HANDLER_ATTEMPTS] of them.
+ */
 fun interface MessageHandler {
     suspend fun onMessage(message: IncomingMessage)
 }

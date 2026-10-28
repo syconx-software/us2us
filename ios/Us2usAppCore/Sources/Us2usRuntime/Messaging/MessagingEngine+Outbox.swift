@@ -176,6 +176,10 @@ extension MessagingEngine {
                 switch result {
                 case .sent:
                     try tx.outbox.markSent(entry.id, now: now)
+                    // §6.4: our outgoing request now exists on the other phone (M-9).
+                    if case .data(let data) = entry.content.body, Self.opensRequest(data) {
+                        try tx.contacts.markRequestSent(to: entry.recipient, now: now)
+                    }
                 case .retry(let code, let retryAfter):
                     var policy = configuration.retryPolicy
                     if let retryAfter {

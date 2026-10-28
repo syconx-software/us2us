@@ -691,24 +691,24 @@ private fun OwnRowView(
     onSettings: () -> Unit,
 ) {
     when (row) {
-        is LiveLocationMapModel.OwnRow.Sharing -> Row(
-            Modifier.fillMaxWidth().padding(RowPadding),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OwnAvatar(model)
-            RowText(
-                title = stringResource(R.string.conversation_livemap_sharing),
-                detail = stringResource(R.string.common_location_live_remaining, LiveLocationMapModel.minutesLeft(row.share.expiresAt, now)),
-                detailStyle = U2TextStyles.monoFileMeta,
-                modifier = Modifier.weight(1f),
-            )
-            U2InlinePillButton(
-                stringResource(R.string.conversation_livemap_stop),
-                onClick = { onStop(row.share) },
-                modifier = Modifier.testTag(LiveMapTags.STOP),
-            )
-        }
+        is LiveLocationMapModel.OwnRow.Sharing -> TrailingActionRow(
+            leading = { OwnAvatar(model) },
+            text = { modifier ->
+                RowText(
+                    title = stringResource(R.string.conversation_livemap_sharing),
+                    detail = stringResource(R.string.common_location_live_remaining, LiveLocationMapModel.minutesLeft(row.share.expiresAt, now)),
+                    detailStyle = U2TextStyles.monoFileMeta,
+                    modifier = modifier,
+                )
+            },
+            action = {
+                U2InlinePillButton(
+                    stringResource(R.string.conversation_livemap_stop),
+                    onClick = { onStop(row.share) },
+                    modifier = Modifier.testTag(LiveMapTags.STOP),
+                )
+            },
+        )
         LiveLocationMapModel.OwnRow.Device, LiveLocationMapModel.OwnRow.Locating -> Row(
             Modifier.fillMaxWidth().padding(RowPadding),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -756,22 +756,57 @@ private fun RowText(title: String, detail: String, detailStyle: U2TextStyle, mod
 @Composable
 private fun PermissionRow(message: String, buttonTitle: String, onClick: () -> Unit) {
     val colors = U2Theme.colors
-    Row(
-        Modifier.fillMaxWidth().padding(RowPadding),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(AvatarSize.Header.diameter), contentAlignment = Alignment.Center) {
-            PhosphorIcon(PhosphorGlyph.NavigationArrow, 20.dp, tint = colors.accent300)
+    TrailingActionRow(
+        leading = {
+            Box(Modifier.size(AvatarSize.Header.diameter), contentAlignment = Alignment.Center) {
+                PhosphorIcon(PhosphorGlyph.NavigationArrow, 20.dp, tint = colors.accent300)
+            }
+        },
+        text = { modifier -> U2Text(message, U2TextStyles.captionTighter, color = colors.textSecondary, modifier = modifier) },
+        action = {
+            U2TextButton(
+                title = buttonTitle,
+                onClick = onClick,
+                tone = U2TextButtonTone.Accent,
+                height = U2Size.iconButtonSheet,
+                fillsWidth = false,
+                modifier = Modifier.testTag(LiveMapTags.PERMISSION),
+            )
+        },
+    )
+}
+
+/**
+ * Leading mark, text and an action on one row as drawn. With a large system font the action moves
+ * under the text (aligned to its end), so the text keeps the row's width instead of wrapping a
+ * word or a letter per line.
+ */
+@Composable
+private fun TrailingActionRow(
+    leading: @Composable () -> Unit,
+    text: @Composable (Modifier) -> Unit,
+    action: @Composable () -> Unit,
+) {
+    if (LocalDensity.current.fontScale < STACKED_FONT_SCALE) {
+        Row(
+            Modifier.fillMaxWidth().padding(RowPadding),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            leading()
+            text(Modifier.weight(1f))
+            action()
         }
-        U2Text(message, U2TextStyles.captionTighter, color = colors.textSecondary, modifier = Modifier.weight(1f))
-        U2TextButton(
-            title = buttonTitle,
-            onClick = onClick,
-            tone = U2TextButtonTone.Accent,
-            height = U2Size.iconButtonSheet,
-            fillsWidth = false,
-            modifier = Modifier.testTag(LiveMapTags.PERMISSION),
-        )
+    } else {
+        Column(Modifier.fillMaxWidth().padding(RowPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                leading()
+                text(Modifier.weight(1f))
+            }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) { action() }
+        }
     }
 }
+
+/** From this system font size the live-map rows put their action under the text. */
+private const val STACKED_FONT_SCALE = 1.3f

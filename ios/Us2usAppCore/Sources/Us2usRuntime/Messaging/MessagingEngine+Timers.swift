@@ -102,18 +102,31 @@ extension MessagingEngine {
     /// and a changed identity key is still flagged. A blocked contact keeps
     /// only the block: deleting is not unblocking, and 7.1 › Engellenenler
     /// still lists it.
-    public func deleteContact(_ peer: AccountId) throws {
+    ///
+    /// A deleted contact that held our access key loses it: the key is
+    /// rotated (as for a block) and the new one goes to every other accepted
+    /// contact. It can still write again, but only as a stranger does, with
+    /// proof-of-work, so its messages arrive as a new request and count
+    /// against the relay's request share of the mailbox, not the contacts'
+    /// share (audit 2026-10-28 L-2 / M-1). Trade-off: until the new key
+    /// reaches them, other contacts' sends fall back to proof-of-work.
+    public func deleteContact(_ peer: AccountId) async throws {
         let now = clock.now()
-        try write { tx in
-            guard let state = try tx.contacts.requestState(of: peer) else { throw EngineError.unknownContact }
+        let heldOurKey = try write { tx -> Bool in
+            guard let contact = try tx.contacts.get(peer) else { throw EngineError.unknownContact }
             let conversation = try tx.conversations.forContact(peer)
             if let conversation { forgetNotices(of: conversation.id) }
-            if state == .blocked {
+            if contact.requestState == .blocked {
                 if let conversation { _ = try storage.wipeConversation(conversation.id, reason: .requested, now: now) }
                 try tx.contacts.stripToBlock(peer)
-            } else {
-                try tx.contacts.removeKeepingSession(peer)
+                return false
             }
+            try tx.contacts.removeKeepingSession(peer)
+            return contact.ourAccessKeySent != nil
+        }
+        if heldOurKey {
+            runtime.pendingAccessKeyRotation = true
+            saveRuntime()
         }
         forgetTransientState(of: peer)
         presence.forget(peer)
@@ -122,6 +135,8 @@ extension MessagingEngine {
         emit(.wiped(peer))
         emit(.conversations)
         emit(.presence)
+        // Retried after every connection until the relay took the new key, like a block's.
+        if heldOurKey { await rotateAccessKeyIfPending() }
     }
 
     /// What memory still holds about a deleted conversation: typing and

@@ -79,10 +79,12 @@ class MigrationAndCrashTest {
     }
 
     @Test
-    fun theLatestSchemaIsVersion10WithKeySlottedCommunities() {
-        assertEquals(10, Schema.latestVersion)
+    fun theLatestSchemaIsVersion11WithKeySlottedCommunities() {
+        assertEquals(11, Schema.latestVersion)
         val database = rawDatabase(File(temporary.newFolder(), "main.sqlite"))
         database.read { connection ->
+            val contactColumns = connection.query("PRAGMA table_info(contacts)").map { it.text("name") }
+            assertTrue("an outgoing request records when it was first sent (M-9)", "request_sent_at" in contactColumns)
             val columns = connection.query("PRAGMA table_info(community_states)").map { it.text("name") }
             assertTrue("a community has its own key slot", "slot_id" in columns)
             val bodyType = connection.query("PRAGMA table_info(community_messages)").first { it.text("name") == "body" }.text("type")
@@ -93,6 +95,25 @@ class MigrationAndCrashTest {
             assertTrue("pointers and tokens are sealed items", sealed.size == 2 && sealed.all { it.text("type") == "BLOB" })
         }
         database.close()
+    }
+
+    @Test
+    fun aVersion10DatabaseKeepsItsOutgoingRequestsAnswerable() {
+        // M-9: rows from before v11 are treated as sent, so an ACCEPT still ends them after the upgrade.
+        val file = File(temporary.newFolder(), "main.sqlite")
+        val old = EncryptedDatabase.open(file, ByteArray(32), Schema.migrations.take(10), PlainSqlDriver)
+        old.write { connection ->
+            val insert = "INSERT INTO contacts (account, request_state, created_at) VALUES (?, ?, ?)"
+            connection.run(insert, ByteArray(16) { 1 }, "outgoingRequest", 1_760_000_000_000L)
+            connection.run(insert, ByteArray(16) { 2 }, "accepted", 1_760_000_000_001L)
+        }
+        old.close()
+        val upgraded = rawDatabase(file)
+        upgraded.read { connection ->
+            assertEquals(1_760_000_000_000L, connection.scalar("SELECT request_sent_at FROM contacts WHERE request_state = 'outgoingRequest'"))
+            assertNull(connection.queryOne("SELECT request_sent_at FROM contacts WHERE request_state = 'accepted'")!!.long("request_sent_at"))
+        }
+        upgraded.close()
     }
 
     @Test

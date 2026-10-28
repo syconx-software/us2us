@@ -64,6 +64,7 @@ import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.common.ChatDeletionAnnouncementRegion
 import com.syconx.us2us.ui.common.ChatRowActions
 import com.syconx.us2us.ui.common.ChatDeletion
+import com.syconx.us2us.ui.env.LocalHaptics
 import com.syconx.us2us.ui.common.ChatDeletionSheet
 import com.syconx.us2us.ui.common.ChatRowMenu
 import com.syconx.us2us.ui.common.chatDeletionAccessibilityActions
@@ -379,7 +380,9 @@ internal fun ChatsView(modifier: Modifier = Modifier) {
     U2Sheet(item = invite, onDismissRequest = { invite = null }) { presentation ->
         key(presentation.id) { InviteSheetContent(presentation.debug, onClose = { invite = null }) }
     }
-    ChatDeletionSheet(deletion, onConfirm = { chosen -> scope.launch { messenger.perform(chosen) } }, onDismiss = { deletion = null })
+    val haptics = LocalHaptics.current
+    // The same confirmation as the contact screen's: a success tap once the chat or contact is gone.
+    ChatDeletionSheet(deletion, onConfirm = { chosen -> scope.launch { if (messenger.perform(chosen)) haptics.success() } }, onDismiss = { deletion = null })
     // 6.2 from 4.1: a match adds and verifies; “Sohbete dön” pushes 5.1 under the fading cover.
     U2FadeCover(isPresented = showsScanner, onEscape = { showsScanner = false }) {
         screens.QrScan(QrScanMode.AddContact, onDismiss = { showsScanner = false }, modifier = Modifier)

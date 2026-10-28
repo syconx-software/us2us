@@ -311,6 +311,8 @@ class MessagingEngineTest {
         engine.send(OutgoingContent.Text("hey bob"), bob)
         eventually { backend.sent(bob).isNotEmpty() }
         assertEquals(ContactState.OUTGOING_REQUEST, backend.sent(bob)[0].requestState)
+        // Only a request the relay took can be accepted (M-9).
+        eventually { fixture.storage.read { it.contacts.requestSent(bob) } }
         // Bob accepts and sends his key.
         fixture.receive(acceptContent(), bob)
         assertEquals(ContactState.ACCEPTED, fixture.contact(bob)?.requestState)
@@ -330,6 +332,7 @@ class MessagingEngineTest {
         backend.register("bob_99", bob)
         engine.startConversation(Username("bob_99"))
         engine.send(OutgoingContent.Text("hey bob"), bob)
+        eventually { fixture.storage.read { it.contacts.requestSent(bob) } }
         // Bob wrote first too: his request carries his username.
         fixture.receive(textContent("hey you"), bob, username = "bob_99")
         assertEquals(ContactState.ACCEPTED, fixture.contact(bob)?.requestState)

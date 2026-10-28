@@ -3,6 +3,7 @@ package com.syconx.us2us.feature.chats
 import androidx.compose.ui.test.*
 import com.syconx.us2us.domain.*
 import com.syconx.us2us.shot.ShotHost
+import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.theme.U2Theme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,7 @@ import org.robolectric.annotation.GraphicsMode
 class CommunitiesInteractionTest {
     @get:Rule val host = ShotHost()
     /** A hang fails the test instead of blocking the run. */
-    @get:Rule val deadline = Deadline(seconds = 120)
+    @get:Rule val deadline = Deadline(seconds = if (com.syconx.us2us.shot.UxMatrix.enabled) 1_800 else 120)
     private val service = CommunityFixture()
     private val opened = mutableListOf<String>()
     private val screen get() = host.compose.onNodeWithTag(CommunityTags.SCREEN)
@@ -150,6 +151,66 @@ class CommunitiesInteractionTest {
             open(lang)
             host.capture("communities_directory")
         }
+    }
+
+    /** The review matrix (`UX_PHASE`): the directory, a search with its result, the create and join forms, a roster warning and an error. */
+    @Test fun uxScenes() {
+        org.junit.Assume.assumeTrue(com.syconx.us2us.shot.UxMatrix.enabled)
+        val res = { id: Int -> org.robolectric.RuntimeEnvironment.getApplication().getString(id) }
+        val missed = mutableListOf<String>()
+        for (variant in com.syconx.us2us.shot.UxMatrix.variants) {
+            fun show() {
+                host.render(variant.theme, variant.lang, variant.options()) { U2Theme { CommunitiesScreen(service, onClose = {}, onOpen = {}) } }
+                host.advance(400)
+            }
+            // By its semantics action: no scrolling, which waits on the paused clock.
+            fun press(text: String) {
+                host.compose.onAllNodes(hasText(text) and hasClickAction()).onLast().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+                host.advance(1_000)
+            }
+            // A list item further down a short screen is brought in by index, at once.
+            fun reveal(matcher: SemanticsMatcher) {
+                var index = 0
+                while (host.compose.onAllNodes(matcher).fetchSemanticsNodes().isEmpty() && index < 10) {
+                    runCatching { screen.performScrollToIndex(++index) }
+                    host.advance(100)
+                }
+            }
+            fun scene(name: String, steps: () -> Unit) {
+                runCatching { steps(); host.captureUx(name, variant) }.onFailure { missed += "${variant.folder} $name: ${it.message?.lineSequence()?.firstOrNull()}" }
+            }
+            service.groups = listOf(service.owned, service.pending, service.joined)
+            service.warning = false
+            scene("communities_directory") { show() }
+            scene("communities_search") {
+                reveal(hasSetTextAction())
+                host.compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("Stu")
+                host.advance(800)
+                reveal(hasText(res(R.string.community_request)) and hasClickAction())
+            }
+            scene("communities_join_form") { press(res(R.string.community_request)) }
+            scene("communities_create_form") {
+                show()
+                reveal(hasText(res(R.string.community_create)) and hasClickAction())
+                press(res(R.string.community_create))
+            }
+            scene("communities_withdraw_confirm") {
+                show()
+                press(res(R.string.community_withdraw))
+            }
+            scene("communities_empty_warning") {
+                service.groups = emptyList()
+                service.warning = true
+                show()
+            }
+            scene("communities_error") {
+                service.warning = false
+                service.failNext = true
+                show()
+                host.advance(10_100)
+            }
+        }
+        println("scenes not shot:\n" + missed.joinToString("\n"))
     }
 
     /** Interrupts the test thread once [seconds] have passed, so a test that never settles fails. */

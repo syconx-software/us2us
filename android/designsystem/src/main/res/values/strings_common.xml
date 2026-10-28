@@ -36,6 +36,10 @@
     <string name="common_a11y_keypad_faceid">Unlock with Face ID</string>
     <!-- a11y.media.open -->
     <string name="common_a11y_media_open">Open</string>
+    <!-- a11y.messageDeletedForEveryone — VoiceOver announcement after “Herkesten sil” is confirmed. -->
+    <string name="common_a11y_messagedeletedforeveryone">Message deleted for everyone.</string>
+    <!-- a11y.messageDeletedForMe — VoiceOver announcement after “Benden sil”. -->
+    <string name="common_a11y_messagedeletedforme">Message deleted from this phone.</string>
     <!-- a11y.myCode — VoiceOver label of the own QR code. -->
     <string name="common_a11y_mycode">Your QR code</string>
     <!-- a11y.newChat -->
@@ -116,6 +120,14 @@
     <string name="common_close">Close</string>
     <!-- common.save -->
     <string name="common_save">Save</string>
+    <!-- community.rejectAll — Community management (owner): rejects every pending join request at once; shown with two or more requests. Also the Android generator's common_community_rejectall. -->
+    <string name="common_community_rejectall">Reject all</string>
+    <!-- community.rejectAll.confirm — The confirmation of “Tümünü reddet”: its destructive button. -->
+    <string name="common_community_rejectall_confirm">Reject all</string>
+    <!-- community.rejectAll.message — The confirmation of “Tümünü reddet”: what happens. -->
+    <string name="common_community_rejectall_message">Everyone waiting is turned away, and invitations they used stop working. They can ask again later.</string>
+    <!-- community.rejectAll.title — The confirmation of “Tümünü reddet”: its title. -->
+    <string name="common_community_rejectall_title">Reject all join requests?</string>
     <!-- composer.placeholder -->
     <string name="common_composer_placeholder">Message</string>
     <!-- delete.chat — 4.1 long press on a chat and the contact screen's “…” menu: deletes the chat's messages and media on this phone; the contact stays. -->
@@ -124,7 +136,7 @@
     <string name="common_delete_chat_message">Messages and media are deleted from this phone only and can\'t be recovered. Nothing is sent to them; the chat stays on their phone.</string>
     <!-- delete.chat.title %@ — Confirmation title before deleting a chat. %@ = the name the chat shows. -->
     <string name="common_delete_chat_title">Delete the chat with %s?</string>
-    <!-- delete.contact — 4.1 long press on a chat and the contact screen's “…” menu: deletes the chat and the contact on this phone, without blocking it. -->
+    <!-- delete.contact — 4.1 long press on a chat and the contact screen's “…” menu: deletes the chat, the contact and its security details on this phone. -->
     <string name="common_delete_contact">Delete contact</string>
     <!-- delete.contact.message — Confirmation text before deleting a contact: on this phone only; nothing is sent and the contact is not blocked: a message from them later appears as a new request (PROTOCOL §6.4). -->
     <string name="common_delete_contact_message">The chat, its messages and media are deleted from this phone only and can\'t be recovered. Nothing is sent to them and they are not blocked: if they write again, they appear as a new request.</string>
@@ -248,6 +260,10 @@
     <string name="common_request_delete">Delete</string>
     <!-- request.title -->
     <string name="common_request_title">Message request</string>
+    <!-- security.deviceProtection.basic — Android only (7.1 › Security footnote, red): the vault could not use the phone's secure hardware (vault v1, or a software key store). iOS never shows it: its vault is always bound to the Secure Enclave. -->
+    <string name="common_security_deviceprotection_basic">Device protection: basic. This phone\'s secure hardware could not be set up to guard your secret code, so the code is protected by this phone\'s stored key only. Keep a screen lock and Android up to date; the app tries again every time you unlock with your code.</string>
+    <!-- security.deviceProtection.limited — Android only (7.1 › Security footnote, below Android 15): the hardware key also works while the phone is locked. iOS never shows it. -->
+    <string name="common_security_deviceprotection_limited">Device protection: hardware. On this Android version the hardware key that guards your secret code also works while the phone is locked. From Android 15 it works only after the phone is unlocked.</string>
     <!-- status.delivered -->
     <string name="common_status_delivered">Delivered</string>
     <!-- status.delivered.legend -->

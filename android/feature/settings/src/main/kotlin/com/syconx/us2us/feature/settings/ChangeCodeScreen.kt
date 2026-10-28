@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.env.currentSafeArea
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -47,6 +48,9 @@ import com.syconx.us2us.ui.components.CodeDots
 import com.syconx.us2us.ui.components.CodeDotsAppearance
 import com.syconx.us2us.ui.components.FaceIdGlyph
 import com.syconx.us2us.ui.components.NumericKeypad
+import com.syconx.us2us.ui.components.NumericKeypadMetrics
+import com.syconx.us2us.ui.components.KeypadScreenLayout
+import com.syconx.us2us.ui.components.U2LiveAnnouncement
 import com.syconx.us2us.ui.components.SetupHeader
 import com.syconx.us2us.ui.components.U2GlassIconButton
 import com.syconx.us2us.ui.components.text.SetupTitle
@@ -412,7 +416,12 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
 
     val fade = U2Transitions.fade()
     U2Screen(modifier.testTag(ChangeCodeTags.SCREEN)) {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // The keypad takes the room the step leaves, shrinking on a short screen (scrolling only past that).
+        KeypadScreenLayout(
+            Modifier.fillMaxSize(),
+            minimumBottom = NumericKeypadMetrics.minimumHeight + currentSafeArea.bottom(56.dp),
+            top = {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (vm.purpose == ChangeCodeModel.Purpose.EnableBiometrics) {
                 // One step: the setup header's back button, without a counter.
                 Row(
@@ -450,11 +459,10 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
                     }
                 }
             }
-            Spacer(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 12.dp),
-            )
+            Spacer(Modifier.height(12.dp))
+        }
+            },
+            bottom = {
             NumericKeypad(
                 onDigit = vm::type,
                 onDelete = vm::deleteLast,
@@ -463,7 +471,8 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
                     .u2Bottom(56.dp)
                     .testTag(ChangeCodeTags.KEYPAD),
             )
-        }
+            },
+        )
     }
 }
 
@@ -577,7 +586,13 @@ private fun MessageView(message: ChangeCodeModel.Message, vm: ChangeCodeModel, m
             val remaining = java.time.Duration.between(now, message.until).toKotlinDuration()
             val ended = !remaining.isPositive()
             LaunchedEffect(ended) { if (ended) vm.throttleEnded() }
-            Sentence(stringResource(R.string.settings_code_throttled, U2Format.minutesSeconds(remaining)), modifier)
+            val sentence = stringResource(R.string.settings_code_throttled, U2Format.minutesSeconds(remaining))
+            val first = remember(message.until) { sentence }
+            // The wait counts down every second: said once, not at every tick.
+            Box(contentAlignment = Alignment.TopCenter) {
+                Sentence(sentence, modifier, live = false)
+                U2LiveAnnouncement(first, Modifier.align(Alignment.TopStart))
+            }
         }
         ChangeCodeModel.Message.Weak -> Sentence(stringResource(R.string.settings_code_weak), modifier)
         ChangeCodeModel.Message.SameAsCurrent -> Sentence(stringResource(R.string.settings_code_same), modifier)
@@ -589,12 +604,12 @@ private fun MessageView(message: ChangeCodeModel.Message, vm: ChangeCodeModel, m
 }
 
 @Composable
-private fun Sentence(text: String, modifier: Modifier) {
+private fun Sentence(text: String, modifier: Modifier, live: Boolean = true) {
     U2Text(
         text,
         U2TextStyles.calloutL,
         color = U2Theme.colors.danger,
         textAlign = TextAlign.Center,
-        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = if (live) modifier.semantics { liveRegion = LiveRegionMode.Polite } else modifier,
     )
 }

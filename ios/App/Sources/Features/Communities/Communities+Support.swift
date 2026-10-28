@@ -149,6 +149,8 @@ enum CommunityConfirmation: Identifiable, Equatable {
     case forget(CommunityID)
     case delete(CommunityID)
     case removeMember(String, name: String, in: CommunityID)
+    /// Owner: every pending join request at once.
+    case rejectAll(CommunityID)
 
     var id: String {
         switch self {
@@ -157,6 +159,7 @@ enum CommunityConfirmation: Identifiable, Equatable {
         case .forget(let id): "forget." + id
         case .delete(let id): "delete." + id
         case .removeMember(let member, _, let id): "remove." + id + "." + member
+        case .rejectAll(let id): "rejectAll." + id
         }
     }
 
@@ -168,6 +171,8 @@ enum CommunityConfirmation: Identifiable, Equatable {
         case .forget: return table.string("confirm.forget.title", locale: locale)
         case .delete: return table.string("confirm.delete.title", locale: locale)
         case .removeMember(_, let name, _): return table.string("confirm.remove.title \(name)", locale: locale)
+        // Shared with Android: the default table (Resources/Localizable.xcstrings).
+        case .rejectAll: return L10n.string("community.rejectAll.title", locale: locale)
         }
     }
 
@@ -178,6 +183,7 @@ enum CommunityConfirmation: Identifiable, Equatable {
         case .forget: Text("confirm.forget.message", table: .communities)
         case .delete: Text("confirm.delete.message", table: .communities)
         case .removeMember: Text("confirm.remove.message", table: .communities)
+        case .rejectAll: Text("community.rejectAll.message")
         }
     }
 
@@ -188,6 +194,7 @@ enum CommunityConfirmation: Identifiable, Equatable {
         case .forget: Text("action.forget", table: .communities)
         case .delete: Text("action.delete", table: .communities)
         case .removeMember: Text("action.removeMember", table: .communities)
+        case .rejectAll: Text("community.rejectAll.confirm")
         }
     }
 
@@ -195,7 +202,7 @@ enum CommunityConfirmation: Identifiable, Equatable {
         switch self {
         case .leave, .withdraw: .linkBreak
         case .forget, .delete: .trash
-        case .removeMember: .prohibit
+        case .removeMember, .rejectAll: .prohibit
         }
     }
 
@@ -207,6 +214,7 @@ enum CommunityConfirmation: Identifiable, Equatable {
         case .forget(let id): try await service.forget(id)
         case .delete(let id): try await service.delete(id)
         case .removeMember(let member, _, let id): try await service.removeMember(member, from: id)
+        case .rejectAll(let id): try await service.rejectAll(in: id)
         }
     }
 }

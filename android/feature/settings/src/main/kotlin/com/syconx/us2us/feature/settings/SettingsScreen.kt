@@ -52,6 +52,7 @@ import com.syconx.us2us.domain.AvatarPicture
 import com.syconx.us2us.domain.AvatarPresetCatalog
 import com.syconx.us2us.domain.AvatarSearchCopy
 import com.syconx.us2us.domain.Biometry
+import com.syconx.us2us.domain.DeviceProtection
 import com.syconx.us2us.domain.GhostPeriod
 import com.syconx.us2us.domain.PresenceVisibility
 import com.syconx.us2us.domain.RestoreAccessCheck
@@ -148,6 +149,7 @@ internal fun SettingsRootView(modifier: Modifier = Modifier) {
     val ownUsername by messenger.ownUsername.collectAsStateWithLifecycle()
     val accessShown by flow.restoreAccess.isShown.collectAsStateWithLifecycle()
     val blockedPeople by messenger.blockedPeople.collectAsStateWithLifecycle()
+    val deviceProtection by messenger.deviceProtection.collectAsStateWithLifecycle()
 
     var ownCode by remember { mutableStateOf<OwnCodePresentation?>(null) }
     var showsInvite by remember { mutableStateOf(false) }
@@ -372,6 +374,7 @@ internal fun SettingsRootView(modifier: Modifier = Modifier) {
                         modifier = Modifier.testTag(SettingsTags.CHANGE_CODE),
                     )
                 }
+                DeviceProtectionFootnote(deviceProtection)
                 GroupedSection(stringResource(R.string.settings_section_chats)) {
                     PickerRow(
                         PhosphorGlyph.Ghost,
@@ -700,4 +703,23 @@ internal data class AboutVersion(val name: String, val build: String) {
             return AboutVersion(name = info?.versionName ?: UNKNOWN, build = info?.longVersionCode?.toString() ?: UNKNOWN)
         }
     }
+}
+
+/**
+ * Under 7.1 › Güvenlik: what the phone's secure hardware adds to the secret code (PROTOCOL §5.2,
+ * audit 2026-10-28 M-6), said plainly when it is less than full; nothing when it is full.
+ */
+@Composable
+private fun DeviceProtectionFootnote(protection: DeviceProtection) {
+    val text = when (protection) {
+        DeviceProtection.Full -> return
+        DeviceProtection.Limited -> R.string.common_security_deviceprotection_limited
+        DeviceProtection.Basic -> R.string.common_security_deviceprotection_basic
+    }
+    U2Text(
+        stringResource(text),
+        U2TextStyles.footnote,
+        color = if (protection == DeviceProtection.Basic) U2Theme.colors.danger else U2Theme.colors.textSecondary,
+        modifier = Modifier.padding(horizontal = 16.dp).testTag(SettingsTags.DEVICE_PROTECTION),
+    )
 }

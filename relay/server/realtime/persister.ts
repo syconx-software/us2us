@@ -11,6 +11,8 @@ export interface PendingEnvelope {
   serverTimestamp: number
   body: Buffer
   acked: boolean
+  /** Authorized by proof-of-work (§4.6); stored as such and counted against the mailbox's share for it. */
+  viaPow?: boolean
   ackTimer?: NodeJS.Timeout
   /**
    * Set when a live session first takes the envelope. Past it, the envelope
@@ -23,6 +25,22 @@ export interface PendingEnvelope {
 export interface HeldUsage {
   count: number
   bytes: number
+  /** The part authorized by proof-of-work. */
+  powCount?: number
+  powBytes?: number
+}
+
+/** Adds (`sign` 1) or removes (-1) an envelope from a per-recipient usage map; empty entries go. */
+export function countHeld(map: Map<string, HeldUsage>, entry: PendingEnvelope, sign: 1 | -1): void {
+  const usage: HeldUsage = map.get(entry.recipientKey) ?? { count: 0, bytes: 0 }
+  usage.count += sign
+  usage.bytes += sign * entry.body.length
+  if (entry.viaPow) {
+    usage.powCount = (usage.powCount ?? 0) + sign
+    usage.powBytes = (usage.powBytes ?? 0) + sign * entry.body.length
+  }
+  if (usage.count <= 0) map.delete(entry.recipientKey)
+  else map.set(entry.recipientKey, usage)
 }
 
 const BATCH_SIZE = 100
@@ -141,7 +159,8 @@ export class EnvelopePersister {
 
   /** What is held for a recipient and not written yet. */
   held(recipientKey: string): HeldUsage {
-    return this.perRecipient.get(recipientKey) ?? { count: 0, bytes: 0 }
+    const usage = this.perRecipient.get(recipientKey)
+    return usage ? { ...usage } : { count: 0, bytes: 0 }
   }
 
   /** Bytes held for all recipients and not written yet. */
@@ -165,21 +184,13 @@ export class EnvelopePersister {
   private own(entry: PendingEnvelope): void {
     this.owned.set(entry.idKey, entry)
     this.totalBytes += entry.body.length
-    const usage = this.perRecipient.get(entry.recipientKey)
-    if (usage) {
-      usage.count++
-      usage.bytes += entry.body.length
-    } else {
-      this.perRecipient.set(entry.recipientKey, { count: 1, bytes: entry.body.length })
-    }
+    countHeld(this.perRecipient, entry, 1)
   }
 
   private disown(entry: PendingEnvelope): void {
     if (!this.owned.delete(entry.idKey)) return
     this.totalBytes -= entry.body.length
-    const usage = this.perRecipient.get(entry.recipientKey)!
-    if (--usage.count === 0) this.perRecipient.delete(entry.recipientKey)
-    else usage.bytes -= entry.body.length
+    countHeld(this.perRecipient, entry, -1)
   }
 
   private schedule(): void {
@@ -223,7 +234,7 @@ export class EnvelopePersister {
     this.writingRecipients = new Set(toWrite.map(entry => entry.recipientKey))
     const work = (async () => {
       try {
-        await this.mailbox.insert(toWrite.map(({ recipient, id, serverTimestamp, body }) => ({ recipient, id, serverTimestamp, body })))
+        await this.mailbox.insert(toWrite.map(({ recipient, id, serverTimestamp, body, viaPow }) => ({ recipient, id, serverTimestamp, body, viaPow })))
       } catch (error) {
         this.queue.unshift(...toWrite)
         throw error

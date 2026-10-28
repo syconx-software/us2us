@@ -45,6 +45,7 @@ internal class RealCommunitiesService(private val runtime: AppRuntime) : Communi
         it.approve(AccountId.parse(id), CommunityRequest(AccountId.parse(application.account), application.identity, application.createdAt))
     } }
     override suspend fun reject(id: String, account: String) { runtime.withCommunities { it.reject(AccountId.parse(id), AccountId.parse(account)) } }
+    override suspend fun rejectAll(id: String) { runtime.withCommunities { it.rejectAll(AccountId.parse(id)) } }
     override suspend fun remove(id: String, account: String) { runtime.withCommunities { it.removeMember(AccountId.parse(id), AccountId.parse(account)) } }
     override suspend fun invite(id: String) = runtime.withCommunities { it.invite(AccountId.parse(id)) }
     override suspend fun revokeInvites(id: String) { runtime.withCommunities { it.revokeInvites(AccountId.parse(id)) } }

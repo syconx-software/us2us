@@ -31,8 +31,11 @@ enum class DropReason {
     /** libsignal could not decrypt (no session, unknown pre-key, bad MAC, reused base key, ...). */
     DECRYPTION_FAILED,
 
-    /** Decrypted, but the padding or the `Content` protobuf is malformed. */
+    /** Decrypted, but the padding, the `Content` protobuf or its structure ([ContentRules]) is malformed. */
     INVALID_CONTENT,
+
+    /** The sender is blocked: dropped before decryption, so no session or identity is (re)created for it (§6.4). */
+    BLOCKED,
 }
 
 sealed interface ReceiveResult {
@@ -61,6 +64,8 @@ class MessageReceiver(
     private val sessions: SessionCrypto,
     private val verifier: SenderVerifier,
     private val cryptoLock: Mutex,
+    /** Whether messages from this account are dropped locally (blocked, §6.4). */
+    private val isBlocked: (AccountId) -> Boolean = { false },
 ) {
     /**
      * @throws java.io.IOException if sender verification needed the relay and it could not be
@@ -79,6 +84,9 @@ class MessageReceiver(
         }
         val sender = AccountId.fromBytes(sealed.senderAccountId.toByteArray())
         if (sender == localAccountId) return ReceiveResult.Dropped(DropReason.SELF_SENT)
+        // Audit 2026-10-28 L-18: a blocked sender's PreKey message would otherwise rebuild a session
+        // and an identity row the block removed. Nothing of it is decrypted or looked up.
+        if (isBlocked(sender)) return ReceiveResult.Dropped(DropReason.BLOCKED)
 
         val username = when {
             sealed.senderUsername.isEmpty() -> null
@@ -108,6 +116,8 @@ class MessageReceiver(
         } catch (_: InvalidPaddingException) {
             return ReceiveResult.Dropped(DropReason.INVALID_CONTENT)
         } catch (_: InvalidProtocolBufferException) {
+            return ReceiveResult.Dropped(DropReason.INVALID_CONTENT)
+        } catch (_: InvalidContentException) {
             return ReceiveResult.Dropped(DropReason.INVALID_CONTENT)
         } catch (_: Exception) {
             return ReceiveResult.Dropped(DropReason.DECRYPTION_FAILED)

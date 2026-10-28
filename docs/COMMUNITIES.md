@@ -7,6 +7,22 @@ the owner. Public discovery and private invitations both require approval.
 Extension v2 (below) adds photos, videos and files, delivery and read
 receipts, and delete for everyone, without changing anything else here.
 
+> **Change log**
+> * 2026-10-28: **relay limits and re-admission** (relay only, additive; no
+>   wire change for existing calls, no new error code). A leaver that the
+>   owner's next state still lists is no longer re-admitted by that state,
+>   even with a new pending request: only an account new to the roster is
+>   admitted, so taking a leaver back needs a state without it and then one
+>   with it. Pending requests expire after 14 days and one account may
+>   have at most 10 pending at a time; `DELETE /v1/communities/{id}/requests`
+>   rejects all pending requests at once. Inbox quotas gain a share per
+>   community (a quarter of the inbox) and per sender (8 MiB per community,
+>   1 000 envelopes / 16 MiB over all communities), and a daily delivery
+>   budget per sender and recipient. Retry tombstones are swept 72 hours
+>   after the send and never slow quota checks. A message ID re-sent with
+>   the current revision after a roster change replaces the obsolete row
+>   instead of conflicting for ever.
+
 ## Security and privacy boundary
 
 Message text is encrypted separately to each recipient through the existing
@@ -50,7 +66,7 @@ learns who left and when. Until the owner publishes the next revision, the
 signed roster still lists the leaver; other members keep encrypting to it
 and get the same answer as for a removed member. A member that left is
 never silently re-admitted: only a new pending request and an owner-signed
-state bring it back.
+state that adds it anew (after one that dropped it) bring it back.
 
 The relay verifies the owner's signature on every state it accepts, so a
 stolen auth token alone cannot rewrite or brick a roster; that needs the
@@ -163,16 +179,25 @@ format; community-specific codes are listed under Errors below.
 * `PUT /v1/communities/{id}/state` `{state,signature}` -> StateResponse, owner
   only, current+1 revision, valid owner signature. Membership follows the
   relay's own member set: an account in the new roster without transport
-  membership is admitted only with a pending request (otherwise 403), except
-  that an account already in the previous roster that left or was deleted may
-  stay listed without being re-admitted. Accounts dropped from the roster
+  membership is admitted only if it was not in the previous roster and has
+  an unexpired pending request (otherwise 403). An account already in the
+  previous roster that left or was deleted may stay listed, but is never
+  re-admitted by such a state, even if it has filed a new request (its
+  request stays pending); to take it back the owner signs a state without
+  it, then one with it (since 2026-10-28; before, an unrelated roster change
+  re-admitted it silently). Accounts dropped from the roster
   lose authorization atomically, with their queued mail and redeemed
   invitations. 409 `stale_version` for a stale revision, 409
   `community_full` for more than 100 members.
 * `POST /v1/communities/{id}/requests` `{}` -> 202 (public only). Idempotent
   pending request; an existing member gets success. Private requires redeem.
 * `GET /v1/communities/{id}/requests` -> `{requests:[{accountId,identityKey,
-  createdAt}]}`, owner only, at most 100 pending requests.
+  createdAt}]}`, owner only, at most 100 pending requests. A request expires
+  14 days after `createdAt`: it is no longer listed or admitted, and the
+  requester may request again (a new `createdAt`).
+* `DELETE /v1/communities/{id}/requests` -> 204, owner rejects every pending
+  request at once (and the invitations those accounts redeemed); 404 for
+  anyone else.
 * `DELETE /v1/communities/{id}/requests/{accountId}` -> 204, owner rejects
   (and the invitation that account redeemed, if any, is deleted).
 * `DELETE /v1/communities/{id}/requests/me` -> 204, the caller withdraws its
@@ -221,7 +246,10 @@ Transport is separate from the 1:1 mailbox:
   BEFORE sending. Maximum 99 recipients, bounded client concurrency. A 409
   requires refresh and recomputing recipients, never merely changing a header.
   The same group/sender/recipient/message ID and identical envelope is an
-  idempotent retry; different bytes or revision conflict. Text and all inner
+  idempotent retry; different bytes at the same revision conflict. A row of
+  an older revision (its body already dropped by the roster change) gives
+  way to a send of the same message ID at the current revision, which is
+  stored as a new delivery. Text and all inner
   IDs/revision must be checked by recipients (relay cannot inspect ciphertext).
 * `GET /v1/communities/inbox` -> `{envelopes:[{id,communityId,revision,
   serverTimestamp,envelope}],more:boolean}`, oldest first, <=100 envelopes,
@@ -254,8 +282,15 @@ Limits: 100 members (more is 409 `community_full`), 100 pending requests,
 acknowledged, not made obsolete by a new revision, and younger than 14 days.
 ACK retry tombstones and expired rows not swept yet never count. Per
 recipient over all communities: 10000 live envelopes and 50MiB of live
-ciphertext. Per community, sender and recipient: 500 live envelopes, so one
-member cannot fill another's inbox for everybody else. Either quota is 429
+ciphertext; of these, one community may hold at most 2500 envelopes and
+12.5MiB, and one sender at most 1000 envelopes and 16MiB over all
+communities. Per community, sender and recipient: 500 live envelopes and
+8MiB, so one member cannot fill another's inbox for everybody else.
+Pending requests: 100 per community and 10 per requesting account, each
+expiring after 14 days. Deliveries per sender and recipient over all
+communities: 5000 per day (each new delivery counts, also once it is
+acknowledged), then 429 `rate_limited`. Tombstones stay 72 hours after the
+send, long enough for a sender's retry, and are then swept. Either quota is 429
 `community_inbox_full` with `Retry-After` (seconds); it clears as the
 recipient fetches and acknowledges. Removing a member, a member leaving, and
 deleting an account delete the envelopes it sent as well as those sent to

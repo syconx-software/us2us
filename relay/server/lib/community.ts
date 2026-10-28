@@ -25,7 +25,7 @@ export const communityFull = () => new ApiError(409, 'community_full', 'communit
 const NAME_SPACE = '\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000'
 const NAME_EDGES = new RegExp(`^[${NAME_SPACE}]+|[${NAME_SPACE}]+$`, 'gu')
 /** C0/C1 controls, and bidi marks, embeddings, overrides and isolates. */
-const NAME_FORBIDDEN = /[\u0000-\u001f\u007f-\u009f؜‎‏‪-‮⁦-⁩]/u
+const NAME_FORBIDDEN = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u
 
 /**
  * The community name rule (COMMUNITIES.md, spec/test-vectors/communities-names.json):

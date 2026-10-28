@@ -107,14 +107,16 @@ export class PreKeyStore {
    * Builds a bundle and consumes one EC and one Kyber one-time key. Each key
    * is handed out at most once even under concurrent fetches: the claim
    * locks the row it takes (see `claim`). Without a Kyber one-time key the
-   * Kyber last-resort key is returned and kept.
+   * Kyber last-resort key is returned and kept. With `oneTime` false (the
+   * target's budget of one-time keys is spent) nothing is consumed: the
+   * bundle has the signed and last-resort keys only, as when none are left.
    */
-  async claimBundle(accountId: Buffer): Promise<PreKeyBundle | null> {
+  async claimBundle(accountId: Buffer, oneTime = true): Promise<PreKeyBundle | null> {
     return this.database.transaction(async (tx) => {
       const [account] = await tx.select().from(accounts).where(eq(accounts.id, accountId)).limit(1)
       if (!account) return null
-      const ec = await claim(tx, accountId, PRE_KEY_EC)
-      const kyber = await claim(tx, accountId, PRE_KEY_KYBER)
+      const ec = oneTime ? await claim(tx, accountId, PRE_KEY_EC) : null
+      const kyber = oneTime ? await claim(tx, accountId, PRE_KEY_KYBER) : null
       return {
         registrationId: account.registrationId,
         identityKey: account.identityKey,

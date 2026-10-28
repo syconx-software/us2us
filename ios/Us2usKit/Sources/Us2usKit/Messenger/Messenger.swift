@@ -32,6 +32,19 @@ public enum DropReason: Error, Equatable, Sendable {
     case envelope(SealedEnvelopeError)
     case sender(SenderVerificationError)
     case session(SessionError)
+    /// The sender is blocked (§6.4): dropped right after the envelope was
+    /// opened, before any directory lookup or decryption, so no session or
+    /// identity is created again for it (audit 2026-10-28 L-18).
+    case blocked
+}
+
+/// Thrown by a `deliver` closure when the message could not be stored
+/// through no fault of its own (the vault locked, the store closed): the
+/// receive loop stops and the envelope waits at the relay, as it always did.
+/// Any other error from `deliver` counts as a failed attempt on that envelope
+/// (see ``Messenger/maxDeliveryAttempts``).
+public enum DeliveryDeferral: Error, Equatable, Sendable {
+    case storeUnavailable
 }
 
 public enum InboundResult: Sendable {
@@ -71,6 +84,10 @@ public actor Messenger {
     /// is pending any more.
     var tokenRotationRefused = false
     private var recentRelayIds = RecentIds(capacity: 2048)
+    /// Failed `deliver` attempts per relay id in this process (bounded).
+    private var deliveryFailures = AttemptCounter(capacity: 2048)
+    /// Accounts whose messages are dropped before decryption (blocked, §6.4).
+    private nonisolated let blockedSenders = Locked<@Sendable (AccountId) -> Bool>({ _ in false })
     /// Serializes every inbound decryption with the storing of its message,
     /// across the one-to-one and community mailboxes.
     public nonisolated let inboundTurn = InboundTurn()
@@ -111,7 +128,7 @@ public actor Messenger {
         let identity = try store.identityKeyPair(context: NullContext())
         let generator = PreKeyGenerator(store: store)
         let challenge = try await relay.powChallenge(for: .register)
-        let solution = try await ProofOfWork.solve(challenge)
+        let solution = try await ProofOfWork.solveRelayChallenge(challenge)
         let registration = RegistrationRequest(
             usernameHash: usernameHash,
             identityKey: identity.identityKey.serialize(),
@@ -556,15 +573,22 @@ public actor Messenger {
               state.id == envelope.communityId, state.revision == envelope.revision
         else { return .dropped(.session(.invalidContent)) }
         // The directory must agree with the roster; process() verifies the
-        // sealed sender against the same directory.
-        let registered: IdentityResponse?
+        // sealed sender against the same directory. Its cached answer is
+        // used (§6.3 "cache it"), asked again only when it differs from the
+        // roster, so a busy community costs no lookup per envelope (audit
+        // 2026-10-28 L-22).
+        var registered: Data?
         do {
-            registered = try await relay.identity(of: sender)
+            registered = try await verifier.directory.identityKey(of: sender, refresh: false)?.serialize()
+            if registered != member.identityKey {
+                registered = try await verifier.directory.identityKey(of: sender, refresh: true)?.serialize()
+            }
         } catch {
             return .retryLater("community sender lookup")
         }
-        guard registered?.identityKey == member.identityKey else { return .dropped(.session(.invalidContent)) }
-        let result = await process(envelope.relayEnvelope)
+        guard registered == member.identityKey else { return .dropped(.session(.invalidContent)) }
+        // Community membership is not a contact state: a block applies to one-to-one mail only.
+        let result = await process(envelope.relayEnvelope, droppingBlocked: false)
         if case .message(let message) = result {
             guard message.sender == sender,
                   (try? store.identity(for: sender.protocolAddress, context: NullContext())?.serialize()) == member.identityKey
@@ -603,7 +627,7 @@ public actor Messenger {
             relayAuthorization = .accessKey(key)
         case .proofOfWork:
             let challenge = try await relay.powChallenge(for: .message(to: recipient))
-            relayAuthorization = .proofOfWork(try await ProofOfWork.solve(challenge))
+            relayAuthorization = .proofOfWork(try await ProofOfWork.solveRelayChallenge(challenge))
         }
         return try await relay.sendMessage(
             envelope, to: recipient, authorization: relayAuthorization, ephemeral: ephemeral)
@@ -709,8 +733,11 @@ public actor Messenger {
     /// `destination`, then deletes the blob from the relay, as recipients
     /// must once a download is complete (§4.9). The download stops at the blob
     /// size the declared `size` implies (§7), so a lying sender cannot fill the
-    /// disk; sizes above 2^40 bytes are refused outright. `progress` hears
-    /// the fraction of the blob received (0…1) while it downloads.
+    /// disk; sizes above 2^40 bytes are refused outright, and so is a blob
+    /// above 1 GiB, which no relay stores (its `MEDIA_MAX_BYTES` cannot be
+    /// set higher; audit 2026-10-28 L-20): nothing is fetched or staged.
+    /// `progress` hears the fraction of the blob received (0…1) while it
+    /// downloads.
     public func downloadAttachment(
         _ attachment: BRPAttachment, to destination: URL, deleteFromRelay: Bool = true,
         progress: (@Sendable (Double) -> Void)? = nil
@@ -718,9 +745,10 @@ public actor Messenger {
         guard attachment.mediaID.count == RandomId.byteCount, attachment.size <= Self.maxAttachmentBytes else {
             throw AttachmentError.sizeMismatch
         }
+        let blobSize = AttachmentCipher.blobSize(forPlaintextSize: attachment.size)
+        guard blobSize <= Self.maxDownloadBlobBytes else { throw AttachmentError.sizeMismatch }
         let blobURL = configuration.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".blob")
         defer { try? FileManager.default.removeItem(at: blobURL) }
-        let blobSize = AttachmentCipher.blobSize(forPlaintextSize: attachment.size)
         var received: (@Sendable (UInt64) -> Void)?
         if let progress {
             received = { bytes in progress(blobSize > 0 ? min(1, Double(bytes) / Double(blobSize)) : 0) }
@@ -742,9 +770,26 @@ public actor Messenger {
 
     // MARK: Receiving (§5.4, §6.3)
 
+    /// How often `deliver` may fail on one envelope before it is dropped and
+    /// acknowledged. Each attempt after the first waits for a new connection.
+    public static let maxDeliveryAttempts = 3
+
+    /// Sets which senders are blocked (§6.4). Their one-to-one envelopes are
+    /// dropped (and acknowledged) right after opening: no directory lookup,
+    /// no decryption, so a PreKey message cannot rebuild the session and
+    /// identity row a block removed. The check must not throw; a store that
+    /// cannot answer should say `false` (the decryption then meets it too).
+    public nonisolated func dropMessages(from isBlocked: @escaping @Sendable (AccountId) -> Bool) {
+        blockedSenders.withLock { $0 = isBlocked }
+    }
+
     /// Opens, verifies and decrypts one envelope. Never throws: the result
     /// says whether to acknowledge.
     public func process(_ envelope: RelayEnvelope) async -> InboundResult {
+        await process(envelope, droppingBlocked: true)
+    }
+
+    private func process(_ envelope: RelayEnvelope, droppingBlocked: Bool) async -> InboundResult {
         let sealed: BRPSealedContent
         do {
             sealed = try SealedEnvelope.open(envelope.envelope, with: try store.identityKeyPair(context: NullContext()))
@@ -752,6 +797,11 @@ public actor Messenger {
             return .dropped(.envelope(error))
         } catch {
             return .retryLater("identity unavailable")
+        }
+        if droppingBlocked, let sender = AccountId(bytes: sealed.senderAccountID),
+            blockedSenders.withLock({ $0 })(sender)
+        {
+            return .dropped(.blocked)
         }
 
         let sender: VerifiedSender
@@ -862,6 +912,13 @@ public actor Messenger {
         case keep
     }
 
+    /// A `deliver` that throws ``DeliveryDeferral`` (or is cancelled) stops
+    /// the loop and leaves the envelope at the relay. Any other failure leaves
+    /// only that envelope there: the envelopes behind it are handled now, it is
+    /// tried again at the next connection, and after
+    /// ``maxDeliveryAttempts`` failures it is dropped and acknowledged, so
+    /// one message the app cannot take never blocks the mailbox (audit
+    /// 2026-10-28 H-1).
     private func handle(
         _ envelope: RelayEnvelope, deliver: @Sendable (IncomingMessage) async throws -> Void
     ) async throws -> Handling {
@@ -870,7 +927,17 @@ public actor Messenger {
             if recentRelayIds.contains(envelope.id) { return .discarded }
             switch await process(envelope) {
             case .message(let message):
-                try await deliver(message)
+                do {
+                    try await deliver(message)
+                } catch let error where error is DeliveryDeferral || error is CancellationError {
+                    throw error
+                } catch {
+                    guard deliveryFailures.record(envelope.id) >= Self.maxDeliveryAttempts else { return .keep }
+                    deliveryFailures.forget(envelope.id)
+                    recentRelayIds.insert(envelope.id)
+                    return .discarded
+                }
+                deliveryFailures.forget(envelope.id)
                 recentRelayIds.insert(envelope.id)
                 return .delivered
             case .dropped:
@@ -970,6 +1037,8 @@ public actor Messenger {
 extension Messenger {
     /// Larger declared attachment sizes are refused (§7 allows 2^40 as the bound).
     static let maxAttachmentBytes: UInt64 = 1 << 40
+    /// The largest blob any relay stores: `MEDIA_MAX_BYTES` cannot be set above 1 GiB.
+    static let maxDownloadBlobBytes: UInt64 = 1 << 30
 }
 
 /// Rotation rules for signed and Kyber last-resort pre-keys (§5).
@@ -1002,6 +1071,36 @@ enum PreKeyMaintenance {
             now.timeIntervalSince(newer.created) >= retention ? older.id : nil
         }
     }
+}
+
+/// Failed attempts per relay id, bounded: the oldest id is forgotten first.
+struct AttemptCounter {
+    private let capacity: Int
+    private var order: [String] = []
+    private var counts: [String: Int] = [:]
+
+    init(capacity: Int) {
+        self.capacity = capacity
+    }
+
+    /// Counts one more failure of `id`; returns the failures so far.
+    mutating func record(_ id: String) -> Int {
+        if let count = counts[id] {
+            counts[id] = count + 1
+            return count + 1
+        }
+        counts[id] = 1
+        order.append(id)
+        if order.count > capacity { counts[order.removeFirst()] = nil }
+        return 1
+    }
+
+    mutating func forget(_ id: String) {
+        guard counts.removeValue(forKey: id) != nil else { return }
+        order.removeAll { $0 == id }
+    }
+
+    func count(_ id: String) -> Int { counts[id] ?? 0 }
 }
 
 /// A bounded set of recently handled relay ids, for de-duplication (§4.7).

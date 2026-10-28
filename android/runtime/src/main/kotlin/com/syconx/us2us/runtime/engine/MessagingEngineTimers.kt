@@ -125,21 +125,33 @@ internal fun MessagingEngine.deleteConversationLocallyNow(peer: AccountId) {
  * (an identity change is still flagged); writing to the username again starts a new outgoing
  * request. A blocked contact keeps the block and nothing else, no session either (7.1 ›
  * Engellenenler still lists it).
+ *
+ * A deleted contact that held our access key loses it: the key is rotated (as for a block) and the
+ * new one goes to every other accepted contact. It can still write again, but only as a stranger
+ * does, with proof-of-work, so its messages arrive as a new request and count against the
+ * relay's request share of the mailbox, not the contacts' share (audit 2026-10-28 L-2 / M-1).
+ * Trade-off: until the new key reaches them, other contacts' sends fall back to proof-of-work.
  */
 internal suspend fun MessagingEngine.deleteContactNow(peer: AccountId) {
     val now = clock.now()
+    var heldOurKey = false
     val forgotten = write { tx ->
-        val state = tx.contacts.requestState(peer) ?: engineFailure(EngineError.UNKNOWN_CONTACT)
+        val contact = tx.contacts.get(peer) ?: engineFailure(EngineError.UNKNOWN_CONTACT)
         val conversation = tx.conversations.forContact(peer)
         conversation?.let { forgetNotices(it.id) }
-        if (state == ContactState.BLOCKED) {
+        if (contact.requestState == ContactState.BLOCKED) {
             conversation?.let { storage.wipeConversation(it.id, WipeReason.REQUESTED, now) }
             tx.contacts.stripToBlock(peer)
             false
         } else {
+            heldOurKey = contact.ourAccessKeySent != null
             tx.contacts.removeKeepingSession(peer)
             true
         }
+    }
+    if (heldOurKey) {
+        runtime = runtime.copy(pendingAccessKeyRotation = true)
+        saveRuntime()
     }
     presence.forget(peer)
     typing.remove(peer)
@@ -159,6 +171,8 @@ internal suspend fun MessagingEngine.deleteContactNow(peer: AccountId) {
         } catch (_: Exception) {
         }
     }
+    // Retried after every connection until the relay took the new key, like a block's.
+    if (heldOurKey) rotateAccessKeyIfPending()
 }
 
 // MARK: Notices

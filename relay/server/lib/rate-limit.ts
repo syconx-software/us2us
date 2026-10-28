@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from 'node:crypto'
 import { isIPv4, isIPv6 } from 'node:net'
 import type { Rate } from './config'
 
@@ -6,6 +7,8 @@ interface Bucket {
   updatedAt: number
   /** When the bucket will be full again; after that it carries no information. */
   fullAt: number
+  limit: number
+  windowMs: number
 }
 
 export type TakeResult = { ok: true } | { ok: false, retryAfterSeconds: number }
@@ -16,8 +19,11 @@ export type TakeResult = { ok: true } | { ok: false, retryAfterSeconds: number }
  * `limit / window`. One process owns all buckets, which is why the relay runs
  * as a single instance. Memory stays bounded: buckets that have refilled
  * completely carry no information and are swept, and when a flood of
- * distinct clients fills the map anyway, the oldest buckets are dropped
- * (those clients merely start over with a full bucket).
+ * distinct clients fills the map anyway, the buckets closest to full are
+ * dropped first (those clients merely start over with a full bucket). A
+ * bucket that has been drained, such as the failed-token budget of an
+ * address that is guessing tokens, goes last: touching many other keys
+ * cannot push it out, because each of those is nearly full.
  */
 export class RateLimiter {
   private readonly buckets = new Map<string, Bucket>()
@@ -56,7 +62,7 @@ export class RateLimiter {
   }
 
   private store(id: string, rate: Rate, tokens: number, now: number): void {
-    this.buckets.set(id, { tokens, updatedAt: now, fullAt: now + (rate.limit - tokens) * rate.windowMs / rate.limit })
+    this.buckets.set(id, { tokens, updatedAt: now, fullAt: now + (rate.limit - tokens) * rate.windowMs / rate.limit, limit: rate.limit, windowMs: rate.windowMs })
   }
 
   /** Drops buckets that have refilled completely. */
@@ -68,12 +74,17 @@ export class RateLimiter {
 
   /**
    * Frees at least a tenth of the capacity, so that a full map costs one
-   * sweep per many insertions instead of one per request.
+   * sweep per many insertions instead of one per request. What goes first
+   * is what is closest to full again: the share of its capacity it will
+   * have refilled now, so the most drained buckets stay.
    */
   private makeRoom(now: number): void {
     this.sweep(now)
     const target = Math.floor(this.maxBuckets * 0.9)
-    for (const id of this.buckets.keys()) {
+    if (this.buckets.size <= target) return
+    const fill = (bucket: Bucket) => Math.min(1, (bucket.tokens + (now - bucket.updatedAt) * bucket.limit / bucket.windowMs) / bucket.limit)
+    const order = [...this.buckets].sort(([, a], [, b]) => fill(b) - fill(a))
+    for (const [id] of order) {
       if (this.buckets.size <= target) break
       this.buckets.delete(id)
     }
@@ -100,6 +111,32 @@ export function ipRateKey(address: string): string {
     : headGroups
   const prefix = groups.slice(0, 4).map(group => group.toLowerCase().replace(/^0+(?=.)/, ''))
   return `${prefix.join(':')}::/64`
+}
+
+/**
+ * The key for limits that cover a whole site: an IPv6 /48 (what a site or a
+ * small provider is usually given), or the address itself for IPv4, whose
+ * addresses are scarce and often shared through NAT.
+ */
+export function ipPrefixRateKey(address: string): string {
+  const key = ipRateKey(address)
+  if (!key.endsWith('::/64')) return key
+  const groups = key.slice(0, -'::/64'.length).split(':')
+  return `${groups.slice(0, 3).join(':')}::/48`
+}
+
+/**
+ * A limiter key for a pair (such as recipient and client address) that is
+ * never written anywhere: a MAC under a key that exists only in this
+ * process, so the map of buckets does not hold the pair in clear, and
+ * nothing links the pair once the process ends or the bucket is swept.
+ */
+export class PairKeys {
+  private readonly key = randomBytes(32)
+
+  of(...parts: string[]): string {
+    return createHmac('sha256', this.key).update(parts.join('\u0000')).digest('base64url').slice(0, 22)
+  }
 }
 
 /**

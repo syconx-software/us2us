@@ -89,6 +89,9 @@ class RepositoryTest {
                 ContactState.OUTGOING_REQUEST,
                 tx.contacts.noteVerifiedMessage(MessageRequests.accessKeyUpdateContent(com.syconx.us2us.core.AccessKey(ByteArray(16) { 1 })), bob),
             )
+            // M-9: an ACCEPT ends only a request the relay took (a visible message answered 202).
+            assertEquals(ContactState.OUTGOING_REQUEST, tx.contacts.noteVerifiedMessage(accept(), bob))
+            tx.contacts.markRequestSent(bob, t0)
             assertEquals(ContactState.ACCEPTED, tx.contacts.noteVerifiedMessage(accept(), bob))
         }
     }

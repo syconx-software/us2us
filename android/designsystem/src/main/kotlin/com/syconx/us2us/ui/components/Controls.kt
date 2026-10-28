@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -139,9 +142,9 @@ fun U2Toggle(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The label takes what the switch leaves: a long subtitle wraps, the switch keeps its size.
         if (label != null) {
-            label()
-            Spacer(Modifier.weight(1f))
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { label() }
         }
         U2Switch(checked, enabled)
     }
@@ -163,11 +166,19 @@ fun U2Switch(checked: Boolean, enabled: Boolean = true, modifier: Modifier = Mod
         animationSpec = if (reduceMotion) U2Motion.reducedCrossFade.spec() else U2Motion.spring(),
         label = "toggleTrack",
     )
+    val offOutline by animateFloatAsState(
+        targetValue = if (checked) 0f else 1f,
+        animationSpec = if (reduceMotion) U2Motion.reducedCrossFade.spec() else U2Motion.spring(),
+        label = "toggleOutline",
+    )
     Box(
         modifier
             .size(U2Size.toggleWidth, U2Size.toggleHeight)
             .u2Opacity(if (enabled) 1f else U2Opacity.disabled)
             .background(track, CircleShape)
+            // Off, the track alone is too close to the card behind it (1.3–1.6 : 1); an outline in
+            // the secondary ink gives the switch a visible edge (WCAG 1.4.11), as Android's own does.
+            .u2InnerStroke(colors.textSecondary.copy(alpha = colors.textSecondary.alpha * offOutline), 1.dp, CircleShape)
             .padding(U2Size.togglePadding),
     ) {
         Box(
@@ -261,29 +272,67 @@ fun <T> SegmentedChips(
     title: @Composable (T) -> String,
 ) {
     val haptics = LocalHaptics.current
-    Row(
-        modifier.u2Opacity(if (enabled) 1f else U2Opacity.disabled),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        options.forEach { option ->
-            val selected = option == selection
-            SegmentChip(
-                title = title(option),
-                selected = selected,
-                enabled = enabled,
-                modifier = Modifier
-                    .weight(1f)
-                    .then(if (identifierPrefix != null) Modifier.testTag("$identifierPrefix.$option") else Modifier),
-            ) {
-                haptics.selection()
-                onSelect(option)
+    val titles = options.map { title(it) }
+    val measurer = rememberTextMeasurer()
+    val textStyle = U2TextStyles.chip.textStyle()
+    val gap = 6.dp
+    BoxWithConstraints(modifier.u2Opacity(if (enabled) 1f else U2Opacity.disabled)) {
+        val density = LocalDensity.current
+        val widths = remember(titles, textStyle) {
+            titles.map { measurer.measure(it, textStyle, softWrap = false, maxLines = 1).size.width }
+        }
+        fun chipWidth(columns: Int): Int = with(density) {
+            ((constraints.maxWidth - gap.roundToPx() * (columns - 1)) / columns.coerceAtLeast(1)) - SegmentChipMetrics.labelInset.roundToPx() * 2
+        }
+        // One row as drawn; when a label would have to shrink past 80 % (a large system font), the
+        // chips go on two rows (or more) instead of cutting “24 sa” to “24 …”.
+        var columns = options.size.coerceAtLeast(1)
+        while (columns > 1 && widths.any { it * SegmentChipMetrics.MIN_SCALE > chipWidth(columns) - with(density) { 3.dp.roundToPx() } }) columns--
+        // One factor for every chip (the longest title's), so the labels never differ in size.
+        val width = chipWidth(columns)
+        // A shrunk label is laid out again at its new size: a few pixels of slack keep the rounding
+        // from tipping it into an ellipsis.
+        val slack = with(density) { 3.dp.roundToPx() }
+        val factor = widths.minOfOrNull { natural ->
+            if (natural <= width || natural == 0) 1f else ((width - slack).toFloat() / natural).coerceAtLeast(SegmentChipMetrics.MIN_SCALE)
+        } ?: 1f
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            options.indices.chunked(columns).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    row.forEach { index ->
+                        val option = options[index]
+                        val selected = option == selection
+                        SegmentChip(
+                            title = titles[index],
+                            factor = factor,
+                            selected = selected,
+                            enabled = enabled,
+                            modifier = Modifier
+                                .weight(1f)
+                                .then(if (identifierPrefix != null) Modifier.testTag("$identifierPrefix.$option") else Modifier),
+                        ) {
+                            haptics.selection()
+                            onSelect(option)
+                        }
+                    }
+                    // A shorter last row keeps the chips' width.
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }
 }
 
+private object SegmentChipMetrics {
+    /** `minimumScaleFactor(0.8)`. */
+    const val MIN_SCALE = 0.8f
+
+    /** Kept clear inside a chip around its label (none: the label may use the chip's whole width, as drawn). */
+    val labelInset = 0.dp
+}
+
 @Composable
-private fun SegmentChip(title: String, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun SegmentChip(title: String, factor: Float, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val colors = U2Theme.colors
     val spec = u2Spec<Float>(U2Motion.micro)
     val progress by animateFloatAsState(if (selected) 1f else 0f, spec, label = "chipSelection")
@@ -291,7 +340,7 @@ private fun SegmentChip(title: String, selected: Boolean, enabled: Boolean, modi
     val shape = RoundedCornerShape(U2Radius.chip)
     Box(
         modifier
-            .height(40.dp)
+            .heightIn(min = 40.dp)
             .background(colors.accent900.copy(alpha = colors.accent900.alpha * progress), shape)
             .u2InnerStroke(colors.divider.copy(alpha = colors.divider.alpha * (1f - progress)), 1.dp, shape)
             .u2InnerStroke(colors.accent.copy(alpha = colors.accent.alpha * progress), 1.5.dp, shape)
@@ -299,24 +348,32 @@ private fun SegmentChip(title: String, selected: Boolean, enabled: Boolean, modi
             .semantics { this.selected = selected },
         contentAlignment = Alignment.Center,
     ) {
-        ShrinkingLabel(title, ink)
+        ShrinkingLabel(title, factor, ink)
     }
 }
 
-/** One line of `chip` text, shrunk down to 80 % when it does not fit (`minimumScaleFactor(0.8)`). */
+/**
+ * One line of `chip` text at [factor] of its size (`minimumScaleFactor(0.8)`, shared by the row).
+ * The factor applies on top of the system font size, which the label keeps following.
+ */
 @Composable
-private fun ShrinkingLabel(title: String, color: Color) {
-    val measurer = rememberTextMeasurer()
+private fun ShrinkingLabel(title: String, factor: Float, color: Color) {
     val style = U2TextStyles.chip
-    val textStyle = style.textStyle()
-    BoxWithConstraints(contentAlignment = Alignment.Center) {
-        val available = constraints.maxWidth
-        val factor = remember(title, textStyle, available) {
-            val natural = measurer.measure(title, textStyle, softWrap = false, maxLines = 1).size.width
-            if (natural <= available || natural == 0) 1f else (available.toFloat() / natural).coerceAtLeast(0.8f)
-        }
-        U2Text(title, if (factor < 1f) style.scaled(factor) else style, color = color, maxLines = 1, softWrap = false)
+    val fontScale = LocalDensity.current.fontScale
+    val shown = when {
+        factor >= 1f -> style
+        style.scalesWithFontSize -> style.scaled(factor * fontScale)
+        else -> style.scaled(factor)
     }
+    U2Text(
+        title,
+        shown,
+        Modifier.padding(horizontal = SegmentChipMetrics.labelInset),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 // MARK: - Count badge
