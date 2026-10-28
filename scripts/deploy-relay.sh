@@ -30,9 +30,10 @@ if [ -n "$prepare_only" ]; then
   exit 0
 fi
 
-# This is the user's private shell configuration, as in the preceding deploy tool.
-# shellcheck disable=SC1091
-[ ! -f "$here/scripts/deploy.local.env" ] || . "$here/scripts/deploy.local.env"
+# The operator's private settings, read as data (never executed) and only from a private file.
+# shellcheck source=deploy-local-env.sh
+. "$here/scripts/deploy-local-env.sh"
+us2us_read_local_env "$here/scripts/deploy.local.env"
 task_target="${US2US_DEPLOY_TARGET:?set US2US_DEPLOY_TARGET=user@host}"
 task_key="${US2US_DEPLOY_KEY:-$HOME/.ssh/us2us_deploy_ed25519}"
 task_root="${US2US_APP_ROOT:?set US2US_APP_ROOT=/path/on/server}"

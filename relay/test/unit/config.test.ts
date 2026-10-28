@@ -68,4 +68,44 @@ describe('loadConfig', () => {
     expect(problems({ RATE_LIMIT_EPHEMERAL: '200/min' })).toEqual([])
     expect(problems({ RATE_LIMIT_EPHEMERAL: 'off' })).toEqual([])
   })
+
+  it('applies the 2026-10-28 audit limits by default', () => {
+    const config = loadConfig(base)
+    expect(config).toMatchObject({
+      powDifficultyRegisterMax: 26,
+      powRegisterAdaptPerHour: 120,
+      mailboxPowMaxEnvelopes: 500,
+      mailboxPowMaxBytes: 8 * 1024 * 1024,
+      diskEnvelopeReserveBytes: 2048 * 1024 * 1024,
+      mediaStoredMaxBytes: 2048 * 1024 * 1024,
+      mediaStoredMaxNewBytes: 256 * 1024 * 1024,
+      newAccountDays: 7,
+      trustProxyFrom: ['127.0.0.1', '::1'],
+      trustProxyHeader: 'x-forwarded-for',
+    })
+    expect(config.rateLimits.registerGlobal).toEqual({ limit: 1000, windowMs: 3_600_000 })
+    expect(config.rateLimits.registerPrefix).toEqual({ limit: 20, windowMs: 3_600_000 })
+    expect(config.rateLimits.keyTarget).toEqual({ limit: 60, windowMs: 3_600_000 })
+    expect(config.rateLimits.sendPairPow).toEqual({ limit: 60, windowMs: 3_600_000 })
+    expect(config.rateLimits.sendPairBytes).toEqual({ limit: 32 * 1024 * 1024, windowMs: 3_600_000 })
+    expect(config.rateLimits.mediaBytesNew).toEqual({ limit: 512 * 1024 * 1024, windowMs: 86_400_000 })
+    expect(config.rateLimits.mediaBytesGlobal).toEqual({ limit: 24 * 1024 ** 3, windowMs: 86_400_000 })
+    expect(config.rateLimits.communityPair).toEqual({ limit: 5000, windowMs: 86_400_000 })
+    // A small mailbox gets a proportionally small proof-of-work share.
+    expect(loadConfig({ ...base, MAILBOX_MAX_ENVELOPES: '100', MAILBOX_MAX_BYTES: '1048576' })).toMatchObject({ mailboxPowMaxEnvelopes: 50, mailboxPowMaxBytes: 524_288 })
+  })
+
+  it('keeps at least half of every mailbox for access-key senders and checks the other new settings', () => {
+    expect(problems({ MAILBOX_POW_MAX_ENVELOPES: '5001' })).toEqual([expect.stringContaining('MAILBOX_POW_MAX')])
+    expect(problems({ MAILBOX_POW_MAX_BYTES: String(26 * 1024 * 1024) })).toEqual([expect.stringContaining('MAILBOX_POW_MAX')])
+    expect(problems({ MAILBOX_POW_MAX_ENVELOPES: '5000', MAILBOX_POW_MAX_BYTES: String(25 * 1024 * 1024) })).toEqual([])
+    expect(problems({ POW_DIFFICULTY_REGISTER: '24', POW_DIFFICULTY_REGISTER_MAX: '23' })).toEqual([expect.stringContaining('POW_DIFFICULTY_REGISTER_MAX')])
+    expect(problems({ POW_DIFFICULTY_REGISTER_MAX: '29' })).toEqual([expect.stringContaining('POW_DIFFICULTY_REGISTER_MAX')])
+    expect(problems({ MEDIA_STORED_MAX_NEW_MB: '4096' })).toEqual([expect.stringContaining('MEDIA_STORED_MAX_NEW_MB')])
+    expect(problems({ MEDIA_STORED_MAX_NEW_MB: '32' })).toEqual([expect.stringContaining('MEDIA_STORED_MAX_NEW_MB')])
+    expect(problems({ TRUST_PROXY_FROM: '127.0.0.1, nginx' })).toEqual([expect.stringContaining('TRUST_PROXY_FROM')])
+    expect(problems({ TRUST_PROXY_HEADER: 'forwarded' })).toEqual([expect.stringContaining('TRUST_PROXY_HEADER')])
+    expect(loadConfig({ ...base, TRUST_PROXY_FROM: '10.0.0.2, ::1', TRUST_PROXY_HEADER: 'X-Real-IP' }))
+      .toMatchObject({ trustProxyFrom: ['10.0.0.2', '::1'], trustProxyHeader: 'x-real-ip' })
+  })
 })

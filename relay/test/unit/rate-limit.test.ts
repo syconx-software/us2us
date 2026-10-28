@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ConcurrencyLimiter, ipRateKey, RateLimiter } from '../../server/lib/rate-limit'
+import { ConcurrencyLimiter, ipPrefixRateKey, ipRateKey, PairKeys, RateLimiter } from '../../server/lib/rate-limit'
 
 const perMinute = (limit: number) => ({ limit, windowMs: 60_000 })
 
@@ -73,6 +73,43 @@ describe('RateLimiter', () => {
     // The newest clients keep their buckets.
     expect(limiter.take('a', '999', perMinute(5), 4, 0).ok).toBe(true)
     expect(limiter.take('a', '999', perMinute(5), 1, 0).ok).toBe(false)
+  })
+})
+
+describe('RateLimiter eviction (audit M-3)', () => {
+  it('keeps a drained bucket while a flood of other keys fills the map, so a penalty cannot be pushed out', () => {
+    const limiter = new RateLimiter(100)
+    const authFail = perMinute(30)
+    // An address that used up its failed-token budget first ...
+    for (let i = 0; i < 30; i++) limiter.take('auth-fail', 'attacker', authFail, 1, 0)
+    expect(limiter.peek('auth-fail', 'attacker', authFail, 1, 0).ok).toBe(false)
+    // ... then touches far more keys than the map holds.
+    for (let i = 0; i < 10_000; i++) limiter.take('auth-fail', `other-${i}`, authFail, 1, 1000)
+    expect(limiter.size).toBeLessThanOrEqual(100)
+    expect(limiter.peek('auth-fail', 'attacker', authFail, 1, 1000).ok).toBe(false)
+  })
+})
+
+describe('ipPrefixRateKey', () => {
+  it('keys IPv6 by /48 and IPv4 by address', () => {
+    expect(ipPrefixRateKey('2001:db8:aa:1::1')).toBe('2001:db8:aa::/48')
+    expect(ipPrefixRateKey('2001:db8:aa:ffff:1:2:3:4')).toBe('2001:db8:aa::/48')
+    expect(ipPrefixRateKey('2001:db8::1')).toBe('2001:db8:0::/48')
+    expect(ipPrefixRateKey('203.0.113.9')).toBe('203.0.113.9')
+    expect(ipPrefixRateKey('::ffff:203.0.113.9')).toBe('203.0.113.9')
+  })
+})
+
+describe('PairKeys', () => {
+  it('derives a stable key per pair within a process, without the pair in clear, and another one in another process', () => {
+    const keys = new PairKeys()
+    const key = keys.of('recipient-hex', '198.51.100.1')
+    expect(keys.of('recipient-hex', '198.51.100.1')).toBe(key)
+    expect(keys.of('recipient-hex', '198.51.100.2')).not.toBe(key)
+    expect(keys.of('recipient-he', 'x198.51.100.1')).not.toBe(key)
+    expect(key).not.toContain('198.51')
+    expect(key).toMatch(/^[\w-]{22}$/)
+    expect(new PairKeys().of('recipient-hex', '198.51.100.1')).not.toBe(key)
   })
 })
 

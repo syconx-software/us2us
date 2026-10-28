@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { and, asc, eq, gt, inArray, like, lt, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like, lt, or, sql, type SQL } from 'drizzle-orm'
 import { isDuplicateKey, retryOnDeadlock, type Database, type Db } from '../db/client'
 import { accounts, communities, communityMembers as members, communityRequests as requests, communityInvites as invites, communityEnvelopes as envelopes } from '../db/schema'
 import { COMMUNITY_MAX_MEMBERS, COMMUNITY_TTL, communityFull, communitySearchPrefix, communitySummary, parseCommunityState,
@@ -7,22 +7,41 @@ import { COMMUNITY_MAX_MEMBERS, COMMUNITY_TTL, communityFull, communitySearchPre
 import { sha256 } from '../lib/crypto'
 import { encodeB64u, formatUuid } from '../lib/encoding'
 import { ApiError, accessDenied, badRequest, communityInboxFull, notFound, rateLimited, unavailable } from '../lib/errors'
+import type { TakeResult } from '../lib/rate-limit'
 import { lockAccount } from './accounts'
+
+const MiB = 1024 * 1024
+const HOUR = 3_600_000
 
 /** The limits of COMMUNITIES.md. */
 export const COMMUNITY_LIMITS = {
   owned: 20,
   memberships: 50,
+  /** Pending requests per community, and per requesting account over all communities. */
   pending: 100,
+  pendingPerAccount: 10,
+  /** A pending request the owner has not answered expires after this. */
+  requestTtlMs: 14 * 24 * HOUR,
   invites: 20,
   /** Live (stored, unexpired) envelopes and their bytes per recipient, over all communities. */
   inboxEnvelopes: 10_000,
-  inboxBytes: 50 * 1024 * 1024,
-  /** Live envelopes from one sender to one recipient in one community. */
+  inboxBytes: 50 * MiB,
+  /** One community's share of a recipient's live envelopes. */
+  communityEnvelopes: 2_500,
+  communityBytes: 12.5 * MiB,
+  /** One sender's share of a recipient's live envelopes, over all communities. */
+  senderAcrossEnvelopes: 1_000,
+  senderAcrossBytes: 16 * MiB,
+  /** Live envelopes and bytes from one sender to one recipient in one community. */
   senderEnvelopes: 500,
+  senderBytes: 8 * MiB,
+  /** Acknowledged or obsolete rows stay this long as retry tombstones (no body). */
+  tombstoneTtlMs: 72 * HOUR,
   pageEnvelopes: 100,
-  pageBytes: 1024 * 1024,
+  pageBytes: MiB,
 }
+
+const allowed: TakeResult = { ok: true }
 const SWEEP_BATCH = 1000
 /** Batches per sweep, so one run stays short even after a long outage; the next run continues. */
 const SWEEP_MAX_BATCHES = 50
@@ -39,7 +58,18 @@ type GroupRow = typeof communities.$inferSelect
  * row). A transaction InnoDB still picks as a deadlock victim is run again.
  */
 export class CommunityStore {
-  constructor(private readonly database: Database, private readonly reserveDisk: (bytes: number) => boolean = () => true) {}
+  constructor(
+    private readonly database: Database,
+    private readonly reserveDisk: (bytes: number) => boolean = () => true,
+    /** The daily delivery budget of a sender towards one recipient (tombstones included). */
+    private readonly takePair: (sender: Buffer, recipient: Buffer) => TakeResult = () => allowed,
+    /**
+     * Envelope ids. The relay passes ids that sort by arrival per recipient
+     * (envelope-id.ts), so that deliveries in the same millisecond keep
+     * their order in the inbox; random ids by default.
+     */
+    private readonly nextId: (recipient: Buffer, now: number) => Buffer = () => randomBytes(16),
+  ) {}
 
   async create(actor: Buffer, state: CommunityState, signature: Buffer) {
     if (!actor.equals(state.owner) || state.revision !== 1 || state.members.length !== 1) throw badRequest('initial community must contain only its owner at revision 1')
@@ -100,8 +130,11 @@ export class CommunityStore {
    * The owner's next signed state. Admission and removal follow the relay's
    * own membership, not only the previous roster: an account in the roster
    * that has no transport membership (it left, or was deleted) may stay
-   * listed or be dropped, but becomes a member again only through a new
-   * pending request.
+   * listed or be dropped, but is never admitted by a state that merely keeps
+   * it listed, even with a pending request (an unrelated roster change must
+   * not re-admit a leaver). Only an account that is new to the roster is
+   * admitted, and only with an unexpired pending request; to take a leaver
+   * back, the owner signs a state without it and then one with it.
    */
   async update(actor: Buffer, id: Buffer, state: CommunityState, signature: Buffer) {
     if (!id.equals(state.id)) throw badRequest('community ID mismatch')
@@ -120,8 +153,8 @@ export class CommunityStore {
       const current = new Set((await tx.select({ accountId: members.accountId }).from(members).where(eq(members.communityId, id))).map(m => hex(m.accountId)))
       const outside = state.members.filter(m => !current.has(hex(m.accountId)))
       const pending = new Set(outside.length === 0 ? [] : (await tx.select({ accountId: requests.accountId }).from(requests)
-        .where(and(eq(requests.communityId, id), inArray(requests.accountId, outside.map(m => m.accountId))))).map(r => hex(r.accountId)))
-      const admitted = outside.filter(m => pending.has(hex(m.accountId)))
+        .where(and(eq(requests.communityId, id), inArray(requests.accountId, outside.map(m => m.accountId)), liveRequest(Date.now())))).map(r => hex(r.accountId)))
+      const admitted = outside.filter(m => pending.has(hex(m.accountId)) && !signed.has(hex(m.accountId)))
       if (outside.some(m => !pending.has(hex(m.accountId)) && !signed.has(hex(m.accountId)))) throw accessDenied('new member needs a pending request')
       // Members are sorted, so account rows are locked in byte order.
       for (const member of admitted) {
@@ -159,7 +192,8 @@ export class CommunityStore {
     return this.transaction(async (tx) => {
       await this.ownerGroup(tx, id, actor)
       const rows = await tx.select({ accountId: requests.accountId, identityKey: accounts.identityKey, createdAt: requests.createdAt }).from(requests)
-        .innerJoin(accounts, eq(accounts.id, requests.accountId)).where(eq(requests.communityId, id)).orderBy(asc(requests.createdAt)).limit(COMMUNITY_LIMITS.pending)
+        .innerJoin(accounts, eq(accounts.id, requests.accountId)).where(and(eq(requests.communityId, id), liveRequest(Date.now())))
+        .orderBy(asc(requests.createdAt)).limit(COMMUNITY_LIMITS.pending)
       return { requests: rows.map(row => ({ accountId: formatUuid(row.accountId), identityKey: encodeB64u(row.identityKey), createdAt: row.createdAt })) }
     })
   }
@@ -170,6 +204,17 @@ export class CommunityStore {
       await tx.delete(requests).where(and(eq(requests.communityId, id), eq(requests.accountId, requester)))
       // Rejecting an invite request also prevents its same-account replay.
       await tx.delete(invites).where(and(eq(invites.communityId, id), eq(invites.redeemedBy, requester)))
+    })
+  }
+
+  /** The owner rejects every pending request at once (and the invitations they redeemed). */
+  async rejectAll(actor: Buffer, id: Buffer) {
+    await this.transaction(async (tx) => {
+      await this.ownerGroup(tx, id, actor)
+      const pending = (await tx.select({ accountId: requests.accountId }).from(requests).where(eq(requests.communityId, id))).map(row => row.accountId)
+      if (pending.length === 0) return
+      await tx.delete(requests).where(eq(requests.communityId, id))
+      await tx.delete(invites).where(and(eq(invites.communityId, id), inArray(invites.redeemedBy, pending)))
     })
   }
 
@@ -255,25 +300,30 @@ export class CommunityStore {
       }
       const [existing] = await tx.select().from(envelopes).where(and(eq(envelopes.communityId, id), eq(envelopes.sender, actor), eq(envelopes.recipient, recipient), eq(envelopes.messageId, messageId))).limit(1)
       if (existing) {
-        if (existing.revision !== revision || !existing.digest.equals(digest)) throw conflict('message ID already used with different ciphertext')
-        return { id: encodeB64u(existing.id), serverTimestamp: existing.serverTimestamp }
+        if (existing.revision === revision && existing.digest.equals(digest)) return { id: encodeB64u(existing.id), serverTimestamp: existing.serverTimestamp }
+        // A message re-encrypted for the current revision after a roster change keeps its ID; the
+        // row of the obsolete revision has no body left and gives way to it. Anything else conflicts.
+        if (existing.revision >= revision) throw conflict('message ID already used with different ciphertext')
+        await tx.delete(envelopes).where(eq(envelopes.id, existing.id))
       }
       const now = Date.now()
-      // Only stored, unexpired bodies count: acknowledged tombstones and rows
-      // the sweep has not reached yet never fill an inbox. Both counts read
-      // a covering index only.
-      const live = and(gt(envelopes.serverTimestamp, now - COMMUNITY_TTL), gt(envelopes.size, 0))
-      const [inbox] = await tx.select({ count: sql<number>`count(*)`.mapWith(Number), bytes: sql<number>`coalesce(sum(${envelopes.size}), 0)`.mapWith(Number) })
-        .from(envelopes, { forceIndex: 'community_inbox' }).where(and(eq(envelopes.recipient, recipient), live))
-      if (inbox!.count >= COMMUNITY_LIMITS.inboxEnvelopes || inbox!.bytes + body.length > COMMUNITY_LIMITS.inboxBytes) {
+      const usage = await inboxUsage(tx, recipient, id, actor, now)
+      const size = body.length
+      if (usage.count >= COMMUNITY_LIMITS.inboxEnvelopes || usage.bytes + size > COMMUNITY_LIMITS.inboxBytes) {
         throw communityInboxFull(600, 'the recipient’s community inbox is full')
       }
-      const [share] = await tx.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(envelopes, { forceIndex: 'community_sender' })
-        .where(and(eq(envelopes.sender, actor), eq(envelopes.communityId, id), eq(envelopes.recipient, recipient), live))
-      if (share!.count >= COMMUNITY_LIMITS.senderEnvelopes) throw communityInboxFull(600, 'too many undelivered messages from this sender to this recipient')
+      if (usage.communityCount >= COMMUNITY_LIMITS.communityEnvelopes || usage.communityBytes + size > COMMUNITY_LIMITS.communityBytes) {
+        throw communityInboxFull(600, 'this community’s share of the recipient’s inbox is full')
+      }
+      if (usage.senderCount >= COMMUNITY_LIMITS.senderAcrossEnvelopes || usage.senderBytes + size > COMMUNITY_LIMITS.senderAcrossBytes
+        || usage.shareCount >= COMMUNITY_LIMITS.senderEnvelopes || usage.shareBytes + size > COMMUNITY_LIMITS.senderBytes) {
+        throw communityInboxFull(600, 'too many undelivered messages from this sender to this recipient')
+      }
+      const pair = this.takePair(actor, recipient)
+      if (!pair.ok) throw rateLimited(pair.retryAfterSeconds, 'too many messages from this sender to this recipient today')
       // Invalid/stale sends and idempotent retries never spend shared disk allowance.
-      if (!this.reserveDisk(body.length)) throw unavailable(30)
-      const envelopeId = randomBytes(16)
+      if (!this.reserveDisk(size)) throw unavailable(30)
+      const envelopeId = this.nextId(recipient, now)
       await tx.insert(envelopes).values({ id: envelopeId, communityId: id, sender: actor, recipient, messageId, revision, serverTimestamp: now, digest, size: body.length, body })
       return { id: encodeB64u(envelopeId), serverTimestamp: now }
     })
@@ -281,8 +331,9 @@ export class CommunityStore {
 
   /**
    * Oldest first: at most 100 envelopes and 1 MiB of ciphertext (at least
-   * one envelope), in the order of the community_inbox index, so the read
-   * stops after one page. The page is chosen from the stored sizes, and only
+   * one envelope). The live rows of one recipient are bounded by the inbox
+   * quota and read from the community_inbox index (tombstones skipped), so
+   * sorting them is cheap. The page is chosen from the stored sizes, and only
    * its bodies are read. Live mail always belongs to a current membership
    * and revision (leaving and removal purge, a new revision drops bodies);
    * a row that does not is dropped here too, so it can never hold up the
@@ -294,7 +345,7 @@ export class CommunityStore {
     const rows = await db.select({ id: envelopes.id, communityId: envelopes.communityId, revision: envelopes.revision,
       serverTimestamp: envelopes.serverTimestamp, size: envelopes.size }).from(envelopes, { forceIndex: 'community_inbox' })
       .where(and(eq(envelopes.recipient, actor), gt(envelopes.size, 0), gt(envelopes.serverTimestamp, Date.now() - COMMUNITY_TTL)))
-      .orderBy(asc(envelopes.serverTimestamp), asc(envelopes.size), asc(envelopes.id))
+      .orderBy(asc(envelopes.serverTimestamp), asc(envelopes.id))
       .limit(pageEnvelopes + 1)
     if (rows.length === 0) return { envelopes: [], more: false }
     const current = new Map((await db.select({ id: communities.id, revision: communities.revision }).from(members)
@@ -325,18 +376,30 @@ export class CommunityStore {
     if (ids.length) await this.database.db.update(envelopes).set({ body: null, size: 0 }).where(and(eq(envelopes.recipient, actor), inArray(envelopes.id, ids), gt(envelopes.size, 0)))
   }
 
-  /** Deletes expired deliveries (tombstones included) and invitations, in bounded batches. */
-  async sweep(now: number): Promise<{ communityEnvelopes: number, communityInvites: number }> {
+  /**
+   * Deletes expired deliveries, tombstones older than a few days, expired
+   * invitations and unanswered requests, in bounded batches.
+   */
+  async sweep(now: number): Promise<{ communityEnvelopes: number, communityTombstones: number, communityInvites: number, communityRequests: number }> {
     const { db } = this.database
     const communityEnvelopes = await batches(async () => {
       const [header] = await db.delete(envelopes).where(lt(envelopes.serverTimestamp, now - COMMUNITY_TTL)).limit(SWEEP_BATCH)
+      return header.affectedRows
+    })
+    const communityTombstones = await batches(async () => {
+      const [header] = await db.delete(envelopes)
+        .where(and(eq(envelopes.size, 0), lt(envelopes.serverTimestamp, now - COMMUNITY_LIMITS.tombstoneTtlMs))).limit(SWEEP_BATCH)
       return header.affectedRows
     })
     const communityInvites = await batches(async () => {
       const [header] = await db.delete(invites).where(lt(invites.expiresAt, now)).limit(SWEEP_BATCH)
       return header.affectedRows
     })
-    return { communityEnvelopes, communityInvites }
+    const communityRequests = await batches(async () => {
+      const [header] = await db.delete(requests).where(lt(requests.createdAt, now - COMMUNITY_LIMITS.requestTtlMs)).limit(SWEEP_BATCH)
+      return header.affectedRows
+    })
+    return { communityEnvelopes, communityTombstones, communityInvites, communityRequests }
   }
 
   private transaction<T>(work: (tx: Db) => Promise<T>): Promise<T> {
@@ -371,14 +434,22 @@ export class CommunityStore {
     if (!await lockAccount(tx, actor)) throw accessDenied('account deleted')
     const [member] = await tx.select().from(members).where(and(eq(members.communityId, group.id), eq(members.accountId, actor)))
     if (member) return
+    const now = Date.now()
     const [pending] = await tx.select().from(requests).where(and(eq(requests.communityId, group.id), eq(requests.accountId, actor)))
-    if (pending) return
+    if (pending && pending.createdAt > now - COMMUNITY_LIMITS.requestTtlMs) return
+    // An expired request the sweep has not reached yet is replaced by a fresh one.
+    if (pending) await tx.delete(requests).where(and(eq(requests.communityId, group.id), eq(requests.accountId, actor)))
     const current = await tx.select({ id: members.accountId }).from(members).where(eq(members.communityId, group.id)).limit(COMMUNITY_MAX_MEMBERS)
     if (current.length >= COMMUNITY_MAX_MEMBERS) throw communityFull()
-    const count = await tx.select({ id: requests.accountId }).from(requests).where(eq(requests.communityId, group.id)).limit(COMMUNITY_LIMITS.pending)
+    const count = await tx.select({ id: requests.accountId }).from(requests)
+      .where(and(eq(requests.communityId, group.id), liveRequest(now))).limit(COMMUNITY_LIMITS.pending)
     if (count.length >= COMMUNITY_LIMITS.pending) throw rateLimited(600, 'too many pending requests')
+    // The actor's account row is locked, so its own requests cannot race this count.
+    const mine = await tx.select({ id: requests.communityId }).from(requests)
+      .where(and(eq(requests.accountId, actor), liveRequest(now))).limit(COMMUNITY_LIMITS.pendingPerAccount)
+    if (mine.length >= COMMUNITY_LIMITS.pendingPerAccount) throw rateLimited(3600, 'too many pending requests from this account')
     await this.checkMembershipLimit(tx, actor)
-    await tx.insert(requests).values({ communityId: group.id, accountId: actor, createdAt: Date.now() })
+    await tx.insert(requests).values({ communityId: group.id, accountId: actor, createdAt: now })
   }
 }
 
@@ -386,6 +457,48 @@ export class CommunityStore {
 function retriedCreate(existing: { state: Buffer, signature: Buffer }, state: CommunityState) {
   if (existing.state.equals(state.bytes)) return stateResponse(existing)
   throw conflict('community ID already exists')
+}
+
+/** A request the owner may still answer. */
+function liveRequest(now: number) {
+  return gt(requests.createdAt, now - COMMUNITY_LIMITS.requestTtlMs)
+}
+
+interface InboxUsage {
+  count: number
+  bytes: number
+  communityCount: number
+  communityBytes: number
+  senderCount: number
+  senderBytes: number
+  shareCount: number
+  shareBytes: number
+}
+
+/**
+ * A recipient's live community mail in one read of the covering
+ * `community_inbox` index: in total, of one community, of one sender over
+ * all communities, and of that sender in that community. Only stored,
+ * unexpired bodies count; the index puts `size` first after the recipient,
+ * so tombstones (size 0) are not even read, and the scan is bounded by the
+ * inbox quota.
+ */
+async function inboxUsage(tx: Db, recipient: Buffer, communityId: Buffer, sender: Buffer, now: number): Promise<InboxUsage> {
+  const inCommunity = sql`${envelopes.communityId} = ${communityId}`
+  const fromSender = sql`${envelopes.sender} = ${sender}`
+  const sum = (condition: SQL, value: SQL | number) => sql<number>`coalesce(sum(if(${condition}, ${value}, 0)), 0)`.mapWith(Number)
+  const [row] = await tx.select({
+    count: sql<number>`count(*)`.mapWith(Number),
+    bytes: sql<number>`coalesce(sum(${envelopes.size}), 0)`.mapWith(Number),
+    communityCount: sum(inCommunity, 1),
+    communityBytes: sum(inCommunity, sql`${envelopes.size}`),
+    senderCount: sum(fromSender, 1),
+    senderBytes: sum(fromSender, sql`${envelopes.size}`),
+    shareCount: sum(sql`${inCommunity} and ${fromSender}`, 1),
+    shareBytes: sum(sql`${inCommunity} and ${fromSender}`, sql`${envelopes.size}`),
+  }).from(envelopes, { forceIndex: 'community_inbox' })
+    .where(and(eq(envelopes.recipient, recipient), gt(envelopes.size, 0), gt(envelopes.serverTimestamp, now - COMMUNITY_TTL)))
+  return row!
 }
 
 async function batches(step: () => Promise<number>): Promise<number> {

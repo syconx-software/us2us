@@ -486,11 +486,35 @@ describe('leaving and withdrawing', () => {
     status(await groups.get(leaver, group.id), 200)
     status(await groups.deliver(owner, leaver, readded), 202)
 
-    // A departed member still listed comes back the same way.
+    // A departed member that is still listed is not re-admitted by an unrelated
+    // roster change, even with a new request (audit M-11, 2026-10-28) ...
     status(await groups.leave(leaver, group.id), 204)
     status(await groups.request(leaver, group.id), 202)
     status(await groups.update(owner, { ...readded, revision: 6 }), 200)
+    status(await groups.get(leaver, group.id), 404)
+    status(await groups.deliver(owner, leaver, { ...readded, revision: 6 }), 404)
+    // ... its request stays pending for the owner to decide ...
+    expect(status(await groups.pending(owner, group.id), 200).requests.map((r: { accountId: string }) => r.accountId)).toEqual([leaver.accountId])
+    // ... and the owner takes it back deliberately: a state without it, then one with it.
+    status(await groups.update(owner, { ...readded, revision: 7, members: sortedMembers([owner, stayer]) }), 200)
+    status(await groups.update(owner, { ...readded, revision: 8 }), 200)
     status(await groups.get(leaver, group.id), 200)
+    status(await groups.deliver(owner, leaver, { ...readded, revision: 8 }), 202)
+  })
+
+  it('never lets an unrelated roster change re-admit a leaver (M-11)', async () => {
+    const owner = await register(api), a = await register(api), b = await register(api)
+    let group = await groups.approve(owner, await groups.created(owner), [a])
+    status(await groups.leave(a, group.id), 204)
+    status(await groups.request(a, group.id), 202)
+    status(await groups.request(b, group.id), 202)
+    // The owner approves B; A is still in the signed roster from before it left.
+    group = { ...group, revision: Number(group.revision) + 1, members: sortedMembers([owner, a, b]) }
+    status(await groups.update(owner, group), 200)
+    status(await groups.get(b, group.id), 200)
+    status(await groups.get(a, group.id), 404)
+    expect(status(await api.get('/v1/communities/mine', { token: a.authToken }), 200).communities).toEqual([])
+    expect(await db.count('community_members WHERE community_id = ? AND account_id = ?', [uuidBytes(group.id), uuidBytes(a.accountId)])).toBe(0)
   })
 
   it('withdraws the caller’s own request idempotently and stops a redeemed invitation from being replayed', async () => {

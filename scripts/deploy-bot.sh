@@ -5,8 +5,8 @@
 #
 #   US2US_DEPLOY_TARGET=<user>@<host> scripts/deploy-bot.sh
 #
-# Settings can also live in scripts/deploy.local.env (git-ignored), which is
-# read first: US2US_DEPLOY_TARGET and US2US_DEPLOY_KEY as for deploy-relay.sh,
+# Settings can also live in scripts/deploy.local.env (git-ignored, mode 600,
+# read as data by scripts/deploy-local-env.sh; the environment wins): US2US_DEPLOY_TARGET and US2US_DEPLOY_KEY as for deploy-relay.sh,
 # and for the bot (defaults in brackets)
 #   US2US_BOT_ROOT       releases and the live symlink  [/var/www/us2us_user/us2us-bot]
 #   US2US_BOT_DATA       the account, --data            [/home/us2us_user/us2us-echo]
@@ -32,8 +32,10 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck disable=SC1091
-[ -f "$here/scripts/deploy.local.env" ] && . "$here/scripts/deploy.local.env"
+# The operator's private settings, read as data (never executed) and only from a private file.
+# shellcheck source=deploy-local-env.sh
+. "$here/scripts/deploy-local-env.sh"
+us2us_read_local_env "$here/scripts/deploy.local.env"
 
 TARGET="${US2US_DEPLOY_TARGET:?set US2US_DEPLOY_TARGET=user@host}"
 SSH_KEY="${US2US_DEPLOY_KEY:-$HOME/.ssh/us2us_deploy_ed25519}"

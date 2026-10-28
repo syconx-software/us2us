@@ -61,6 +61,7 @@ export class AccountStore {
           kyberLastResortKey: request.kyberLastResortKey.publicKey,
           kyberLastResortSignature: request.kyberLastResortKey.signature,
           lastSeen: today,
+          createdOn: today,
         })
         await insertOneTimePreKeys(tx, id, request.oneTimePreKeys, request.kyberOneTimePreKeys, new Set(), new Set())
       })

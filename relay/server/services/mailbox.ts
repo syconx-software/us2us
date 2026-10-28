@@ -10,16 +10,31 @@ export interface StoredEnvelope {
 
 export interface MailboxRow extends StoredEnvelope {
   recipient: Buffer
+  /** Authorized by proof-of-work, not by the access key (§4.6). */
+  viaPow?: boolean
 }
 
 export interface MailboxLimits {
   maxEnvelopes: number
   maxBytes: number
+  /** The share proof-of-work envelopes may take (at most half of the above); no share limit when left out. */
+  powMaxEnvelopes?: number
+  powMaxBytes?: number
 }
 
-interface Usage {
+/** What a recipient holds; `pow*` is the part that came with proof-of-work. */
+export interface Usage {
   count: number
   bytes: number
+  powCount?: number
+  powBytes?: number
+}
+
+interface StoredUsage {
+  count: number
+  bytes: number
+  powCount: number
+  powBytes: number
 }
 
 /** The largest envelope the protocol allows (§4.6). */
@@ -42,9 +57,16 @@ const SLICE_ROWS = Math.floor(4 * 1024 * 1024 / ENVELOPE_LIMIT)
  * to it. Deletes report only a row count; their bytes are estimated from the
  * mailbox's average, and are exact again whenever a mailbox is emptied; the
  * count limit holds regardless.
+ *
+ * Envelopes authorized by proof-of-work (first contacts, `viaPow`) may take
+ * only `powMaxEnvelopes` / `powMaxBytes` of a mailbox, so that strangers
+ * cannot fill it and block the recipient's contacts. They are counted
+ * exactly: a delete in a mailbox that holds any reads which of the deleted
+ * rows were such envelopes first (a primary-key lookup), so the common case,
+ * a mailbox without message requests, costs nothing extra.
  */
 export class Mailbox {
-  private readonly usage = new Map<string, Usage>()
+  private readonly usage = new Map<string, StoredUsage>()
   private counted = false
   /** The count, while it runs; writes wait for it. */
   private counting: Promise<void> | null = null
@@ -79,13 +101,21 @@ export class Mailbox {
 
   /**
    * Whether a recipient may store one more envelope of `bytes`, on top of
-   * `pending` ones not written yet. Refuses until `load` has finished.
+   * `pending` ones not written yet; with `viaPow` it must also fit the
+   * proof-of-work share. Refuses until `load` has finished.
    */
-  admits(recipientKey: string, bytes: number, pending: Usage = { count: 0, bytes: 0 }): boolean {
+  admits(recipientKey: string, bytes: number, pending: Usage = { count: 0, bytes: 0 }, viaPow = false): boolean {
     if (!this.counted) return false
-    const usage = this.usage.get(recipientKey) ?? { count: 0, bytes: 0 }
-    return usage.count + pending.count < this.limits.maxEnvelopes
-      && usage.bytes + pending.bytes + bytes <= this.limits.maxBytes
+    const usage = this.usage.get(recipientKey) ?? { count: 0, bytes: 0, powCount: 0, powBytes: 0 }
+    if (usage.count + pending.count >= this.limits.maxEnvelopes || usage.bytes + pending.bytes + bytes > this.limits.maxBytes) return false
+    if (!viaPow) return true
+    return usage.powCount + (pending.powCount ?? 0) < (this.limits.powMaxEnvelopes ?? Number.POSITIVE_INFINITY)
+      && usage.powBytes + (pending.powBytes ?? 0) + bytes <= (this.limits.powMaxBytes ?? Number.POSITIVE_INFINITY)
+  }
+
+  /** What a recipient's mailbox holds, as counted (for tests and diagnostics). */
+  usageOf(recipientKey: string): StoredUsage {
+    return { ...(this.usage.get(recipientKey) ?? { count: 0, bytes: 0, powCount: 0, powBytes: 0 }) }
   }
 
   /**
@@ -96,9 +126,9 @@ export class Mailbox {
     if (rows.length === 0) return
     await this.write(async () => {
       await this.database.db.insert(envelopes)
-        .values(rows.map(row => ({ recipient: row.recipient, id: row.id, serverTimestamp: row.serverTimestamp, body: row.body })))
+        .values(rows.map(row => ({ recipient: row.recipient, id: row.id, serverTimestamp: row.serverTimestamp, body: row.body, viaPow: row.viaPow ? 1 : 0 })))
         .onDuplicateKeyUpdate({ set: { id: sql`${envelopes.id}` } })
-      for (const row of rows) this.added(row.recipient.toString('hex'), row.body.length)
+      for (const row of rows) this.added(row.recipient.toString('hex'), row.body.length, row.viaPow === true)
     })
   }
 
@@ -138,10 +168,23 @@ export class Mailbox {
 
   async delete(recipient: Buffer, ids: Buffer[]): Promise<void> {
     if (ids.length === 0) return
+    const recipientKey = recipient.toString('hex')
     await this.write(async () => {
-      const [result] = await this.database.db.delete(envelopes)
-        .where(and(eq(envelopes.recipient, recipient), inArray(envelopes.id, ids)))
-      this.removed(recipient.toString('hex'), result.affectedRows)
+      const scope = and(eq(envelopes.recipient, recipient), inArray(envelopes.id, ids))
+      if ((this.usage.get(recipientKey)?.powCount ?? 0) === 0) {
+        const [result] = await this.database.db.delete(envelopes).where(scope)
+        this.removed(recipientKey, result.affectedRows)
+        return
+      }
+      // Only a mailbox that holds proof-of-work envelopes needs to know which ones go; the
+      // rows are locked, so a concurrent delete of the same ids cannot count them twice.
+      const { deleted, pow } = await this.database.transaction(async (tx) => {
+        const pow = await tx.select({ bytes: sql<number>`length(${envelopes.body})`.mapWith(Number) }).from(envelopes)
+          .where(and(scope, eq(envelopes.viaPow, 1))).for('update')
+        const [result] = await tx.delete(envelopes).where(scope)
+        return { deleted: result.affectedRows, pow }
+      })
+      this.removed(recipientKey, deleted, pow.length, pow.reduce((sum, row) => sum + row.bytes, 0))
     })
   }
 
@@ -149,7 +192,8 @@ export class Mailbox {
   async deleteArrivedBefore(cutoff: number, limit: number): Promise<number> {
     return this.write(async () => {
       const expired = await this.database.transaction(async (tx) => {
-        const rows = await tx.select({ recipient: envelopes.recipient, id: envelopes.id }).from(envelopes)
+        const rows = await tx.select({ recipient: envelopes.recipient, id: envelopes.id,
+          powBytes: sql<number>`if(${envelopes.viaPow} = 1, length(${envelopes.body}), -1)`.mapWith(Number) }).from(envelopes)
           .where(lt(envelopes.serverTimestamp, cutoff))
           .orderBy(asc(envelopes.serverTimestamp))
           .limit(limit)
@@ -159,12 +203,18 @@ export class Mailbox {
         }
         return rows
       })
-      const perRecipient = new Map<string, number>()
-      for (const { recipient } of expired) {
+      const perRecipient = new Map<string, { count: number, powCount: number, powBytes: number }>()
+      for (const { recipient, powBytes } of expired) {
         const key = recipient.toString('hex')
-        perRecipient.set(key, (perRecipient.get(key) ?? 0) + 1)
+        const entry = perRecipient.get(key) ?? { count: 0, powCount: 0, powBytes: 0 }
+        entry.count++
+        if (powBytes >= 0) {
+          entry.powCount++
+          entry.powBytes += powBytes
+        }
+        perRecipient.set(key, entry)
       }
-      for (const [key, count] of perRecipient) this.removed(key, count)
+      for (const [key, { count, powCount, powBytes }] of perRecipient) this.removed(key, count, powCount, powBytes)
       return expired.length
     })
   }
@@ -190,12 +240,16 @@ export class Mailbox {
         recipient: envelopes.recipient,
         count: sql<number>`count(*)`.mapWith(Number),
         bytes: sql<number>`coalesce(sum(length(${envelopes.body})), 0)`.mapWith(Number),
+        powCount: sql<number>`coalesce(sum(${envelopes.viaPow} = 1), 0)`.mapWith(Number),
+        powBytes: sql<number>`coalesce(sum(if(${envelopes.viaPow} = 1, length(${envelopes.body}), 0)), 0)`.mapWith(Number),
       })
       .from(envelopes)
       .groupBy(envelopes.recipient)
     for (const row of rows) {
       const recipientKey = row.recipient.toString('hex')
-      if (!this.forgotten.has(recipientKey)) this.usage.set(recipientKey, { count: row.count, bytes: row.bytes })
+      if (!this.forgotten.has(recipientKey)) {
+        this.usage.set(recipientKey, { count: row.count, bytes: row.bytes, powCount: row.powCount || 0, powBytes: row.powBytes || 0 })
+      }
     }
     this.counted = true
   }
@@ -215,26 +269,37 @@ export class Mailbox {
   }
 
   /** Until the count, writes are not applied: it reads the database after they are done. */
-  private added(recipientKey: string, bytes: number): void {
+  private added(recipientKey: string, bytes: number, viaPow: boolean): void {
     if (!this.counted) return
-    const usage = this.usage.get(recipientKey)
-    if (usage) {
-      usage.count++
-      usage.bytes += bytes
-    } else {
-      this.usage.set(recipientKey, { count: 1, bytes })
+    const usage = this.usage.get(recipientKey) ?? { count: 0, bytes: 0, powCount: 0, powBytes: 0 }
+    usage.count++
+    usage.bytes += bytes
+    if (viaPow) {
+      usage.powCount++
+      usage.powBytes += bytes
     }
+    this.usage.set(recipientKey, usage)
   }
 
-  /** An emptied mailbox is forgotten, which also makes its bytes exact again. */
-  private removed(recipientKey: string, count: number): void {
+  /**
+   * An emptied mailbox is forgotten, which also makes its bytes exact again.
+   * Proof-of-work rows are given exactly; the bytes of the others are
+   * estimated from their average.
+   */
+  private removed(recipientKey: string, count: number, powCount = 0, powBytes = 0): void {
     const usage = this.usage.get(recipientKey)
     if (!this.counted || !usage || count === 0) return
     if (count >= usage.count) {
       this.usage.delete(recipientKey)
       return
     }
-    usage.bytes -= Math.round(usage.bytes * count / usage.count)
+    const otherCount = usage.count - usage.powCount
+    const otherBytes = usage.bytes - usage.powBytes
+    const removedOther = Math.min(otherCount, count - powCount)
+    const removedOtherBytes = otherCount > 0 ? Math.round(otherBytes * removedOther / otherCount) : 0
+    usage.powCount = Math.max(0, usage.powCount - powCount)
+    usage.powBytes = usage.powCount === 0 ? 0 : Math.max(0, usage.powBytes - powBytes)
     usage.count -= count
+    usage.bytes = Math.max(usage.powBytes, usage.bytes - removedOtherBytes - powBytes)
   }
 }
