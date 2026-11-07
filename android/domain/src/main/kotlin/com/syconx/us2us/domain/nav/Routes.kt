@@ -43,6 +43,9 @@ enum class OnboardingRoute {
 
     /** 7.3 Yedekten geri yükle (new device). */
     Restore,
+
+    /** “Eski telefondan taşı”: this phone's code, then the restore of 7.3 without a file or a password. */
+    TransferReceive,
 }
 
 /** The pages of section 07 beyond 7.1 itself and its pickers. */
@@ -64,6 +67,9 @@ enum class SettingsPage {
 
     /** 7.3 Yedekten geri yükle. Production entry points are 1.1 and 3.3; inside settings only the debug harness opens it. */
     Restore,
+
+    /** 7.1 › “Yeni telefona taşı”: the old phone's side of a direct transfer. */
+    TransferSend,
 }
 
 /** The 7.1 rows that open a picker. [raw] is the iOS raw value. */

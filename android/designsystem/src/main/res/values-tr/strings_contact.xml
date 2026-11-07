@@ -16,6 +16,38 @@
     <string name="contact_a11y_unblocked">%s artık engelli değil.</string>
     <!-- a11y.video %@ %@ %@ -->
     <string name="contact_a11y_video">Video, %1$s, %2$s, %3$s</string>
+    <!-- background.kicker -->
+    <string name="contact_background_kicker">SOHBET ARKA PLANI</string>
+    <!-- background.note -->
+    <string name="contact_background_note">Yalnızca bu telefonda görünür, karşı tarafa gönderilmez.</string>
+    <!-- background.photo -->
+    <string name="contact_background_photo">Fotoğraf seç</string>
+    <!-- background.preset.dusk -->
+    <string name="contact_background_preset_dusk">Alacakaranlık</string>
+    <!-- background.preset.mist -->
+    <string name="contact_background_preset_mist">Sis</string>
+    <!-- background.preset.moss -->
+    <string name="contact_background_preset_moss">Yosun</string>
+    <!-- background.preset.ocean -->
+    <string name="contact_background_preset_ocean">Okyanus</string>
+    <!-- background.preset.peach -->
+    <string name="contact_background_preset_peach">Şeftali</string>
+    <!-- background.preset.rose -->
+    <string name="contact_background_preset_rose">Gül</string>
+    <!-- background.preset.sage -->
+    <string name="contact_background_preset_sage">Adaçayı</string>
+    <!-- background.preset.sand -->
+    <string name="contact_background_preset_sand">Kum</string>
+    <!-- background.problem.photo -->
+    <string name="contact_background_problem_photo">Bu fotoğraf kullanılamadı. Başka bir fotoğraf dene.</string>
+    <!-- background.problem.save -->
+    <string name="contact_background_problem_save">Arka plan kaydedilemedi. Yeniden dene.</string>
+    <!-- background.sample.incoming -->
+    <string name="contact_background_sample_incoming">Merhaba, nasılsın?</string>
+    <!-- background.sample.outgoing -->
+    <string name="contact_background_sample_outgoing">İyiyim, sen nasılsın?</string>
+    <!-- background.standard -->
+    <string name="contact_background_standard">Varsayılan</string>
     <!-- blocked.message -->
     <string name="contact_blocked_message">Yazdıkları sana ulaşmaz, sen de ona yazamazsın. Engellendiğini bilmez.</string>
     <!-- blocked.title %@ -->
@@ -26,6 +58,8 @@
     <string name="contact_documents_empty_title">Henüz belge yok</string>
     <!-- documents.sender.you -->
     <string name="contact_documents_sender_you">sen</string>
+    <!-- menu.background -->
+    <string name="contact_menu_background">Sohbet arka planı</string>
     <!-- menu.share -->
     <string name="contact_menu_share">Numarayı paylaş</string>
     <!-- photos.empty.body %@ -->

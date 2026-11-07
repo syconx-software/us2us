@@ -51,6 +51,7 @@ import com.syconx.us2us.ui.components.U2DecisionKind
 import com.syconx.us2us.ui.components.U2FlexRow
 import com.syconx.us2us.ui.components.U2PrimaryButton
 import com.syconx.us2us.ui.components.U2PrimaryButtonSize
+import com.syconx.us2us.ui.components.U2SecondaryButton
 import com.syconx.us2us.ui.components.U2TextButton
 import com.syconx.us2us.ui.components.U2TextButtonTone
 import com.syconx.us2us.ui.components.communityMemberName
@@ -76,6 +77,7 @@ import kotlinx.coroutines.launch
 internal object CommunityManageTags {
     const val SHEET = "communities.manageSheet"
     const val INVITE = "communities.invite"
+    const val BACKGROUND = "communities.background"
     const val ERROR = "communities.error"
     const val MANAGE = "communities.manage"
     const val REJECT_ALL = "communities.rejectAll"
@@ -126,7 +128,15 @@ private const val POLL_MILLIS = 10_000L
  * forgotten): the conversation goes with it.
  */
 @Composable
-fun CommunityManageHost(service: CommunitiesService, id: String, title: String, onClose: () -> Unit, onGone: () -> Unit) {
+fun CommunityManageHost(
+    service: CommunitiesService,
+    id: String,
+    title: String,
+    onClose: () -> Unit,
+    onGone: () -> Unit,
+    /** “Sohbet arka planı”; `null` where the conversation is not behind the sheet. */
+    onBackground: (() -> Unit)? = null,
+) {
     val scope = rememberCoroutineScope()
     val unlocked by remember(service) { service.unlocked }.collectAsState(initial = false)
     var group by remember { mutableStateOf<CommunityCard?>(null) }
@@ -213,6 +223,7 @@ fun CommunityManageHost(service: CommunitiesService, id: String, title: String, 
         onConfirm = { confirmation = it },
         onConfirmed = { step -> perform { try { carryOut(step) } finally { confirmation = null } } },
         onCancelConfirmation = { confirmation = null },
+        onBackground = onBackground,
     )
 }
 
@@ -245,6 +256,7 @@ internal fun CommunityManageSheet(
     onConfirm: (CommunityConfirmation) -> Unit,
     onConfirmed: (CommunityConfirmation) -> Unit,
     onCancelConfirmation: () -> Unit,
+    onBackground: (() -> Unit)? = null,
 ) {
     val forward = confirmation != null
     val enter = U2Transitions.soft(DpOffset(if (forward) 16.dp else (-16).dp, 0.dp), blur = 0.dp, timing = U2Motion.screen)
@@ -270,7 +282,7 @@ internal fun CommunityManageSheet(
                     modifier = Modifier.padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 28.dp),
                 )
             } else {
-                ManagePage(group, title, applications, invite, busy, failed, onClose, onApprove, onReject, onInvite, onRevoke, onConfirm)
+                ManagePage(group, title, applications, invite, busy, failed, onClose, onApprove, onReject, onInvite, onRevoke, onConfirm, onBackground)
             }
         }
     }
@@ -290,6 +302,7 @@ private fun ManagePage(
     onInvite: () -> Unit,
     onRevoke: () -> Unit,
     onConfirm: (CommunityConfirmation) -> Unit,
+    onBackground: (() -> Unit)?,
 ) {
     val owner = group.isOwner && group.active
     Column(Modifier.fillMaxSize()) {
@@ -309,6 +322,14 @@ private fun ManagePage(
             }
             Members(group, busy, onRemove = { onConfirm(CommunityConfirmation.RemoveMember(group.id, it.account)) })
             if (owner) Invitations(invite, busy, onInvite, onRevoke)
+            if (onBackground != null) {
+                U2SecondaryButton(
+                    stringResource(R.string.contact_menu_background),
+                    onClick = onBackground,
+                    modifier = Modifier.fillMaxWidth().testTag(CommunityManageTags.BACKGROUND),
+                    glyph = PhosphorGlyph.Image,
+                )
+            }
             when {
                 owner -> U2DangerButton(
                     stringResource(R.string.community_delete), onClick = { onConfirm(CommunityConfirmation.Delete(group.id)) },

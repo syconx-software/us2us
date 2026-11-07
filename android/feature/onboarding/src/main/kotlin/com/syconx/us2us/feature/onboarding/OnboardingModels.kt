@@ -117,6 +117,11 @@ class OnboardingFlowModel(
         router.push(OnboardingRoute.Restore)
     }
 
+    /** 1.1 “Eski telefondan taşı” → this phone's code, for the old phone to read. */
+    fun startTransfer() {
+        router.push(OnboardingRoute.TransferReceive)
+    }
+
     /**
      * 3.3 › 7.3 restored a backup inside the lock: onboarding starts at 2.2 (“1 / 2”) for the new
      * code on this device → 2.3 → 4.1.
@@ -225,6 +230,7 @@ class OnboardingFlowModel(
             return when (failure.failure) {
                 RestoreFailure.BackupNoLongerValid -> NoWayBackStepModel.Failure.BackupGone
                 RestoreFailure.BackupDamaged -> NoWayBackStepModel.Failure.BackupDamaged
+                RestoreFailure.TransferFailed -> NoWayBackStepModel.Failure.TransferFailed
             }
         } catch (interrupted: MessengerException.SetupInterrupted) {
             confirmedCode = null
@@ -265,7 +271,7 @@ val OnboardingRoute.setupStep: Int?
         OnboardingRoute.Username -> 1
         OnboardingRoute.SecretCode -> 2
         OnboardingRoute.NoWayBack -> 3
-        OnboardingRoute.Restore -> null
+        OnboardingRoute.Restore, OnboardingRoute.TransferReceive -> null
     }
 
 // MARK: - 1.1 → 1.3 pager
@@ -711,6 +717,9 @@ class NoWayBackStepModel(
 
         /** After a restore: the backup can't be read, or it is damaged. Another copy might help. */
         BackupDamaged,
+
+        /** After a move from the old phone: what came could not be taken in. That phone still holds the account: both start over. */
+        TransferFailed,
 
         /** The new account was saved, then a later step failed: it is kept, locked under the new code. Only the lock goes on from here. */
         AccountKept,

@@ -381,6 +381,7 @@ internal object StringIndex {
         "CFBundleName" -> StringRef.Text(R.string.infoplist_cfbundlename)
         "NSCameraUsageDescription" -> StringRef.Text(R.string.infoplist_nscamerausagedescription)
         "NSFaceIDUsageDescription" -> StringRef.Text(R.string.infoplist_nsfaceidusagedescription)
+        "NSLocalNetworkUsageDescription" -> StringRef.Text(R.string.infoplist_nslocalnetworkusagedescription)
         "NSLocationWhenInUseUsageDescription" -> StringRef.Text(R.string.infoplist_nslocationwheninuseusagedescription)
         "NSMicrophoneUsageDescription" -> StringRef.Text(R.string.infoplist_nsmicrophoneusagedescription)
         "NSPhotoLibraryAddUsageDescription" -> StringRef.Text(R.string.infoplist_nsphotolibraryaddusagedescription)
@@ -393,6 +394,7 @@ internal object StringIndex {
         StringEntry("CFBundleName", StringRef.Text(R.string.infoplist_cfbundlename), ""),
         StringEntry("NSCameraUsageDescription", StringRef.Text(R.string.infoplist_nscamerausagedescription), ""),
         StringEntry("NSFaceIDUsageDescription", StringRef.Text(R.string.infoplist_nsfaceidusagedescription), ""),
+        StringEntry("NSLocalNetworkUsageDescription", StringRef.Text(R.string.infoplist_nslocalnetworkusagedescription), ""),
         StringEntry("NSLocationWhenInUseUsageDescription", StringRef.Text(R.string.infoplist_nslocationwheninuseusagedescription), ""),
         StringEntry("NSMicrophoneUsageDescription", StringRef.Text(R.string.infoplist_nsmicrophoneusagedescription), ""),
         StringEntry("NSPhotoLibraryAddUsageDescription", StringRef.Text(R.string.infoplist_nsphotolibraryaddusagedescription), ""),
@@ -425,6 +427,7 @@ internal object StringIndex {
         "onboarding.noWayBack.error.backupDamaged" -> StringRef.Text(R.string.onboarding_nowayback_error_backupdamaged)
         "onboarding.noWayBack.error.backupGone" -> StringRef.Text(R.string.onboarding_nowayback_error_backupgone)
         "onboarding.noWayBack.error.previousVaultKept" -> StringRef.Text(R.string.onboarding_nowayback_error_previousvaultkept)
+        "onboarding.noWayBack.error.transferFailed" -> StringRef.Text(R.string.onboarding_nowayback_error_transferfailed)
         "onboarding.noWayBack.error.usernameTaken" -> StringRef.Text(R.string.onboarding_nowayback_error_usernametaken)
         "onboarding.noWayBack.faceID" -> StringRef.Text(R.string.onboarding_nowayback_faceid)
         "onboarding.noWayBack.fact.backup" -> StringRef.Text(R.string.onboarding_nowayback_fact_backup)
@@ -432,6 +435,7 @@ internal object StringIndex {
         "onboarding.noWayBack.fact.neverSent" -> StringRef.Text(R.string.onboarding_nowayback_fact_neversent)
         "onboarding.noWayBack.fact.noReset" -> StringRef.Text(R.string.onboarding_nowayback_fact_noreset)
         "onboarding.noWayBack.finish" -> StringRef.Text(R.string.onboarding_nowayback_finish)
+        "onboarding.noWayBack.importing" -> StringRef.Text(R.string.onboarding_nowayback_importing)
         "onboarding.noWayBack.replacesThisPhone" -> StringRef.Text(R.string.onboarding_nowayback_replacesthisphone)
         "onboarding.noWayBack.title" -> StringRef.Text(R.string.onboarding_nowayback_title)
         "onboarding.noWayBack.toLock" -> StringRef.Text(R.string.onboarding_nowayback_tolock)
@@ -464,6 +468,7 @@ internal object StringIndex {
         "onboarding.welcome.restore" -> StringRef.Text(R.string.onboarding_welcome_restore)
         "onboarding.welcome.start" -> StringRef.Text(R.string.onboarding_welcome_start)
         "onboarding.welcome.title" -> StringRef.Text(R.string.onboarding_welcome_title)
+        "onboarding.welcome.transfer" -> StringRef.Text(R.string.onboarding_welcome_transfer)
         else -> null
     }
 
@@ -493,6 +498,7 @@ internal object StringIndex {
         StringEntry("onboarding.noWayBack.error.backupDamaged", StringRef.Text(R.string.onboarding_nowayback_error_backupdamaged), ""),
         StringEntry("onboarding.noWayBack.error.backupGone", StringRef.Text(R.string.onboarding_nowayback_error_backupgone), ""),
         StringEntry("onboarding.noWayBack.error.previousVaultKept", StringRef.Text(R.string.onboarding_nowayback_error_previousvaultkept), ""),
+        StringEntry("onboarding.noWayBack.error.transferFailed", StringRef.Text(R.string.onboarding_nowayback_error_transferfailed), ""),
         StringEntry("onboarding.noWayBack.error.usernameTaken", StringRef.Text(R.string.onboarding_nowayback_error_usernametaken), ""),
         StringEntry("onboarding.noWayBack.faceID", StringRef.Text(R.string.onboarding_nowayback_faceid), ""),
         StringEntry("onboarding.noWayBack.fact.backup", StringRef.Text(R.string.onboarding_nowayback_fact_backup), ""),
@@ -500,6 +506,7 @@ internal object StringIndex {
         StringEntry("onboarding.noWayBack.fact.neverSent", StringRef.Text(R.string.onboarding_nowayback_fact_neversent), ""),
         StringEntry("onboarding.noWayBack.fact.noReset", StringRef.Text(R.string.onboarding_nowayback_fact_noreset), ""),
         StringEntry("onboarding.noWayBack.finish", StringRef.Text(R.string.onboarding_nowayback_finish), ""),
+        StringEntry("onboarding.noWayBack.importing %lld", StringRef.Text(R.string.onboarding_nowayback_importing), "d"),
         StringEntry("onboarding.noWayBack.replacesThisPhone", StringRef.Text(R.string.onboarding_nowayback_replacesthisphone), ""),
         StringEntry("onboarding.noWayBack.title", StringRef.Text(R.string.onboarding_nowayback_title), ""),
         StringEntry("onboarding.noWayBack.toLock", StringRef.Text(R.string.onboarding_nowayback_tolock), ""),
@@ -532,6 +539,7 @@ internal object StringIndex {
         StringEntry("onboarding.welcome.restore", StringRef.Text(R.string.onboarding_welcome_restore), ""),
         StringEntry("onboarding.welcome.start", StringRef.Text(R.string.onboarding_welcome_start), ""),
         StringEntry("onboarding.welcome.title", StringRef.Text(R.string.onboarding_welcome_title), ""),
+        StringEntry("onboarding.welcome.transfer", StringRef.Text(R.string.onboarding_welcome_transfer), ""),
     )
 
     private fun findLock(key: String): StringRef? = when (key) {
@@ -1027,11 +1035,28 @@ internal object StringIndex {
         "a11y.unblock.hint" -> StringRef.Text(R.string.contact_a11y_unblock_hint)
         "a11y.unblocked" -> StringRef.Text(R.string.contact_a11y_unblocked)
         "a11y.video" -> StringRef.Text(R.string.contact_a11y_video)
+        "background.kicker" -> StringRef.Text(R.string.contact_background_kicker)
+        "background.note" -> StringRef.Text(R.string.contact_background_note)
+        "background.photo" -> StringRef.Text(R.string.contact_background_photo)
+        "background.preset.dusk" -> StringRef.Text(R.string.contact_background_preset_dusk)
+        "background.preset.mist" -> StringRef.Text(R.string.contact_background_preset_mist)
+        "background.preset.moss" -> StringRef.Text(R.string.contact_background_preset_moss)
+        "background.preset.ocean" -> StringRef.Text(R.string.contact_background_preset_ocean)
+        "background.preset.peach" -> StringRef.Text(R.string.contact_background_preset_peach)
+        "background.preset.rose" -> StringRef.Text(R.string.contact_background_preset_rose)
+        "background.preset.sage" -> StringRef.Text(R.string.contact_background_preset_sage)
+        "background.preset.sand" -> StringRef.Text(R.string.contact_background_preset_sand)
+        "background.problem.photo" -> StringRef.Text(R.string.contact_background_problem_photo)
+        "background.problem.save" -> StringRef.Text(R.string.contact_background_problem_save)
+        "background.sample.incoming" -> StringRef.Text(R.string.contact_background_sample_incoming)
+        "background.sample.outgoing" -> StringRef.Text(R.string.contact_background_sample_outgoing)
+        "background.standard" -> StringRef.Text(R.string.contact_background_standard)
         "blocked.message" -> StringRef.Text(R.string.contact_blocked_message)
         "blocked.title" -> StringRef.Text(R.string.contact_blocked_title)
         "documents.empty.body" -> StringRef.Text(R.string.contact_documents_empty_body)
         "documents.empty.title" -> StringRef.Text(R.string.contact_documents_empty_title)
         "documents.sender.you" -> StringRef.Text(R.string.contact_documents_sender_you)
+        "menu.background" -> StringRef.Text(R.string.contact_menu_background)
         "menu.share" -> StringRef.Text(R.string.contact_menu_share)
         "photos.empty.body" -> StringRef.Text(R.string.contact_photos_empty_body)
         "photos.empty.title" -> StringRef.Text(R.string.contact_photos_empty_title)
@@ -1049,11 +1074,28 @@ internal object StringIndex {
         StringEntry("a11y.unblock.hint", StringRef.Text(R.string.contact_a11y_unblock_hint), ""),
         StringEntry("a11y.unblocked %@", StringRef.Text(R.string.contact_a11y_unblocked), "s"),
         StringEntry("a11y.video %@ %@ %@", StringRef.Text(R.string.contact_a11y_video), "sss"),
+        StringEntry("background.kicker", StringRef.Text(R.string.contact_background_kicker), ""),
+        StringEntry("background.note", StringRef.Text(R.string.contact_background_note), ""),
+        StringEntry("background.photo", StringRef.Text(R.string.contact_background_photo), ""),
+        StringEntry("background.preset.dusk", StringRef.Text(R.string.contact_background_preset_dusk), ""),
+        StringEntry("background.preset.mist", StringRef.Text(R.string.contact_background_preset_mist), ""),
+        StringEntry("background.preset.moss", StringRef.Text(R.string.contact_background_preset_moss), ""),
+        StringEntry("background.preset.ocean", StringRef.Text(R.string.contact_background_preset_ocean), ""),
+        StringEntry("background.preset.peach", StringRef.Text(R.string.contact_background_preset_peach), ""),
+        StringEntry("background.preset.rose", StringRef.Text(R.string.contact_background_preset_rose), ""),
+        StringEntry("background.preset.sage", StringRef.Text(R.string.contact_background_preset_sage), ""),
+        StringEntry("background.preset.sand", StringRef.Text(R.string.contact_background_preset_sand), ""),
+        StringEntry("background.problem.photo", StringRef.Text(R.string.contact_background_problem_photo), ""),
+        StringEntry("background.problem.save", StringRef.Text(R.string.contact_background_problem_save), ""),
+        StringEntry("background.sample.incoming", StringRef.Text(R.string.contact_background_sample_incoming), ""),
+        StringEntry("background.sample.outgoing", StringRef.Text(R.string.contact_background_sample_outgoing), ""),
+        StringEntry("background.standard", StringRef.Text(R.string.contact_background_standard), ""),
         StringEntry("blocked.message", StringRef.Text(R.string.contact_blocked_message), ""),
         StringEntry("blocked.title %@", StringRef.Text(R.string.contact_blocked_title), "s"),
         StringEntry("documents.empty.body %@", StringRef.Text(R.string.contact_documents_empty_body), "s"),
         StringEntry("documents.empty.title", StringRef.Text(R.string.contact_documents_empty_title), ""),
         StringEntry("documents.sender.you", StringRef.Text(R.string.contact_documents_sender_you), ""),
+        StringEntry("menu.background", StringRef.Text(R.string.contact_menu_background), ""),
         StringEntry("menu.share", StringRef.Text(R.string.contact_menu_share), ""),
         StringEntry("photos.empty.body %@", StringRef.Text(R.string.contact_photos_empty_body), "s"),
         StringEntry("photos.empty.title", StringRef.Text(R.string.contact_photos_empty_title), ""),
@@ -1391,6 +1433,39 @@ internal object StringIndex {
         "settings.theme.light" -> StringRef.Text(R.string.settings_theme_light)
         "settings.theme.system" -> StringRef.Text(R.string.settings_theme_system)
         "settings.title" -> StringRef.Text(R.string.settings_title)
+        "settings.transfer" -> StringRef.Text(R.string.settings_transfer)
+        "transfer.failed.interrupted" -> StringRef.Text(R.string.settings_transfer_failed_interrupted)
+        "transfer.failed.noLocalNetwork" -> StringRef.Text(R.string.settings_transfer_failed_nolocalnetwork)
+        "transfer.failed.noSpace" -> StringRef.Text(R.string.settings_transfer_failed_nospace)
+        "transfer.failed.noSpace.here" -> StringRef.Text(R.string.settings_transfer_failed_nospace_here)
+        "transfer.failed.notPrepared" -> StringRef.Text(R.string.settings_transfer_failed_notprepared)
+        "transfer.failed.title" -> StringRef.Text(R.string.settings_transfer_failed_title)
+        "transfer.failed.unreachable" -> StringRef.Text(R.string.settings_transfer_failed_unreachable)
+        "transfer.note.title" -> StringRef.Text(R.string.settings_transfer_note_title)
+        "transfer.receive.a11y.code" -> StringRef.Text(R.string.settings_transfer_receive_a11y_code)
+        "transfer.receive.note" -> StringRef.Text(R.string.settings_transfer_receive_note)
+        "transfer.receive.preparing" -> StringRef.Text(R.string.settings_transfer_receive_preparing)
+        "transfer.receive.receiving" -> StringRef.Text(R.string.settings_transfer_receive_receiving)
+        "transfer.receive.step1" -> StringRef.Text(R.string.settings_transfer_receive_step1)
+        "transfer.receive.step2" -> StringRef.Text(R.string.settings_transfer_receive_step2)
+        "transfer.receive.title" -> StringRef.Text(R.string.settings_transfer_receive_title)
+        "transfer.restore.arrived" -> StringRef.Text(R.string.settings_transfer_restore_arrived)
+        "transfer.restore.failed" -> StringRef.Text(R.string.settings_transfer_restore_failed)
+        "transfer.restore.note" -> StringRef.Text(R.string.settings_transfer_restore_note)
+        "transfer.restore.ready" -> StringRef.Text(R.string.settings_transfer_restore_ready)
+        "transfer.restore.unverified" -> StringRef.Text(R.string.settings_transfer_restore_unverified)
+        "transfer.retry" -> StringRef.Text(R.string.settings_transfer_retry)
+        "transfer.scan.hint" -> StringRef.Text(R.string.settings_transfer_scan_hint)
+        "transfer.send.continue" -> StringRef.Text(R.string.settings_transfer_send_continue)
+        "transfer.send.done.body" -> StringRef.Text(R.string.settings_transfer_send_done_body)
+        "transfer.send.done.title" -> StringRef.Text(R.string.settings_transfer_send_done_title)
+        "transfer.send.note" -> StringRef.Text(R.string.settings_transfer_send_note)
+        "transfer.send.sending" -> StringRef.Text(R.string.settings_transfer_send_sending)
+        "transfer.send.sending.body" -> StringRef.Text(R.string.settings_transfer_send_sending_body)
+        "transfer.send.step1" -> StringRef.Text(R.string.settings_transfer_send_step1)
+        "transfer.send.step2" -> StringRef.Text(R.string.settings_transfer_send_step2)
+        "transfer.send.step3" -> StringRef.Text(R.string.settings_transfer_send_step3)
+        "transfer.send.title" -> StringRef.Text(R.string.settings_transfer_send_title)
         else -> null
     }
 
@@ -1604,6 +1679,39 @@ internal object StringIndex {
         StringEntry("settings.theme.light", StringRef.Text(R.string.settings_theme_light), ""),
         StringEntry("settings.theme.system", StringRef.Text(R.string.settings_theme_system), ""),
         StringEntry("settings.title", StringRef.Text(R.string.settings_title), ""),
+        StringEntry("settings.transfer", StringRef.Text(R.string.settings_transfer), ""),
+        StringEntry("transfer.failed.interrupted", StringRef.Text(R.string.settings_transfer_failed_interrupted), ""),
+        StringEntry("transfer.failed.noLocalNetwork", StringRef.Text(R.string.settings_transfer_failed_nolocalnetwork), ""),
+        StringEntry("transfer.failed.noSpace", StringRef.Text(R.string.settings_transfer_failed_nospace), ""),
+        StringEntry("transfer.failed.noSpace.here", StringRef.Text(R.string.settings_transfer_failed_nospace_here), ""),
+        StringEntry("transfer.failed.notPrepared", StringRef.Text(R.string.settings_transfer_failed_notprepared), ""),
+        StringEntry("transfer.failed.title", StringRef.Text(R.string.settings_transfer_failed_title), ""),
+        StringEntry("transfer.failed.unreachable", StringRef.Text(R.string.settings_transfer_failed_unreachable), ""),
+        StringEntry("transfer.note.title", StringRef.Text(R.string.settings_transfer_note_title), ""),
+        StringEntry("transfer.receive.a11y.code", StringRef.Text(R.string.settings_transfer_receive_a11y_code), ""),
+        StringEntry("transfer.receive.note", StringRef.Text(R.string.settings_transfer_receive_note), ""),
+        StringEntry("transfer.receive.preparing", StringRef.Text(R.string.settings_transfer_receive_preparing), ""),
+        StringEntry("transfer.receive.receiving", StringRef.Text(R.string.settings_transfer_receive_receiving), ""),
+        StringEntry("transfer.receive.step1", StringRef.Text(R.string.settings_transfer_receive_step1), ""),
+        StringEntry("transfer.receive.step2", StringRef.Text(R.string.settings_transfer_receive_step2), ""),
+        StringEntry("transfer.receive.title", StringRef.Text(R.string.settings_transfer_receive_title), ""),
+        StringEntry("transfer.restore.arrived", StringRef.Text(R.string.settings_transfer_restore_arrived), ""),
+        StringEntry("transfer.restore.failed", StringRef.Text(R.string.settings_transfer_restore_failed), ""),
+        StringEntry("transfer.restore.note", StringRef.Text(R.string.settings_transfer_restore_note), ""),
+        StringEntry("transfer.restore.ready", StringRef.Text(R.string.settings_transfer_restore_ready), ""),
+        StringEntry("transfer.restore.unverified", StringRef.Text(R.string.settings_transfer_restore_unverified), ""),
+        StringEntry("transfer.retry", StringRef.Text(R.string.settings_transfer_retry), ""),
+        StringEntry("transfer.scan.hint", StringRef.Text(R.string.settings_transfer_scan_hint), ""),
+        StringEntry("transfer.send.continue", StringRef.Text(R.string.settings_transfer_send_continue), ""),
+        StringEntry("transfer.send.done.body", StringRef.Text(R.string.settings_transfer_send_done_body), ""),
+        StringEntry("transfer.send.done.title", StringRef.Text(R.string.settings_transfer_send_done_title), ""),
+        StringEntry("transfer.send.note", StringRef.Text(R.string.settings_transfer_send_note), ""),
+        StringEntry("transfer.send.sending", StringRef.Text(R.string.settings_transfer_send_sending), ""),
+        StringEntry("transfer.send.sending.body", StringRef.Text(R.string.settings_transfer_send_sending_body), ""),
+        StringEntry("transfer.send.step1", StringRef.Text(R.string.settings_transfer_send_step1), ""),
+        StringEntry("transfer.send.step2", StringRef.Text(R.string.settings_transfer_send_step2), ""),
+        StringEntry("transfer.send.step3", StringRef.Text(R.string.settings_transfer_send_step3), ""),
+        StringEntry("transfer.send.title", StringRef.Text(R.string.settings_transfer_send_title), ""),
     )
 
     private fun findInvite(key: String): StringRef? = when (key) {

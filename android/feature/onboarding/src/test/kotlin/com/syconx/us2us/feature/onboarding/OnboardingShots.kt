@@ -31,6 +31,9 @@ import kotlin.time.Duration
 /** The stand-in for 7.3 (settings' screen) in onboarding tests. */
 const val RESTORE_SCREEN_TAG = "test.restore"
 
+/** The stand-in for the new phone's side of the transfer (settings' screen) in onboarding tests. */
+const val TRANSFER_SCREEN_TAG = "test.transfer"
+
 /** The fixtures app onboarding runs in: no account yet, the design's data on the frozen design clock, no latency. */
 class OnboardingFixture(english: Boolean = false, hasAccount: Boolean = false) {
     val service = FixturesMessengerService(
@@ -50,6 +53,11 @@ object RestoreStandIn : FeatureScreens {
     @Composable
     override fun RestoreBackup(mode: RestoreMode, onClose: () -> Unit, onFinished: () -> Unit, modifier: Modifier) {
         Box(modifier.fillMaxSize().background(U2Theme.colors.bg).testTag(RESTORE_SCREEN_TAG))
+    }
+
+    @Composable
+    override fun DeviceTransferReceive(onCancel: () -> Unit, onFinished: () -> Unit, modifier: Modifier) {
+        Box(modifier.fillMaxSize().background(U2Theme.colors.bg).testTag(TRANSFER_SCREEN_TAG))
     }
 
     @Composable

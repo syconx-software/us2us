@@ -15,6 +15,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import com.syconx.us2us.domain.design.DesignFixtures
 import com.syconx.us2us.domain.nav.AppRoute
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.domain.nav.ContactTab
@@ -84,6 +85,43 @@ fun QrScanCover(mode: QrScanMode, onDismiss: () -> Unit, modifier: Modifier = Mo
         QrScanMode.AddContact -> ContactQrScanView(onClose = onDismiss, onOpenChat = onOpenChat, modifier = modifier)
         is QrScanMode.SafetyNumber -> SafetyScanCover(mode.chat, onDismiss, modifier)
     }
+}
+
+/**
+ * 6.2 for the code on the new phone (7.1 › Yeni telefona taşı): anything else in front of the
+ * camera is ignored; the code that is one goes to [onCode] and the camera stops.
+ */
+@Composable
+fun DeviceTransferScanCover(onCode: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val messenger = LocalMessenger.current
+    val haptics = LocalHaptics.current
+    val appDark = U2Theme.isDark
+    // The mock's key is public (a test vector): it never stands in for a code in front of a live account.
+    val usesFixtures = LocalAppModel.current.configuration.usesFixtures
+    val currentOnCode by rememberUpdatedState(onCode)
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val scanner = remember {
+        var read: String? = null
+        QrScannerModel(QrScannerModel.Purpose.DeviceTransfer).apply {
+            evaluate = { code ->
+                if (messenger.isAccountInvitation(code)) {
+                    read = code
+                    QrScannerModel.Verdict.Accept
+                } else {
+                    QrScannerModel.Verdict.Ignore
+                }
+            }
+            onAccept = {
+                isActive = false
+                read?.let { currentOnCode(it) }
+            }
+            onClose = { currentOnDismiss() }
+            if (usesFixtures) simulatedCodes = { DesignFixtures.TRANSFER_INVITATION to "not-a-transfer-code" }
+            isActive = true
+        }
+    }
+    SideEffect { scanner.haptics = haptics }
+    QrScanView(scanner, chromeDark = appDark, modifier = modifier)
 }
 
 /** 6.3 Doğrulandı for [chat]; close and “Sohbete dön” call [onDone]. */

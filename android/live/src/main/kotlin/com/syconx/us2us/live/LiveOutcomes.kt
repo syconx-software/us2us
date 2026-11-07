@@ -72,6 +72,7 @@ object LiveOutcomes {
         is RuntimeException -> when (error.error) {
             RuntimeError.BackupRevoked -> RestoreFailure.BackupNoLongerValid
             RuntimeError.UnreadableBackup -> RestoreFailure.BackupDamaged
+            RuntimeError.TransferHistoryFailed -> RestoreFailure.TransferFailed
             else -> null
         }
         is RelayException -> if (refusesBackup(error)) RestoreFailure.BackupNoLongerValid else null
@@ -86,7 +87,7 @@ object LiveOutcomes {
         if (error is WrongBackupPasswordException) return BackupOpenResult.WrongPassword
         return when (restoreFailure(error)) {
             RestoreFailure.BackupNoLongerValid -> BackupOpenResult.NoLongerValid
-            RestoreFailure.BackupDamaged -> BackupOpenResult.Damaged
+            RestoreFailure.BackupDamaged, RestoreFailure.TransferFailed -> BackupOpenResult.Damaged
             null -> BackupOpenResult.Unverified
         }
     }

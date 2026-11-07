@@ -41,6 +41,7 @@ import com.syconx.us2us.runtime.net.ConnectionEvents
 import com.syconx.us2us.runtime.net.ConnectionStatus
 import com.syconx.us2us.runtime.net.ConnectionSupervisor
 import com.syconx.us2us.runtime.storage.AccountBackupService
+import com.syconx.us2us.runtime.storage.ChatBackgroundChoice
 import com.syconx.us2us.runtime.storage.ContactIdentity
 import com.syconx.us2us.runtime.storage.IdentityVerification
 import com.syconx.us2us.runtime.storage.LocalStorage
@@ -68,6 +69,7 @@ import com.syconx.us2us.runtime.vault.VaultController
 import com.syconx.us2us.runtime.vault.VaultError
 import com.syconx.us2us.runtime.vault.VaultException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -301,6 +303,8 @@ class AppRuntime(
 
     /** A teardown still closing the previous session. */
     private var teardownJob: Job? = null
+    private var teardownIsHurried = false
+    private var offlineAnnouncementDone: CompletableDeferred<Unit>? = null
     private var refreshJob: Job? = null
     private var pendingRefresh = PendingRefresh()
     private var tickJob: Job? = null
@@ -478,9 +482,44 @@ class AppRuntime(
 
     private suspend fun awaitPendingTeardown() {
         while (true) {
-            val pending = teardownJob ?: return
+            val pending = teardownJob ?: break
             pending.join()
             if (teardownJob === pending) teardownJob = null
+        }
+        teardownIsHurried = false
+    }
+
+    /** Someone is waiting to unlock: telling contacts we went offline no longer matters, this phone is coming back. */
+    private fun hurryPendingTeardown() {
+        if (teardownJob == null) return
+        teardownIsHurried = true
+        offlineAnnouncementDone?.complete(Unit)
+    }
+
+    /** Runs one step of a teardown; past [limit] it is left to finish on its own against a closed store and wiped keys. */
+    private suspend fun runTeardownStep(limit: Duration, skippedWhenHurried: Boolean = false, step: suspend () -> Unit) {
+        val done = CompletableDeferred<Unit>()
+        val work = scope.launch {
+            try {
+                step()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            } finally {
+                done.complete(Unit)
+            }
+        }
+        val timer = scope.launch {
+            environment.clock.sleep(limit)
+            done.complete(Unit)
+        }
+        if (skippedWhenHurried) offlineAnnouncementDone = done
+        try {
+            done.await()
+        } finally {
+            if (skippedWhenHurried) offlineAnnouncementDone = null
+            timer.cancel()
+            work.cancel()
         }
     }
 
@@ -545,14 +584,13 @@ class AppRuntime(
     private suspend fun teardown(closing: Session, announceOffline: Boolean) {
         closing.stopListening()
         try {
-            if (announceOffline && !closing.liveLocationOnly) {
-                try {
-                    closing.engine.goingOffline()
-                } catch (_: Exception) {
-                }
+            // An unlock waits for this, and a request or a socket can stay unanswered for a long
+            // time after the app was stopped: no step may hold it up.
+            if (announceOffline && !closing.liveLocationOnly && !teardownIsHurried) {
+                runTeardownStep(OFFLINE_ANNOUNCEMENT_LIMIT, skippedWhenHurried = true) { closing.engine.goingOffline() }
             }
-            closing.supervisor.stop()
-            closing.engine.stop()
+            runTeardownStep(TEARDOWN_STEP_LIMIT) { closing.supervisor.stop() }
+            runTeardownStep(TEARDOWN_STEP_LIMIT) { closing.engine.stop() }
         } finally {
             closing.engine.wipeDerivedKeys()
             closing.backend.close()
@@ -593,6 +631,7 @@ class AppRuntime(
      * error is `UnlockError.Vault(VaultError.Wiped)`.
      */
     suspend fun unlock(code: String) = withContext(main) {
+        settleUnlockInFlight()
         if (lockStateFlow.value != LockState.LOCKED) return@withContext
         lockStateFlow.value = LockState.WORKING
         leftDuringWork = false
@@ -610,6 +649,7 @@ class AppRuntime(
 
     /** Biometric quick unlock. `UnlockError.CodeRequired` and a failed or cancelled prompt mean: show the code keypad. */
     suspend fun unlockWithBiometrics() = withContext(main) {
+        settleUnlockInFlight()
         if (lockStateFlow.value != LockState.LOCKED) return@withContext
         lockStateFlow.value = LockState.WORKING
         leftDuringWork = false
@@ -619,6 +659,14 @@ class AppRuntime(
         } catch (e: Throwable) {
             withContext(NonCancellable) { settleAfterFailedUnlock() }
             throw e
+        }
+    }
+
+    /** An earlier attempt is still finishing: this one waits for it instead of being dropped without a word. */
+    private suspend fun settleUnlockInFlight() {
+        repeat(UNLOCK_SETTLE_POLLS) {
+            if (lockStateFlow.value != LockState.WORKING) return
+            delay(UNLOCK_SETTLE_POLL)
         }
     }
 
@@ -653,6 +701,7 @@ class AppRuntime(
             }
             close(current, announceOffline = false)
         }
+        hurryPendingTeardown()
         awaitPendingTeardown()
         val opened = openStorage(key)
         val storage = opened.storage
@@ -723,6 +772,7 @@ class AppRuntime(
         recordingNotified.clear()
         ownUsernameFlow.value = opened.backend.username().value
         ownAvatarFlow.value = opened.backend.ownAvatar()
+        announceMoveIfPending(opened)
         refreshTokenRotationState(opened)
         refreshDeviceProtection()
         pendingRefresh = PendingRefresh(all = true)
@@ -731,6 +781,19 @@ class AppRuntime(
         if (phase == AppPhase.ACTIVE) opened.supervisor.start()
         connectionFlow.value = opened.supervisor.status.value
         refreshLockScreen()
+    }
+
+    /** §5.6: this account moved here and its communities' members are still to be told. */
+    private suspend fun announceMoveIfPending(opened: Session) {
+        try {
+            if (!opened.engine.communityMovePending()) return
+            val communities = opened.communities ?: return
+            withContext(io) { communities.announceMove { opened.engine.communityMoveAnnounced() } }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // It stays pending: the next unlock tries again.
+        }
     }
 
     /** Locks now (a "lock" button): same as going to the background, without the grace period. */
@@ -868,7 +931,15 @@ class AppRuntime(
      * ([RuntimeError.BackupRevoked]), or when it refuses the new token alone (the core's
      * `TokenRefusedException`; the backup still works).
      */
-    suspend fun restore(backupFile: ByteArray, password: String, code: String, confirmation: String, replacingLockedVault: Boolean = false) =
+    suspend fun restore(
+        backupFile: ByteArray,
+        password: String,
+        code: String,
+        confirmation: String,
+        replacingLockedVault: Boolean = false,
+        history: com.syconx.us2us.core.transfer.DeviceTransferSpool? = null,
+        historyProgress: (Double) -> Unit = {},
+    ) =
         withContext(main) {
             val previous = lockStateFlow.value
             when (previous) {
@@ -902,17 +973,93 @@ class AppRuntime(
                 storage = opened
                 // Kept before the irreversible token rotation.
                 saveDisplayName(backup.backup.displayName, created)
-                val backend = environment.backends.restore(backup, opened)
+                val backend = environment.backends.restore(backup, opened) {
+                    if (history != null) takeIn(history, opened, backup.accountId, created, historyProgress)
+                }
                 val session = makeSession(created, opened, backend)
                 session.engine.start()
                 becomeUnlocked(session)
             } catch (e: Throwable) {
                 // The relay refused the backup's token and the new one (no token of this vault works), or
                 // refused the new token alone (the backup still works): nothing in this vault is worth keeping.
-                val refused = (e is RuntimeException && e.error == RuntimeError.BackupRevoked) || e is TokenRefusedException
+                val refused = (e is RuntimeException && (e.error == RuntimeError.BackupRevoked || e.error == RuntimeError.TransferHistoryFailed)) ||
+                    e is TokenRefusedException
                 withContext(NonCancellable) { settleAfterFailedSetup(e, key, storage, keepingAccount = !refused) }
             }
         }
+
+    /**
+     * §5.6: the history from the old phone, into the vault just created. No account is saved and no
+     * token rotated yet: if this fails, the old phone still holds the account and this vault goes
+     * ([RuntimeError.TransferHistoryFailed]).
+     */
+    private suspend fun takeIn(
+        history: com.syconx.us2us.core.transfer.DeviceTransferSpool,
+        storage: LocalStorage,
+        ownAccount: AccountId,
+        key: SecretKeyMaterial,
+        progress: (Double) -> Unit,
+    ) = withContext(io) {
+        try {
+            com.syconx.us2us.runtime.storage.DeviceTransferHistoryImporter(storage, ownAccount, history.reader(), applySettings = { settings ->
+                RuntimeStateFile.update(directories.runtime, key) { state ->
+                    state.copy(
+                        settings = state.settings.copy(
+                            presenceSharing = settings.presenceSharing,
+                            readReceipts = settings.readReceipts,
+                            typingIndicators = settings.typingIndicators,
+                            autoDownloadMedia = settings.autoDownloadMedia,
+                            defaultGhost = if (settings.hasDefaultGhost()) {
+                                GhostSettings(settings.defaultGhost.enabled, settings.defaultGhost.timeoutSeconds.toLong() and 0xFFFF_FFFFL, settings.defaultGhost.wipeContact)
+                            } else {
+                                null
+                            },
+                            defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds.toLong() and 0xFFFF_FFFFL,
+                        ),
+                        recentStickers = settings.recentStickersList,
+                        communityMovePending = true,
+                    )
+                }
+            }).run(progress)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: OutOfMemoryError) {
+            RuntimeLog.lifecycle.notice("the history from the old phone did not fit in memory")
+            runtimeFailure(RuntimeError.TransferHistoryFailed, e)
+        } catch (e: Exception) {
+            RuntimeLog.lifecycle.notice("the history from the old phone could not be taken in")
+            runtimeFailure(RuntimeError.TransferHistoryFailed, e)
+        }
+    }
+
+    /** What a direct transfer sends besides the account (PROTOCOL.md §5.6). */
+    suspend fun transferHistory(): com.syconx.us2us.core.transfer.DeviceTransferHistorySource {
+        val current = withContext(main) {
+            val session = session
+            if (session == null || lockStateFlow.value != LockState.UNLOCKED) runtimeFailure(RuntimeError.Locked)
+            session
+        }
+        val settings = current.engine.currentSettings()
+        val stickers = current.engine.recentStickers()
+        return com.syconx.us2us.runtime.storage.DeviceTransferHistoryExporter(
+            current.storage,
+            com.syconx.us2us.core.proto.transferSettings {
+                presenceSharing = settings.presenceSharing
+                readReceipts = settings.readReceipts
+                typingIndicators = settings.typingIndicators
+                autoDownloadMedia = settings.autoDownloadMedia
+                settings.defaultGhost?.let { ghost ->
+                    defaultGhost = com.syconx.us2us.core.proto.ghostMode {
+                        enabled = ghost.enabled
+                        timeoutSeconds = ghost.timeoutSeconds.toInt()
+                        wipeContact = ghost.wipeContact
+                    }
+                }
+                defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds.toInt()
+                recentStickers += stickers
+            },
+        )
+    }
 
     /**
      * 7.3: opens a backup file and asks the relay, read-only, whether its token still works — the
@@ -1525,6 +1672,15 @@ class AppRuntime(
 
     suspend fun noteRecentSticker(id: String) = engine().noteRecentSticker(id)
 
+    /** What a chat shows behind its messages on this phone (never sent); `null` is the app's own. */
+    suspend fun chatBackground(peer: AccountId): ChatBackgroundChoice? = engine().chatBackground(peer)
+
+    suspend fun setChatBackground(choice: ChatBackgroundChoice?, peer: AccountId) = engine().setChatBackground(choice, peer)
+
+    suspend fun communityChatBackground(id: AccountId): ChatBackgroundChoice? = engine().communityChatBackground(id)
+
+    suspend fun setCommunityChatBackground(choice: ChatBackgroundChoice?, id: AccountId) = engine().setCommunityChatBackground(choice, id)
+
     /** Starts live location (§8.3); returns the session id for updates. */
     suspend fun startLiveLocation(peer: AccountId, latitude: Double, longitude: Double, accuracy: Float, duration: Duration): ByteString =
         engine().startLiveLocation(peer, latitude, longitude, accuracy, duration)
@@ -1946,5 +2102,15 @@ internal class Session(
 }
 
 private const val MAX_DISPLAY_NAME_BYTES = 64
+
+/** How long going offline may take when nobody is waiting to unlock. */
+private val OFFLINE_ANNOUNCEMENT_LIMIT = 5.seconds
+
+/** How long closing the socket, and stopping the engine, may each take. */
+private val TEARDOWN_STEP_LIMIT = 3.seconds
+
+/** How long an unlock waits for an earlier attempt that is still finishing: 15 s. */
+private val UNLOCK_SETTLE_POLL = 50.milliseconds
+private const val UNLOCK_SETTLE_POLLS = 300
 private val REFRESH_COALESCING = 50.milliseconds
 private val TICK = 15.seconds

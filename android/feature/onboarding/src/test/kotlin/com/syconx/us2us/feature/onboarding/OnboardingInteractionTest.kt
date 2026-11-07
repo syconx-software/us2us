@@ -89,6 +89,14 @@ class OnboardingInteractionTest {
         assertTrue(exists(RESTORE_SCREEN_TAG))
     }
 
+    @Test
+    fun transferHandsOffToTheNewPhonesScreen() {
+        host.render(ShotTheme.Dark, "tr") { OnboardingApp() }
+        host.compose.onNodeWithTag(OnboardingTags.TRANSFER).performClick()
+        settle()
+        assertTrue(exists(TRANSFER_SCREEN_TAG))
+    }
+
     /** Under reduce motion both bottom blocks are stacked: the hidden one's button must not take the tap. */
     @Test
     fun restoreHandsOffTo73UnderReduceMotion() {

@@ -423,4 +423,70 @@
     <string name="settings_theme_system">System</string>
     <!-- settings.title -->
     <string name="settings_title">Settings</string>
+    <!-- settings.transfer — 7.1: move the account to a new phone next to this one. -->
+    <string name="settings_transfer">Move to a new phone</string>
+    <!-- transfer.failed.interrupted — The connection broke. -->
+    <string name="settings_transfer_failed_interrupted">The connection was lost. Scan the code on the new phone again.</string>
+    <!-- transfer.failed.noLocalNetwork — This phone is on no local network. -->
+    <string name="settings_transfer_failed_nolocalnetwork">This phone is not on a network. Connect to Wi-Fi or use the other phone’s personal hotspot.</string>
+    <!-- transfer.failed.noSpace — The new phone has no room, said on the old phone. -->
+    <string name="settings_transfer_failed_nospace">The new phone does not have enough free space. Free some up there and try again.</string>
+    <!-- transfer.failed.noSpace.here — The new phone has no room, said on the new phone. -->
+    <string name="settings_transfer_failed_nospace_here">This phone does not have enough free space. Free some up and try again.</string>
+    <!-- transfer.failed.notPrepared — The account could not be prepared. -->
+    <string name="settings_transfer_failed_notprepared">Your account could not be prepared. Try again.</string>
+    <!-- transfer.failed.title — Either phone: the transfer failed. -->
+    <string name="settings_transfer_failed_title">Could not move</string>
+    <!-- transfer.failed.unreachable — The other phone did not answer. -->
+    <string name="settings_transfer_failed_unreachable">The other phone could not be reached. Check that both are on the same Wi-Fi, or connect to one phone’s personal hotspot.</string>
+    <!-- transfer.note.title — Title of the note on what moves. -->
+    <string name="settings_transfer_note_title">What moves?</string>
+    <!-- transfer.receive.a11y.code — VoiceOver: the QR code on the new phone. -->
+    <string name="settings_transfer_receive_a11y_code">Code for moving to this phone</string>
+    <!-- transfer.receive.note — What a move carries, on the new phone. -->
+    <string name="settings_transfer_receive_note">Your account, contacts, messages and media move; disappearing messages, view-once items and the messages of Ghost chats do not. Both phones must be on the same Wi-Fi. Nothing goes through a server.</string>
+    <!-- transfer.receive.preparing — New phone: before the code shows. -->
+    <string name="settings_transfer_receive_preparing">Preparing the code…</string>
+    <!-- transfer.receive.receiving — New phone: receiving. -->
+    <string name="settings_transfer_receive_receiving">Receiving your account</string>
+    <!-- transfer.receive.step1 — New phone, first step. -->
+    <string name="settings_transfer_receive_step1">On the old phone, open us2us: Settings › Move to a new phone.</string>
+    <!-- transfer.receive.step2 — New phone, second step. -->
+    <string name="settings_transfer_receive_step2">Scan this code with the old phone.</string>
+    <!-- transfer.receive.title — New phone: title of the transfer. -->
+    <string name="settings_transfer_receive_title">Move from old phone</string>
+    <!-- transfer.restore.arrived — The new phone's restore after a direct transfer: the card's title. -->
+    <string name="settings_transfer_restore_arrived">Your account has arrived</string>
+    <!-- transfer.restore.failed — The same card: what arrived can never be restored. -->
+    <string name="settings_transfer_restore_failed">This transfer could not be opened. Start again on both phones.</string>
+    <!-- transfer.restore.note — The note under the restore after a direct transfer. -->
+    <string name="settings_transfer_restore_note">One last step: set a new secret code for this phone. Your messages settle in as you do.</string>
+    <!-- transfer.restore.ready — The card once the account is open. -->
+    <string name="settings_transfer_restore_ready">Your account, contacts and messages are ready</string>
+    <!-- transfer.restore.unverified — The same card: the server could not confirm the account still works. -->
+    <string name="settings_transfer_restore_unverified">The server could not be reached. Check your internet connection and try again.</string>
+    <!-- transfer.retry — Try the transfer again. -->
+    <string name="settings_transfer_retry">Try again</string>
+    <!-- transfer.scan.hint — Scanner hint on the old phone. -->
+    <string name="settings_transfer_scan_hint">Scan the code on the new phone</string>
+    <!-- transfer.send.continue — Old phone: go on from the explanation. -->
+    <string name="settings_transfer_send_continue">Continue</string>
+    <!-- transfer.send.done.body — Old phone: what comes next. -->
+    <string name="settings_transfer_send_done_body">Now choose your secret code on the new phone. When setup is finished, this phone is signed out.</string>
+    <!-- transfer.send.done.title — Old phone: sent. -->
+    <string name="settings_transfer_send_done_title">Moved</string>
+    <!-- transfer.send.note — What a move carries, on the old phone. -->
+    <string name="settings_transfer_send_note">Your account, contacts, messages and media move. Disappearing messages, view-once items and the messages of Ghost chats do not. When setup is finished on the new phone, this phone is signed out.</string>
+    <!-- transfer.send.sending — Old phone: sending. -->
+    <string name="settings_transfer_send_sending">Moving your account</string>
+    <!-- transfer.send.sending.body — While everything moves. -->
+    <string name="settings_transfer_send_sending_body">Keep both phones open and close together, and stay in the app. With many photos and videos this can take a few minutes.</string>
+    <!-- transfer.send.step1 — Old phone, first step. -->
+    <string name="settings_transfer_send_step1">Install us2us on the new phone and tap “Move from old phone”.</string>
+    <!-- transfer.send.step2 — Old phone, second step. -->
+    <string name="settings_transfer_send_step2">Connect both phones to the same Wi-Fi. No Wi-Fi? Turn on one phone’s personal hotspot.</string>
+    <!-- transfer.send.step3 — Old phone, third step. -->
+    <string name="settings_transfer_send_step3">Enter your secret code, then scan the code on the new phone.</string>
+    <!-- transfer.send.title — Old phone: title of the transfer. -->
+    <string name="settings_transfer_send_title">Move to a new phone</string>
 </resources>

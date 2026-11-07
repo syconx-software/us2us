@@ -45,6 +45,11 @@ data class RuntimeStateData(
      * never to whom or when.
      */
     val recentStickers: List<String> = emptyList(),
+    /**
+     * The account moved here from another phone and its communities' members are still to be told
+     * (PROTOCOL.md §5.6). Here, so that a lock or a restart does not lose it.
+     */
+    val communityMovePending: Boolean = false,
 ) {
     internal fun toJson(): JSONObject = JSONObject()
         .put("settings", settings.toJson())
@@ -52,6 +57,7 @@ data class RuntimeStateData(
         .put("noticeSlots", JSONObject(noticeSlots))
         .put("lastBackupAt", lastBackupAt?.toEpochMilli() ?: JSONObject.NULL)
         .put("recentStickers", JSONArray(recentStickers))
+        .put("communityMovePending", communityMovePending)
 
     companion object {
         /**
@@ -73,6 +79,7 @@ data class RuntimeStateData(
                 noticeSlots = slots ?: defaults.noticeSlots,
                 lastBackupAt = backup ?: defaults.lastBackupAt,
                 recentStickers = stickers ?: defaults.recentStickers,
+                communityMovePending = (json.opt("communityMovePending") as? Boolean) ?: defaults.communityMovePending,
             )
         }
     }

@@ -423,4 +423,70 @@
     <string name="settings_theme_system">Sistem</string>
     <!-- settings.title -->
     <string name="settings_title">Ayarlar</string>
+    <!-- settings.transfer -->
+    <string name="settings_transfer">Yeni telefona taşı</string>
+    <!-- transfer.failed.interrupted -->
+    <string name="settings_transfer_failed_interrupted">Bağlantı kesildi. Yeni telefondaki kodu yeniden okut.</string>
+    <!-- transfer.failed.noLocalNetwork -->
+    <string name="settings_transfer_failed_nolocalnetwork">Bu telefon bir ağa bağlı değil. Wi-Fi’ye bağlan ya da diğer telefonun kişisel erişim noktasını kullan.</string>
+    <!-- transfer.failed.noSpace -->
+    <string name="settings_transfer_failed_nospace">Yeni telefonda yeterli boş yer yok. Orada yer açıp yeniden dene.</string>
+    <!-- transfer.failed.noSpace.here -->
+    <string name="settings_transfer_failed_nospace_here">Bu telefonda yeterli boş yer yok. Yer açıp yeniden dene.</string>
+    <!-- transfer.failed.notPrepared -->
+    <string name="settings_transfer_failed_notprepared">Hesap hazırlanamadı. Yeniden dene.</string>
+    <!-- transfer.failed.title -->
+    <string name="settings_transfer_failed_title">Aktarılamadı</string>
+    <!-- transfer.failed.unreachable -->
+    <string name="settings_transfer_failed_unreachable">Diğer telefona ulaşılamadı. İki telefonun aynı Wi-Fi’de olduğunu kontrol et ya da birinin kişisel erişim noktasına bağlan.</string>
+    <!-- transfer.note.title -->
+    <string name="settings_transfer_note_title">Neler taşınır?</string>
+    <!-- transfer.receive.a11y.code -->
+    <string name="settings_transfer_receive_a11y_code">Telefon geçiş kodu</string>
+    <!-- transfer.receive.note -->
+    <string name="settings_transfer_receive_note">Hesabın, kişilerin, mesajların ve medyan taşınır; kaybolan mesajlar, tek görüntülük içerikler ve Ghost sohbetlerin mesajları taşınmaz. İki telefon aynı Wi-Fi’de olmalı. Hiçbir şey sunucudan geçmez.</string>
+    <!-- transfer.receive.preparing -->
+    <string name="settings_transfer_receive_preparing">Kod hazırlanıyor…</string>
+    <!-- transfer.receive.receiving -->
+    <string name="settings_transfer_receive_receiving">Hesabın alınıyor</string>
+    <!-- transfer.receive.step1 -->
+    <string name="settings_transfer_receive_step1">Eski telefonda us2us’ı aç: Ayarlar › Yeni telefona taşı.</string>
+    <!-- transfer.receive.step2 -->
+    <string name="settings_transfer_receive_step2">Eski telefonla bu kodu okut.</string>
+    <!-- transfer.receive.title -->
+    <string name="settings_transfer_receive_title">Eski telefondan taşı</string>
+    <!-- transfer.restore.arrived -->
+    <string name="settings_transfer_restore_arrived">Hesabın geldi</string>
+    <!-- transfer.restore.failed -->
+    <string name="settings_transfer_restore_failed">Bu aktarım açılamadı. İki telefonda da baştan başla.</string>
+    <!-- transfer.restore.note -->
+    <string name="settings_transfer_restore_note">Son adım: bu telefon için yeni bir gizli kod belirle. Mesajların o sırada yerleşir.</string>
+    <!-- transfer.restore.ready -->
+    <string name="settings_transfer_restore_ready">Hesabın, kişilerin ve mesajların hazır</string>
+    <!-- transfer.restore.unverified -->
+    <string name="settings_transfer_restore_unverified">Sunucuya ulaşılamadı. İnternet bağlantını kontrol edip yeniden dene.</string>
+    <!-- transfer.retry -->
+    <string name="settings_transfer_retry">Yeniden dene</string>
+    <!-- transfer.scan.hint -->
+    <string name="settings_transfer_scan_hint">Yeni telefonda görünen kodu okut</string>
+    <!-- transfer.send.continue -->
+    <string name="settings_transfer_send_continue">Devam et</string>
+    <!-- transfer.send.done.body -->
+    <string name="settings_transfer_send_done_body">Şimdi yeni telefonda gizli kodunu belirle. Kurulum bitince bu telefon hesaptan çıkar.</string>
+    <!-- transfer.send.done.title -->
+    <string name="settings_transfer_send_done_title">Aktarıldı</string>
+    <!-- transfer.send.note -->
+    <string name="settings_transfer_send_note">Hesabın, kişilerin, mesajların ve medyan taşınır. Kaybolan mesajlar, tek görüntülük içerikler ve Ghost sohbetlerin mesajları taşınmaz. Yeni telefonda kurulum bitince bu telefon hesaptan çıkar.</string>
+    <!-- transfer.send.sending -->
+    <string name="settings_transfer_send_sending">Hesabın aktarılıyor</string>
+    <!-- transfer.send.sending.body -->
+    <string name="settings_transfer_send_sending_body">İki telefonu da açık ve yakın tut, uygulamadan çıkma. Çok fotoğraf ve video varsa birkaç dakika sürebilir.</string>
+    <!-- transfer.send.step1 -->
+    <string name="settings_transfer_send_step1">Yeni telefona us2us’ı kur ve “Eski telefondan taşı”ya dokun.</string>
+    <!-- transfer.send.step2 -->
+    <string name="settings_transfer_send_step2">İki telefonu da aynı Wi-Fi’ye bağla. Wi-Fi yoksa birinin kişisel erişim noktasını aç.</string>
+    <!-- transfer.send.step3 -->
+    <string name="settings_transfer_send_step3">Gizli kodunu gir ve yeni telefonda görünen kodu okut.</string>
+    <!-- transfer.send.title -->
+    <string name="settings_transfer_send_title">Yeni telefona taşı</string>
 </resources>

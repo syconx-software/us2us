@@ -52,6 +52,8 @@
     <string name="onboarding_nowayback_error_backupgone">Bu yedek artık kullanılamıyor: hesabı silinmiş ya da yedek başka bir telefonda geri yüklenmiş. Yeni bir hesap oluşturabilirsin.</string>
     <!-- onboarding.noWayBack.error.previousVaultKept -->
     <string name="onboarding_nowayback_error_previousvaultkept">Geri yükleme yapılamadı: bu yedek artık kullanılamıyor ya da okunamıyor. Bu telefondaki verilerine dokunulmadı. Kilit ekranından başka bir yedek seçebilir ya da her şeyi silip baştan başlayabilirsin.</string>
+    <!-- onboarding.noWayBack.error.transferFailed -->
+    <string name="onboarding_nowayback_error_transferfailed">Mesajlar bu telefona alınamadı. Hesabın eski telefonda duruyor: iki telefonda da baştan başla.</string>
     <!-- onboarding.noWayBack.error.usernameTaken -->
     <string name="onboarding_nowayback_error_usernametaken">Bu kullanıcı adı alınmış.</string>
     <!-- onboarding.noWayBack.faceID -->
@@ -66,6 +68,8 @@
     <string name="onboarding_nowayback_fact_noreset">Kod sıfırlama yok</string>
     <!-- onboarding.noWayBack.finish -->
     <string name="onboarding_nowayback_finish">Kurulumu tamamla</string>
+    <!-- onboarding.noWayBack.importing %lld -->
+    <string name="onboarding_nowayback_importing">Mesajlar yerleşiyor · %%%d</string>
     <!-- onboarding.noWayBack.replacesThisPhone -->
     <string name="onboarding_nowayback_replacesthisphone">Kurulumu tamamladığında bu telefondaki mesajlar ve medya kalıcı olarak silinir. Yedekte yalnızca hesabın ve kişilerin var.</string>
     <!-- onboarding.noWayBack.title -->
@@ -130,4 +134,6 @@
     <string name="onboarding_welcome_start">Başla</string>
     <!-- onboarding.welcome.title -->
     <string name="onboarding_welcome_title">İki uç. Bir hat.</string>
+    <!-- onboarding.welcome.transfer -->
+    <string name="onboarding_welcome_transfer">Eski telefondan taşı</string>
 </resources>

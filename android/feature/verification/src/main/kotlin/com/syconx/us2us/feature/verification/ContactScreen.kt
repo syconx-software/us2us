@@ -19,8 +19,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +41,7 @@ import com.syconx.us2us.feature.report.BlockConfirmationTags
 import com.syconx.us2us.feature.report.ReportPresenter
 import com.syconx.us2us.feature.report.ReportSheet
 import com.syconx.us2us.ui.R
+import com.syconx.us2us.ui.common.ChatBackgroundSheet
 import com.syconx.us2us.ui.common.ChatDeletionSheet
 import com.syconx.us2us.ui.common.chatDeletionMenuItems
 import com.syconx.us2us.ui.components.FloatingMenuItem
@@ -101,6 +104,7 @@ internal fun ContactScreen(
     val scope = rememberCoroutineScope()
     val viewers = remember(base, media) { ContactMediaMessenger(base, media.chatId, media.loaded) }
     val isBlocked = peer?.isBlocked == true
+    var showsBackgroundSettings by remember { mutableStateOf(false) }
     // Share (Doğrulama only, once the number is known) ‖ Bildir · Engelle, or “Engeli kaldır” while blocked.
     val menuItems = buildList {
         if (media.tab == ContactTab.Verification && verification.info != null) {
@@ -111,7 +115,12 @@ internal fun ContactScreen(
             )
         }
         add(
-            FloatingMenuItem(id = "report", title = stringResource(R.string.common_report_action), glyph = PhosphorGlyph.Warning, startsGroup = isNotEmpty()) {
+            FloatingMenuItem(id = "background", title = stringResource(R.string.contact_menu_background), glyph = PhosphorGlyph.Image) {
+                showsBackgroundSettings = true
+            },
+        )
+        add(
+            FloatingMenuItem(id = "report", title = stringResource(R.string.common_report_action), glyph = PhosphorGlyph.Warning, startsGroup = true) {
                 actions.openReport(reports, peer)
             },
         )
@@ -193,6 +202,12 @@ internal fun ContactScreen(
             onReport = { actions.openReport(reports, peer, afterConfirmation = true) },
             onDismiss = { actions.confirmsBlock = false },
             tags = BlockConfirmationTags(VerificationTags.BLOCK_CONFIRM, VerificationTags.BLOCK_REPORT, VerificationTags.BLOCK_CANCEL),
+        )
+        ChatBackgroundSheet(
+            isPresented = showsBackgroundSettings,
+            chat = media.chatId,
+            messenger = base,
+            onDismiss = { showsBackgroundSettings = false },
         )
         ChatDeletionSheet(
             item = actions.deletion,

@@ -76,6 +76,7 @@ object SettingsTags {
     const val FACE_ID = "settings.faceID"
     const val CHANGE_CODE = "settings.changeCode"
     const val BACKUP = "settings.backup"
+    const val TRANSFER = "settings.transfer"
     const val INVITE = "settings.invite"
     const val ABOUT = "settings.about"
     const val ERASE = "settings.erase"

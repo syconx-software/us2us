@@ -66,7 +66,11 @@ class PrivacyLintTest {
         for ((name, lines) in sources()) {
             lines.forEachIndexed { number, line ->
                 val code = code(line)
-                for (token in listOf("HttpURLConnection", "openConnection(", "java.net.Socket", "DatagramSocket", "URL(")) {
+                // The one exception: moving to a new phone over the local network (PROTOCOL.md §5.6);
+                // that file only ever connects to private addresses from a code read off the other phone.
+                val tokens = if (name == "transfer/DeviceTransferNetwork.kt") listOf("HttpURLConnection", "openConnection(", "DatagramSocket", "URL(")
+                else listOf("HttpURLConnection", "openConnection(", "java.net.Socket", "DatagramSocket", "URL(")
+                for (token in tokens) {
                     if (token in code) fail("$name:${number + 1} opens its own connection ($token)")
                 }
                 if (("OkHttpClient(" in code || "OkHttpClient.Builder(" in code || "defaultHttpClient(" in code) && name != "net/NetworkPolicy.kt") {

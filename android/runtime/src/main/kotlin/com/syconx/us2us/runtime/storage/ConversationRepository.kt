@@ -133,6 +133,35 @@ class ConversationRepository internal constructor(private val tx: StorageTransac
         updateDeadline(previous, settings, previous.lastActivityAt, anchor)
     }
 
+    /**
+     * A conversation arriving from the old phone (PROTOCOL.md §5.6). Ghost mode starts a full
+     * timeout here, as when it is turned on: nothing of the old phone's clock comes along.
+     */
+    internal fun adopt(
+        settings: ConversationSettings,
+        author: AccountId?,
+        createdAt: Instant?,
+        lastActivityAt: Instant?,
+        conversation: Conversation,
+        now: Instant,
+    ) {
+        tx.requireWritable()
+        val anchor = if (settings.ghost.enabled) now else null
+        tx.connection.run(
+            """
+            UPDATE conversations SET settings = ?, settings_author = ?, created_at = coalesce(?, created_at),
+                last_activity_at = ?, ghost_anchor_at = ? WHERE id = ?
+            """.trimIndent(),
+            settings.toByteArray(),
+            author?.toBytes(),
+            createdAt?.toEpochMilli(),
+            lastActivityAt?.toEpochMilli(),
+            anchor?.toEpochMilli(),
+            conversation.id.raw,
+        )
+        updateDeadline(conversation, settings, lastActivityAt, anchor)
+    }
+
     // MARK: Activity and ghost deadlines
 
     /** Records a sent or received `DataMessage` at [time] (§8.2) and moves the ghost deadline. Live-location ticks must not be recorded. */

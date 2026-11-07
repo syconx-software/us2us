@@ -152,7 +152,7 @@ class MessengerOnStorageTest {
                 newPhone.protocolStorage,
                 newPhone.contactStore,
                 TestClient.testConfig,
-                newPhone.accountStore,
+                accountStore = newPhone.accountStore,
             )
             newPhone.write { tx -> AccountBackupService.finishRestore(tx) }
             val restoredContact = newPhone.read { it.contacts.get(alice.accountId)!! }

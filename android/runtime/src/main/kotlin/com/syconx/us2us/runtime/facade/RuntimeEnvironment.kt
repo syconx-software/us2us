@@ -135,6 +135,9 @@ sealed interface RuntimeError {
     /** The relay refuses the backup's token: restored on another phone since, or its account deleted. */
     data object BackupRevoked : RuntimeError
 
+    /** What came from the old phone could not be taken in (PROTOCOL.md §5.6). The old phone still holds the account: both start over. */
+    data object TransferHistoryFailed : RuntimeError
+
     /** The backup password and its confirmation differ. */
     data object BackupPasswordMismatch : RuntimeError
 }

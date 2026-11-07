@@ -3,6 +3,7 @@ package com.syconx.us2us.feature.onboarding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -94,7 +95,7 @@ internal fun OnboardingFlowHost(
         router = flow.router,
         modifier = modifier,
         allowsSwipeBack = flow::allowsSwipeBack,
-        root = { WelcomePager(flow.pager, onCreateAccount = flow::startSetup, onRestore = flow::startRestore) },
+        root = { WelcomePager(flow.pager, onCreateAccount = flow::startSetup, onRestore = flow::startRestore, onTransfer = flow::startTransfer) },
     ) { route ->
         when (route) {
             OnboardingRoute.Username -> UsernameStep(
@@ -106,12 +107,23 @@ internal fun OnboardingFlowHost(
                 showsFocusChrome = showsFocusChrome,
             )
             OnboardingRoute.SecretCode -> SecretCodeStep(flow.code, flow.stepLabel(route), onBack = flow::codeBack)
-            OnboardingRoute.NoWayBack -> NoWayBackStep(flow.finish, flow.stepLabel(route), onBack = { flow.router.pop() })
+            OnboardingRoute.NoWayBack -> NoWayBackStep(
+                flow.finish,
+                flow.stepLabel(route),
+                onBack = { flow.router.pop() },
+                historyProgress = LocalMessenger.current.historyImportProgress.collectAsState().value,
+            )
             // 7.3 · Yedekten geri yükle (built by the settings feature): it opens the system document
             // picker by itself, asks for the backup password and restores on the device; then a new code.
             OnboardingRoute.Restore -> LocalFeatureScreens.current.RestoreBackup(
                 mode = RestoreMode.Onboarding,
                 onClose = { flow.router.pop() },
+                onFinished = flow::restoreFinished,
+                modifier = Modifier,
+            )
+            // This phone's code for the old phone to read; from there on the same restore, then a new code.
+            OnboardingRoute.TransferReceive -> LocalFeatureScreens.current.DeviceTransferReceive(
+                onCancel = { flow.router.pop() },
                 onFinished = flow::restoreFinished,
                 modifier = Modifier,
             )

@@ -419,6 +419,10 @@ object DesignFixtures {
     /** The demo share's message. */
     val demoLiveShareId = MessageId("m8")
 
+    /** What the design's new phone shows, and the scanner's mock reads (spec/test-vectors/device-transfer.json). */
+    const val TRANSFER_INVITATION =
+        "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021,172.20.10.1:54021"
+
     /**
      * `U2PickBackup` (UI tests, flow walks): the system document picker runs in another process, so
      * 7.3 “picks” this stand-in `.u2u` file instead (the fixtures open it with

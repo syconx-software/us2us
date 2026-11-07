@@ -1,5 +1,9 @@
 package com.syconx.us2us.runtime.facade
 
+import com.google.protobuf.ByteString
+import com.syconx.us2us.core.proto.transferFilePart
+import com.syconx.us2us.core.proto.transferRecord
+import com.syconx.us2us.core.transfer.DeviceTransferSpool
 import com.syconx.us2us.core.AccountId
 import com.syconx.us2us.core.contacts.ContactState
 import com.syconx.us2us.core.messenger.TokenRefusedException
@@ -124,6 +128,123 @@ class RelayRuntimeTest {
         phone.runtime.restore(file, PASSWORD, NEW_CODE, NEW_CODE)
         assertEquals(LockState.UNLOCKED, phone.runtime.lockState.value)
         return phone
+    }
+
+    /** The old phone's history, as a new phone holds it once the transfer is over. */
+    private suspend fun spoolOf(phone: Phone): DeviceTransferSpool {
+        val spool = DeviceTransferSpool(temporary.newFolder())
+        phone.runtime.transferHistory().export { spool.append(it) }
+        spool.finish()
+        return spool
+    }
+
+    @Test
+    fun aMoveBringsTheHistoryAndTheRestorePutsItInBeforeTheOldPhoneIsShutOut() = runBlocking {
+        coroutineScope {
+            val phone = Phone(temporary.newFolder())
+            phone.runtime.createAccount("selin_n", "Selin", CODE, CODE)
+            eventually { phone.runtime.connection.value == ConnectionStatus.Open }
+            val selin = phone.runtime.ownAccountId!!
+            val alice = TestClient.register(relay.url, "alice", this)
+            alice.awaitUpToDate()
+            alice.messenger.findByUsername("selin_n")
+            alice.messenger.sendText(selin, "merhaba selin")
+            eventually(message = "request listed") { phone.runtime.requests.value.any { it.id == alice.accountId } }
+            phone.runtime.acceptRequest(alice.accountId)
+            eventually(message = "accepted chat") { phone.runtime.chats.value.any { it.id == alice.accountId } }
+            phone.runtime.openConversation(alice.accountId)
+            phone.runtime.sendText("hoş geldin", alice.accountId)
+
+            val spool = spoolOf(phone)
+            val file = phone.runtime.exportBackup(PASSWORD, PASSWORD).readBytes()
+            val newPhone = Phone(temporary.newFolder())
+            val fractions = ArrayList<Double>()
+            // The old phone still holds the account when the last record goes in.
+            var tokenWorkedAtTheEnd = false
+            newPhone.runtime.restore(file, PASSWORD, "730415", "730415", history = spool) { fraction ->
+                fractions += fraction
+                if (fraction >= 1.0) tokenWorkedAtTheEnd = relay.tokenRotations.isEmpty()
+            }
+            assertEquals(LockState.UNLOCKED, newPhone.runtime.lockState.value)
+            assertEquals(1.0, fractions.last(), 0.0)
+            assertTrue(tokenWorkedAtTheEnd)
+            // No community here: nobody to tell about the move.
+            assertFalse(newPhone.runtime.session!!.engine.communityMovePending())
+            eventually { newPhone.runtime.chats.value.any { it.id == alice.accountId } }
+            newPhone.runtime.openConversation(alice.accountId)
+            eventually(message = "the old messages are here") {
+                val bodies = newPhone.runtime.openMessages.value.map { it.body }
+                MessageBody.Text("merhaba selin") in bodies && MessageBody.Text("hoş geldin") in bodies
+            }
+            // And it goes on as any restore: the old phone is out, the new one writes.
+            phone.runtime.lockNow()
+            phone.runtime.unlock(CODE)
+            eventually(message = "old line revoked") { phone.runtime.connection.value == ConnectionStatus.Revoked }
+            eventually { newPhone.runtime.connection.value == ConnectionStatus.Open }
+            newPhone.runtime.sendText("yeni telefon", alice.accountId)
+            alice.next { it.content.hasData() && it.content.data.text.body == "yeni telefon" }
+            alice.job.cancelAndJoin()
+        }
+    }
+
+    /** The other side still has the old phone's session: the first answer from the new phone replaces it. */
+    @Test
+    fun aRequestWaitingOnTheOldPhoneCanBeAcceptedOnTheNewOne() = runBlocking {
+        coroutineScope {
+            val phone = Phone(temporary.newFolder())
+            phone.runtime.createAccount("selin_n", "Selin", CODE, CODE)
+            eventually { phone.runtime.connection.value == ConnectionStatus.Open }
+            val selin = phone.runtime.ownAccountId!!
+            val alice = TestClient.register(relay.url, "alice", this)
+            alice.awaitUpToDate()
+            alice.messenger.findByUsername("selin_n")
+            alice.messenger.sendText(selin, "merhaba selin")
+            eventually(message = "request listed") { phone.runtime.requests.value.any { it.id == alice.accountId } }
+
+            val spool = spoolOf(phone)
+            val file = phone.runtime.exportBackup(PASSWORD, PASSWORD).readBytes()
+            val newPhone = Phone(temporary.newFolder())
+            newPhone.runtime.restore(file, PASSWORD, "730415", "730415", history = spool)
+            eventually(message = "the request came along") { newPhone.runtime.requests.value.any { it.id == alice.accountId } }
+            eventually { newPhone.runtime.connection.value == ConnectionStatus.Open }
+
+            newPhone.runtime.acceptRequest(alice.accountId)
+            eventually(message = "accepted chat") { newPhone.runtime.chats.value.any { it.id == alice.accountId } }
+            alice.next { it.content.hasControl() && it.content.control.hasRequestResponse() }
+            alice.messenger.sendText(selin, "kabul ettin")
+            newPhone.runtime.openConversation(alice.accountId)
+            eventually(message = "the old and the new message") {
+                val bodies = newPhone.runtime.openMessages.value.map { it.body }
+                MessageBody.Text("merhaba selin") in bodies && MessageBody.Text("kabul ettin") in bodies
+            }
+            alice.job.cancelAndJoin()
+        }
+    }
+
+    @Test
+    fun aHistoryThatCannotBeTakenInLeavesTheAccountOnTheOldPhone() = runBlocking {
+        val phone = Phone(temporary.newFolder())
+        phone.runtime.createAccount("selin_n", "Selin", CODE, CODE)
+        eventually { phone.runtime.connection.value == ConnectionStatus.Open }
+        val file = phone.runtime.exportBackup(PASSWORD, PASSWORD).readBytes()
+        val spool = DeviceTransferSpool(temporary.newFolder())
+        spool.append(transferRecord { filePart = transferFilePart { data = ByteString.copyFrom(byteArrayOf(1)) } }.toByteArray())
+        spool.finish()
+
+        val newPhone = Phone(temporary.newFolder())
+        try {
+            newPhone.runtime.restore(file, PASSWORD, "730415", "730415", history = spool)
+            fail("nothing half-way stays")
+        } catch (e: RuntimeException) {
+            assertEquals(RuntimeError.TransferHistoryFailed, e.error)
+        }
+        // This phone is back at the start, nothing was rotated, and the backup still works.
+        assertEquals(LockState.NEEDS_SETUP, newPhone.runtime.lockState.value)
+        newPhone.runtime.checkBackup(file, PASSWORD)
+        eventually { phone.runtime.connection.value == ConnectionStatus.Open }
+        phone.runtime.lockNow()
+        phone.runtime.unlock(CODE)
+        eventually(message = "the old phone stays in") { phone.runtime.connection.value == ConnectionStatus.Open }
     }
 
     @Test
@@ -257,10 +378,10 @@ class RelayRuntimeTest {
         val (_, file) = backedUpAccount()
         val production = RelayBackendFactory(relay.url)
         val racing = object : BackendFactory by production {
-            override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage): MessagingBackend {
+            override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage, beforeSavingAccount: suspend () -> Unit): MessagingBackend {
                 // Another phone restores the same backup between the relay check and the rotation.
                 relay.rotateTokenElsewhere(backup.accountId)
-                return production.restore(backup, storage)
+                return production.restore(backup, storage, beforeSavingAccount)
             }
         }
         val phone = Phone(temporary.newFolder(), racing)

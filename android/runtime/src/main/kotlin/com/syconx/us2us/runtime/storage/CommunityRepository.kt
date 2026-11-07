@@ -184,7 +184,7 @@ class CommunityRepository(private val storage: LocalStorage) {
 
     fun messages(id: AccountId, limit: Int = 500): List<StoredCommunityMessage> = history(id, limit = limit).items
 
-    fun history(id: AccountId, before: CommunityHistoryCursor? = null, through: CommunityHistoryCursor? = null, limit: Int = 100): CommunityHistory = storage.read { tx ->
+    fun history(id: AccountId, before: CommunityHistoryCursor? = null, through: CommunityHistoryCursor? = null, limit: Int = 100, skippingUnreadable: Boolean = false): CommunityHistory = storage.read { tx ->
         var predicate = "community_id=?"
         val arguments = mutableListOf<Any?>(id.toString())
         if (before != null) {
@@ -204,8 +204,18 @@ class CommunityRepository(private val storage: LocalStorage) {
         val key = key(tx, id)
         val own = ownId(tx)
         val summaries = deliverySummaries(tx, id)
-        val items = rows.asReversed().map { row -> message(tx, id, row, key).let { if (it.sender == own) it.copy(delivery = summaries[it.messageId]) else it } }
-        val oldest = CommunityHistoryCursor(items.first().receivedAt, rows.last().long("position")!!)
+        val items = rows.asReversed().mapNotNull { row ->
+            val message = try {
+                message(tx, id, row, key)
+            } catch (e: StorageException) {
+                if (skippingUnreadable) return@mapNotNull null
+                throw e
+            }
+            message.let { if (it.sender == own) it.copy(delivery = summaries[it.messageId]) else it }
+        }
+        // From the last row, read or not: the next page starts behind it.
+        val last = rows.last()
+        val oldest = CommunityHistoryCursor(last.long("received_at") ?: last.long("sent_at") ?: 0L, last.long("position")!!)
         val hasOlder = tx.connection.queryOne(
             "SELECT 1 FROM community_messages WHERE community_id=? AND (coalesce(received_at,sent_at),rowid)<(?,?) LIMIT 1",
             id.toString(), oldest.receivedAt, oldest.position,
@@ -533,6 +543,131 @@ class CommunityRepository(private val storage: LocalStorage) {
     }
     fun wasProcessed(envelope: String): Boolean = storage.read { it.envelopes.contains("community:$envelope") }
     fun processed(envelope: String) = storage.write { it.envelopes.record("community:$envelope") }
+
+    // MARK: A move to a new phone (PROTOCOL.md §5.6)
+
+    /** About how many bytes the communities' history takes. */
+    internal fun transferBytes(tx: StorageTransaction): Long {
+        val texts = tx.connection.queryOne("SELECT coalesce(sum(length(body) + 96), 0) AS n FROM community_messages")?.long("n") ?: 0L
+        val files = tx.connection.query("SELECT file_id FROM community_messages WHERE file_id IS NOT NULL")
+            .mapNotNull { it.bytes("file_id") }
+            .sumOf { tx.storage.files.file(it).length() }
+        return texts + files
+    }
+
+    /** "Delete for me" keys of a community. */
+    internal fun removedKeys(tx: StorageTransaction, id: AccountId, limit: Int): List<Triple<AccountId, AccountId, Long>> =
+        tx.connection.query("SELECT sender, message_id, removed_at FROM community_removed WHERE community_id=? LIMIT ?", id.toString(), limit)
+            .map { Triple(AccountId.parse(it.text("sender")!!), AccountId.parse(it.text("message_id")!!), it.long("removed_at") ?: 0L) }
+
+    internal class TransferExtras(val own: Boolean, val deleteToken: ByteArray?, val uploadedAt: Long?, val deletedAt: Long?)
+
+    /** What a message's row holds beyond what [history] shows. */
+    internal fun transferExtras(id: AccountId, sender: AccountId, messageId: AccountId): TransferExtras = storage.read { tx ->
+        val row = tx.connection.queryOne(
+            "SELECT delete_token, attachment, uploaded_at, deleted_at FROM community_messages WHERE community_id=? AND sender=? AND message_id=?",
+            id.toString(), sender.toString(), messageId.toString(),
+        )
+        val token = row?.blob("delete_token")?.let {
+            try {
+                tx.open(it, item(TOKEN, id, messageId), key(tx, id))
+            } catch (_: StorageException) {
+                null
+            }
+        }
+        TransferExtras(sender == ownId(tx), token, row?.long("uploaded_at"), row?.long("deleted_at"))
+    }
+
+    /** A community arriving from the old phone. `null` when this client does not accept its state: the relay tells again what it is a member of. */
+    internal fun adopt(
+        id: AccountId,
+        ownerKey: String,
+        name: String,
+        signed: SignedCommunityState?,
+        active: Boolean,
+        removed: List<com.syconx.us2us.core.proto.TransferCommunityKey>,
+        now: java.time.Instant,
+    ): AccountId? = storage.write { tx ->
+        try {
+            pin(tx, id, ownerKey, name)
+            if (signed != null) {
+                signed.verify(ownerKey)
+                tx.connection.run("UPDATE community_states SET state=?,signature=? WHERE id=?", signed.state, signed.signature, id.toString())
+            }
+        } catch (_: IllegalArgumentException) {
+            return@write null
+        }
+        tx.connection.run("UPDATE community_states SET active=? WHERE id=?", if (active && signed != null) 1 else 0, id.toString())
+        for (key in removed) {
+            val sender = accountIdOf(key.sender.toByteArray()) ?: continue
+            val messageId = accountIdOf(key.messageId.toByteArray()) ?: continue
+            tx.connection.run(
+                "INSERT OR IGNORE INTO community_removed(community_id,sender,message_id,removed_at) VALUES(?,?,?,?)",
+                id.toString(), sender.toString(), messageId.toString(), if (key.removedAt == 0L) now.toEpochMilli() else key.removedAt,
+            )
+        }
+        id
+    }
+
+    /** A message arriving from the old phone, under this phone's key. */
+    internal fun adopt(tx: StorageTransaction, id: AccountId, ownAccount: AccountId, message: com.syconx.us2us.core.proto.TransferCommunityMessage, file: ByteArray?, now: java.time.Instant) {
+        val sender = accountIdOf(message.sender.toByteArray()) ?: return
+        val messageId = accountIdOf(message.messageId.toByteArray()) ?: return
+        val own = sender == ownAccount
+        val deletion = CommunityDeletion.of(message.deletedBy.toLong())
+        val received = if (message.receivedAt == 0L) now.toEpochMilli() else message.receivedAt
+        val fileId = if (file != null && deletion == null) RandomIds.make() else null
+        val status = when {
+            !own -> "received"
+            // Here "partial" only means under way, and nothing is under way yet.
+            message.status == 0 || message.status == 1 -> "sent"
+            else -> "failed"
+        }
+        val before = tx.connection.queryOne("SELECT 1 AS present FROM community_messages WHERE community_id=? AND sender=? AND message_id=?",
+            id.toString(), sender.toString(), messageId.toString())
+        if (before != null) return
+        insert(
+            tx,
+            StoredCommunityMessage(
+                communityId = id,
+                sender = sender,
+                messageId = messageId,
+                sentAt = if (message.sentAt == 0L) received else message.sentAt,
+                text = if (deletion == null) message.text else "",
+                status = status,
+                attachment = if (deletion == null && message.hasAttachment()) message.attachment else null,
+                media = if (deletion == null && message.hasAttachment()) CommunityMediaState.of(message.mediaState.toLong()) ?: CommunityMediaState.UNAVAILABLE else null,
+                deletedBy = deletion,
+                receivedAt = received,
+                displayedAt = if (own) null else message.displayedAt.takeIf { it != 0L },
+                sticker = if (deletion == null && message.hasSticker()) message.sticker else null,
+            ),
+            fileId,
+            message.deletedAt.takeIf { it != 0L },
+        )
+        val key = key(tx, id)
+        if (fileId != null && file != null) tx.storage.files.write(file, fileId, key)
+        if (message.deleteToken.size() == 32) {
+            tx.connection.run(
+                "UPDATE community_messages SET delete_token=?, uploaded_at=? WHERE community_id=? AND sender=? AND message_id=?",
+                tx.seal(message.deleteToken.toByteArray(), item(TOKEN, id, messageId), key), message.uploadedAt, id.toString(), sender.toString(), messageId.toString(),
+            )
+        }
+        if (own) {
+            for (recipient in message.recipientsList) {
+                val member = accountIdOf(recipient.member.toByteArray()) ?: continue
+                val transport = when (recipient.state) {
+                    1 -> CommunityRecipient.ACCEPTED
+                    2 -> CommunityRecipient.SKIPPED
+                    else -> CommunityRecipient.FAILED
+                }
+                tx.connection.run(
+                    "INSERT OR IGNORE INTO community_recipients(community_id,message_id,member,transport,delivered_at,read_at) VALUES(?,?,?,?,?,?)",
+                    id.toString(), messageId.toString(), member.toString(), transport, recipient.deliveredAt.takeIf { it != 0L }, recipient.readAt.takeIf { it != 0L },
+                )
+            }
+        }
+    }
 
     // MARK: Maintenance
 

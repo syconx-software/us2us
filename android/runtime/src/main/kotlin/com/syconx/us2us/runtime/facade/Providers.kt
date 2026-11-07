@@ -128,9 +128,10 @@ interface BackendFactory {
      * contacts, token rotation (the new token stored before it is sent, the outcome saved before
      * the key upload), fresh pre-keys. Throws [RuntimeError.BackupRevoked] when the relay refuses
      * the backup's token and the new one, and the core's `TokenRefusedException` when it refused
-     * the new token alone (the backup still works).
+     * the new token alone (the backup still works). [beforeSavingAccount] runs after the identity and
+     * contacts are in, before anything that keeps this vault or shuts the old phone out.
      */
-    suspend fun restore(backup: AccountBackupFile, storage: LocalStorage): MessagingBackend
+    suspend fun restore(backup: AccountBackupFile, storage: LocalStorage, beforeSavingAccount: suspend () -> Unit = {}): MessagingBackend
 
     /**
      * The read-only relay check of a backup before anything on this phone is replaced: one
@@ -172,11 +173,11 @@ class RelayBackendFactory(private val relayUrl: String) : BackendFactory {
         return MessengerBackend(messenger, storage, relay, contacts)
     }
 
-    override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage): MessagingBackend {
+    override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage, beforeSavingAccount: suspend () -> Unit): MessagingBackend {
         val relay = client()
         val contacts = ReceiveGuardedContactStore(storage.contactStore)
         val messenger = try {
-            Messenger.restore(backup.file, backup.password, relay, storage.protocolStorage, contacts, configuration(storage), storage.accountStore)
+            Messenger.restore(backup.file, backup.password, relay, storage.protocolStorage, contacts, configuration(storage), beforeSavingAccount, storage.accountStore)
         } catch (e: BackupNoLongerValidException) {
             // The relay refused both tokens: another phone restored the backup first, or the account is gone.
             runtimeFailure(RuntimeError.BackupRevoked, e)

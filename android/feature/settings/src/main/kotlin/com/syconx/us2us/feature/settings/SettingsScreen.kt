@@ -399,6 +399,13 @@ internal fun SettingsRootView(modifier: Modifier = Modifier) {
                         modifier = Modifier.testTag(SettingsTags.BACKUP),
                     )
                     GroupedSeparator()
+                    GroupedNavigationRow(
+                        tile = { IconTile(IconTileContent.Glyph(PhosphorGlyph.QrCode)) },
+                        title = stringResource(R.string.settings_transfer),
+                        onClick = { flow.open(SettingsPage.TransferSend, router) },
+                        modifier = Modifier.testTag(SettingsTags.TRANSFER),
+                    )
+                    GroupedSeparator()
                     PickerRow(
                         PhosphorGlyph.Moon,
                         stringResource(R.string.settings_theme),

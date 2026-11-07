@@ -42,6 +42,7 @@ import com.syconx.us2us.runtime.vault.VaultController
 import com.syconx.us2us.runtime.vault.VaultError
 import com.syconx.us2us.runtime.vault.VaultException
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.After
@@ -88,7 +89,7 @@ class FakeBackendFactory : BackendFactory {
 
     override fun open(account: LocalAccount, storage: LocalStorage): MessagingBackend = backendOn(storage)
 
-    override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage): MessagingBackend = error("not used")
+    override suspend fun restore(backup: AccountBackupFile, storage: LocalStorage, beforeSavingAccount: suspend () -> Unit): MessagingBackend = error("not used")
 
     override suspend fun checkBackup(backup: AccountBackupFile) = Unit
 }
@@ -277,6 +278,39 @@ class AppRuntimeTest {
         fixture.connect()
         assertEquals(2, fixture.backend.streamCount)
         eventually { fixture.runtime.chats.value.firstOrNull()?.lastMessage?.body == MessageBody.Text("selam") }
+    }
+
+    /** The app leaves while the socket is reconnecting, the reconnect gets no answer, and the grace period ends. */
+    private suspend fun leaveWithAHungConnection(fixture: RuntimeFixture) {
+        fixture.connect()
+        fixture.backend.opensHang = true
+        fixture.backend.latestStream!!.push(
+            com.syconx.us2us.runtime.engine.FakeStream.Event.Fail(java.io.IOException("connection lost")),
+        )
+        eventually(message = "reconnecting") {
+            fixture.clock.advance(1.seconds)
+            fixture.runtime.connection.value == ConnectionStatus.Connecting
+        }
+        fixture.phase(AppPhase.BACKGROUND)
+        eventually(message = "grace over") {
+            fixture.clock.advance(1.seconds)
+            fixture.runtime.session == null
+        }
+        fixture.backend.opensHang = false
+        fixture.phase(AppPhase.ACTIVE)
+    }
+
+    @Test
+    fun theRightCodeOpensTheAppThoughTheOldSocketNeverAnswers() = runBlocking {
+        val fixture = newFixture()
+        fixture.onboard()
+        leaveWithAHungConnection(fixture)
+        val unlock = launch { fixture.runtime.unlock(RuntimeFixture.CODE) }
+        eventually(message = "unlocked") {
+            fixture.clock.advance(1.seconds)
+            fixture.runtime.lockState.value == LockState.UNLOCKED
+        }
+        unlock.join()
     }
 
     @Test

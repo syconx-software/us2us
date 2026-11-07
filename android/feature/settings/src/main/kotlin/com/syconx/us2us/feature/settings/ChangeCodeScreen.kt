@@ -114,6 +114,9 @@ class ChangeCodeModel(
 
         /** 7.1 › “Face ID ile aç”: the current code only. */
         EnableBiometrics,
+
+        /** 7.1 › “Yeni telefona taşı”: the current code only, before the account leaves. */
+        ConfirmTransfer,
     }
 
     enum class Step(val number: Int) {
@@ -264,8 +267,8 @@ class ChangeCodeModel(
         val result = if (purpose == Purpose.EnableBiometrics) messenger.enableBiometricUnlock(code) else messenger.verifySecretCode(code)
         isBusy = false
         when {
-            result == UnlockAttemptResult.Unlocked && purpose == Purpose.EnableBiometrics -> {
-                // Face ID is on; the page closes (the dots stay full meanwhile).
+            result == UnlockAttemptResult.Unlocked && purpose != Purpose.ChangeCode -> {
+                // Face ID is on and the page closes, or the transfer goes on (the dots stay full meanwhile).
                 isBusy = true
                 haptics.success()
                 onChanged()
@@ -386,7 +389,14 @@ object ChangeCodeTags {
  * position); only the upper block cross-fades between steps (0.36 s), the dots reset softly.
  */
 @Composable
-internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifier = Modifier) {
+internal fun ChangeCodeScreen(
+    purpose: ChangeCodeModel.Purpose,
+    modifier: Modifier = Modifier,
+    /** [ChangeCodeModel.Purpose.ConfirmTransfer]: the right code was entered. */
+    onConfirmed: (() -> Unit)? = null,
+    /** [ChangeCodeModel.Purpose.ConfirmTransfer]: the page's own way back. */
+    onBack: (() -> Unit)? = null,
+) {
     val app = LocalAppModel.current
     val router = LocalRouter.current
     val haptics = LocalHaptics.current
@@ -400,8 +410,12 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
             scope = scope,
             purpose = purpose,
             onChanged = {
-                flow.toast = if (enablesBiometrics) R.string.android_biometric_enabled_toast else R.string.settings_code_changed_toast
-                router.pop()
+                if (onConfirmed != null) {
+                    onConfirmed()
+                } else {
+                    flow.toast = if (enablesBiometrics) R.string.android_biometric_enabled_toast else R.string.settings_code_changed_toast
+                    router.pop()
+                }
             },
             onWiped = { app.dataWipedAfterWrongCodes() },
             onUnavailable = {
@@ -422,7 +436,7 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
             minimumBottom = NumericKeypadMetrics.minimumHeight + currentSafeArea.bottom(56.dp),
             top = {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (vm.purpose == ChangeCodeModel.Purpose.EnableBiometrics) {
+            if (vm.purpose != ChangeCodeModel.Purpose.ChangeCode) {
                 // One step: the setup header's back button, without a counter.
                 Row(
                     Modifier
@@ -435,7 +449,7 @@ internal fun ChangeCodeScreen(purpose: ChangeCodeModel.Purpose, modifier: Modifi
                     U2GlassIconButton(
                         glyph = PhosphorGlyph.CaretLeft,
                         contentDescription = stringResource(R.string.common_a11y_back),
-                        onClick = router::pop,
+                        onClick = onBack ?: router::pop,
                         glyphSize = 22.dp,
                         modifier = Modifier.testTag(ChangeCodeTags.FACE_ID_BACK),
                     )

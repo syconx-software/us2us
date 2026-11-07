@@ -10,6 +10,9 @@ import com.syconx.us2us.domain.AvatarPalette
 import com.syconx.us2us.domain.BackupContents
 import com.syconx.us2us.domain.BackupEstimate
 import com.syconx.us2us.domain.BackupFileError
+import com.syconx.us2us.domain.ChatBackground
+import com.syconx.us2us.domain.ChatBackgroundPreset
+import com.syconx.us2us.domain.CommunityChats
 import com.syconx.us2us.domain.DeviceProtection
 import com.syconx.us2us.domain.BackupFileInfo
 import com.syconx.us2us.domain.BackupOpenResult
@@ -78,6 +81,7 @@ import com.syconx.us2us.runtime.facade.AppRuntime
 import com.syconx.us2us.runtime.facade.LockState
 import com.syconx.us2us.runtime.media.MediaInput
 import com.syconx.us2us.runtime.media.PreparedMedia
+import com.syconx.us2us.runtime.storage.ChatBackgroundChoice
 import com.syconx.us2us.runtime.storage.ContactIdentity
 import com.syconx.us2us.runtime.storage.IdentityVerificationMethod
 import com.syconx.us2us.runtime.support.AppPhase
@@ -218,6 +222,8 @@ class RealMessengerService(
     private val revisionFlows = HashMap<ChatId, StateFlow<Int>>()
 
     init {
+        // What a killed process left of a transfer cannot be opened without the key it took along.
+        scope.launch(io) { File(context.noBackupFilesDir, "device-transfer").deleteRecursively() }
         outgoingMedia.onSent = ::keepImage
         communityChats.start()
         // Picked copies a crash or a kill left behind go with the new process.
@@ -342,11 +348,18 @@ class RealMessengerService(
         forgetExportedBackups()
         try {
             val file = withContext(io) { pending.first.readBytes() }
-            runtime.restore(file, pending.second, secretCode, secretCode, replacingLockedVault = replacing)
+            val history = pendingTransferHistory
+            if (history != null) historyProgress.value = 0.0
+            runtime.restore(file, pending.second, secretCode, secretCode, replacingLockedVault = replacing, history = history) { fraction ->
+                if (historyProgress.value != null) historyProgress.value = fraction
+            }
+            historyProgress.value = null
         } catch (e: CancellationException) {
+            historyProgress.value = null
             forgetVaultReplacedBy(replacing)
             throw e
         } catch (e: Exception) {
+            historyProgress.value = null
             forgetVaultReplacedBy(replacing)
             if (runtime.lockState.value == LockState.LOCKED && runtime.keptAccountAfterFailedSetup.value) {
                 // Restored and saved, then something failed: the restored account stays, locked under the new code.
@@ -384,6 +397,8 @@ class RealMessengerService(
     private fun dropPendingRestore() {
         pendingRestore?.first?.delete()
         pendingRestore = null
+        pendingTransferHistory?.remove()
+        pendingTransferHistory = null
     }
 
     /** A restore replaced the vault this phone held: what the service kept of it (live-location updates, preview and recording files, caches) goes as well. */
@@ -1094,6 +1109,60 @@ class RealMessengerService(
         if (sent) quietly { runtime.noteRecentSticker(sticker.id) }
     }
 
+    private val historyProgress = MutableStateFlow<Double?>(null)
+
+    override val historyImportProgress: StateFlow<Double?> = historyProgress
+
+    /** What came from the old phone (PROTOCOL §5.6), until the restore takes it in. Memory only: its key is here. */
+    private var pendingTransferHistory: com.syconx.us2us.core.transfer.DeviceTransferSpool? = null
+
+    private val chatBackgroundRevisions = MutableStateFlow(0)
+
+    override val chatBackgroundRevision: StateFlow<Int> = chatBackgroundRevisions
+
+    override suspend fun chatBackground(chat: ChatId): ChatBackground {
+        val community = LiveCommunityMapping.community(chat)
+        val stored = try {
+            when {
+                community != null -> runtime.communityChatBackground(community)
+                CommunityChats.isCommunity(chat) -> null
+                else -> account(chat)?.let { runtime.chatBackground(it) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        return when (stored) {
+            is ChatBackgroundChoice.Preset -> ChatBackgroundPreset.of(stored.id)?.let { ChatBackground.Preset(it) } ?: ChatBackground.Standard
+            is ChatBackgroundChoice.Photo -> ChatBackground.Photo(stored.jpeg)
+            null -> ChatBackground.Standard
+        }
+    }
+
+    override suspend fun setChatBackground(background: ChatBackground, chat: ChatId): Boolean {
+        val choice = when (background) {
+            ChatBackground.Standard -> null
+            is ChatBackground.Preset -> ChatBackgroundChoice.Preset(background.preset.id)
+            is ChatBackground.Photo -> ChatBackgroundChoice.Photo(background.jpeg)
+        }
+        val community = LiveCommunityMapping.community(chat)
+        try {
+            if (community != null) {
+                runtime.setCommunityChatBackground(choice, community)
+            } else {
+                val peer = (if (CommunityChats.isCommunity(chat)) null else account(chat)) ?: return false
+                runtime.setChatBackground(choice, peer)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return false
+        }
+        chatBackgroundRevisions.value += 1
+        return true
+    }
+
     override suspend fun recentStickers(): List<String> = try {
         runtime.recentStickers()
     } catch (e: CancellationException) {
@@ -1531,6 +1600,14 @@ class RealMessengerService(
     override suspend fun backupPasswordIsSecretCode(password: String): Boolean = false
 
     override fun backupPasswordProblem(password: String): BackupPasswordError? = LiveOutcomes.backupPasswordProblem(password)
+
+    override fun isAccountInvitation(text: String): Boolean = LiveDeviceTransfer.isInvitation(text)
+
+    override suspend fun startReceivingAccount(): com.syconx.us2us.domain.DeviceTransferIncoming =
+        LiveDeviceTransfer.startReceiving(File(context.noBackupFilesDir, "device-transfer"), main, io) { pendingTransferHistory = it }
+
+    override suspend fun sendAccount(invitation: String, progress: (Double) -> Unit) =
+        LiveDeviceTransfer.send(this, runtime.transferHistory(), invitation, main, io, progress)
 
     override fun generateBackupPassword(): String = LiveOutcomes.generateBackupPassword()
 

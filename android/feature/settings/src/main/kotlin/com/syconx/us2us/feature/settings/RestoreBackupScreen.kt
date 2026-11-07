@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.BackupFileError
 import com.syconx.us2us.domain.BackupFileInfo
 import com.syconx.us2us.domain.BackupOpenResult
+import com.syconx.us2us.domain.DeviceTransferDeliveryInfo
 import com.syconx.us2us.domain.MessengerException
 import com.syconx.us2us.domain.MessengerService
 import com.syconx.us2us.domain.RestoreProgress
@@ -184,6 +185,14 @@ class RestoreBackupModel(private val messenger: MessengerService, private val sc
 
     /** Restoring inside the lock (3.3 › 7.3): finishing setup replaces this phone's vault, and its messages with it. */
     val replacesThisPhone: Boolean get() = messenger.hasAccount.value
+
+    /** A file and its password from the old phone (PROTOCOL.md §5.6): nothing to pick or type. */
+    suspend fun adopt(delivery: DeviceTransferDeliveryInfo) {
+        pick(delivery.file)
+        if (stage != Stage.Password) return
+        password = delivery.password
+        submitPassword()
+    }
 
     suspend fun pick(uri: URI) {
         stage = Stage.Inspecting
@@ -346,6 +355,7 @@ internal fun RestoreBackupView(
     modifier: Modifier = Modifier,
     opensPickerOnAppear: Boolean = true,
     file: URI? = null,
+    transferred: DeviceTransferDeliveryInfo? = null,
 ) {
     val app = LocalAppModel.current
     val context = LocalContext.current
@@ -430,6 +440,11 @@ internal fun RestoreBackupView(
             }
             return@LaunchedEffect
         }
+        // The account arrived from the old phone: the same restore, without a file to pick or a password to type.
+        if (transferred != null) {
+            vm.adopt(transferred)
+            return@LaunchedEffect
+        }
         // A backup chosen before 7.3 opened (3.3 picks it first, as on iOS) goes straight to its password.
         if (file != null) {
             picked(file)
@@ -444,7 +459,7 @@ internal fun RestoreBackupView(
     U2Screen(modifier.testTag(RestoreTags.SCREEN)) {
         Column(Modifier.fillMaxSize()) {
             CenteredTitleHeader(
-                title = stringResource(R.string.settings_restore_title),
+                title = stringResource(if (transferred != null) R.string.settings_transfer_receive_title else R.string.settings_restore_title),
                 leading = {
                     U2GlassIconButton(
                         glyph = PhosphorGlyph.X,
@@ -456,12 +471,14 @@ internal fun RestoreBackupView(
             )
             RestoreContent(
                 vm = vm,
+                isTransferred = transferred != null,
                 passwordFocus = passwordFocus,
                 passwordFocused = passwordFocused,
                 onPasswordFocus = { passwordFocused = it },
                 onPick = ::presentPicker,
                 onSubmit = ::submitPassword,
                 onCancel = { showsCancel = true },
+                onStartOver = onClose,
                 onFinished = onFinished,
             )
         }
@@ -492,12 +509,14 @@ internal fun RestoreBackupView(
 @Composable
 private fun RestoreContent(
     vm: RestoreBackupModel,
+    isTransferred: Boolean,
     passwordFocus: FocusRequester,
     passwordFocused: Boolean,
     onPasswordFocus: (Boolean) -> Unit,
     onPick: () -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
+    onStartOver: () -> Unit,
     onFinished: () -> Unit,
 ) {
     val rise = U2Transitions.rise()
@@ -509,9 +528,9 @@ private fun RestoreContent(
                 .padding(start = 16.dp, top = 18.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            FileCard(vm, onPick)
+            if (isTransferred) TransferredAccountCard(vm.stage) else FileCard(vm, onPick)
             val file = vm.file
-            AnimatedVisibility(file != null, enter = rise.enter, exit = rise.exit) {
+            AnimatedVisibility(file != null && !isTransferred, enter = rise.enter, exit = rise.exit) {
                 Column(Modifier.then(u2TransitionBlur(rise)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     val stage = vm.stage
                     PasswordField(
@@ -554,7 +573,7 @@ private fun RestoreContent(
                 .keyboardAwareBottom(passwordFocused),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val note = note(vm)
+            val note = if (isTransferred) stringResource(R.string.settings_transfer_restore_note) else note(vm)
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -572,7 +591,11 @@ private fun RestoreContent(
                     )
                 }
             }
-            RestoreAction(vm, onPick, onSubmit, onCancel, onFinished)
+            if (isTransferred && !vm.isPasswordAccepted) {
+                TransferredRestoreAction(vm.stage, onRetry = onSubmit, onStartOver = onStartOver)
+            } else {
+                RestoreAction(vm, onPick, onSubmit, onCancel, onFinished)
+            }
         }
     }
 }

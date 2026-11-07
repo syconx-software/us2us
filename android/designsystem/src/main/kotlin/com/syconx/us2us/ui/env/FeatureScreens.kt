@@ -47,6 +47,14 @@ interface FeatureScreens {
     fun QrScan(mode: QrScanMode, onOpenChat: ((ChatId) -> Unit)?, onDismiss: () -> Unit, modifier: Modifier) =
         QrScan(mode, onDismiss, modifier)
 
+    /** The new phone's side of a direct transfer, from 1.1 (settings' `DeviceTransferReceiveScreen`). */
+    @Composable
+    fun DeviceTransferReceive(onCancel: () -> Unit, onFinished: () -> Unit, modifier: Modifier) = Unit
+
+    /** 6.2 for the code on the new phone, from 7.1 (verification's `DeviceTransferScanCover`): a code that is one goes to [onCode]. */
+    @Composable
+    fun DeviceTransferScan(onCode: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier) = Unit
+
     /** The invite sheet's content (chats' `InviteSheet`); [state] is a harness state id, `null` in production. */
     @Composable
     fun Invite(state: String?, onClose: () -> Unit, modifier: Modifier)

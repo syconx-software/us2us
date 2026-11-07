@@ -31,6 +31,9 @@ class QrScannerModel(
 
         /** Scanning someone's contact code (hint without a name). */
         data object AddContact : Purpose
+
+        /** Scanning the code on the new phone (7.1 › Yeni telefona taşı): there is no own code to show. */
+        data object DeviceTransfer : Purpose
     }
 
     enum class Stage {

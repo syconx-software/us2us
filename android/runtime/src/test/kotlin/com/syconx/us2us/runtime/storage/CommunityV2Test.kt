@@ -184,6 +184,33 @@ class CommunityV2Test {
         assertTrue(c.repository.queuedReceipts().isEmpty())
     }
 
+    /** PROTOCOL.md §5.6: nothing of it shows, and it counts as done only once it was queued. */
+    @Test fun afterAMoveEachMemberOfAnActiveCommunityIsToldOnce() = runBlocking {
+        var told = 0
+        owner.engine.announceMove { told++ }
+        assertEquals(0, told)
+        relay.log.clear()
+        sync(owner)
+        assertEquals(1, told)
+        val receipts = relay.log.filter { it.startsWith(owner.id.toString().take(8)) && it.contains("/messages/") }
+        assertEquals("one to each other member", 2, receipts.size)
+        assertTrue(receipts.any { it.contains("/messages/${b.id}/") })
+        assertTrue(receipts.any { it.contains("/messages/${c.id}/") })
+
+        relay.log.clear()
+        sync(owner, b, c)
+        assertEquals("said once", 1, told)
+        assertTrue(relay.log.none { it.startsWith(owner.id.toString().take(8)) && it.contains("/messages/") })
+        assertTrue("nothing shows", owner.messages(state.id).isEmpty() && b.messages(state.id).isEmpty() && c.messages(state.id).isEmpty())
+    }
+
+    @Test fun aPhoneWithoutAnActiveCommunityHasNobodyToTellAboutAMove() = runBlocking {
+        val lonely = Phone("lone")
+        var told = 0
+        lonely.engine.announceMove { told++ }
+        assertEquals(1, told)
+    }
+
     @Test fun deliveryIsBatchedPerOriginalSenderAndSplitAboveAThousand() = runBlocking {
         repeat(3) { owner.engine.send(state.id, "hi $it") }
         b.engine.send(state.id, "from b")
