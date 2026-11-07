@@ -27,6 +27,16 @@ extension RealMessengerService {
         }
     }
 
+    func connectDevicePreferences(_ current: @escaping @MainActor () -> DevicePreferencesSnapshot) {
+        currentDevicePreferences = current
+    }
+
+    func takeTransferredPreferences() -> DevicePreferencesSnapshot? {
+        runtime.takeTransferredPreferences().map {
+            DevicePreferencesSnapshot(theme: $0.theme, language: $0.language, keepScreenOn: $0.keepScreenOn)
+        }
+    }
+
     func sendAccount(
         toInvitation invitation: String, progress: @escaping @MainActor @Sendable (Double) -> Void
     ) async throws(DeviceTransferFailure) {
@@ -34,7 +44,10 @@ extension RealMessengerService {
         let file: URL
         let history: any DeviceTransferHistorySource
         do {
-            history = try await runtime.transferHistory()
+            let preferences = currentDevicePreferences?()
+            history = try await runtime.transferHistory(preferences: preferences.map {
+                TransferredPreferences(theme: $0.theme, language: $0.language, keepScreenOn: $0.keepScreenOn)
+            })
             file = try await exportBackup(BackupContents(), password: password, fileName: "transfer.u2u") { _ in }
         } catch {
             throw .notPrepared

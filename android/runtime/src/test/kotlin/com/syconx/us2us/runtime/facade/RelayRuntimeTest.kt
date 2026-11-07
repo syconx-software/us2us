@@ -133,7 +133,7 @@ class RelayRuntimeTest {
     /** The old phone's history, as a new phone holds it once the transfer is over. */
     private suspend fun spoolOf(phone: Phone): DeviceTransferSpool {
         val spool = DeviceTransferSpool(temporary.newFolder())
-        phone.runtime.transferHistory().export { spool.append(it) }
+        phone.runtime.transferHistory(TransferredPreferences("dark", "en", true)).export { spool.append(it) }
         spool.finish()
         return spool
     }
@@ -168,6 +168,8 @@ class RelayRuntimeTest {
             assertEquals(LockState.UNLOCKED, newPhone.runtime.lockState.value)
             assertEquals(1.0, fractions.last(), 0.0)
             assertTrue(tokenWorkedAtTheEnd)
+            assertEquals(TransferredPreferences("dark", "en", true), newPhone.runtime.takeTransferredPreferences())
+            assertEquals("handed over once", null, newPhone.runtime.takeTransferredPreferences())
             // No community here: nobody to tell about the move.
             assertFalse(newPhone.runtime.session!!.engine.communityMovePending())
             eventually { newPhone.runtime.chats.value.any { it.id == alice.accountId } }
@@ -425,6 +427,7 @@ class RelayRuntimeTest {
         coroutineScope {
             val alice = TestClient.register(relay.url, "alice", this)
             alice.messenger.setProfilePicture(ProfilePicture.preset(3))
+            alice.messenger.setShowPictureInSearch(true)
             val phone = Phone(temporary.newFolder())
             phone.runtime.createAccount("selin_n", "Selin", CODE, CODE)
             val found = phone.runtime.lookupAccount("alice")!!

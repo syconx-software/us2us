@@ -118,6 +118,11 @@ describe('migration secret and privilege boundaries', () => {
     const usage = 'GRANT USAGE ON *.* TO `relay`@`localhost`'
     const dml = 'GRANT SELECT, INSERT, UPDATE, DELETE ON `us2us`.* TO `relay`@`localhost`'
     expect(() => assertRuntimeGrants([usage, dml], 'NONE', 'us2us')).not.toThrow()
+    // The one global privilege allowed: keeping its own session out of the binary log.
+    const binaryLog = 'GRANT SESSION_VARIABLES_ADMIN ON *.* TO `us2us`@`localhost`'
+    expect(() => assertRuntimeGrants([usage, binaryLog, dml], 'NONE', 'us2us')).not.toThrow()
+    expect(() => assertRuntimeGrants(['GRANT SESSION_VARIABLES_ADMIN, SUPER ON *.* TO `us2us`@`localhost`', dml], 'NONE', 'us2us')).toThrow()
+    expect(() => assertRuntimeGrants(['GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO `us2us`@`localhost`', dml], 'NONE', 'us2us')).toThrow()
     for (const grant of [dml.replace('DELETE', 'CREATE'), dml.replace('`us2us`', '`other`'), dml + ' WITH GRANT OPTION', 'GRANT ALL PRIVILEGES ON *.* TO `relay`@`localhost`', 'GRANT `administrator`@`%` TO `relay`@`localhost`']) {
       expect(() => assertRuntimeGrants([usage, grant], 'NONE', 'us2us')).toThrow()
     }

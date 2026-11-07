@@ -96,6 +96,11 @@ final class AppModel {
             service = Self.makeLiveService(relayURL: configuration.relayURL)
         }
         self.messenger = service
+        service.connectDevicePreferences { [preferences] in
+            DevicePreferencesSnapshot(
+                theme: preferences.theme.rawValue, language: preferences.language.rawValue,
+                keepScreenOn: preferences.keepScreenOn)
+        }
 
         // The live service decides the start: onboarding without an account,
         // otherwise the lock — at every launch, by design.
@@ -234,8 +239,17 @@ final class AppModel {
         AfterFrames.run(2) { [weak self] in self?.dismissOverlay() }
     }
 
+    /// A direct transfer brought the old phone's theme, language and screen setting (PROTOCOL.md §5.6).
+    private func applyTransferredPreferences() {
+        guard let moved = messenger.takeTransferredPreferences() else { return }
+        if let theme = ThemePreference(rawValue: moved.theme) { preferences.theme = theme }
+        if let language = AppLanguage(rawValue: moved.language) { preferences.language = language }
+        preferences.keepScreenOn = moved.keepScreenOn
+    }
+
     /// 2.3 “Kurulumu tamamla” succeeded: replace the root with 4.1 (cross-fade 0.5 s).
     func didFinishOnboarding() {
+        applyTransferredPreferences()
         router.setPath([])
         onboardingEntry = .welcome
         isLeavingOnboarding = true

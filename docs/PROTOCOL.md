@@ -8,6 +8,9 @@ them is a bug — fix it in the same change.
 Key words MUST, SHOULD, MAY are used as in RFC 2119.
 
 > **Change log**
+> * 2026-11-07: **the direct transfer also carries the device's theme, language
+>   and keep-screen-on choice** (§5.6; `TransferSettings` fields 8–10, additive,
+>   client only). A phone that does not send them leaves the new phone's own.
 > * 2026-11-06: **direct transfer to a new phone** (§5.6, new; client only,
 >   no relay or wire change): a QR code and the two phones' own network carry
 >   an ordinary account backup and its generated password, so no file or
@@ -1739,9 +1742,11 @@ answer count (§6.4); messages with their times and statuses, “delete for ever
 markers, reactions, and attachments with their file and thumbnail; communities with
 their signed state, name, “delete for me” keys and background, their messages, files,
 own delete tokens and the recipients of own messages; what a blocked contact was before
-the block; and the user's presence, read
-receipt, typing, media download, default ghost mode, default timer and recent sticker
-settings.
+the block; the user's presence, read receipt, typing, media download, default ghost
+mode, default timer and recent sticker settings; and the device's theme, language and
+keep-screen-on choice. A phone that sends no theme and no language leaves the new
+phone's own. Face ID and fingerprint unlock is set up again on the new phone: it is bound
+to the device.
 
 *What MUST NOT move:* a disappearing message (a timer or an expiry time), a view-once
 message, or any message or draft of a conversation in ghost mode. They stay behind and

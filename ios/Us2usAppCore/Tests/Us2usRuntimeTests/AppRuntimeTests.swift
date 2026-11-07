@@ -425,6 +425,9 @@ struct AppRuntimeTests {
             settings.settings.presenceSharing = true
             settings.settings.typingIndicators = true
             settings.settings.autoDownloadMedia = true
+            settings.settings.theme = "dark"
+            settings.settings.language = "en"
+            settings.settings.keepScreenOn = true
             try spool.append(try settings.serializedBytes())
         }
         try spool.finish()
@@ -445,6 +448,8 @@ struct AppRuntimeTests {
         #expect(newPhone.runtime.lockState == .unlocked)
         #expect(fractions.last == 1)
         #expect(newPhone.runtime.settings.readReceipts == false)
+        #expect(newPhone.runtime.takeTransferredPreferences() == TransferredPreferences(theme: "dark", language: "en", keepScreenOn: true))
+        #expect(newPhone.runtime.takeTransferredPreferences() == nil, "Handed over once")
         try await eventually { newPhone.runtime.chats.contains { $0.id == contact } }
         let storage = try #require(newPhone.runtime.session?.storage)
         try storage.read { tx in

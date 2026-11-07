@@ -71,11 +71,20 @@ final class CommunityFlowUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-U2RelayURL", relay, "-U2Language", "tr", "-U2Theme", "dark", "-U2ResetPreferences", "YES"]
         app.launch()
-        // A fresh simulator/container is a required part of this test's isolation.
-        tap(app.buttons["welcome.start"])
+        // A fresh simulator/container is a required part of this suite's isolation, so the
+        // suite's other test may have set this one up already: unlock it and go on.
+        let name = "cui_" + UUID().uuidString.prefix(8).lowercased()
+        let start = app.buttons["welcome.start"], locked = app.staticTexts["Gizli kodunu gir"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in start.exists || locked.exists }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        if locked.exists {
+            for digit in "246813" { app.buttons[String(digit)].tap() }
+            XCTAssertTrue(app.buttons["chats.new"].waitForExistence(timeout: 30))
+            return (app, name)
+        }
+        tap(start)
         tap(app.buttons["welcome.page2.cta"])
         tap(app.buttons["welcome.page3.cta"])
-        let name = "cui_" + UUID().uuidString.prefix(8).lowercased()
         let username = app.textFields.firstMatch
         tap(username)
         username.typeText(name)

@@ -224,6 +224,10 @@ protocol MessengerService: AnyObject, Observable {
     func sendAccount(
         toInvitation invitation: String, progress: @escaping @MainActor @Sendable (Double) -> Void
     ) async throws(DeviceTransferFailure)
+    /// How the old phone reads its device preferences for a direct transfer; they live outside the vault.
+    func connectDevicePreferences(_ current: @escaping @MainActor () -> DevicePreferencesSnapshot)
+    /// The new phone: what the old phone sent of its device preferences, once.
+    func takeTransferredPreferences() -> DevicePreferencesSnapshot?
     /// What this chat shows behind its messages on this phone (never sent).
     func chatBackground(of chat: ChatID) async -> ChatBackground
     /// `false` when it could not be stored: the chat keeps what it had.
@@ -458,6 +462,8 @@ enum MessengerScenePhase: Sendable, Equatable {
 }
 
 extension MessengerService {
+    func connectDevicePreferences(_ current: @escaping @MainActor () -> DevicePreferencesSnapshot) {}
+    func takeTransferredPreferences() -> DevicePreferencesSnapshot? { nil }
     var hasAccount: Bool { account != nil }
     var sendsDesignContent: Bool { true }
     var backupsIncludeHistory: Bool { true }

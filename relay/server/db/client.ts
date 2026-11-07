@@ -20,7 +20,7 @@ export interface Database {
   close(): Promise<void>
 }
 
-export function createDatabase(url: string, poolSize: number): Database {
+export function createDatabase(url: string, poolSize: number, options: { outOfBinaryLog?: boolean } = {}): Database {
   const pool = mysql.createPool({
     uri: url,
     connectionLimit: poolSize,
@@ -31,6 +31,16 @@ export function createDatabase(url: string, poolSize: number): Database {
     supportBigNumbers: true,
     timezone: 'Z',
   })
+  // With row-based binary logging MySQL would keep a copy of every envelope, hash and key, deleted or not,
+  // for as long as the server keeps its logs. The privacy policy promises deletion, so this data stays out.
+  // Needs SESSION_VARIABLES_ADMIN. A connection that cannot do it still works; the operator is told.
+  if (options.outOfBinaryLog) {
+    pool.pool.on('connection', (connection: { query(sql: string, done: (error: unknown) => void): void }) => {
+      connection.query('SET SESSION sql_log_bin = 0', error => {
+        if (error) console.error('relay: this database connection stays in the binary log: SESSION_VARIABLES_ADMIN is missing')
+      })
+    })
+  }
   const db = drizzle({ client: pool, schema, mode: 'default' })
 
   async function transaction<T>(work: (tx: Db) => Promise<T>): Promise<T> {

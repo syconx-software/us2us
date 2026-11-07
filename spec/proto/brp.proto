@@ -356,6 +356,10 @@ message TransferSettings {
   GhostMode default_ghost = 5;              // absent: off
   uint32 default_expire_timer_seconds = 6;
   repeated string recent_stickers = 7;
+  // Device preferences, by their raw names; empty: an older phone, the new phone keeps its own.
+  string theme = 8;                         // "system", "dark" or "light"
+  string language = 9;                      // "system", "tr" or "en"
+  bool keep_screen_on = 10;
 }
 
 // The TransferMessages after it belong to this conversation, up to the next

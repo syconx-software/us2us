@@ -104,6 +104,8 @@ final class MediaUITests: XCTestCase {
         let app = launch(["-U2Route", "conversation:mert_k"])
         let file = element(app, "message.m1")
         XCTAssertTrue(file.waitForExistence(timeout: 8))
+        // The chat opens at its newest message, which may leave this one above the screen.
+        for _ in 0..<6 where !file.isHittable { app.swipeDown(); settle(0.3) }
         file.tap()
         let close = element(app, "file.protected.close")
         XCTAssertTrue(close.waitForExistence(timeout: 10), "Quick Look opens")

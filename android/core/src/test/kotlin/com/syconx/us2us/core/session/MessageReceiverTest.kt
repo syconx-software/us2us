@@ -259,7 +259,7 @@ class MessageReceiverTest {
     @Test
     fun `bad padding inside a valid session message is invalid content`() = runBlocking {
         val unpadded = SessionCipher(alice.store, alice.store, alice.store, alice.store, alice.store, alice.accountId.protocolAddress(), bob.accountId.protocolAddress())
-            .encrypt(textContent("no padding").toByteArray())
+            .encrypt(textContent("no padding").toByteArray(), alice.clock.instant())
         assertEquals(DropReason.INVALID_CONTENT, (receiver.receive(envelopeFromAlice(unpadded)) as ReceiveResult.Dropped).reason)
     }
 

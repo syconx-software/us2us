@@ -567,6 +567,12 @@ interface MessengerService {
 
     // MARK: Live wiring (defaults: the fixtures need none of it)
 
+    /** How the old phone reads its device preferences for a direct transfer; they live outside the vault. */
+    fun connectDevicePreferences(current: () -> DevicePreferencesSnapshot) {}
+
+    /** The new phone: what the old phone sent of its device preferences, once. */
+    fun takeTransferredPreferences(): DevicePreferencesSnapshot? = null
+
     /** An account exists on this device (also while locked, when [account] is `null` in the live service: nothing decrypted stays in memory). */
     val hasAccount: StateFlow<Boolean> get() = account.mapState { it != null }
 

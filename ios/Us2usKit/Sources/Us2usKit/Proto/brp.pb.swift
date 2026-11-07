@@ -1386,6 +1386,13 @@ public nonisolated struct BRPTransferSettings: Sendable {
 
   public var recentStickers: [String] = []
 
+  /// Device preferences, by their raw names; empty: an older phone, the new phone keeps its own.
+  public var theme: String = String()
+
+  public var language: String = String()
+
+  public var keepScreenOn: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -3880,7 +3887,7 @@ nonisolated extension BRPTransferRecord: SwiftProtobuf.Message, SwiftProtobuf._M
 
 nonisolated extension BRPTransferSettings: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TransferSettings"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_sharing\0\u{3}read_receipts\0\u{3}typing_indicators\0\u{3}auto_download_media\0\u{3}default_ghost\0\u{3}default_expire_timer_seconds\0\u{3}recent_stickers\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_sharing\0\u{3}read_receipts\0\u{3}typing_indicators\0\u{3}auto_download_media\0\u{3}default_ghost\0\u{3}default_expire_timer_seconds\0\u{3}recent_stickers\0\u{1}theme\0\u{1}language\0\u{3}keep_screen_on\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3895,6 +3902,9 @@ nonisolated extension BRPTransferSettings: SwiftProtobuf.Message, SwiftProtobuf.
       case 5: try { try decoder.decodeSingularMessageField(value: &self._defaultGhost) }()
       case 6: try { try decoder.decodeSingularUInt32Field(value: &self.defaultExpireTimerSeconds) }()
       case 7: try { try decoder.decodeRepeatedStringField(value: &self.recentStickers) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.theme) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.language) }()
+      case 10: try { try decoder.decodeSingularBoolField(value: &self.keepScreenOn) }()
       default: break
       }
     }
@@ -3926,6 +3936,15 @@ nonisolated extension BRPTransferSettings: SwiftProtobuf.Message, SwiftProtobuf.
     if !self.recentStickers.isEmpty {
       try visitor.visitRepeatedStringField(value: self.recentStickers, fieldNumber: 7)
     }
+    if !self.theme.isEmpty {
+      try visitor.visitSingularStringField(value: self.theme, fieldNumber: 8)
+    }
+    if !self.language.isEmpty {
+      try visitor.visitSingularStringField(value: self.language, fieldNumber: 9)
+    }
+    if self.keepScreenOn != false {
+      try visitor.visitSingularBoolField(value: self.keepScreenOn, fieldNumber: 10)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3937,6 +3956,9 @@ nonisolated extension BRPTransferSettings: SwiftProtobuf.Message, SwiftProtobuf.
     if lhs._defaultGhost != rhs._defaultGhost {return false}
     if lhs.defaultExpireTimerSeconds != rhs.defaultExpireTimerSeconds {return false}
     if lhs.recentStickers != rhs.recentStickers {return false}
+    if lhs.theme != rhs.theme {return false}
+    if lhs.language != rhs.language {return false}
+    if lhs.keepScreenOn != rhs.keepScreenOn {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

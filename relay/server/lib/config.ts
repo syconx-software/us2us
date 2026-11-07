@@ -80,6 +80,7 @@ export type ProxyHeader = 'x-forwarded-for' | 'x-real-ip'
 export interface RelayConfig {
   databaseUrl: string
   dbPoolSize: number
+  dbOutOfBinaryLog: boolean
   powSecret: Buffer
   powDifficultyRegister: number
   /** Ceiling of the adaptive registration difficulty (§4.2). */
@@ -207,6 +208,7 @@ export function loadConfig(source: Env = process.env): RelayConfig {
   const config: RelayConfig = {
     databaseUrl: env.required('DATABASE_URL'),
     dbPoolSize: env.int('DB_POOL_SIZE', 10, 1, 200),
+    dbOutOfBinaryLog: env.bool('DB_OUT_OF_BINARY_LOG', false),
     powSecret: Buffer.from(powSecret, 'utf8'),
     powDifficultyRegister: env.int('POW_DIFFICULTY_REGISTER', 22, 0, 64),
     powDifficultyRegisterMax: env.int('POW_DIFFICULTY_REGISTER_MAX', 26, 0, 28),

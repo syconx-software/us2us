@@ -34,6 +34,7 @@ final class RealMessengerService: MessengerService {
     var historyImportProgress: Double?
     /// What came from the old phone (PROTOCOL.md §5.6), until the restore takes it in. Memory only: its key is here.
     @ObservationIgnored var pendingTransferHistory: DeviceTransferSpool?
+    @ObservationIgnored var currentDevicePreferences: (@MainActor () -> DevicePreferencesSnapshot)?
     @ObservationIgnored private let location = LocationProvider()
 
     /// Counts the vaults this process has seen: bumped whenever this phone's
