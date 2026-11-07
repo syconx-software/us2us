@@ -84,4 +84,7 @@ public enum RuntimeError: Error, Equatable, Sendable {
     /// another phone since, or its account was deleted. Restoring it can
     /// never succeed.
     case backupRevoked
+    /// What came from the old phone could not be taken in (PROTOCOL.md §5.6). The old phone
+    /// still holds the account: both start over.
+    case transferHistoryFailed
 }

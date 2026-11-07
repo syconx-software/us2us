@@ -315,7 +315,7 @@ public struct CommunityRepository {
     }
 
     public func history(_ id: AccountId, before: CommunityHistoryCursor? = nil,
-        through: CommunityHistoryCursor? = nil, limit: Int = 100) throws -> CommunityHistory {
+        through: CommunityHistoryCursor? = nil, limit: Int = 100, skippingUnreadable: Bool = false) throws -> CommunityHistory {
         let key = try key(id)
         var predicate = "community_id=?"
         var arguments: [any SQLBindable] = [id.bytes]
@@ -330,10 +330,15 @@ public struct CommunityRepository {
         arguments.append(Int64(through == nil ? max(0, limit) : Int.max))
         let rows = try tx.connection.query(
             "SELECT \(Self.messageColumns) FROM community_messages WHERE \(predicate) ORDER BY received_at DESC,sender DESC,message_id DESC LIMIT ?", arguments)
-        let attachments = try attachmentsByMessage(id, key: key)
+        let attachments = try attachmentsByMessage(id, key: key, skippingUnreadable: skippingUnreadable)
         let receipts = try receiptSummaries(id)
-        let items = try rows.reversed().map { row in
-            var item = try message(from: row, community: id, key: key)
+        let items = try rows.reversed().compactMap { row -> CommunityTextItem? in
+            var item: CommunityTextItem
+            do {
+                item = try message(from: row, community: id, key: key)
+            } catch where skippingUnreadable {
+                return nil
+            }
             if item.deletion == nil { item.attachment = attachments[item.id] }
             if item.outgoing, item.deletion == nil { item.receipts = receipts[item.messageId] }
             return item

@@ -256,6 +256,8 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
         var presence: [(content: BRPContent, to: [AccountId])] = []
         var streams: [FakeStream] = []
         var openFailures: [RelayError] = []
+        /// Opening the socket gets no answer, as after a suspension.
+        var opensHang = false
         var sendFailures: [(AccountId?, Error)] = []
         var directory: [String: AccountId] = [:]
         var uploads: [Data: Data] = [:]
@@ -311,6 +313,10 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
         state.withLock { $0.sendFailures.append((peer, error)) }
     }
 
+    func setOpensHang(_ hangs: Bool) {
+        state.withLock { $0.opensHang = hangs }
+    }
+
     func failNextOpen(with error: RelayError) {
         state.withLock { $0.openFailures.append(error) }
     }
@@ -325,6 +331,7 @@ final class FakeBackend: MessagingBackend, @unchecked Sendable {
     /// Like `MessengerBackend`: a pending rotation is settled before the
     /// socket opens, and a refusal of both tokens ends it like a revoked token.
     func openStream() async throws -> any RelayStream {
+        if state.withLock({ $0.opensHang }) { try await Task.sleep(nanoseconds: 3_600_000_000_000) }
         if try await finishPendingTokenRotation() == .backupNoLongerValid {
             throw RelayError.server(status: 401, code: .unauthorized, message: nil)
         }

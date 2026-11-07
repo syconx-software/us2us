@@ -101,6 +101,7 @@ struct CommunityV2StorageTests {
         // Turn the database back into what v7 wrote.
         try setup.storage.database.locked { connection in
             for statement in [
+                "DROP TABLE chat_backgrounds",
                 "ALTER TABLE contacts DROP COLUMN request_sent_at",
                 "DROP TABLE former_contacts",
                 "DROP TABLE community_media_deletes", "DROP TABLE community_tombstones", "DROP TABLE community_recipients",

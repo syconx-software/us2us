@@ -41,8 +41,8 @@ settings:
     # Version: MARKETING_VERSION is the store version (1.0.0, 1.0.1 …);
     # CURRENT_PROJECT_VERSION is the build number and must grow with every
     # upload to App Store Connect (README › Releasing).
-    MARKETING_VERSION: "1.1.6"
-    CURRENT_PROJECT_VERSION: "18"
+    MARKETING_VERSION: "1.1.7"
+    CURRENT_PROJECT_VERSION: "19"
   configs:
     Debug:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
@@ -126,6 +126,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # Usage descriptions — localized in Resources/InfoPlist.xcstrings.
         NSFaceIDUsageDescription: us2us'ı açmak için yüzünü kullanır.
+        # Moving the account to a new phone next to this one (PROTOCOL.md §5.6).
+        NSLocalNetworkUsageDescription: Yeni telefona geçerken iki telefon aynı ağ üzerinden doğrudan konuşur; sunucuya hiçbir şey gitmez.
         # QR codes (6.2) and, since profile pictures (PROTOCOL §8.9), taking
         # a profile photo on 7.1 › Profil görseli › Kamera.
         NSCameraUsageDescription: "Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır."

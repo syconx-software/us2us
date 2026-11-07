@@ -53,4 +53,22 @@ struct ScreenAwakeTests {
         controller.configure(preference: true, contentVisible: true)
         #expect(screenOn)
     }
+
+    @Test("a move to a new phone keeps the screen on in onboarding, only in the foreground")
+    func codeShown() {
+        var screenOn = false
+        let controller = ScreenAwakeController { screenOn = $0 }
+        let owner = UUID()
+        controller.configure(preference: false, contentVisible: false)
+        controller.setActive(true)
+        #expect(!screenOn)
+        controller.setTransferRunning(true, owner: owner)
+        #expect(screenOn)
+        controller.setActive(false)
+        #expect(!screenOn)
+        controller.setActive(true)
+        #expect(screenOn)
+        controller.setTransferRunning(false, owner: owner)
+        #expect(!screenOn)
+    }
 }

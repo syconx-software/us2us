@@ -364,6 +364,48 @@ struct CommunityV2EngineTests {
         #expect(fixture.relay.blob(mediaId) != nil)
     }
 
+    // MARK: A move to a new phone (PROTOCOL.md §5.6)
+
+    private final class Told: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func add() { lock.withLock { value += 1 } }
+        var count: Int { lock.withLock { value } }
+    }
+
+    @Test("after a move each member of an active community is told once, and only then it counts as done")
+    func aMoveIsAnnouncedToEachMemberOnce() async throws {
+        let fixture = try CommunityFixture()
+        let alice = CommunityPeer(), carol = CommunityPeer()
+        for peer in [alice, carol] { fixture.relay.register(peer.account, identityKey: peer.member.identityKey, bundle: try peer.bundle()) }
+        try fixture.community(owner: alice, members: [fixture.me, carol.member])
+        _ = try await fixture.engine.sync()
+        #expect(fixture.relay.sent.isEmpty)
+
+        let told = Told()
+        await fixture.engine.announceMove { told.add() }
+        #expect(told.count == 0)
+        _ = try await fixture.engine.sync()
+        #expect(told.count == 1)
+        for peer in [alice, carol] {
+            let receipts = try fixture.opened(by: peer)
+            #expect(receipts.count == 1 && receipts.first?.receipt.type == .delivery)
+        }
+
+        // Done: the next passes say nothing more.
+        _ = try await fixture.engine.sync()
+        #expect(told.count == 1)
+        #expect(fixture.relay.sent.count == 2)
+    }
+
+    @Test("a phone without an active community has nobody to tell: it counts as done at once")
+    func aMoveWithoutCommunitiesIsDone() async throws {
+        let fixture = try CommunityFixture()
+        let told = Told()
+        await fixture.engine.announceMove { told.add() }
+        #expect(told.count == 1)
+    }
+
     // MARK: Roster changes and “Tekrar gönder”
 
     @Test("a receipt the relay refuses as stale (409) stays queued and is sealed again under the new roster")

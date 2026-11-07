@@ -24,9 +24,12 @@ struct RuntimeStateData: Codable, Equatable {
     /// ``MessagingEngine/maxRecentStickers``. Which stickers only — never
     /// to whom or when — and here, encrypted, rather than in UserDefaults.
     var recentStickers: [String] = []
+    /// The account moved here from another phone and its communities' members are still to be
+    /// told (PROTOCOL.md §5.6). Here, so that a lock or a restart does not lose it.
+    var communityMovePending = false
 
     private enum CodingKeys: String, CodingKey {
-        case settings, pendingAccessKeyRotation, noticeSlots, lastBackupAt, recentStickers
+        case settings, pendingAccessKeyRotation, noticeSlots, lastBackupAt, recentStickers, communityMovePending
     }
 }
 
@@ -49,6 +52,8 @@ extension RuntimeStateData {
         lastBackupAt = (try? container.decodeIfPresent(Date.self, forKey: .lastBackupAt)) ?? defaults.lastBackupAt
         recentStickers =
             (try? container.decodeIfPresent([String].self, forKey: .recentStickers)) ?? defaults.recentStickers
+        communityMovePending =
+            (try? container.decodeIfPresent(Bool.self, forKey: .communityMovePending)) ?? defaults.communityMovePending
     }
 }
 

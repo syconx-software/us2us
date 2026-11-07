@@ -451,6 +451,24 @@
         }
       }
     },
+    "onboarding.noWayBack.error.transferFailed": {
+      "extractionState": "manual",
+      "comment": "2.3: what came from the old phone could not be taken in.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your messages could not be brought onto this phone. Your account is still on the old phone: start again on both."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar bu telefona alınamadı. Hesabın eski telefonda duruyor: iki telefonda da baştan başla."
+          }
+        }
+      }
+    },
     "onboarding.noWayBack.error.usernameTaken": {
       "comment": "2.3 above the checkbox when the relay refused the name because someone registered it first. Nothing was kept; the CTA becomes onboarding.noWayBack.chooseAnotherName.",
       "extractionState": "manual",
@@ -573,6 +591,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kurulumu tamamla"
+          }
+        }
+      }
+    },
+    "onboarding.noWayBack.importing %lld": {
+      "extractionState": "manual",
+      "comment": "2.3's button while what came from the old phone settles in.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settling in your messages · %lld%%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar yerleşiyor · %%%lld"
           }
         }
       }
@@ -1149,6 +1185,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "İki uç. Bir hat."
+          }
+        }
+      }
+    },
+    "onboarding.welcome.transfer": {
+      "comment": "1.1: move the account from the old phone next to this one.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move from old phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefondan taşı"
           }
         }
       }

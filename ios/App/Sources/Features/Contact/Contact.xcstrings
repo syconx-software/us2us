@@ -127,6 +127,294 @@
         }
       }
     },
+    "background.kicker": {
+      "comment": "Kicker of the chat background sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CHAT BACKGROUND"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SOHBET ARKA PLANI"
+          }
+        }
+      }
+    },
+    "background.note": {
+      "comment": "Under the swatches: where the background is kept.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown only on this phone. It is not sent to anyone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca bu telefonda görünür, karşı tarafa gönderilmez."
+          }
+        }
+      }
+    },
+    "background.photo": {
+      "comment": "Button: pick a photo as this chat’s background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf seç"
+          }
+        }
+      }
+    },
+    "background.preset.dusk": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dusk"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alacakaranlık"
+          }
+        }
+      }
+    },
+    "background.preset.mist": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mist"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sis"
+          }
+        }
+      }
+    },
+    "background.preset.moss": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moss"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yosun"
+          }
+        }
+      }
+    },
+    "background.preset.ocean": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocean"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okyanus"
+          }
+        }
+      }
+    },
+    "background.preset.peach": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peach"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şeftali"
+          }
+        }
+      }
+    },
+    "background.preset.rose": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rose"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gül"
+          }
+        }
+      }
+    },
+    "background.preset.sage": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sage"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaçayı"
+          }
+        }
+      }
+    },
+    "background.preset.sand": {
+      "comment": "VoiceOver: a preset background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sand"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kum"
+          }
+        }
+      }
+    },
+    "background.problem.photo": {
+      "comment": "The picked photo could not be read.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo could not be used. Try another one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu fotoğraf kullanılamadı. Başka bir fotoğraf dene."
+          }
+        }
+      }
+    },
+    "background.problem.save": {
+      "comment": "Saving the background failed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The background could not be saved. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka plan kaydedilemedi. Yeniden dene."
+          }
+        }
+      }
+    },
+    "background.sample.incoming": {
+      "comment": "Preview bubble: an incoming message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hi, how are you?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merhaba, nasılsın?"
+          }
+        }
+      }
+    },
+    "background.sample.outgoing": {
+      "comment": "Preview bubble: an outgoing message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Good, how about you?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İyiyim, sen nasılsın?"
+          }
+        }
+      }
+    },
+    "background.standard": {
+      "comment": "VoiceOver: the swatch of the app’s own background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılan"
+          }
+        }
+      }
+    },
     "blocked.message": {
       "comment": "Contact screen › Doğrulama, the note while the person is blocked (proposed).",
       "extractionState": "manual",
@@ -213,6 +501,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "sen"
+          }
+        }
+      }
+    },
+    "menu.background": {
+      "comment": "The contact screen’s “…” menu and a community’s management sheet: this chat’s own background.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat background"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet arka planı"
           }
         }
       }

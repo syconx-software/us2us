@@ -24,6 +24,12 @@ final class ItemFileStore: Sendable {
         directory.appendingPathComponent(itemId.hexString + ".item")
     }
 
+    /// The bytes an item takes on disk; 0 when it is not here.
+    func size(of itemId: Data) -> Int64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url(for: itemId).path)
+        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
     func exists(_ itemId: Data) -> Bool {
         FileManager.default.fileExists(atPath: url(for: itemId).path)
     }

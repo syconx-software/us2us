@@ -57,6 +57,8 @@ protocol MessengerService: AnyObject, Observable {
     /// on failure or cancel — the code keypad stays. `cancelTitle` labels the
     /// system prompt's cancel button (“Kodla aç”); there is no passcode fallback.
     func unlockWithBiometrics(reason: String, cancelTitle: String) async -> Bool
+    /// Closes a biometric prompt still open (“Kodla aç”, a return to the lock).
+    func cancelBiometricUnlock()
 
     /// 3.3 / 7.1 “Her şeyi sil” after the second confirmation: crypto-shreds
     /// all local data. The app returns to onboarding.
@@ -216,6 +218,21 @@ protocol MessengerService: AnyObject, Observable {
     /// the vault's encrypted runtime state, the fixtures in memory; never in
     /// UserDefaults. Empty while locked.
     func recentStickers() async -> [String]
+    /// The new phone: listens and hands out the code to show (PROTOCOL.md §5.6).
+    func startReceivingAccount() async throws(DeviceTransferFailure) -> any DeviceTransferIncoming
+    /// The old phone: sends the account to the phone whose code was read.
+    func sendAccount(
+        toInvitation invitation: String, progress: @escaping @MainActor @Sendable (Double) -> Void
+    ) async throws(DeviceTransferFailure)
+    /// What this chat shows behind its messages on this phone (never sent).
+    func chatBackground(of chat: ChatID) async -> ChatBackground
+    /// `false` when it could not be stored: the chat keeps what it had.
+    func setChatBackground(_ background: ChatBackground, for chat: ChatID) async -> Bool
+    /// Changes with every stored background, so a chat open behind another
+    /// screen reads its own again.
+    var chatBackgroundRevision: Int { get }
+    /// While a restore takes in what came from the old phone (2.3): how far it got (0…1).
+    var historyImportProgress: Double? { get }
     /// Sends a voice message recorded with the mic (5.1), optionally as a
     /// reply. Its bubble shows at once (“Gönderiliyor”) with the usual
     /// states; the recording is in memory only — the live service hands it

@@ -11,6 +11,7 @@ final class ScreenAwakeController {
     private var contentVisible = false
     private var preference = false
     private var mediaOwners = Set<UUID>()
+    private var transferOwners = Set<UUID>()
     private var applied = false
 
     init(apply: @escaping (Bool) -> Void) {
@@ -34,8 +35,15 @@ final class ScreenAwakeController {
         update()
     }
 
+    /// A move to a new phone is running, or waiting for the other phone to read a code: in
+    /// onboarding too, where no content is visible yet.
+    func setTransferRunning(_ running: Bool, owner: UUID) {
+        if running { transferOwners.insert(owner) } else { transferOwners.remove(owner) }
+        update()
+    }
+
     private func update() {
-        let next = active && contentVisible && (preference || !mediaOwners.isEmpty)
+        let next = active && (!transferOwners.isEmpty || (contentVisible && (preference || !mediaOwners.isEmpty)))
         guard next != applied else { return }
         applied = next
         apply(next)

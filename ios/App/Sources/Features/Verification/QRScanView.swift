@@ -164,14 +164,16 @@ private struct ScanningContent: View {
                         .frame(maxWidth: 300)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Button(action: scanner.showOwnCode) {
-                    HStack(spacing: 8) {
-                        PhosphorIcon(.qrCode, size: 18)
-                        Text("scan.showMyCode", table: .verification)
+                if scanner.purpose != .deviceTransfer {
+                    Button(action: scanner.showOwnCode) {
+                        HStack(spacing: 8) {
+                            PhosphorIcon(.qrCode, size: 18)
+                            Text("scan.showMyCode", table: .verification)
+                        }
                     }
+                    .buttonStyle(U2CameraPillButtonStyle())
+                    .accessibilityIdentifier("scan.showMyCode")
                 }
-                .buttonStyle(U2CameraPillButtonStyle())
-                .accessibilityIdentifier("scan.showMyCode")
             }
             .padding(.horizontal, U2Spacing.screenGutterL)
             .u2Bottom(46)
@@ -184,6 +186,8 @@ private struct ScanningContent: View {
             Text("scan.hint \(L10n.possessive(peer, locale: locale))", table: .verification)
         case .addContact:
             Text("scan.contact.hint", table: .verification)
+        case .deviceTransfer:
+            Text("transfer.scan.hint", table: .settings)
         }
     }
 }
@@ -519,7 +523,7 @@ private struct OwnCodeContent: View {
         switch scanner.purpose {
         case .safetyNumber(let peer):
             Text("scan.myCode.hint \(peer)", table: .verification)
-        case .addContact:
+        case .addContact, .deviceTransfer:
             Text("scan.contact.myCode.hint", table: .verification)
         }
     }

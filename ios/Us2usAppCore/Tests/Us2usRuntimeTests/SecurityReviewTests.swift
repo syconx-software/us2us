@@ -195,8 +195,12 @@ final class ReviewBackendFactory: BackendFactory, @unchecked Sendable {
         try await inner.checkBackup(backup)
     }
 
-    func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend {
-        guard failRestoreAfterRotation.withLock({ $0 }) else { return wrap(try await inner.restore(backup, storage: storage)) }
+    func restore(
+        _ backup: BRPAccountBackup, storage: LocalStorage, beforeSavingAccount: @Sendable () async throws -> Void
+    ) async throws -> any MessagingBackend {
+        guard failRestoreAfterRotation.withLock({ $0 }) else {
+            return wrap(try await inner.restore(backup, storage: storage, beforeSavingAccount: beforeSavingAccount))
+        }
         // What `Messenger.restore` has made permanent at this point (§5.5
         // steps 2–3): the identity is stored, the relay rotated the token
         // (the backup's token is dead now) and the new one was saved.

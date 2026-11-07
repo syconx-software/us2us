@@ -56,12 +56,16 @@ extension CommunityRepository {
         return try attachment(from: row, key: try key(id))
     }
 
-    func attachmentsByMessage(_ id: AccountId, key: Data) throws -> [String: CommunityAttachmentItem] {
+    func attachmentsByMessage(_ id: AccountId, key: Data, skippingUnreadable: Bool = false) throws -> [String: CommunityAttachmentItem] {
         var result: [String: CommunityAttachmentItem] = [:]
         for row in try tx.connection.query(
             "SELECT sender,message_id,item_id,descriptor,state,has_file FROM community_attachments WHERE community_id=?", [id.bytes]) {
             guard let sender = row.blob("sender").flatMap(AccountId.init(bytes:)), let message = row.blob("message_id").flatMap(AccountId.init(bytes:)) else { throw StorageError.integrity }
-            result[sender.string + "/" + message.string] = try attachment(from: row, key: key)
+            do {
+                result[sender.string + "/" + message.string] = try attachment(from: row, key: key)
+            } catch where skippingUnreadable {
+                continue
+            }
         }
         return result
     }
@@ -142,6 +146,17 @@ extension CommunityRepository {
             """,
             [try tx.seal(try pointer.serializedBytes(), itemId: item.itemId, key: key), token, CommunityAttachmentState.uploaded.rawValue,
              now.storageMilliseconds, now.storageMilliseconds, id.bytes, sender.bytes, messageId.bytes])
+    }
+
+    /// The sender's delete token of an own upload, while it is kept (a move to a new phone takes it along).
+    func deleteToken(community id: AccountId, sender: AccountId, messageId: AccountId) throws -> (token: Data, uploadedAt: Int64)? {
+        guard let row = try tx.connection.queryOne(
+            "SELECT delete_token, uploaded_at FROM community_attachments WHERE community_id=? AND sender=? AND message_id=?",
+            [id.bytes, sender.bytes, messageId.bytes]),
+            let sealed = row.blob("delete_token"), let uploaded = row.int64("uploaded_at"),
+            let item = try attachment(id, sender: sender, messageId: messageId)
+        else { return nil }
+        return (try tx.open(sealed, itemId: item.descriptor.mediaID, key: try key(id)), uploaded)
     }
 
     /// Own media messages still being sent whose blob is not uploaded or

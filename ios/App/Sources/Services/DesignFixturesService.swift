@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import LibSignalClient
 import LocalAuthentication
 import Us2usKit
 
@@ -21,6 +22,9 @@ final class DesignFixturesService: MessengerService {
     var communities: (any CommunitiesService)? { fixtureCommunities }
     @ObservationIgnored private var fixtureCommunities: (any CommunitiesService)?
     private(set) var account: OwnAccount?
+    private(set) var chatBackgroundRevision = 0
+    private(set) var historyImportProgress: Double?
+    private var chatBackgrounds: [ChatID: ChatBackground] = [:]
     private(set) var connection: ConnectionState = .open
     private(set) var chats: [ChatSummary]
     private(set) var requests: [MessageRequest]
@@ -168,6 +172,14 @@ final class DesignFixturesService: MessengerService {
     }
 
     func completeRestore(secretCode: String, faceIDEnabled: Bool) async throws {
+        if UserDefaults.standard.bool(forKey: "U2TransferDelivers") {
+            // What came along from the old phone goes in.
+            for fraction in [0.12, 0.42, 0.87] {
+                historyImportProgress = fraction
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            historyImportProgress = nil
+        }
         try? await Task.sleep(for: latency)
         // The restored vault: the design's own account and chats.
         if chats.isEmpty { loadDesignData() }
@@ -229,6 +241,33 @@ final class DesignFixturesService: MessengerService {
         let answer = restoreAccessAnswer
         if answer != .unanswered { restoreAccessPending = false }
         return answer
+    }
+
+    func cancelBiometricUnlock() {}
+
+    /// A code the scanner's mock can read: well formed, and nobody listens at it.
+    static let transferInvitation = DeviceTransferInvite(
+        receiverKey: PrivateKey.generate().publicKey.serialize(), secret: Data(repeating: 7, count: 32),
+        endpoints: [.init(host: "192.168.1.20", port: 54021)]
+    ).text
+
+    func startReceivingAccount() async throws(DeviceTransferFailure) -> any DeviceTransferIncoming {
+        if UserDefaults.standard.bool(forKey: "U2TransferNoNetwork") { throw .noLocalNetwork }
+        return FixtureDeviceTransferIncoming(
+            delivers: UserDefaults.standard.bool(forKey: "U2TransferDelivers"),
+            doesNotFit: UserDefaults.standard.bool(forKey: "U2TransferDoesNotFit"), password: Self.demoBackupPassword)
+    }
+
+    func sendAccount(
+        toInvitation invitation: String, progress: @escaping @MainActor @Sendable (Double) -> Void
+    ) async throws(DeviceTransferFailure) {
+        guard DeviceTransferInvite(text: invitation) != nil else { throw .unreachable }
+        if UserDefaults.standard.bool(forKey: "U2TransferUnreachable") { throw .unreachable }
+        if UserDefaults.standard.bool(forKey: "U2TransferNoSpace") { throw .noSpace }
+        for step in 1...4 {
+            try? await Task.sleep(for: .milliseconds(150))
+            progress(Double(step) / 4)
+        }
     }
 
     func unlockWithBiometrics(reason: String, cancelTitle: String) async -> Bool {
@@ -563,6 +602,16 @@ final class DesignFixturesService: MessengerService {
 
     func recentStickers() async -> [String] {
         account == nil ? [] : stickerRecents
+    }
+
+    func chatBackground(of chat: ChatID) async -> ChatBackground {
+        chatBackgrounds[chat] ?? .standard
+    }
+
+    func setChatBackground(_ background: ChatBackground, for chat: ChatID) async -> Bool {
+        chatBackgrounds[chat] = background == .standard ? nil : background
+        chatBackgroundRevision += 1
+        return true
     }
 
     /// “+” › Fotoğraf ve video with the design's pictures, as the live
@@ -1404,5 +1453,49 @@ final class ChatMessageTable {
     func replace(with lists: [ChatID: [Message]]) {
         for (chat, store) in stores where lists[chat] == nil && store.items != nil { store.items = nil }
         for (chat, items) in lists { store(chat).items = items }
+    }
+}
+
+/// The design's new phone: shows a code, and with `-U2TransferDelivers YES` a
+/// file arrives from the old phone after a moment.
+@MainActor
+private final class FixtureDeviceTransferIncoming: DeviceTransferIncoming {
+    let invitation = DesignFixturesService.transferInvitation
+    var onEvent: (@MainActor (DeviceTransferEvent) -> Void)?
+    private let delivers: Bool
+    private let doesNotFit: Bool
+    private let password: String
+    private var file: URL?
+
+    init(delivers: Bool, doesNotFit: Bool, password: String) {
+        self.delivers = delivers
+        self.doesNotFit = doesNotFit
+        self.password = password
+    }
+
+    func waitForDelivery() async throws -> DeviceTransferDeliveryInfo {
+        if doesNotFit {
+            try await Task.sleep(for: .seconds(1))
+            onEvent?(.started)
+            onEvent?(.noSpace)
+        }
+        guard delivers else {
+            try await Task.sleep(for: .seconds(3600))
+            throw CancellationError()
+        }
+        try await Task.sleep(for: .seconds(1.5))
+        onEvent?(.started)
+        onEvent?(.progress(0.5))
+        try await Task.sleep(for: .milliseconds(500))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("transfer.u2u")
+        try Data("BRPB".utf8).write(to: url, options: .atomic)
+        file = url
+        return DeviceTransferDeliveryInfo(file: url, password: password)
+    }
+
+    func stop() {}
+
+    func removeFiles() {
+        if let file { try? FileManager.default.removeItem(at: file) }
     }
 }

@@ -30,6 +30,10 @@ final class RealMessengerService: MessengerService {
     }
     @ObservationIgnored private var communitiesBridge: RealCommunitiesService?
     @ObservationIgnored let runtime: AppRuntime
+    var chatBackgroundRevision = 0
+    var historyImportProgress: Double?
+    /// What came from the old phone (PROTOCOL.md §5.6), until the restore takes it in. Memory only: its key is here.
+    @ObservationIgnored var pendingTransferHistory: DeviceTransferSpool?
     @ObservationIgnored private let location = LocationProvider()
 
     /// Counts the vaults this process has seen: bumped whenever this phone's
@@ -92,6 +96,7 @@ final class RealMessengerService: MessengerService {
 
     init(runtime: AppRuntime) {
         self.runtime = runtime
+        Self.removeLeftoverTransfer()
         outgoingMedia = OutgoingMedia(steps: RealMessengerService.mediaSteps(runtime))
         outgoingMedia.onSent = { [weak self] item in self?.keepImage(of: item) }
     }
@@ -202,9 +207,17 @@ final class RealMessengerService: MessengerService {
         // account: the restore rotates the token, so that file stops working.
         forgetExportedBackups()
         do {
+            let history = pendingTransferHistory
+            if history != nil { historyImportProgress = 0 }
+            defer { historyImportProgress = nil }
             try await runtime.restore(
                 backupFile: pending.url, password: pending.password, code: secretCode, confirmation: secretCode,
-                replacingLockedVault: replacing)
+                replacingLockedVault: replacing, history: history,
+                historyProgress: { [weak self] fraction in
+                    Task { @MainActor in
+                        if self?.historyImportProgress != nil { self?.historyImportProgress = fraction }
+                    }
+                })
         } catch {
             if runtime.lockState == .locked, runtime.keptAccountAfterFailedSetup {
                 // Restored and saved, then something failed: the restored
@@ -238,6 +251,8 @@ final class RealMessengerService: MessengerService {
     private func dropPendingRestore() {
         if let pending = pendingRestore { try? FileManager.default.removeItem(at: pending.url) }
         pendingRestore = nil
+        pendingTransferHistory?.remove()
+        pendingTransferHistory = nil
     }
 
     /// A restore replaced the vault this phone held: what the service kept
@@ -263,6 +278,7 @@ final class RealMessengerService: MessengerService {
             switch error {
             case .backupRevoked: return .backupNoLongerValid
             case .unreadableBackup: return .backupDamaged
+            case .transferHistoryFailed: return .transferFailed
             default: return nil
             }
         }
@@ -277,7 +293,7 @@ final class RealMessengerService: MessengerService {
         if let error = error as? AccountBackupError, error == .wrongPassword { return .wrongPassword }
         switch restoreFailure(for: error) {
         case .backupNoLongerValid?: return .noLongerValid
-        case .backupDamaged?: return .damaged
+        case .backupDamaged?, .transferFailed?: return .damaged
         case nil: return .unverified
         }
     }
@@ -345,6 +361,10 @@ final class RealMessengerService: MessengerService {
         } catch {
             return false
         }
+    }
+
+    func cancelBiometricUnlock() {
+        runtime.cancelBiometricUnlock()
     }
 
     func eraseEverything() async {

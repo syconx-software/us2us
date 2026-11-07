@@ -18,6 +18,8 @@ final class QRScannerModel {
         case safetyNumber(peer: String)
         /// Scanning someone's contact code (hint without a name).
         case addContact
+        /// The code on the new phone, to move the account there (PROTOCOL.md §5.6).
+        case deviceTransfer
     }
 
     enum Stage: Equatable {

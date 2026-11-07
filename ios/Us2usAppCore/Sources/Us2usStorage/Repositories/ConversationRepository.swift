@@ -148,6 +148,24 @@ public struct ConversationRepository {
             of: previous, settings: settings, lastActivity: previous.lastActivityAt, anchor: anchor)
     }
 
+    /// A conversation arriving from the old phone (PROTOCOL.md §5.6). Ghost mode starts a full
+    /// timeout here, as when it is turned on: nothing of the old phone's clock comes along.
+    func adopt(
+        settings: BRPConversationSettings, author: AccountId?, createdAt: Date?, lastActivityAt: Date?,
+        of conversation: Conversation, now: Date
+    ) throws {
+        try tx.requireWritable()
+        let ghost = settings.ghost.enabled
+        try tx.connection.run(
+            """
+            UPDATE conversations SET settings = ?, settings_author = ?, created_at = coalesce(?, created_at),
+                last_activity_at = ?, ghost_anchor_at = ? WHERE id = ?
+            """,
+            [try settings.serializedBytes() as Data, author?.bytes, createdAt?.storageMilliseconds,
+             lastActivityAt?.storageMilliseconds, ghost ? now.storageMilliseconds : nil, conversation.id.rawValue])
+        try updateDeadline(of: conversation, settings: settings, lastActivity: lastActivityAt, anchor: ghost ? now : nil)
+    }
+
     // MARK: Activity and ghost deadlines
 
     /// Records a sent or received `DataMessage` at `time` (§8.2) and moves

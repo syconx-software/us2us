@@ -38,7 +38,7 @@ struct RequestSentStorageTests {
             v10.close()
         }
         let storage = try environment.open()
-        #expect(try storage.database.locked { try $0.scalar("PRAGMA user_version") } == .integer(11))
+        #expect(try storage.database.locked { try $0.scalar("PRAGMA user_version") } == .integer(Int64(Schema.latestVersion)))
         let sentAt = try storage.database.locked { connection in
             try connection.query("SELECT account, request_sent_at FROM contacts").reduce(into: [AccountId: Int64?]()) {
                 $0[AccountId(bytes: $1.blob("account")!)!] = $1.int64("request_sent_at")

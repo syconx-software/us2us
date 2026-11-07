@@ -203,7 +203,7 @@ struct SavedMediaStorageTests {
             // Back to what a v5 database looks like.
             try storage.database.write { connection in
                 for table in [
-                    "former_contacts", "community_media_deletes", "community_tombstones", "community_recipients",
+                    "chat_backgrounds", "former_contacts", "community_media_deletes", "community_tombstones", "community_recipients",
                     "community_attachments",
                 ] {
                     try connection.execute("DROP TABLE \(table)")

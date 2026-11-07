@@ -16,6 +16,8 @@ final class ChangeCodeModel {
         case changeCode
         /// 7.1 › “Face ID ile aç”: the current code only.
         case enableBiometrics
+        /// “Yeni telefona taşı”: the current code only, before the account leaves.
+        case confirmTransfer
     }
 
     enum Step: Int, Equatable {
@@ -137,8 +139,8 @@ final class ChangeCodeModel {
             }
             isBusy = false
             switch result {
-            case .unlocked where purpose == .enableBiometrics:
-                // Face ID is on; the page closes (the dots stay full meanwhile).
+            case .unlocked where purpose != .changeCode:
+                // Face ID is on, or the transfer goes on; the page closes (the dots stay full meanwhile).
                 isBusy = true
                 U2Haptics.success()
                 onChanged()
@@ -286,9 +288,16 @@ struct ChangeCodeView: View {
     @Environment(\.locale) private var locale
     @State private var viewModel: ChangeCodeModel?
     private let purpose: ChangeCodeModel.Purpose
+    private let onConfirmed: (() -> Void)?
+    private let onBack: (() -> Void)?
 
-    init(purpose: ChangeCodeModel.Purpose = .changeCode) {
+    /// - Parameters:
+    ///   - onConfirmed: `.confirmTransfer`: the right code was entered.
+    ///   - onBack: `.confirmTransfer`: the page's own way back.
+    init(purpose: ChangeCodeModel.Purpose = .changeCode, onConfirmed: (() -> Void)? = nil, onBack: (() -> Void)? = nil) {
         self.purpose = purpose
+        self.onConfirmed = onConfirmed
+        self.onBack = onBack
     }
 
     var body: some View {
@@ -310,7 +319,11 @@ struct ChangeCodeView: View {
         let enablesBiometrics = purpose == .enableBiometrics
         let created = ChangeCodeModel(
             messenger: flow.messenger, purpose: purpose,
-            onChanged: {
+            onChanged: { [onConfirmed] in
+                if let onConfirmed {
+                    onConfirmed()
+                    return
+                }
                 flow.toast =
                     enablesBiometrics
                     ? Text("faceID.enabled.toast", table: .settings) : Text("code.changed.toast", table: .settings)
@@ -329,10 +342,10 @@ struct ChangeCodeView: View {
 
     private func content(_ vm: ChangeCodeModel) -> some View {
         VStack(spacing: 0) {
-            if vm.purpose == .enableBiometrics {
+            if vm.purpose != .changeCode {
                 // One step: the setup header's back button, without a counter.
                 HStack {
-                    U2GlassIconButton(.caretLeft, glyphSize: 22, label: Text("a11y.back"), action: model.router.pop)
+                    U2GlassIconButton(.caretLeft, glyphSize: 22, label: Text("a11y.back"), action: onBack ?? model.router.pop)
                         .accessibilityIdentifier("faceID.enable.back")
                     Spacer(minLength: 0)
                 }

@@ -39,6 +39,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Yeni telefona geçerken iki telefon aynı ağ üzerinden doğrudan konuşur; sunucuya hiçbir şey gitmez.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>us2us'ı açmak için yüzünü kullanır.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -329,5 +329,11 @@ extension Date {
     }
 
     /// Milliseconds since the epoch as stored in the database.
-    var storageMilliseconds: Int64 { Int64((timeIntervalSince1970 * 1000).rounded(.down)) }
+    var storageMilliseconds: Int64 {
+        // A message's time is its sender's to claim: none may trap here.
+        let milliseconds = (timeIntervalSince1970 * 1000).rounded(.down)
+        guard milliseconds < 0x1p63 else { return .max }
+        guard milliseconds >= -0x1p63 else { return .min }
+        return Int64(milliseconds)
+    }
 }

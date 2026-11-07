@@ -37,6 +37,8 @@ enum OnboardingRoute: Hashable, Sendable {
     case noWayBack
     /// 7.3 Yedekten geri yükle (new device).
     case restore
+    /// “Eski telefondan taşı”: this phone's code, read by the old phone (PROTOCOL.md §5.6).
+    case transferReceive
 }
 
 /// The pages of section 07 beyond 7.1 itself and its pickers.
@@ -56,6 +58,8 @@ enum SettingsPage: Hashable, Sendable {
     /// 7.3 Yedekten geri yükle. Production entry points are 1.1 and 3.3;
     /// inside settings only the DEBUG harness opens it.
     case restore
+    /// 7.1 › Yeni telefona taşı (PROTOCOL.md §5.6).
+    case transferSend
 }
 
 /// The 7.1 rows that open a picker.

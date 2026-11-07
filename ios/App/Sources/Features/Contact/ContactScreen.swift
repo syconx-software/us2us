@@ -27,6 +27,7 @@ struct ContactScreen: View {
     @Environment(\.locale) private var locale
     @Environment(\.u2Clock) private var clock
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showsBackgroundSettings = false
 
     var body: some View {
         U2Screen {
@@ -59,6 +60,12 @@ struct ContactScreen: View {
             Text("requests.block.message", table: .chats)
         }
         .chatDeletionAlert($actions.deletion, messenger: actions.messenger, locale: locale)
+        .u2Sheet(isPresented: $showsBackgroundSettings, style: .content) {
+            ChatBackgroundSheet(chat: actions.chatID, messenger: actions.messenger) {
+                showsBackgroundSettings = false
+            }
+            .environment(\.locale, locale)
+        }
         .u2Sheet(item: $actions.report) { report in
             ReportSheet(model: report)
                 .environment(\.locale, locale)
@@ -151,7 +158,11 @@ struct ContactScreen: View {
                 })
         }
         items.append(
-            FloatingMenuItem(id: "report", title: Text("report.action"), glyph: .warning, startsGroup: !items.isEmpty) {
+            FloatingMenuItem(id: "background", title: Text("menu.background", table: .contact), glyph: .image) {
+                showsBackgroundSettings = true
+            })
+        items.append(
+            FloatingMenuItem(id: "report", title: Text("report.action"), glyph: .warning, startsGroup: true) {
                 actions.openReport()
             })
         if actions.isBlocked {

@@ -31,16 +31,23 @@ struct ConversationScreen: View {
         let community: ObjectIdentifier?
         let pickerIsPresented: Bool
     }
+    private struct BackgroundRead: Hashable {
+        let revision: Int
+        let isVisible: Bool
+    }
     @StateObject private var modelOwner: ViewModelOwner<ConversationViewModel>
     private var viewModel: ConversationViewModel { modelOwner.model }
     @State private var isKeyboardVisible = false
     @State private var composerFrame: CGRect = .zero
     /// Communities: members and management (the header's “…”).
     @State private var showsManage = false
+    /// Communities: “Sohbet arka planı”, from the management sheet.
+    @State private var showsBackgroundSettings = false
     @Environment(AppModel.self) private var model
     @Environment(\.u2SafeArea) private var safeArea
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.u2IsLayerVisible) private var isLayerVisible
 
     init(chatID: ChatID, messenger: any MessengerService, saveNotice: any SaveNoticeMemory) {
         _modelOwner = StateObject(wrappedValue: ViewModelOwner {
@@ -115,10 +122,24 @@ struct ConversationScreen: View {
                 CommunityManageSheet(communityID: community.communityID) { showsManage = false } onGone: {
                     showsManage = false
                     model.router.pop()
+                } onBackground: {
+                    showsManage = false
+                    showsBackgroundSettings = true
                 }
                 .environment(\.locale, locale)
                 .environment(\.u2Clock, model.clock)
             }
+        }
+        .u2Sheet(isPresented: $showsBackgroundSettings, style: .content) {
+            ChatBackgroundSheet(chat: viewModel.chatID, messenger: viewModel.messenger) {
+                showsBackgroundSettings = false
+            }
+            .environment(\.locale, locale)
+        }
+        // Read when the chat is on screen and after every stored change; a
+        // photo does not stay in memory while the app is away or locked.
+        .task(id: BackgroundRead(revision: viewModel.messenger.chatBackgroundRevision, isVisible: isLayerVisible)) {
+            if isLayerVisible { await viewModel.loadBackground() }
         }
         .u2FadeCover(item: $viewModel.viewer) { item in
             Group {
@@ -199,6 +220,7 @@ struct ConversationScreen: View {
             viewModel.closeLocationScreens()
             // A recording and a voice message in memory go with the foreground too.
             viewModel.stopVoice()
+            viewModel.forgetBackground()
         }
         .onChange(of: viewModel.presentedMediaIsGone) { _, isGone in
             if isGone { viewModel.closeMedia() }
@@ -234,6 +256,12 @@ struct ConversationScreen: View {
 
     private var chatLayer: some View {
         ZStack(alignment: .top) {
+            if viewModel.background != .standard {
+                ChatBackgroundLayer(look: viewModel.background)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.u2Fade)
+            }
             // The column and the composer avoid the keyboard (SwiftUI moves
             // them with the keyboard's own animation and, frame by frame, with
             // its interactive dismissal). The keyboard's height is read in
@@ -275,6 +303,8 @@ struct ConversationScreen: View {
             }
         }
         .u2Animation(U2Motion.state, value: viewModel.community?.problem)
+        .u2Animation(U2Motion.state, value: viewModel.background)
+        .environment(\.u2ChatHasBackground, viewModel.background != .standard)
     }
 
     @ViewBuilder private var header: some View {
@@ -317,7 +347,7 @@ struct ConversationScreen: View {
                     .padding(.horizontal, U2Spacing.screenGutter)
                     .padding(.top, 14)
                     .padding(.bottom, max(12, safeArea.bottom(36)))
-                    .background(Color.u2.composerFade.allowsHitTesting(false))
+                    .background { if viewModel.background == .standard { Color.u2.composerFade.allowsHitTesting(false) } }
                     .accessibilityIdentifier("community.ended")
             } else if viewModel.isBlocked, let chat = viewModel.chat {
                 // Blocked (proposed): the bar takes the composer's place, as

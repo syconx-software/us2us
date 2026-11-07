@@ -26,6 +26,8 @@ struct SettingsPageView: View {
             BlockedPeopleView()
         case .restore:
             RestoreBackupView(onClose: model.router.pop, onFinished: model.router.pop)
+        case .transferSend:
+            DeviceTransferSendView()
         }
     }
 }
@@ -135,6 +137,11 @@ struct SettingsRootView: View {
                                     detail: backupText(settings.lastBackupAt)
                                 ) { flow.open(.backupExport, in: model) }
                                 .accessibilityIdentifier("settings.backup")
+                                GroupedSeparator()
+                                GroupedNavigationRow(
+                                    tile: IconTile(content: .glyph(.qrCode)), title: Text("settings.transfer", table: .settings)
+                                ) { flow.open(.transferSend, in: model) }
+                                .accessibilityIdentifier("settings.transfer")
                                 GroupedSeparator()
                                 pickerRow(.moon, Text("settings.theme", table: .settings), detail: themeText(model.preferences.theme), picker: .theme)
                                 GroupedSeparator()
