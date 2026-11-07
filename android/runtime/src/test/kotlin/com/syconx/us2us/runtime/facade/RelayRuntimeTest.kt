@@ -427,6 +427,7 @@ class RelayRuntimeTest {
         coroutineScope {
             val alice = TestClient.register(relay.url, "alice", this)
             alice.messenger.setProfilePicture(ProfilePicture.preset(3))
+            alice.messenger.setShowPictureInSearch(true)
             val phone = Phone(temporary.newFolder())
             phone.runtime.createAccount("selin_n", "Selin", CODE, CODE)
             val found = phone.runtime.lookupAccount("alice")!!

@@ -229,6 +229,8 @@ class MessengerBackendTest {
             bob.start(factory.register(Username("bob"), bob.storage), connect = false)
             val alice = TestClient.register(relay.url, "alice", this)
             alice.messenger.setProfilePicture(ProfilePicture.preset(3))
+            // New accounts keep the picture out of search until they say otherwise.
+            alice.messenger.setShowPictureInSearch(true)
             assertEquals(CoreAvatarRecordStatus.IN_SYNC, alice.messenger.avatarRecordStatus.value)
 
             val found = bob.backend.findAccount(Username("alice"))!!

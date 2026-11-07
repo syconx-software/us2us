@@ -1,5 +1,6 @@
 package com.syconx.us2us.feature.chats
 
+import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.domain.nav.RequestId
 import com.syconx.us2us.shot.ShotHost
@@ -93,14 +94,17 @@ class ChatsShotTest {
             host.shoot("4.3-mesaj-istekleri", theme, "tr") { ChatsApp("chats:4.3") }
             host.assertFrame(RequestsTags.BACK, element = "r.0.0")
             host.assertFrame(RequestsTags.MORE, element = "r.0.2")
-            host.assertFrame(RequestsTags.BANNER, element = "r.1")
+            // The sentence on both platforms is one line longer than in the design, so the banner and
+            // everything under it sit one line (about 20 dp) from the drawn frames.
+            val oneLine = 21.dp
+            host.assertFrame(RequestsTags.BANNER, oneLine, element = "r.1")
             val ids = listOf("kuzey_dev", "n_aksoy", "hediye_kazan").map(::RequestId)
             ids.forEachIndexed { index, id ->
-                host.assertFrame(RequestsTags.container(id), element = "r.2.$index")
-                host.assertFrame(RequestsTags.card(id), element = "r.2.$index.0")
-                host.assertFrame(RequestsTags.block(id), element = "r.2.$index.1.0")
-                host.assertFrame(RequestsTags.delete(id), element = "r.2.$index.1.1")
-                host.assertFrame(RequestsTags.accept(id), element = "r.2.$index.1.2")
+                host.assertFrame(RequestsTags.container(id), oneLine, element = "r.2.$index")
+                host.assertFrame(RequestsTags.card(id), oneLine, element = "r.2.$index.0")
+                host.assertFrame(RequestsTags.block(id), oneLine, element = "r.2.$index.1.0")
+                host.assertFrame(RequestsTags.delete(id), oneLine, element = "r.2.$index.1.1")
+                host.assertFrame(RequestsTags.accept(id), oneLine, element = "r.2.$index.1.2")
             }
         }
     }

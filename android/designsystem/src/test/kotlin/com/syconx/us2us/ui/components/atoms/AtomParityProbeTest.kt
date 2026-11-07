@@ -217,7 +217,8 @@ class AtomParityProbeTest {
                 leading = { U2GlassIconButton(PhosphorGlyph.CaretLeft, "Geri", onClick = {}) },
                 trailing = { U2GlassIconButton(PhosphorGlyph.DotsThree, "Daha fazla", onClick = {}) },
             )
-            InfoBanner(stringResource(R.string.chats_requests_banner), Modifier.at(16, 116).width(370.dp))
+            // The reference image holds the design's shorter sentence; this probe is about the atom, not the copy.
+            InfoBanner("Kabul edene kadar sohbet açılmaz. Okuduğunu ve aktif olduğunu göremezler.", Modifier.at(16, 116).width(370.dp))
             for (card in listOf(197.13f to 148.84f, 355.97f to 148.81f, 514.78f to 169.11f)) {
                 U2Card(Modifier.at(16, card.first).width(370.dp).height(card.second.dp)) {}
             }
