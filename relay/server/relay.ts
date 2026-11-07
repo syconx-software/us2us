@@ -53,7 +53,7 @@ export class Relay {
 
   constructor(readonly config: RelayConfig) {
     this.logger = new Logger(config.logLevel)
-    this.database = createDatabase(config.databaseUrl, config.dbPoolSize)
+    this.database = createDatabase(config.databaseUrl, config.dbPoolSize, { outOfBinaryLog: config.dbOutOfBinaryLog })
     this.accounts = new AccountStore(this.database)
     this.accountCache = new AccountCache(this.accounts, this.logger)
     this.avatars = new AvatarStore(this.database)

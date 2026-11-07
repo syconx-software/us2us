@@ -30,6 +30,8 @@ export function assertRuntimeGrants(grants, role, database) {
     if (!match || /WITH GRANT OPTION/.test(grant)) throw new Error('runtime privileges exceed DML')
     const privileges = match[1].split(',').map(value => value.trim())
     if (privileges.every(value => value === 'USAGE') && match[2] === '*.*') continue
+    // Only lets the relay keep its own session out of the binary log (DB_OUT_OF_BINARY_LOG).
+    if (privileges.length === 1 && privileges[0] === 'SESSION_VARIABLES_ADMIN' && match[2] === '*.*') continue
     if (match[2] !== `\`${database}\`.*` || privileges.some(value => !['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(value))) {
       throw new Error('runtime privileges exceed DML or the configured database')
     }
