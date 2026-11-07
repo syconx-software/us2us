@@ -87,12 +87,14 @@ restore, clients recover only groups with a locally pinned/requested owner
 identity, or groups owned by their own verified identity. Other memberships
 require rediscovering and requesting the public group or redeeming a fresh
 private invite. An arbitrary `/mine` record never silently enrolls a user.
+A direct transfer to a new phone (PROTOCOL.md §5.6) is not a backup: it carries
+the communities, their pins and their history with it.
 
 Content gains oneof field 6, CommunityMessage: community_id bytes(16), revision
 uint64, message_id bytes(16), sent_at uint64 milliseconds, text UTF-8 <=8192
 bytes. Field numbers are respectively 1..5. No media, typing, presence,
-receipts, timers, ghost mode, reactions, or history transfer in this first
-extension. In particular, legacy media delete tokens cannot safely be shared
+receipts, timers, ghost mode, reactions, or history transfer between members in
+this first extension. In particular, legacy media delete tokens cannot safely be shared
 by 100 recipients. New members receive no earlier messages. Extension v2
 adds media without delete tokens, receipts and delete for everyone; the rest
 of this list still applies.
