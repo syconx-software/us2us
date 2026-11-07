@@ -17,9 +17,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 
 private class ScreenAwakeRequests {
     private val owners = mutableStateMapOf<Any, Boolean>()
+    private val transfers = mutableStateMapOf<Any, Boolean>()
     val hasMedia: Boolean get() = owners.isNotEmpty()
+    val hasTransfer: Boolean get() = transfers.isNotEmpty()
     fun update(owner: Any, enabled: Boolean) {
         if (enabled) owners[owner] = true else owners.remove(owner)
+    }
+    fun updateTransfer(owner: Any, running: Boolean) {
+        if (running) transfers[owner] = true else transfers.remove(owner)
     }
 }
 
@@ -45,7 +50,7 @@ fun ScreenAwakeScope(preference: Boolean, contentVisible: Boolean, content: @Com
             view.keepScreenOn = false
         }
     }
-    val keepAwake = resumed && contentVisible && (preference || requests.hasMedia)
+    val keepAwake = resumed && (requests.hasTransfer || (contentVisible && (preference || requests.hasMedia)))
     SideEffect { view.keepScreenOn = keepAwake }
     CompositionLocalProvider(LocalScreenAwakeRequests provides requests, content = content)
 }
@@ -58,5 +63,16 @@ fun KeepScreenAwakeForMedia(enabled: Boolean) {
     DisposableEffect(requests, owner, enabled) {
         requests?.update(owner, enabled)
         onDispose { requests?.update(owner, false) }
+    }
+}
+
+/** A move to a new phone is running, or waiting for the other phone to read a code: in onboarding too, where no content is visible yet. */
+@Composable
+fun KeepScreenAwakeForTransfer(running: Boolean) {
+    val requests = LocalScreenAwakeRequests.current
+    val owner = remember { Any() }
+    DisposableEffect(requests, owner, running) {
+        requests?.updateTransfer(owner, running)
+        onDispose { requests?.updateTransfer(owner, false) }
     }
 }

@@ -159,6 +159,28 @@ final class ConversationViewModel {
 
     var chat: ChatSummary? { messenger.chat(chatID) }
 
+    /// What this chat shows behind its messages on this phone.
+    private(set) var background = ChatBackgroundLook.standard
+
+    /// Whether the look on screen is the stored one at this revision.
+    private var backgroundRevision: Int?
+
+    /// Read when the chat comes on screen and after every stored change.
+    func loadBackground() async {
+        let revision = messenger.chatBackgroundRevision
+        guard backgroundRevision != revision else { return }
+        let look = await ChatBackgroundLook.make(await messenger.chatBackground(of: chatID))
+        guard !Task.isCancelled else { return }
+        background = look
+        backgroundRevision = revision
+    }
+
+    /// The app left the foreground: the decrypted photo goes with it.
+    func forgetBackground() {
+        background = .standard
+        backgroundRevision = nil
+    }
+
     /// A community shown on these screens (`CommunityChatMessenger`); `nil`
     /// in a one-to-one chat.
     var community: (any CommunityConversationContext)? { messenger as? any CommunityConversationContext }

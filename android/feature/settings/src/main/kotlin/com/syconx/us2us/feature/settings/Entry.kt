@@ -31,6 +31,7 @@ fun SettingsPageScreen(kind: SettingsPage, modifier: Modifier = Modifier) {
         SettingsPage.Blocked -> BlockedPeopleScreen(modifier)
         SettingsPage.BackupExport -> BackupExportView(modifier)
         SettingsPage.Restore -> RestoreBackupView(onClose = router::pop, onFinished = router::pop, modifier = modifier)
+        SettingsPage.TransferSend -> DeviceTransferSendView(modifier)
     }
 }
 
@@ -62,4 +63,10 @@ fun RestoreBackupScreen(
         opensPickerOnAppear = file == null && mode != RestoreMode.Lock,
         file = file,
     )
+}
+
+/** The new phone's side of a direct transfer, from 1.1: its code, then the restore of 7.3; [onFinished] as there. */
+@Composable
+fun DeviceTransferReceiveScreen(onCancel: () -> Unit, onFinished: () -> Unit, modifier: Modifier = Modifier) {
+    DeviceTransferReceiveView(onCancel, onFinished, modifier)
 }

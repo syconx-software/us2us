@@ -231,6 +231,39 @@ struct RestoreTokenTests {
             saveAccount: { account in saves?.withLock { $0.append(account) } })
     }
 
+    @Test("what a move brings goes in with no account saved and no token sent; if it fails neither happens")
+    func aMoveGoesInBeforeTheAccount() async throws {
+        let bob = try await register("bob_02")
+        let backup = try await bob.makeBackup(displayName: "Bob", contacts: [])
+        let saves = Locked<[LocalAccount]>([])
+        let rotations = relay.tokenRotations.count
+        struct Killed: Error {}
+        await #expect(throws: Killed.self) {
+            _ = try await Messenger.restore(
+                from: backup, relay: relay.makeClient(),
+                makeStore: { InMemoryProtocolStore(identity: $0, registrationId: $1) },
+                saveAccount: { account in saves.withLock { $0.append(account) } },
+                beforeSavingAccount: { throw Killed() })
+        }
+        #expect(saves.withLock { $0.isEmpty })
+        #expect(relay.tokenRotations.count == rotations)
+        // The old phone is still in.
+        _ = try await bob.relay.keyStatus()
+
+        let found = Locked<(saves: Int, rotations: Int)?>(nil)
+        _ = try await Messenger.restore(
+            from: backup, relay: relay.makeClient(),
+            makeStore: { InMemoryProtocolStore(identity: $0, registrationId: $1) },
+            saveAccount: { account in saves.withLock { $0.append(account) } },
+            beforeSavingAccount: { [relay] in
+                found.withLock { $0 = (saves.withLock { $0.count }, relay.tokenRotations.count) }
+            })
+        #expect(found.withLock { $0?.saves } == 0)
+        #expect(found.withLock { $0?.rotations } == rotations)
+        #expect(saves.withLock { !$0.isEmpty })
+        #expect(relay.tokenRotations.count > rotations)
+    }
+
     @Test("a lost 204 is found out with the new token, and the old phone is locked out")
     func lostAnswer() async throws {
         let bob = try await register("bob_02")

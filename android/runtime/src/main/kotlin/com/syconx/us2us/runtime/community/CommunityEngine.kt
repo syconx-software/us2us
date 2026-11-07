@@ -520,6 +520,7 @@ class CommunityEngine(
         }
         // A malformed response cannot force valid locally pinned memberships to disappear.
         if (!malformedState) repository.deactivateMissing(active)
+        sayMoved()
         // The outbox never holds up the inbox: what fails here is retried on the next pass.
         flushQuietly()
         // A page may be empty and still have more behind it; the rest waits for the next pass.
@@ -622,6 +623,35 @@ class CommunityEngine(
     }
 
     // MARK: Internals
+
+    /**
+     * This account just moved here from another phone (PROTOCOL.md §5.6). The new phone has no
+     * sessions, and what members encrypt to the old one's is lost on it until this phone has written
+     * to them. Members are not contacts, so no profile goes to them: a receipt for no message does
+     * it, and nothing shows. [done] runs once they are queued.
+     */
+    suspend fun announceMove(done: suspend () -> Unit) {
+        // No pass may ever come for a phone without communities, and nobody is waiting to be told.
+        if (repository.all().none { it.active }) done() else moveAnnounced = done
+    }
+
+    @Volatile
+    private var moveAnnounced: (suspend () -> Unit)? = null
+
+    private suspend fun sayMoved() {
+        val done = moveAnnounced ?: return
+        val now = clock()
+        for (community in repository.all()) {
+            if (!community.active) continue
+            val state = community.state ?: continue
+            for (member in state.members) {
+                if (member.accountId == accountId) continue
+                repository.queueReceipts(state.id, member.accountId, CommunityReceipt.Type.DELIVERY, listOf(AccountId(java.util.UUID.randomUUID())), now)
+            }
+        }
+        moveAnnounced = null
+        done()
+    }
 
     private fun prepare() {
         if (prepared) return

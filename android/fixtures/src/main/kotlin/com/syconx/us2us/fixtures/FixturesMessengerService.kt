@@ -1,5 +1,10 @@
 package com.syconx.us2us.fixtures
 
+import com.syconx.us2us.core.transfer.DeviceTransferInvite
+import com.syconx.us2us.domain.DeviceTransferDeliveryInfo
+import com.syconx.us2us.domain.DeviceTransferEvent
+import com.syconx.us2us.domain.DeviceTransferFailure
+import com.syconx.us2us.domain.DeviceTransferIncoming
 import com.syconx.us2us.core.vault.BackupFile
 import com.syconx.us2us.core.vault.BootClock
 import com.syconx.us2us.core.vault.UnlockAttemptPolicy
@@ -24,6 +29,7 @@ import com.syconx.us2us.domain.BlockedPerson
 import com.syconx.us2us.domain.Biometry
 import com.syconx.us2us.domain.Bytes
 import com.syconx.us2us.domain.ChangeSecretCodeError
+import com.syconx.us2us.domain.ChatBackground
 import com.syconx.us2us.domain.ChatMediaKind
 import com.syconx.us2us.domain.ChatSummary
 import com.syconx.us2us.domain.ConnectionState
@@ -110,6 +116,7 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -314,6 +321,12 @@ class FixturesMessengerService(
     }
 
     override suspend fun completeRestore(secretCode: String, faceIdEnabled: Boolean) {
+        if (transferDelivers) {
+            // What came along from the old phone goes in.
+            historyImport.value = 0.42
+            delay(2_000)
+            historyImport.value = null
+        }
         delay(latency)
         takeSetupFailure()?.let { throw it }
         synchronized(lock) {
@@ -721,6 +734,22 @@ class FixturesMessengerService(
     override suspend fun sendSticker(sticker: BrandStickerSelection, replyTo: QuotedMessage?, chat: ChatId) {
         appendOutgoing(sticker.messageContent, replyTo, chat) ?: return
         synchronized(lock) { stickerRecents = StickerRecents.adding(sticker, stickerRecents) }
+    }
+
+    private val chatBackgrounds = mutableMapOf<ChatId, ChatBackground>()
+    private val chatBackgroundRevisions = MutableStateFlow(0)
+
+    override val chatBackgroundRevision: StateFlow<Int> = chatBackgroundRevisions
+
+    override suspend fun chatBackground(chat: ChatId): ChatBackground =
+        synchronized(lock) { chatBackgrounds[chat] } ?: ChatBackground.Standard
+
+    override suspend fun setChatBackground(background: ChatBackground, chat: ChatId): Boolean {
+        synchronized(lock) {
+            if (background == ChatBackground.Standard) chatBackgrounds.remove(chat) else chatBackgrounds[chat] = background
+        }
+        chatBackgroundRevisions.value += 1
+        return true
     }
 
     override suspend fun recentStickers(): List<String> = if (accountFlow.value == null) emptyList() else synchronized(lock) { stickerRecents }
@@ -1237,6 +1266,41 @@ class FixturesMessengerService(
 
     override fun backupPasswordProblem(password: String): BackupPasswordError? = CoreRules.backupPasswordProblem(password)
 
+    private val historyImport = MutableStateFlow<Double?>(null)
+    override val historyImportProgress: StateFlow<Double?> = historyImport
+
+    /** The new phone cannot listen (tests): why. */
+    @Volatile
+    var transferReceiveFailure: DeviceTransferFailure? = null
+
+    /** The old phone cannot send (tests): why. */
+    @Volatile
+    var transferSendFailure: DeviceTransferFailure? = null
+
+    /** A new phone gets the account a moment after its code is up (tests); otherwise it waits. */
+    @Volatile
+    var transferDelivers: Boolean = false
+
+    /** What the old phone offers does not fit on the new one (tests). */
+    @Volatile
+    var transferDoesNotFit: Boolean = false
+
+    override fun isAccountInvitation(text: String): Boolean = DeviceTransferInvite.parse(text) != null
+
+    override suspend fun startReceivingAccount(): DeviceTransferIncoming {
+        transferReceiveFailure?.let { throw MessengerException.DeviceTransfer(it) }
+        return FixtureDeviceTransferIncoming(transferDelivers, transferDoesNotFit, exportDirectory)
+    }
+
+    override suspend fun sendAccount(invitation: String, progress: (Double) -> Unit) {
+        if (!isAccountInvitation(invitation)) throw MessengerException.DeviceTransfer(DeviceTransferFailure.Unreachable)
+        transferSendFailure?.let { throw MessengerException.DeviceTransfer(it) }
+        for (step in 1..4) {
+            delay(150)
+            progress(step / 4.0)
+        }
+    }
+
     override fun generateBackupPassword(): String = BackupPasswordGenerator.generate()
 
     /**
@@ -1558,4 +1622,41 @@ class FixturesMessengerService(
             )
         }
     }
+}
+
+/** The design's new phone: shows a code and, with [delivers], gets a stand-in file its password opens. */
+private class FixtureDeviceTransferIncoming(
+    private val delivers: Boolean,
+    private val doesNotFit: Boolean,
+    private val directory: File,
+) : DeviceTransferIncoming {
+    override val invitation: String = DesignFixtures.TRANSFER_INVITATION
+    override var onEvent: ((DeviceTransferEvent) -> Unit)? = null
+
+    private val stopped = CompletableDeferred<Unit>()
+
+    override suspend fun waitForDelivery(): DeviceTransferDeliveryInfo {
+        if (doesNotFit) {
+            delay(400)
+            onEvent?.invoke(DeviceTransferEvent.Started)
+            onEvent?.invoke(DeviceTransferEvent.NoSpace)
+        }
+        if (!delivers) {
+            stopped.await()
+            throw CancellationException("stopped")
+        }
+        delay(400)
+        onEvent?.invoke(DeviceTransferEvent.Started)
+        for (step in 1..4) {
+            delay(120)
+            onEvent?.invoke(DeviceTransferEvent.Progress(step / 4.0))
+        }
+        return DeviceTransferDeliveryInfo(DesignFixtures.standInBackupFile(directory), DesignFixtures.DEMO_BACKUP_PASSWORD)
+    }
+
+    override fun stop() {
+        stopped.complete(Unit)
+    }
+
+    override fun removeFiles() = Unit
 }

@@ -114,6 +114,42 @@ extension AppRuntime {
         try await engine().noteRecentSticker(id)
     }
 
+    /// What a direct transfer sends besides the account (PROTOCOL.md §5.6).
+    public func transferHistory() async throws -> any DeviceTransferHistorySource {
+        let engine = try engine()
+        let settings = await engine.currentSettings()
+        var record = BRPTransferSettings()
+        record.presenceSharing = settings.presenceSharing
+        record.readReceipts = settings.readReceipts
+        record.typingIndicators = settings.typingIndicators
+        record.autoDownloadMedia = settings.autoDownloadMedia
+        if let ghost = settings.defaultGhost {
+            record.defaultGhost.enabled = ghost.enabled
+            record.defaultGhost.timeoutSeconds = ghost.timeoutSeconds
+            record.defaultGhost.wipeContact = ghost.wipeContact
+        }
+        record.defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds
+        record.recentStickers = await engine.recentStickers()
+        return DeviceTransferHistoryExporter(storage: engine.storage, settings: record)
+    }
+
+    /// What a chat shows behind its messages on this phone (never sent); `nil` is the app's own.
+    public func chatBackground(with peer: AccountId) async throws -> ChatBackgroundChoice? {
+        try await engine().chatBackground(with: peer)
+    }
+
+    public func setChatBackground(_ choice: ChatBackgroundChoice?, with peer: AccountId) async throws {
+        try await engine().setChatBackground(choice, with: peer)
+    }
+
+    public func chatBackground(ofCommunity id: AccountId) async throws -> ChatBackgroundChoice? {
+        try await engine().chatBackground(ofCommunity: id)
+    }
+
+    public func setChatBackground(_ choice: ChatBackgroundChoice?, ofCommunity id: AccountId) async throws {
+        try await engine().setChatBackground(choice, ofCommunity: id)
+    }
+
     /// Starts live location (§8.3); returns the session id for updates.
     /// The app runs location updates (with the OS indicator) and calls
     /// ``updateLiveLocation(_:peer:latitude:longitude:accuracy:heading:speed:)``

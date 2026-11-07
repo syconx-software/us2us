@@ -170,6 +170,14 @@ final class CommunityChatMessenger: MessengerService, CommunityConversationConte
         await service?.send(sticker: sticker, to: communityID)
     }
     func recentStickers() async -> [String] { await base.recentStickers() }
+    func chatBackground(of chat: ChatID) async -> ChatBackground {
+        await base.chatBackground(of: CommunityChatRow.listID(communityID))
+    }
+    func setChatBackground(_ background: ChatBackground, for chat: ChatID) async -> Bool {
+        await base.setChatBackground(background, for: CommunityChatRow.listID(communityID))
+    }
+    var chatBackgroundRevision: Int { base.chatBackgroundRevision }
+    var historyImportProgress: Double? { base.historyImportProgress }
     func send(voice: VoiceRecording, replyTo: QuotedMessage?, in chat: ChatID) async -> Bool {
         await service?.send(voice: voice, to: communityID) ?? false
     }
@@ -213,6 +221,15 @@ final class CommunityChatMessenger: MessengerService, CommunityConversationConte
     func unlock(code: String) async -> UnlockAttemptResult { await base.unlock(code: code) }
     func unlockWithBiometrics(reason: String, cancelTitle: String) async -> Bool {
         await base.unlockWithBiometrics(reason: reason, cancelTitle: cancelTitle)
+    }
+    func cancelBiometricUnlock() { base.cancelBiometricUnlock() }
+    func startReceivingAccount() async throws(DeviceTransferFailure) -> any DeviceTransferIncoming {
+        try await base.startReceivingAccount()
+    }
+    func sendAccount(
+        toInvitation invitation: String, progress: @escaping @MainActor @Sendable (Double) -> Void
+    ) async throws(DeviceTransferFailure) {
+        try await base.sendAccount(toInvitation: invitation, progress: progress)
     }
     func eraseEverything() async { await base.eraseEverything() }
     func deleteAccountOnRelay() async throws { try await base.deleteAccountOnRelay() }

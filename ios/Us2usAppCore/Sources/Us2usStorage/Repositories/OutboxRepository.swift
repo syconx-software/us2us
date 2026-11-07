@@ -137,14 +137,33 @@ public struct OutboxRepository {
         try forgetIfPending(entry.recipient)
     }
 
-    /// Puts a failed entry back in the queue (user tapped "retry").
+    /// A message that had not gone out when the account moved here (§5.6): “Tekrar gönder” finds
+    /// it as any failed one. Nothing goes out by itself.
+    func adoptFailed(
+        _ content: BRPContent, to recipient: AccountId, conversation conversationId: ConversationId, messageId: Data,
+        now: Date
+    ) throws {
+        let id = try enqueue(content, to: recipient, conversation: conversationId, messageId: messageId, now: now)
+        try tx.connection.run(
+            "UPDATE outbox SET state = ?, last_error = ? WHERE id = ?", [OutboxState.failed.rawValue, "moved", id])
+    }
+
+    /// Puts a failed entry back in the queue (user tapped "retry"); what never reached the relay is uploaded first.
     public func retry(_ id: Int64, now: Date = Date()) throws {
         try tx.requireWritable()
+        guard let entry = try get(id) else { return }
+        var next = OutboxState.ready
+        if let messageId = entry.messageId, let conversationId = entry.conversationId,
+            try tx.attachments.forMessage(messageId, in: conversationId).contains(where: {
+                $0.hasFile && $0.descriptor?.mediaID.isEmpty != false
+            })
+        {
+            next = .waitingForUpload
+        }
         try tx.connection.run(
             "UPDATE outbox SET state = ?, next_attempt_at = ?, attempts = 0 WHERE id = ? AND state = ?",
-            [OutboxState.ready.rawValue, now.storageMilliseconds, id, OutboxState.failed.rawValue])
-        guard let entry = try get(id), let messageId = entry.messageId, let conversationId = entry.conversationId
-        else { return }
+            [next.rawValue, now.storageMilliseconds, id, OutboxState.failed.rawValue])
+        guard let messageId = entry.messageId, let conversationId = entry.conversationId else { return }
         try tx.connection.run(
             """
             UPDATE messages SET status = ?, failed_at = NULL

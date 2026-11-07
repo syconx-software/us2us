@@ -10,6 +10,8 @@ struct CommunityManageSheet: View {
     let onClose: () -> Void
     /// The community is gone from this phone (left, deleted).
     let onGone: () -> Void
+    /// “Sohbet arka planı”; `nil` where the conversation is not behind the sheet.
+    var onBackground: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @State private var invite: String?
@@ -57,6 +59,13 @@ struct CommunityManageSheet: View {
                     if isOwner { requests(isFull: members.count >= CommunityLimits.maxMembers) }
                     memberList(members, isOwner: isOwner)
                     if isOwner { invitations }
+                    if let onBackground {
+                        Button(action: onBackground) {
+                            U2ButtonLabel(Text("menu.background", table: .contact), glyph: .image)
+                        }
+                        .buttonStyle(.u2Secondary)
+                        .accessibilityIdentifier("manage.background")
+                    }
                     leaveOrDelete(isOwner: isOwner)
                 }
                 .padding(EdgeInsets(top: 14, leading: 18, bottom: 28, trailing: 18))

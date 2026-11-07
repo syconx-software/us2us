@@ -12,6 +12,7 @@ struct WelcomePagerView: View {
     let pager: WelcomePagerModel
     let onCreateAccount: () -> Void
     let onRestore: () -> Void
+    var onTransfer: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.u2IsLayerVisible) private var isLayerVisible
@@ -104,10 +105,22 @@ struct WelcomePagerView: View {
             .buttonStyle(.u2Primary)
             .accessibilityIdentifier(isActive ? ctaIdentifier : ctaIdentifier + ".hidden")
             if showsRestore {
-                Button(action: onRestore) { LocalizedText("onboarding.welcome.restore", table: .onboarding) }
-                    .buttonStyle(.u2Text)
+                HStack(spacing: 8) {
+                    Button(action: onTransfer) {
+                        LocalizedText("onboarding.welcome.transfer", table: .onboarding)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .accessibilityIdentifier("welcome.transfer")
+                    Button(action: onRestore) {
+                        LocalizedText("onboarding.welcome.restore", table: .onboarding)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
                     .accessibilityIdentifier("welcome.restore")
-                    .transition(.u2Fade)
+                }
+                .buttonStyle(.u2Text)
+                .transition(.u2Fade)
             }
         }
         .padding(.top, 26)

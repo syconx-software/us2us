@@ -44,7 +44,7 @@ private struct OnboardingFlowHost: View {
 
     var body: some View {
         SoftNavigationStack(router: flow.router, allowsSwipeBack: flow.allowsSwipeBack) {
-            WelcomePagerView(pager: flow.pager, onCreateAccount: flow.startSetup, onRestore: flow.startRestore)
+            WelcomePagerView(pager: flow.pager, onCreateAccount: flow.startSetup, onRestore: flow.startRestore, onTransfer: flow.startTransfer)
         } destination: { route in
             destination(route)
         }
@@ -70,6 +70,8 @@ private struct OnboardingFlowHost: View {
             NoWayBackStepView(model: flow.finish, step: flow.stepLabel(for: route), onBack: flow.router.pop)
         case .restore:
             OnboardingRestoreHook(onCancel: flow.router.pop, onFinished: flow.restoreFinished)
+        case .transferReceive:
+            DeviceTransferReceiveView(onCancel: flow.router.pop, onFinished: flow.restoreFinished)
         }
     }
 }

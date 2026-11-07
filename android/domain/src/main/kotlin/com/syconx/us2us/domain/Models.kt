@@ -907,6 +907,9 @@ enum class RestoreFailure {
 
     /** The file can't be read, or it decrypts but is damaged or malformed. */
     BackupDamaged,
+
+    /** What came from the old phone could not be taken in; that phone still holds the account. */
+    TransferFailed,
 }
 
 /** Creating the account (2.3) was refused before anything was kept. */

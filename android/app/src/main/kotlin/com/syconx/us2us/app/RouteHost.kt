@@ -16,10 +16,12 @@ import com.syconx.us2us.feature.media.FilePreviewCover
 import com.syconx.us2us.feature.media.MediaViewerCover
 import com.syconx.us2us.feature.media.VideoPlayerCover
 import com.syconx.us2us.feature.settings.BackupExportScreen
+import com.syconx.us2us.feature.settings.DeviceTransferReceiveScreen
 import com.syconx.us2us.feature.settings.RestoreBackupScreen
 import com.syconx.us2us.feature.settings.SettingsPageScreen
 import com.syconx.us2us.feature.settings.SettingsPickerScreen
 import com.syconx.us2us.feature.settings.SettingsRootScreen
+import com.syconx.us2us.feature.verification.DeviceTransferScanCover
 import com.syconx.us2us.feature.verification.QrScanCover
 import com.syconx.us2us.feature.verification.SafetyNumberScreen
 import com.syconx.us2us.ui.env.FeatureScreens
@@ -39,7 +41,7 @@ fun RouteHost(route: AppRoute, onBack: () -> Unit, modifier: Modifier = Modifier
         is AppRoute.Page -> when (route.kind) {
             SettingsPage.BackupExport -> BackupExportScreen(modifier)
             SettingsPage.Restore -> RestoreBackupScreen(RestoreMode.Settings, onClose = onBack, onFinished = onBack, modifier = modifier)
-            SettingsPage.ChangeCode, SettingsPage.EnableFaceId, SettingsPage.About, SettingsPage.Blocked ->
+            SettingsPage.ChangeCode, SettingsPage.EnableFaceId, SettingsPage.About, SettingsPage.Blocked, SettingsPage.TransferSend ->
                 SettingsPageScreen(route.kind, modifier)
         }
     }
@@ -64,6 +66,14 @@ object AppFeatureScreens : FeatureScreens {
     @Composable
     override fun QrScan(mode: QrScanMode, onOpenChat: ((ChatId) -> Unit)?, onDismiss: () -> Unit, modifier: Modifier) =
         QrScanCover(mode, onDismiss, modifier, onOpenChat = onOpenChat)
+
+    @Composable
+    override fun DeviceTransferReceive(onCancel: () -> Unit, onFinished: () -> Unit, modifier: Modifier) =
+        DeviceTransferReceiveScreen(onCancel, onFinished, modifier)
+
+    @Composable
+    override fun DeviceTransferScan(onCode: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier) =
+        DeviceTransferScanCover(onCode, onDismiss, modifier)
 
     @Composable
     override fun Invite(state: String?, onClose: () -> Unit, modifier: Modifier) = InviteSheet(state, onClose, modifier)

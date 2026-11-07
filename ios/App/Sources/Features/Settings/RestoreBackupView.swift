@@ -65,6 +65,14 @@ final class RestoreBackupModel {
     /// phone's vault, and its messages with it.
     var replacesThisPhone: Bool { messenger.hasAccount }
 
+    /// A file and its password from the old phone (PROTOCOL.md §5.6): nothing to pick or type.
+    func adopt(_ delivery: DeviceTransferDeliveryInfo) async {
+        await pick(delivery.file)
+        guard stage == .password else { return }
+        password = delivery.password
+        await submitPassword()
+    }
+
     func pick(_ url: URL) async {
         withU2Animation(U2Motion.state) { stage = .inspecting }
         do {
@@ -195,6 +203,7 @@ final class RestoreBackupModel {
 struct RestoreBackupView: View {
     var file: URL? = nil
     var opensPickerOnAppear = true
+    private var transferred: DeviceTransferDeliveryInfo?
     let onClose: () -> Void
     let onFinished: () -> Void
 
@@ -216,10 +225,18 @@ struct RestoreBackupView: View {
         self.onFinished = onFinished
     }
 
+    /// The account arrived from the old phone: the same restore, without a file to pick or a password to type.
+    init(transferred: DeviceTransferDeliveryInfo, onClose: @escaping () -> Void, onFinished: @escaping () -> Void) {
+        self.init(opensPickerOnAppear: false, onClose: onClose, onFinished: onFinished)
+        self.transferred = transferred
+    }
+
     var body: some View {
         U2Screen {
             VStack(spacing: 0) {
-                CenteredTitleHeader(Text("restore.title", table: .settings)) {
+                CenteredTitleHeader(
+                    transferred == nil ? Text("restore.title", table: .settings) : Text("transfer.receive.title", table: .settings)
+                ) {
                     U2GlassIconButton(.x, label: Text("a11y.close"), action: close)
                         .accessibilityIdentifier("restore.close")
                 }
@@ -272,7 +289,9 @@ struct RestoreBackupView: View {
                 return
             }
         #endif
-        if let file {
+        if let transferred {
+            Task { await created.adopt(transferred) }
+        } else if let file {
             Task { await created.pick(file) }
         } else if opensPickerOnAppear && isLayerVisible {
             presentPicker()
@@ -296,8 +315,12 @@ struct RestoreBackupView: View {
         @Bindable var vm = vm
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
-                fileCard(vm)
-                if vm.file != nil {
+                if transferred != nil {
+                    TransferredAccountCard(stage: vm.stage)
+                } else {
+                    fileCard(vm)
+                }
+                if transferred == nil, vm.file != nil {
                     PasswordField(
                         text: $vm.password, focus: $focus, field: .password,
                         trailing: vm.isPasswordAccepted ? .accepted : vm.stage == .checking ? .checking : .reveal,
@@ -472,6 +495,7 @@ struct RestoreBackupView: View {
     }
 
     private func note(_ vm: RestoreBackupModel) -> String {
+        if transferred != nil { return StringTable.settings.string("transfer.restore.note", locale: locale) }
         if let progress = vm.progress, !progress.includesHistory {
             // What an account backup really brings back, and what restoring
             // inside the lock costs this phone.
@@ -488,6 +512,8 @@ struct RestoreBackupView: View {
 
     @ViewBuilder private func action(_ vm: RestoreBackupModel) -> some View {
         switch vm.stage {
+        case _ where transferred != nil && !vm.isPasswordAccepted:
+            TransferredRestoreAction(stage: vm.stage, onRetry: { submitPassword(vm) }, onStartOver: onClose)
         case .pick, .inspecting, .failed:
             Button { presentPicker() } label: {
                 U2ButtonLabel({ if case .failed = vm.stage { Text("restore.pickAnother", table: .settings) } else { Text("restore.pick", table: .settings) } }(),

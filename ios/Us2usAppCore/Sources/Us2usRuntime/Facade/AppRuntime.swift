@@ -129,6 +129,14 @@ public final class AppRuntime {
     /// The app went to the background while an unlock, registration or
     /// restore was running: it must not end unlocked.
     @ObservationIgnored private var leftDuringWork = false
+    @ObservationIgnored private var teardownIsHurried = false
+    @ObservationIgnored private var offlineAnnouncementDone: WakeSignal?
+    /// How long going offline may take when nobody is waiting to unlock.
+    private static let offlineAnnouncementLimit: TimeInterval = 5
+    /// How long closing the socket, and stopping the engine, may each take.
+    private static let teardownStepLimit: TimeInterval = 3
+    /// How long an unlock waits for an earlier attempt that is still finishing.
+    private static let unlockSettleLimit: TimeInterval = 15
     /// Sessions whose teardown has not finished (network steps can take
     /// long): the system's expiration handler zeroes their keys at once.
     @ObservationIgnored private var closingSessions: [Session] = []
@@ -327,6 +335,30 @@ public final class AppRuntime {
             await pending.value
             if teardownTask == pending { teardownTask = nil }
         }
+        teardownIsHurried = false
+    }
+
+    /// Someone is waiting to unlock: telling contacts we went offline no
+    /// longer matters, this phone is about to come back online.
+    private func hurryPendingTeardown() {
+        guard teardownTask != nil else { return }
+        teardownIsHurried = true
+        offlineAnnouncementDone?.signal()
+    }
+
+    private func runTeardownStep(
+        within seconds: TimeInterval, skippedWhenHurried: Bool = false,
+        _ step: @escaping @Sendable () async -> Void
+    ) async {
+        let done = WakeSignal()
+        let work = Task {
+            await step()
+            done.signal()
+        }
+        if skippedWhenHurried { offlineAnnouncementDone = done }
+        defer { if skippedWhenHurried { offlineAnnouncementDone = nil } }
+        try? await done.wait(seconds: seconds, clock: environment.clock)
+        work.cancel()
     }
 
     private func endGrace() async {
@@ -393,12 +425,21 @@ public final class AppRuntime {
         }
     }
 
-    /// Closes everything of a session and zeroes its key.
+    /// Closes everything of a session and zeroes its key. An unlock waits for
+    /// this, and after a suspension a request or a socket can stay unanswered
+    /// for a long time, so no step may hold it up: past its time the step is
+    /// left to finish on its own against a closed store and wiped keys.
     private func teardown(_ session: Session, announceOffline: Bool) async {
         session.stopListening()
-        if announceOffline && !session.liveLocationOnly { await session.engine.goingOffline() }
-        await session.supervisor.stop()
-        await session.engine.stop()
+        let engine = session.engine, supervisor = session.supervisor
+        if announceOffline && !session.liveLocationOnly && !teardownIsHurried {
+            await runTeardownStep(within: Self.offlineAnnouncementLimit, skippedWhenHurried: true) {
+                await engine.goingOffline()
+            }
+        }
+        await runTeardownStep(within: Self.teardownStepLimit) { await supervisor.stop() }
+        await runTeardownStep(within: Self.teardownStepLimit) { await engine.stop() }
+        engine.wipeDerivedKeys()
         session.storage.close()
         session.key.wipe()
         environment.directories.purgeStaging()
@@ -423,6 +464,7 @@ public final class AppRuntime {
     /// If the optional "wipe after 10" fires, everything is erased and the
     /// error is `UnlockError.vault(.wiped)`.
     public func unlock(code: String) async throws {
+        await settleUnlockInFlight()
         guard lockState == .locked else { return }
         lockState = .working
         leftDuringWork = false
@@ -439,6 +481,7 @@ public final class AppRuntime {
     /// Face ID / Touch ID. `UnlockError.codeRequired` and `.biometric(.failed)`
     /// mean: show the code keypad.
     public func unlockWithBiometrics() async throws {
+        await settleUnlockInFlight()
         guard lockState == .locked else { return }
         lockState = .working
         leftDuringWork = false
@@ -450,6 +493,22 @@ public final class AppRuntime {
             await settleAfterFailedUnlock()
             throw error
         }
+    }
+
+    /// Face ID's prompt was left open or was just cancelled, or the store is
+    /// still opening: this attempt waits for that one instead of being dropped
+    /// without a word (a right code that “does nothing”).
+    private func settleUnlockInFlight() async {
+        let deadline = Date().addingTimeInterval(Self.unlockSettleLimit)
+        while lockState == .working, Date() < deadline, !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
+
+    /// Closes a Face ID prompt still open (“Kodla aç”, or a return to the
+    /// lock). The attempt ends as cancelled, and the lock is free again.
+    public func cancelBiometricUnlock() {
+        environment.biometrics.cancelPrompt()
     }
 
     private func settleAfterFailedUnlock() async {
@@ -480,6 +539,7 @@ public final class AppRuntime {
             }
             _ = close(session, announceOffline: false)
         }
+        hurryPendingTeardown()
         await awaitPendingTeardown()
         let opened = try await Self.openStorage(key: key, environment: environment)
         let storage = opened.storage
@@ -553,6 +613,9 @@ public final class AppRuntime {
                 onIdentityChange: { peer in await engine.noteIdentityChange(of: peer) },
                 readReceipts: { [weak self] in self?.settings.readReceipts ?? false })
             communities = service
+            if await engine.communityMovePending() {
+                await service.announceMove { await engine.communityMoveAnnounced() }
+            }
             service.start()
         }
         await refreshTokenRotationState(session)
@@ -669,7 +732,8 @@ public final class AppRuntime {
     /// rotation — another phone restored it since step 2 — is the new vault
     /// erased again (``RuntimeError/backupRevoked``).
     public func restore(
-        backupFile: URL, password: String, code: String, confirmation: String, replacingLockedVault: Bool = false
+        backupFile: URL, password: String, code: String, confirmation: String, replacingLockedVault: Bool = false,
+        history: DeviceTransferSpool? = nil, historyProgress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws {
         let previous = lockState
         switch previous {
@@ -707,10 +771,22 @@ public final class AppRuntime {
             storage = opened
             // Kept before the irreversible token rotation.
             try saveDisplayName(backup.displayName, key: created)
-            let backend = try await environment.backends.restore(backup, storage: opened)
+            let runtimeDirectory = environment.directories.runtime
+            let account = AccountId(bytes: backup.accountID)
+            let backend = try await environment.backends.restore(backup, storage: opened) {
+                guard let history, let account else { return }
+                try await Self.takeIn(
+                    history, storage: opened, ownAccount: account, key: created, runtimeDirectory: runtimeDirectory,
+                    progress: historyProgress)
+            }
             let session = try makeSession(key: created, storage: opened, backend: backend)
             await session.engine.start()
             await becomeUnlocked(session)
+        } catch RuntimeError.transferHistoryFailed {
+            // No account was saved and no token rotated: the old phone still holds the account,
+            // and this vault holds only part of it.
+            try await settleAfterFailedSetup(
+                RuntimeError.transferHistoryFailed, key: key, storage: storage, keepingAccount: false)
         } catch let refusal as BackupRestoreError {
             // The relay refused the backup's token and the new one: no token
             // of this vault works, so nothing in it is worth keeping.
@@ -718,6 +794,41 @@ public final class AppRuntime {
             try await settleAfterFailedSetup(error, key: key, storage: storage, keepingAccount: false)
         } catch {
             try await settleAfterFailedSetup(error, key: key, storage: storage)
+        }
+    }
+
+    /// §5.6: the history from the old phone, into the vault just created, off the main actor.
+    private nonisolated static func takeIn(
+        _ history: DeviceTransferSpool, storage: LocalStorage, ownAccount: AccountId, key: SecretKeyMaterial,
+        runtimeDirectory: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                let importer = DeviceTransferHistoryImporter(
+                    storage: storage, ownAccount: ownAccount, reader: history.reader()
+                ) { settings in
+                    let file = try RuntimeStateFile(directory: runtimeDirectory, dek: key)
+                    defer { file.close() }
+                    var state = file.load()
+                    state.settings.presenceSharing = settings.presenceSharing
+                    state.settings.readReceipts = settings.readReceipts
+                    state.settings.typingIndicators = settings.typingIndicators
+                    state.settings.autoDownloadMedia = settings.autoDownloadMedia
+                    state.settings.defaultGhost = settings.hasDefaultGhost
+                        ? GhostSettings(
+                            enabled: settings.defaultGhost.enabled, timeoutSeconds: settings.defaultGhost.timeoutSeconds,
+                            wipeContact: settings.defaultGhost.wipeContact)
+                        : nil
+                    state.settings.defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds
+                    state.recentStickers = settings.recentStickers
+                    state.communityMovePending = true
+                    try file.save(state)
+                }
+                try importer.run(progress: progress)
+            }.value
+        } catch {
+            RuntimeLog.lifecycle.error("the history from the old phone could not be taken in")
+            throw RuntimeError.transferHistoryFailed
         }
     }
 

@@ -38,6 +38,7 @@ import com.syconx.us2us.ui.components.U2PrimaryButton
 import com.syconx.us2us.ui.components.U2Toggle
 import com.syconx.us2us.ui.components.currentLabelColor
 import com.syconx.us2us.ui.components.text.SetupTitle
+import com.syconx.us2us.ui.env.KeepScreenAwakeForTransfer
 import com.syconx.us2us.ui.env.u2Bottom
 import com.syconx.us2us.ui.icons.PhosphorGlyph
 import com.syconx.us2us.ui.icons.PhosphorIcon
@@ -54,10 +55,12 @@ import com.syconx.us2us.ui.type.U2Text
  * tamamla” only after the acknowledgement is ticked.
  */
 @Composable
-internal fun NoWayBackStep(model: NoWayBackStepModel, step: SetupStepLabel, onBack: () -> Unit) {
+internal fun NoWayBackStep(model: NoWayBackStepModel, step: SetupStepLabel, onBack: () -> Unit, historyProgress: Double? = null) {
     val locked = model.isWorking || model.returnsToLock
     // While the account is being made, or once only the lock can go on, there is no way back.
     BackHandler(enabled = LocalIsLayerVisible.current && locked) {}
+    // What came along from the old phone can take minutes to settle in: the screen stays on.
+    KeepScreenAwakeForTransfer(model.isWorking && historyProgress != null)
     U2Screen {
         OnboardingFitOrScroll {
             SetupHeader(
@@ -142,7 +145,15 @@ internal fun NoWayBackStep(model: NoWayBackStepModel, step: SetupStepLabel, onBa
                     .u2Bottom(U2Spacing.ctaBottom)
                     .testTag(OnboardingTags.FINISH),
             ) {
-                FinishLabel(stringResource(actionText(model)), isWorking = model.isWorking)
+                val moved = historyProgress
+                FinishLabel(
+                    if (model.isWorking && moved != null) {
+                        stringResource(R.string.onboarding_nowayback_importing, (moved * 100).toInt())
+                    } else {
+                        stringResource(actionText(model))
+                    },
+                    isWorking = model.isWorking,
+                )
             }
         }
     }
@@ -170,6 +181,7 @@ private fun FinishLabel(title: String, isWorking: Boolean) {
 internal fun errorText(failure: NoWayBackStepModel.Failure): Int = when (failure) {
     NoWayBackStepModel.Failure.Network -> R.string.onboarding_nowayback_error
     NoWayBackStepModel.Failure.BackupGone -> R.string.onboarding_nowayback_error_backupgone
+    NoWayBackStepModel.Failure.TransferFailed -> R.string.onboarding_nowayback_error_transferfailed
     NoWayBackStepModel.Failure.BackupDamaged -> R.string.onboarding_nowayback_error_backupdamaged
     NoWayBackStepModel.Failure.AccountKept -> R.string.onboarding_nowayback_error_accountkept
     NoWayBackStepModel.Failure.PreviousVaultKept -> R.string.onboarding_nowayback_error_previousvaultkept

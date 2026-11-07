@@ -331,3 +331,144 @@ message BackupContact {
   bool identity_unaccepted = 9;
   ProfileAvatar avatar = 10;                // the contact's last ProfileUpdate.profile_avatar (§8.9); absent = none
 }
+
+// ---------------------------------------------------------------------------
+// Direct transfer to a new phone (docs/PROTOCOL.md §5.6): each RECORD frame of
+// the history stage holds one TransferRecord. Phone to phone only: nothing of
+// this ever goes through the relay. Times are ms since the epoch; 0 is none.
+// ---------------------------------------------------------------------------
+message TransferRecord {
+  oneof record {
+    TransferSettings settings = 1;
+    TransferConversation conversation = 2;
+    TransferMessage message = 3;
+    TransferFilePart file_part = 4;
+    TransferCommunity community = 5;
+    TransferCommunityMessage community_message = 6;
+  }
+}
+
+message TransferSettings {
+  bool presence_sharing = 1;
+  bool read_receipts = 2;
+  bool typing_indicators = 3;
+  bool auto_download_media = 4;
+  GhostMode default_ghost = 5;              // absent: off
+  uint32 default_expire_timer_seconds = 6;
+  repeated string recent_stickers = 7;
+}
+
+// The TransferMessages after it belong to this conversation, up to the next
+// TransferConversation or TransferCommunity.
+message TransferConversation {
+  bytes contact = 1;                        // 16 bytes
+  // "outgoingRequest", "incomingRequest", "accepted" or "blocked" (§6.4)
+  string request_state = 2;
+  string username = 3;                      // for a contact no backup holds (a message request)
+  string display_name = 4;                  // for a contact no backup holds
+  ConversationSettings settings = 5;
+  bytes settings_author = 6;                // 16 bytes; empty: nobody wrote settings yet
+  uint64 created_at = 7;
+  uint64 last_activity_at = 8;
+  string draft = 9;
+  // Messages that are gone or do not move: a retransmission must not bring them back
+  repeated bytes removed_message_ids = 10;  // 16 bytes each
+  string background_preset = 11;
+  uint64 background_photo_bytes = 12;       // this many bytes of JPEG follow as TransferFileParts
+  // An outgoing request: when the relay took our first visible message (§6.4); 0: it never did
+  uint64 request_sent_at = 13;
+  // A blocked contact: what it was before the block, as request_state; empty: nothing to go back to
+  string state_before_block = 14;
+}
+
+message TransferMessage {
+  bytes message_id = 1;                     // 16 bytes
+  bool outgoing = 2;
+  bytes content = 3;                        // DataMessage; empty once deleted for everyone
+  uint32 kind = 4;                          // 1 text, 2 attachment, 3 location, 4 live location, 5 sticker
+  uint64 sent_at = 5;
+  uint64 created_at = 6;
+  uint64 server_timestamp = 7;
+  // 1 sent, 2 delivered, 3 read, 4 not delivered, 5 failed, 10 received
+  uint32 status = 8;
+  uint64 accepted_at = 9;
+  uint64 delivered_at = 10;
+  uint64 read_at = 11;
+  uint64 viewed_at = 12;
+  uint64 not_delivered_at = 13;
+  uint64 failed_at = 14;
+  uint64 displayed_at = 15;
+  uint64 saved_by_peer_at = 16;
+  uint64 saved_by_me_at = 17;
+  uint64 deleted_at = 18;
+  repeated TransferReaction reactions = 19;
+  // The files of these attachments follow as TransferFileParts, in this order.
+  repeated TransferAttachment attachments = 20;
+}
+
+message TransferReaction {
+  bytes reactor = 1;                        // 16 bytes
+  string emoji = 2;
+  uint64 sent_at = 3;
+}
+
+message TransferAttachment {
+  Attachment descriptor = 1;                // absent: never uploaded
+  // 0 not uploaded yet, 2 uploaded, 10 pending download, 12 downloaded, 20 failed, 21 unavailable
+  uint32 state = 2;
+  uint64 byte_count = 3;
+  bool has_file = 4;
+  uint64 file_bytes = 5;                    // this many bytes of the file follow
+  uint64 thumbnail_bytes = 6;               // and then this many of its thumbnail
+}
+
+message TransferFilePart {
+  bytes data = 1;                           // at most 256 KiB
+}
+
+// The TransferCommunityMessages after it belong to this community.
+message TransferCommunity {
+  bytes id = 1;                             // 16 bytes
+  bytes owner_key = 2;                      // 33 bytes, the pinned owner identity
+  string name = 3;
+  bytes state = 4;                          // the signed state's bytes; empty: never admitted
+  bytes signature = 5;                      // 64 bytes
+  bool active = 6;
+  repeated TransferCommunityKey removed = 7;  // "delete for me" keys
+  string background_preset = 8;
+  uint64 background_photo_bytes = 9;        // this many bytes of JPEG follow as TransferFileParts
+}
+
+message TransferCommunityKey {
+  bytes sender = 1;                         // 16 bytes
+  bytes message_id = 2;                     // 16 bytes
+  uint64 removed_at = 3;
+}
+
+message TransferCommunityMessage {
+  bytes sender = 1;                         // 16 bytes
+  bytes message_id = 2;                     // 16 bytes
+  uint64 sent_at = 3;
+  uint64 received_at = 4;
+  uint64 displayed_at = 5;
+  string text = 6;
+  Sticker sticker = 7;
+  Attachment attachment = 8;
+  uint32 media_state = 9;                   // 0 on the relay, 1 here, 2 no longer available
+  bool has_file = 10;
+  uint64 file_bytes = 11;                   // this many bytes of the file follow
+  bytes delete_token = 12;                  // own upload: 32 bytes
+  uint64 uploaded_at = 13;
+  uint32 deleted_by = 14;                   // 0 not deleted, 1 its sender, 2 the owner
+  uint64 deleted_at = 15;
+  // 0 sent, 1 sent to all but members gone since, 2 failed, 3 received
+  uint32 status = 16;
+  repeated TransferCommunityRecipient recipients = 17;
+}
+
+message TransferCommunityRecipient {
+  bytes member = 1;                         // 16 bytes
+  uint32 state = 2;                         // 1 accepted, 2 skipped, 3 failed
+  uint64 delivered_at = 3;
+  uint64 read_at = 4;
+}

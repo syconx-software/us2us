@@ -8,6 +8,7 @@ struct NoWayBackStepView: View {
     let onBack: () -> Void
 
     @Environment(\.locale) private var locale
+    @State private var awakeRequest = UUID()
 
     var body: some View {
         U2Screen {
@@ -74,7 +75,12 @@ struct NoWayBackStepView: View {
                                 SpinningGlyph(size: 20)
                                     .transition(.u2Fade)
                             }
-                            LocalizedText(Self.actionKey(model), table: .onboarding)
+                            if model.isWorking, let progress = model.historyProgress() {
+                                Text("onboarding.noWayBack.importing \(Int((progress * 100).rounded(.down)))", table: .onboarding)
+                                    .monospacedDigit()
+                            } else {
+                                LocalizedText(Self.actionKey(model), table: .onboarding)
+                            }
                         }
                         .u2Animation(U2Motion.state, value: model.isWorking)
                     }
@@ -88,6 +94,12 @@ struct NoWayBackStepView: View {
                 .u2Animation(U2Motion.state, value: model.failed)
             }
         }
+        // What came along from the old phone can take minutes to settle in, and the app stops
+        // with the screen: the move would have to start over.
+        .onChange(of: model.isWorking && model.historyProgress() != nil, initial: true) { _, settling in
+            ScreenAwakeController.shared.setTransferRunning(settling, owner: awakeRequest)
+        }
+        .onDisappear { ScreenAwakeController.shared.setTransferRunning(false, owner: awakeRequest) }
     }
 
     /// The sentence above the checkbox: try again, or — the restored
@@ -99,6 +111,7 @@ struct NoWayBackStepView: View {
         case .network: "onboarding.noWayBack.error"
         case .backupGone: "onboarding.noWayBack.error.backupGone"
         case .backupDamaged: "onboarding.noWayBack.error.backupDamaged"
+        case .transferFailed: "onboarding.noWayBack.error.transferFailed"
         case .accountKept: "onboarding.noWayBack.error.accountKept"
         case .previousVaultKept: "onboarding.noWayBack.error.previousVaultKept"
         case .usernameTaken: "onboarding.noWayBack.error.usernameTaken"

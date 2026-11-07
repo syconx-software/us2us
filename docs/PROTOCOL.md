@@ -8,6 +8,14 @@ them is a bug — fix it in the same change.
 Key words MUST, SHOULD, MAY are used as in RFC 2119.
 
 > **Change log**
+> * 2026-11-06: **direct transfer to a new phone** (§5.6, new; client only,
+>   no relay or wire change): a QR code and the two phones' own network carry
+>   an ordinary account backup and its generated password, so no file or
+>   password has to be handled by the user, and the history with them:
+>   messages, media and communities, except what must not outlive the old
+>   phone (`TransferRecord` in `brp.proto`). The new phone takes the history in
+>   before it saves the account and rotates the token, so until the very end
+>   the old phone holds the account.
 > * 2026-10-28: **Android client fixes of the security audit** (§4.2, §5,
 >   §5.2, §6.3, §6.4, §7, §9; client only, no wire change). Every decrypted
 >   `Content` passes the structural checks iOS already applied (16-byte ids,
@@ -1512,7 +1520,7 @@ username, display name, access key, the profile picture and the "Show in
 search" setting (§8.9, §8.10), and contacts with the profile picture each
 last sent (`AccountBackup` in `brp.proto`). A backup without the picture
 fields (older builds) restores the initial letter and the setting on. It does **not** contain messages; message history moves only by
-direct phone-to-phone transfer (planned). The export UI MUST say so: it lists
+direct phone-to-phone transfer (§5.6). The export UI MUST say so: it lists
 what the file holds and that messages and media are not in it, and offers no
 switches for them. (A later format may carry message history and media,
 never view-once media or disappearing messages. That needs a streaming,
@@ -1635,6 +1643,133 @@ parameter change is caught) and keep writing `0x01`; a later release writes
 it does not know SHOULD ask the user to update the app instead of calling the
 file damaged. Until this section becomes normative, backups are written and
 read as version `0x01` only.
+
+### 5.6 Direct transfer to a new phone (no server involved)
+
+The account moves from the old phone to a new one standing next to it without
+a file to keep and without a password to type. What moves is what an account
+backup holds (§5.5), the account and the contacts, and the history (**History**
+below): conversations, messages, media and communities. The UI says what stays
+behind before anything is sent.
+
+Nothing of this goes through the relay. The two phones talk directly over the
+network they share (the same Wi-Fi, or the personal hotspot of one of them);
+the only channel outside the app is the camera reading a QR code.
+
+**Flow.** The new phone, without an account, listens on a TCP port of its own
+choice and shows the invitation as a QR code. The old phone, unlocked and after
+its secret code has been entered again, scans it, makes an ordinary backup file
+under a new generated password (§5.5, never saved anywhere), and sends the file,
+the password and the history over the channel below. The new phone then continues
+as a restore does: it decrypts and verifies the whole backup, asks the relay
+whether its token is still accepted (step 1 and the read-only check of §5.5),
+lets the user choose a secret code, takes in the history, saves the account and
+rotates the token (step 3) — which is what shuts the old phone out. A transfer
+does not count as a saved backup.
+
+**Invitation** (the QR code's text):
+
+```
+us2us-transfer:1:<b64u receiverKey>:<b64u secret>:<ip>:<port>[,<ip>:<port>]…
+```
+
+`receiverKey` is a fresh Curve25519 public key in libsignal's serialization (33
+bytes, first byte `0x05`), `secret` 32 random bytes, and there are one to four
+endpoints: dotted IPv4 addresses of the new phone's local interfaces and the
+listening port. A reader MUST reject any other version, length, key type, port
+outside 1–65535 or host that is not a dotted IPv4 address. An invitation is
+used once and shown for at most ten minutes; leaving the screen ends it.
+
+A sender MUST ignore endpoints outside RFC 1918 and link-local IPv4 space, and treat an
+invitation with no other endpoint as unreachable: a code comes from a phone side by side.
+
+**Channel.** The sender tries the endpoints, keeps the first that answers and opens with
+
+```
+hello = "BRPT" ‖ 0x01 ‖ senderKey(33)        // senderKey: fresh Curve25519 key, 0x05 first
+okm   = HKDF-SHA256(ikm = X25519(priv, peer) ‖ secret,
+                    salt = receiverKey ‖ senderKey, info = "BRP/transfer/v1", L = 64)
+senderToReceiverKey = okm[0..<32], receiverToSenderKey = okm[32..<64]
+frame = uint32_be(n) ‖ AES-256-GCM(key, nonce, aad = empty, type(1) ‖ body)   // n bytes
+nonce = uint32_be(0) ‖ uint64_be(counter)    // counter: per direction, from 0
+```
+
+| type | direction | body |
+|---|---|---|
+| 1 `READY` | receiver → sender | empty |
+| 2 `OFFER` | sender → receiver | `uint64_be(file bytes)` ‖ `uint64_be(history bytes)` ‖ UTF-8 password |
+| 7 `ACCEPT` | receiver → sender | empty |
+| 8 `REFUSED` | receiver → sender | one byte, the reason: `0x01` no room |
+| 3 `CHUNK` | sender → receiver | at most 256 KiB of the file |
+| 6 `RECORD` | sender → receiver | one `TransferRecord` |
+| 4 `END` | sender → receiver | empty |
+| 5 `RECEIVED` | receiver → sender | empty |
+
+The receiver answers a `hello` with `READY`. The sender sends nothing secret
+before it has opened `READY`: only the holder of `receiverKey`'s private key can
+produce it, and the sender took that key from the camera, so nobody on the
+network can stand in for the new phone. The receiver trusts a connection only
+after opening `OFFER`, which takes `secret`: it serves several connections at
+once, gives each ten seconds to reach `OFFER`, and closes those that fail
+without ending the invitation. A frame longer than 1 MiB, a file over 64 MiB,
+any frame out of order or failing to open ends the connection.
+
+`history bytes` is an estimate of the `RECORD` bodies to come, for the two meters
+and for the room check; a sender SHOULD make it before it connects, since it may take
+longer than those ten seconds on a long history. The receiver answers `REFUSED` when the file and the
+history would leave it less than 100 MiB free, and `ACCEPT` otherwise. The sender
+sends nothing more before `ACCEPT`. All `CHUNK`s come first and then all `RECORD`s;
+a `CHUNK` after a `RECORD`, or a `RECORD` before the whole file came, ends the
+connection. At `END` the received bytes MUST equal the offered size. The receiver
+answers `RECEIVED` only once the file and every record are stored; the sender then
+deletes its copy of the file. A meter stops short of the end until then, however
+short the estimate was.
+
+**History.** Each `RECORD` holds one `TransferRecord` (`brp.proto`), in this order:
+the settings; then each conversation and the messages after it; then each community
+and the messages after it. Each message and each record with a photo is followed by
+its files as `TransferFilePart`s of at most 256 KiB, in the order it names them.
+Nothing of this goes through the relay, and no key of the old phone comes along:
+the new phone seals everything under conversation keys of its own vault (§5.3).
+
+*What moves:* conversations with their settings, draft and background; message
+requests with their contact, whose identity is learned at the next contact as with
+any new contact, and, for an outgoing one, whether it went out, since only then does an
+answer count (§6.4); messages with their times and statuses, “delete for everyone”
+markers, reactions, and attachments with their file and thumbnail; communities with
+their signed state, name, “delete for me” keys and background, their messages, files,
+own delete tokens and the recipients of own messages; what a blocked contact was before
+the block; and the user's presence, read
+receipt, typing, media download, default ghost mode, default timer and recent sticker
+settings.
+
+*What MUST NOT move:* a disappearing message (a timer or an expiry time), a view-once
+message, or any message or draft of a conversation in ghost mode. They stay behind and
+the messages' ids go along as removed, so that a retransmission does not bring them
+back. The ghost mode setting itself moves, and its timeout starts again at the moment
+of the import. A receiver MUST leave out such a message or draft if one arrives anyway.
+
+*What stays behind:* Signal sessions, since two phones ratcheting from one state
+would fork them (new sessions come with the new keys, steps 4 and 5 of §5.5); the outbox and
+all work under way, so a message still being sent arrives as failed, to be sent again only
+when the user asks (a file that never reached the relay is then uploaded first), an
+attachment in a passing state settles in a final one and a live location as stopped;
+pending relay deletes; notices and former contacts; theme and language, which belong to
+the phone. A row the old phone cannot read stays behind too: it does not end the move.
+
+*Community members* are not contacts and get no `ProfileUpdate` (§8.7), so after a
+move the next community sync sends each member of an active community a `DELIVERY`
+receipt for a random message id. That sets up a new session and shows nobody anything.
+The new phone remembers that this is still to be done across locks and restarts.
+
+*When it goes in.* The new phone keeps the records under a random key that exists only
+in memory, in files it removes as it reads them and removes at every start, and takes
+them in during the restore, after the identity and the contacts and **before saving
+the account or rotating the token**. A vault without an account counts for
+nothing at the next start, so an import that fails or is killed leaves a phone
+that starts over, and the old phone still holds the account. A record that makes no
+sense is left out; a vault that cannot store what is good ends the restore. Messages
+reaching the old phone between the export and the token rotation can stay there.
 
 ## 6. Sealed sender envelope
 

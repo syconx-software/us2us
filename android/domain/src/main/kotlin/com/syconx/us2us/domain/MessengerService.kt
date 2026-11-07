@@ -260,6 +260,15 @@ interface MessengerService {
      */
     suspend fun recentStickers(): List<String>
 
+    /** What this chat shows behind its messages on this phone (never sent). */
+    suspend fun chatBackground(chat: ChatId): ChatBackground
+
+    /** `false` when it could not be stored: the chat keeps what it had. */
+    suspend fun setChatBackground(background: ChatBackground, chat: ChatId): Boolean
+
+    /** Changes with every stored background, so a chat open behind another screen reads its own again. */
+    val chatBackgroundRevision: StateFlow<Int>
+
     /**
      * Sends a voice message recorded with the mic (5.1), optionally as a reply. Its bubble shows at
      * once (“Gönderiliyor”) with the usual states; the recording is in memory only. `false` when it
@@ -533,6 +542,29 @@ interface MessengerService {
     /** Stops a restore and removes what was written so far. */
     suspend fun cancelRestore()
 
+    // MARK: Moving to a new phone next to this one (PROTOCOL.md §5.6)
+
+    /** While a restore takes in what came from the old phone (2.3): how far it got (0…1). */
+    val historyImportProgress: StateFlow<Double?>
+
+    /** Whether [text] is the code a new phone shows while it waits for the account. */
+    fun isAccountInvitation(text: String): Boolean
+
+    /**
+     * The new phone: starts listening on the local network; its code goes on screen.
+     *
+     * @throws MessengerException.DeviceTransfer
+     */
+    suspend fun startReceivingAccount(): DeviceTransferIncoming
+
+    /**
+     * The old phone: prepares the backup of §5.5 under a generated password nobody has to see or
+     * keep, and sends both to the phone showing [invitation]. [progress] gets 0…1.
+     *
+     * @throws MessengerException.DeviceTransfer
+     */
+    suspend fun sendAccount(invitation: String, progress: (Double) -> Unit)
+
     // MARK: Live wiring (defaults: the fixtures need none of it)
 
     /** An account exists on this device (also while locked, when [account] is `null` in the live service: nothing decrypted stays in memory). */
@@ -681,6 +713,9 @@ sealed class MessengerException(message: String) : Exception(message) {
 
     /** 7.3: the picked file. */
     class BackupFile(val error: BackupFileError) : MessengerException("backup file refused: $error")
+
+    /** Moving to a new phone (§5.6). */
+    class DeviceTransfer(val failure: DeviceTransferFailure) : MessengerException("device transfer: ${failure.name}")
 
     /** 7.2: the password breaks a §5.5 rule. */
     class BackupPassword(val error: BackupPasswordError) : MessengerException("backup password refused: $error")

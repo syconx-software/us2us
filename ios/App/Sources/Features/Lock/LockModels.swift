@@ -108,6 +108,7 @@ final class LockFlowModel {
         guard !isFrozenForHarness, !isErasing, stage != .wiped else { return }
         scanGeneration += 1
         isScanning = false
+        messenger.cancelBiometricUnlock()
         showsForgot = false
         showsBackupPicker = false
         code.reset()
@@ -138,13 +139,18 @@ final class LockFlowModel {
             let success = await self.messenger.unlockWithBiometrics(
                 reason: self.biometry.reason(locale: locale),
                 cancelTitle: StringTable.lock.string("lock.faceID.useCode", locale: locale))
-            guard generation == self.scanGeneration else { return }
-            self.isScanning = false
-            if success {
+            // The face matched while the store was still opening and “Kodla
+            // aç” was tapped meanwhile: the app is open, the keypad must not
+            // stay in front of it. (Coming back from the background makes the
+            // service answer `false`: the runtime locks again.)
+            if success, self.stage == .code || generation == self.scanGeneration {
+                self.isScanning = false
                 U2Haptics.success()
                 self.onUnlock()
                 return
             }
+            guard generation == self.scanGeneration else { return }
+            self.isScanning = false
             // Let the screen settle before leaving it (an instant refusal —
             // biometry locked out — must not flicker 3.2 → 3.1 → 3.2).
             let dwell = 0.7 - Date().timeIntervalSince(max(startedAt, self.stageShownAt))
@@ -159,6 +165,7 @@ final class LockFlowModel {
     func useCode() {
         scanGeneration += 1
         isScanning = false
+        messenger.cancelBiometricUnlock()
         show(.code)
     }
 

@@ -736,6 +736,8 @@ enum RestoreFailure: Error, Equatable, Sendable {
     case backupNoLongerValid
     /// The file can't be read, or it decrypts but is damaged or malformed.
     case backupDamaged
+    /// What came from the old phone could not be taken in; that phone still holds the account.
+    case transferFailed
 }
 
 /// Creating the account (2.3) was refused before anything was kept.

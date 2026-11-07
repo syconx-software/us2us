@@ -52,6 +52,8 @@
     <string name="onboarding_nowayback_error_backupgone">This backup can no longer be used: its account was deleted, or it has been restored on another phone. You can create a new account.</string>
     <!-- onboarding.noWayBack.error.previousVaultKept — 2.3 after restoring inside the lock (3.3 › 7.3) was refused before anything was erased (the backup is no longer valid or damaged). The CTA becomes onboarding.noWayBack.toLock; 3.3 offers another backup or erasing. -->
     <string name="onboarding_nowayback_error_previousvaultkept">The restore couldn\'t be done: this backup can no longer be used or can\'t be read. The data on this phone wasn\'t touched. From the lock screen you can pick another backup, or erase everything and start over.</string>
+    <!-- onboarding.noWayBack.error.transferFailed — 2.3: what came from the old phone could not be taken in. -->
+    <string name="onboarding_nowayback_error_transferfailed">Your messages could not be brought onto this phone. Your account is still on the old phone: start again on both.</string>
     <!-- onboarding.noWayBack.error.usernameTaken — 2.3 above the checkbox when the relay refused the name because someone registered it first. Nothing was kept; the CTA becomes onboarding.noWayBack.chooseAnotherName. -->
     <string name="onboarding_nowayback_error_usernametaken">This username is already taken.</string>
     <!-- onboarding.noWayBack.faceID — 2.3 biometric card title (Face ID devices). -->
@@ -66,6 +68,8 @@
     <string name="onboarding_nowayback_fact_noreset">No code reset</string>
     <!-- onboarding.noWayBack.finish — 2.3 primary button → 4.1. -->
     <string name="onboarding_nowayback_finish">Finish setup</string>
+    <!-- onboarding.noWayBack.importing %lld — 2.3's button while what came from the old phone settles in. -->
+    <string name="onboarding_nowayback_importing">Settling in your messages · %d%%</string>
     <!-- onboarding.noWayBack.replacesThisPhone — 2.3 warning line under the facts card when a backup is restored inside the lock (3.3 › 7.3): finishing erases this phone's vault, and a backup holds no message history (PROTOCOL §5.5). -->
     <string name="onboarding_nowayback_replacesthisphone">When you finish setup, the messages and media on this phone are permanently erased. The backup holds only your account and contacts.</string>
     <!-- onboarding.noWayBack.title — 2.3 title (Doto, two lines). -->
@@ -130,4 +134,6 @@
     <string name="onboarding_welcome_start">Get started</string>
     <!-- onboarding.welcome.title — 1.1 headline (Doto; each full stop is drawn in Inter). -->
     <string name="onboarding_welcome_title">Two ends. One line.</string>
+    <!-- onboarding.welcome.transfer — 1.1: move the account from the old phone next to this one. -->
+    <string name="onboarding_welcome_transfer">Move from old phone</string>
 </resources>

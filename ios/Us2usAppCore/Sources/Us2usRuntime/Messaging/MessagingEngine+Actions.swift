@@ -882,6 +882,25 @@ extension MessagingEngine {
     /// When an exported backup was last saved; `nil` before the first one.
     public func lastBackupAt() -> Date? { runtime.lastBackupAt }
 
+    // MARK: Chat backgrounds
+
+    /// What a chat shows behind its messages on this phone; `nil` is the app's own.
+    public func chatBackground(with peer: AccountId) throws -> ChatBackgroundChoice? {
+        try storage.read { try $0.chatBackgrounds.forContact(peer) }
+    }
+
+    public func setChatBackground(_ choice: ChatBackgroundChoice?, with peer: AccountId) throws {
+        try storage.write { try $0.chatBackgrounds.setForContact(choice, peer) }
+    }
+
+    public func chatBackground(ofCommunity id: AccountId) throws -> ChatBackgroundChoice? {
+        try storage.read { try $0.chatBackgrounds.forCommunity(id) }
+    }
+
+    public func setChatBackground(_ choice: ChatBackgroundChoice?, ofCommunity id: AccountId) throws {
+        try storage.write { try $0.chatBackgrounds.setForCommunity(choice, id) }
+    }
+
     // MARK: Sticker recents (§8.8)
 
     /// The most recents the runtime state keeps, and the longest id.
@@ -890,6 +909,14 @@ extension MessagingEngine {
 
     /// The picker's recents, newest first, as the app stored them.
     public func recentStickers() -> [String] { runtime.recentStickers }
+
+    /// Whether the members of this account's communities are still to be told it moved here (§5.6).
+    func communityMovePending() -> Bool { runtime.communityMovePending }
+
+    func communityMoveAnnounced() {
+        runtime.communityMovePending = false
+        saveRuntime()
+    }
 
     /// Replaces the recents in the encrypted runtime state: empty and
     /// over-long ids are dropped, repeats kept once, at most

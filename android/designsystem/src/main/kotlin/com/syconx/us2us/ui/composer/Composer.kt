@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.QuotedMessage
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.bubbles.ReplyQuote
+import com.syconx.us2us.ui.common.LocalChatHasBackground
 import com.syconx.us2us.ui.icons.PhosphorGlyph
 import com.syconx.us2us.ui.icons.PhosphorIcon
 import com.syconx.us2us.ui.motion.LocalReduceMotion
@@ -167,7 +168,7 @@ fun Composer(
     if (quote != null) shownQuote = quote
     Column(
         modifier
-            .background(colors.composerFade)
+            .then(if (LocalChatHasBackground.current) Modifier else Modifier.background(colors.composerFade))
             .padding(start = U2Spacing.chatComposerGutter, top = 14.dp, end = U2Spacing.chatComposerGutter, bottom = bottom),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

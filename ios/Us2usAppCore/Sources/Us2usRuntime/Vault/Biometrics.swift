@@ -51,7 +51,13 @@ public protocol BiometricKeyProtecting: Sendable {
     func wrap(_ secret: Data) throws(BiometricError) -> Data
     /// Shows the biometric prompt with `reason` and decrypts `wrapped`.
     func unwrap(_ wrapped: Data, reason: String, cancelTitle: String) async throws(BiometricError) -> Data
+    /// Closes a prompt `unwrap` has open; `unwrap` then ends as `.cancelled`.
+    func cancelPrompt()
     func deleteKey()
+}
+
+extension BiometricKeyProtecting {
+    public func cancelPrompt() {}
 }
 
 /// The production protector: a P-256 key in the Secure Enclave with
@@ -67,6 +73,7 @@ public protocol BiometricKeyProtecting: Sendable {
 /// exact (cancel vs. not recognized vs. lockout) and there is one prompt only.
 public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
     public let applicationTag: Data
+    private let openPrompt = OpenBiometricPrompt()
     static let algorithm = SecKeyAlgorithm.eciesEncryptionCofactorVariableIVX963SHA256AESGCM
 
     public init(applicationTag: String = "com.syconx.us2us.biometric-unlock") {
@@ -146,16 +153,23 @@ public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
 
     public func unwrap(_ wrapped: Data, reason: String, cancelTitle: String) async throws(BiometricError) -> Data {
         let tag = applicationTag
+        let openPrompt = openPrompt
         let result: Result<Data, BiometricError> = await Task.detached(priority: .userInitiated) {
             let context = LAContext()
             context.localizedFallbackTitle = ""  // our own code keypad is the fallback
             context.localizedCancelTitle = cancelTitle
+            openPrompt.begin(context)
             do {
-                guard try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
-                else { return .failure(.failed) }
+                let matched = try await context.evaluatePolicy(
+                    .deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
+                // From here on the context authorizes the key: it can no longer be cancelled.
+                openPrompt.end(context)
+                guard matched else { return .failure(.failed) }
             } catch let error as LAError {
+                openPrompt.end(context)
                 return .failure(Self.map(error.code))
             } catch {
+                openPrompt.end(context)
                 return .failure(.failed)
             }
             let query: [String: Any] = [
@@ -185,9 +199,13 @@ public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
         return try result.get()
     }
 
+    public func cancelPrompt() {
+        openPrompt.cancel()
+    }
+
     static func map(_ code: LAError.Code) -> BiometricError {
         switch code {
-        case .userCancel, .systemCancel, .appCancel, .userFallback, .notInteractive: return .cancelled
+        case .userCancel, .systemCancel, .appCancel, .userFallback, .notInteractive, .invalidContext: return .cancelled
         case .authenticationFailed: return .failed
         case .biometryLockout: return .lockout
         case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet: return .unavailable
@@ -201,5 +219,23 @@ public struct SecureEnclaveBiometricProtector: BiometricKeyProtecting {
             kSecAttrApplicationTag as String: applicationTag,
         ]
         SecItemDelete(query as CFDictionary)
+    }
+}
+
+/// The prompt `unwrap` has open, so that it can be closed from outside.
+private final class OpenBiometricPrompt: @unchecked Sendable {
+    private let lock = NSLock()
+    private var context: LAContext?
+
+    func begin(_ new: LAContext) {
+        lock.withLock { context = new }
+    }
+
+    func end(_ old: LAContext) {
+        lock.withLock { if context === old { context = nil } }
+    }
+
+    func cancel() {
+        lock.withLock { context?.invalidate() }
     }
 }

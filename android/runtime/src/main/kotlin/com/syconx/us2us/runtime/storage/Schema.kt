@@ -353,7 +353,25 @@ internal object Schema {
         "UPDATE contacts SET request_sent_at = created_at WHERE request_state = 'outgoingRequest'",
     ))
 
-    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
+    /**
+     * A chat's own background (`ChatBackgroundRepository`): one row per conversation or community,
+     * gone with it through the foreign key. A choice of this phone, not something the conversation
+     * says, so it stays under the database's key alone. The same step as iOS's schema v12.
+     */
+    val v12 = Migration(12, listOf(
+        """
+        CREATE TABLE chat_backgrounds (
+            conversation_id BLOB UNIQUE REFERENCES conversations(id) ON DELETE CASCADE,
+            community_id TEXT UNIQUE REFERENCES community_states(id) ON DELETE CASCADE,
+            preset TEXT,
+            photo BLOB,
+            CHECK ((conversation_id IS NULL) != (community_id IS NULL)),
+            CHECK ((preset IS NULL) != (photo IS NULL))
+        )
+        """.trimIndent(),
+    ))
+
+    val migrations: List<Migration> = listOf(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12)
 
     val latestVersion: Int get() = migrations.maxOf { it.version }
 }

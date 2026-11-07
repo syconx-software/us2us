@@ -3656,6 +3656,600 @@
           }
         }
       }
+    },
+    "settings.transfer": {
+      "comment": "7.1: move the account to a new phone next to this one.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to a new phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni telefona taşı"
+          }
+        }
+      }
+    },
+    "transfer.failed.interrupted": {
+      "comment": "The connection broke.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection was lost. Scan the code on the new phone again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı kesildi. Yeni telefondaki kodu yeniden okut."
+          }
+        }
+      }
+    },
+    "transfer.failed.noLocalNetwork": {
+      "comment": "This phone is on no local network.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone is not on a network. Connect to Wi-Fi or use the other phone’s personal hotspot."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefon bir ağa bağlı değil. Wi-Fi’ye bağlan ya da diğer telefonun kişisel erişim noktasını kullan."
+          }
+        }
+      }
+    },
+    "transfer.failed.noSpace": {
+      "extractionState": "manual",
+      "comment": "The new phone has no room, said on the old phone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new phone does not have enough free space. Free some up there and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni telefonda yeterli boş yer yok. Orada yer açıp yeniden dene."
+          }
+        }
+      }
+    },
+    "transfer.failed.noSpace.here": {
+      "extractionState": "manual",
+      "comment": "The new phone has no room, said on the new phone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone does not have enough free space. Free some up and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefonda yeterli boş yer yok. Yer açıp yeniden dene."
+          }
+        }
+      }
+    },
+    "transfer.failed.notPrepared": {
+      "comment": "The account could not be prepared.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account could not be prepared. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap hazırlanamadı. Yeniden dene."
+          }
+        }
+      }
+    },
+    "transfer.failed.title": {
+      "comment": "Either phone: the transfer failed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not move"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktarılamadı"
+          }
+        }
+      }
+    },
+    "transfer.failed.unreachable": {
+      "comment": "The other phone did not answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The other phone could not be reached. Check that both are on the same Wi-Fi, or connect to one phone’s personal hotspot."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer telefona ulaşılamadı. İki telefonun aynı Wi-Fi’de olduğunu kontrol et ya da birinin kişisel erişim noktasına bağlan."
+          }
+        }
+      }
+    },
+    "transfer.note.title": {
+      "comment": "Title of the note on what moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What moves?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neler taşınır?"
+          }
+        }
+      }
+    },
+    "transfer.receive.a11y.code": {
+      "comment": "VoiceOver: the QR code on the new phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code for moving to this phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon geçiş kodu"
+          }
+        }
+      }
+    },
+    "transfer.receive.note": {
+      "comment": "What a move carries, on the new phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, contacts, messages and media move; disappearing messages, view-once items and the messages of Ghost chats do not. Both phones must be on the same Wi-Fi. Nothing goes through a server."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın, kişilerin, mesajların ve medyan taşınır; kaybolan mesajlar, tek görüntülük içerikler ve Ghost sohbetlerin mesajları taşınmaz. İki telefon aynı Wi-Fi’de olmalı. Hiçbir şey sunucudan geçmez."
+          }
+        }
+      }
+    },
+    "transfer.receive.preparing": {
+      "comment": "New phone: before the code shows.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing the code…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod hazırlanıyor…"
+          }
+        }
+      }
+    },
+    "transfer.receive.receiving": {
+      "comment": "New phone: receiving.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receiving your account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın alınıyor"
+          }
+        }
+      }
+    },
+    "transfer.receive.step1": {
+      "comment": "New phone, first step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the old phone, open us2us: Settings › Move to a new phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefonda us2us’ı aç: Ayarlar › Yeni telefona taşı."
+          }
+        }
+      }
+    },
+    "transfer.receive.step2": {
+      "comment": "New phone, second step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan this code with the old phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefonla bu kodu okut."
+          }
+        }
+      }
+    },
+    "transfer.receive.title": {
+      "comment": "New phone: title of the transfer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move from old phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eski telefondan taşı"
+          }
+        }
+      }
+    },
+    "transfer.restore.arrived": {
+      "comment": "The new phone's restore after a direct transfer: the card's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account has arrived"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın geldi"
+          }
+        }
+      }
+    },
+    "transfer.restore.failed": {
+      "comment": "The same card: what arrived can never be restored.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This transfer could not be opened. Start again on both phones."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu aktarım açılamadı. İki telefonda da baştan başla."
+          }
+        }
+      }
+    },
+    "transfer.restore.note": {
+      "comment": "The note under the restore after a direct transfer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One last step: set a new secret code for this phone. Your messages settle in as you do."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son adım: bu telefon için yeni bir gizli kod belirle. Mesajların o sırada yerleşir."
+          }
+        }
+      }
+    },
+    "transfer.restore.ready": {
+      "comment": "The card once the account is open.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, contacts and messages are ready"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın, kişilerin ve mesajların hazır"
+          }
+        }
+      }
+    },
+    "transfer.restore.unverified": {
+      "comment": "The same card: the server could not confirm the account still works.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server could not be reached. Check your internet connection and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucuya ulaşılamadı. İnternet bağlantını kontrol edip yeniden dene."
+          }
+        }
+      }
+    },
+    "transfer.retry": {
+      "comment": "Try the transfer again.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden dene"
+          }
+        }
+      }
+    },
+    "transfer.scan.hint": {
+      "comment": "Scanner hint on the old phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan the code on the new phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni telefonda görünen kodu okut"
+          }
+        }
+      }
+    },
+    "transfer.send.continue": {
+      "comment": "Old phone: go on from the explanation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam et"
+          }
+        }
+      }
+    },
+    "transfer.send.done.body": {
+      "comment": "Old phone: what comes next.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now choose your secret code on the new phone. When setup is finished, this phone is signed out."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi yeni telefonda gizli kodunu belirle. Kurulum bitince bu telefon hesaptan çıkar."
+          }
+        }
+      }
+    },
+    "transfer.send.done.title": {
+      "comment": "Old phone: sent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moved"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktarıldı"
+          }
+        }
+      }
+    },
+    "transfer.send.note": {
+      "comment": "What a move carries, on the old phone.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, contacts, messages and media move. Disappearing messages, view-once items and the messages of Ghost chats do not. When setup is finished on the new phone, this phone is signed out."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın, kişilerin, mesajların ve medyan taşınır. Kaybolan mesajlar, tek görüntülük içerikler ve Ghost sohbetlerin mesajları taşınmaz. Yeni telefonda kurulum bitince bu telefon hesaptan çıkar."
+          }
+        }
+      }
+    },
+    "transfer.send.sending": {
+      "comment": "Old phone: sending.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moving your account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın aktarılıyor"
+          }
+        }
+      }
+    },
+    "transfer.send.sending.body": {
+      "comment": "While everything moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep both phones open and close together, and stay in the app. With many photos and videos this can take a few minutes."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İki telefonu da açık ve yakın tut, uygulamadan çıkma. Çok fotoğraf ve video varsa birkaç dakika sürebilir."
+          }
+        }
+      }
+    },
+    "transfer.send.step1": {
+      "comment": "Old phone, first step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install us2us on the new phone and tap “Move from old phone”."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni telefona us2us’ı kur ve “Eski telefondan taşı”ya dokun."
+          }
+        }
+      }
+    },
+    "transfer.send.step2": {
+      "comment": "Old phone, second step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect both phones to the same Wi-Fi. No Wi-Fi? Turn on one phone’s personal hotspot."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İki telefonu da aynı Wi-Fi’ye bağla. Wi-Fi yoksa birinin kişisel erişim noktasını aç."
+          }
+        }
+      }
+    },
+    "transfer.send.step3": {
+      "comment": "Old phone, third step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your secret code, then scan the code on the new phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizli kodunu gir ve yeni telefonda görünen kodu okut."
+          }
+        }
+      }
+    },
+    "transfer.send.title": {
+      "comment": "Old phone: title of the transfer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to a new phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni telefona taşı"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -101,7 +101,7 @@ public enum AccountBackupService {
     public static func restore(
         _ backup: BRPAccountBackup, storage: LocalStorage, relay: RelayClient,
         directory: (any IdentityDirectory)? = nil, configuration: Messenger.Configuration = Messenger.Configuration(),
-        now: Date = Date()
+        now: Date = Date(), beforeSavingAccount: () async throws -> Void = {}
     ) async throws -> Messenger {
         let messenger = try await Messenger.restore(
             from: backup, relay: relay,
@@ -111,7 +111,8 @@ public enum AccountBackupService {
                 try storage.write { tx in try restoreContacts(backup, tx, now: now) }
                 return store
             },
-            directory: directory, configuration: configuration, saveAccount: storage.accountSaver, now: now)
+            directory: directory, configuration: configuration, saveAccount: storage.accountSaver, now: now,
+            beforeSavingAccount: beforeSavingAccount)
         // The storage must still be open and hold the rotated account; a
         // closed one (the vault locked meanwhile) is not a finished restore.
         guard try storage.read({ try $0.account.load() }) != nil else { throw Failure.noAccount }

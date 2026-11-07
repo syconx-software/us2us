@@ -105,8 +105,12 @@ public struct ContactRepository {
     /// `account` while it was an outgoing request. Opening a handle makes
     /// the row before anything is sent (audit 2026-10-28 M-9).
     public func requestSent(to account: AccountId) throws -> Bool {
+        try requestSentAt(to: account) != nil
+    }
+
+    func requestSentAt(to account: AccountId) throws -> Date? {
         try tx.connection.queryOne("SELECT request_sent_at FROM contacts WHERE account = ?", [account.bytes])?
-            .date("request_sent_at") != nil
+            .date("request_sent_at")
     }
 
     /// The relay answered `202` for a visible message of ours to `account`:
@@ -221,6 +225,19 @@ public struct ContactRepository {
             """,
             [ConversationRequestState.outgoingRequest.rawValue, account.bytes,
              ConversationRequestState.blocked.rawValue])
+    }
+
+    func stateBeforeBlock(of account: AccountId) throws -> String? {
+        try tx.connection.queryOne("SELECT state_before_block FROM contacts WHERE account = ?", [account.bytes])?
+            .text("state_before_block")
+    }
+
+    /// What a blocked contact was before the block, as the old phone knew it (§5.6).
+    func adoptStateBeforeBlock(_ state: ConversationRequestState, of account: AccountId) throws {
+        try tx.requireWritable()
+        try tx.connection.run(
+            "UPDATE contacts SET state_before_block = ? WHERE account = ? AND request_state = ?",
+            [state.rawValue, account.bytes, ConversationRequestState.blocked.rawValue])
     }
 
     // MARK: Access keys (§4.6, §6.4)

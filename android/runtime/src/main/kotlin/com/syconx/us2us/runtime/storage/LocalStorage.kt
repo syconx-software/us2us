@@ -310,6 +310,7 @@ class StorageTransaction internal constructor(
     val messages: MessageRepository get() = MessageRepository(this)
     val attachments: AttachmentRepository get() = AttachmentRepository(this)
     val outbox: OutboxRepository get() = OutboxRepository(this)
+    val chatBackgrounds: ChatBackgroundRepository get() = ChatBackgroundRepository(this)
     val envelopes: EnvelopeLog get() = EnvelopeLog(this)
 
     internal fun requireWritable() {

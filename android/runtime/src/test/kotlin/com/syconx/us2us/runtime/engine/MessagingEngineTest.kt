@@ -780,6 +780,64 @@ class MessagingEngineTest {
         assertEquals("", sticker.lang)
     }
 
+    /** PROTOCOL.md §5.6: under its own id, when asked to, and not before. */
+    @Test
+    fun whatHadNotGoneOutGoesOutFromTheNewPhoneOnlyWhenAsked() = runBlocking {
+        val old = EngineFixture(temporary.newFolder())
+        val peer = old.acceptedContact()
+        val conversation = old.storage.read { it.conversations.forContact(peer)!!.id }
+        val text = com.syconx.us2us.core.proto.dataMessage {
+            messageId = com.syconx.us2us.runtime.storage.RandomIds.make()
+            sentAt = 1_700_000_000_000
+            this.text = com.syconx.us2us.core.proto.text { body = "yolda" }
+        }
+        val photo = com.syconx.us2us.core.proto.dataMessage {
+            messageId = com.syconx.us2us.runtime.storage.RandomIds.make()
+            sentAt = 1_700_000_000_001
+            attachment = com.syconx.us2us.core.proto.attachment {
+                kind = com.syconx.us2us.core.proto.Attachment.Kind.IMAGE
+                contentType = "image/jpeg"
+            }
+        }
+        old.storage.write { tx ->
+            tx.messages.storeOutgoing(text, conversation)
+            tx.messages.storeOutgoing(photo, conversation)
+            val item = tx.attachments.forMessage(photo.messageId, conversation).first()
+            tx.attachments.storeFile(byteArrayOf(9, 8, 7), item.id)
+            tx.attachments.setState(com.syconx.us2us.runtime.storage.AttachmentState.PENDING_UPLOAD, item.id)
+        }
+        val spool = com.syconx.us2us.core.transfer.DeviceTransferSpool(temporary.newFolder())
+        com.syconx.us2us.runtime.storage.DeviceTransferHistoryExporter(old.storage, com.syconx.us2us.core.proto.TransferSettings.getDefaultInstance())
+            .export { spool.append(it) }
+        spool.finish()
+
+        fixture.acceptedContact(peer)
+        com.syconx.us2us.runtime.storage.DeviceTransferHistoryImporter(fixture.storage, fixture.account.accountId, spool.reader(), applySettings = {}).run()
+        fixture.start()
+        assertTrue("nothing goes out by itself", backend.sent(peer).isEmpty())
+
+        engine.resend(text.messageId, peer)
+        engine.resend(photo.messageId, peer)
+        eventually {
+            val sent = backend.sent(peer).mapNotNull { it.data }
+            sent.any { it.messageId == text.messageId } && sent.any { it.messageId == photo.messageId && !it.attachment.mediaId.isEmpty }
+        }
+    }
+
+    /** PROTOCOL.md §5.6: kept with the rest of the state, so a lock or a restart does not lose it. */
+    @Test
+    fun aMovesCommunityAnnouncementIsKeptUntilItIsDone() = runBlocking {
+        fixture.start()
+        assertFalse(engine.communityMovePending())
+        val state = RuntimeStateFile(fixture.directories.runtime, fixture.key)
+        assertFalse(state.load().communityMovePending)
+        state.save(state.load().copy(communityMovePending = true))
+        assertTrue(state.load().communityMovePending)
+        // Not known to a state file written before there was such a thing: nothing is pending.
+        assertFalse(RuntimeStateData.fromJson(org.json.JSONObject("{}")).communityMovePending)
+        state.close()
+    }
+
     @Test
     fun recentsAreKeptEncryptedAndBounded() = runBlocking {
         fixture.start()

@@ -10,6 +10,8 @@
     <string name="infoplist_nscamerausagedescription">Kamera yalnızca bir QR kodu (kişi kodu ya da güvenlik numarası) okutmak ya da profil fotoğrafı çekmek için açılır. QR görüntüsü cihazdan çıkmaz; çektiğin fotoğraf yalnızca profil fotoğrafı yaparsan küçültülüp konum ve kamera bilgileri silinerek kişilerinle (“Aramada göster” açıksa kullanıcı adını bilen herkesle) paylaşılır.</string>
     <!-- NSFaceIDUsageDescription -->
     <string name="infoplist_nsfaceidusagedescription">us2us\'ı açmak için yüzünü kullanır.</string>
+    <!-- NSLocalNetworkUsageDescription -->
+    <string name="infoplist_nslocalnetworkusagedescription">Yeni telefona geçerken iki telefon aynı ağ üzerinden doğrudan konuşur; sunucuya hiçbir şey gitmez.</string>
     <!-- NSLocationWhenInUseUsageDescription -->
     <string name="infoplist_nslocationwheninuseusagedescription">Konumunu yalnızca sen paylaştığında, yalnızca o sohbete şifreli olarak gönderir; canlı konum haritasında kendi yerini yalnızca bu cihazda gösterir.</string>
     <!-- NSMicrophoneUsageDescription -->

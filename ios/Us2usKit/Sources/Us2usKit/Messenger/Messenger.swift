@@ -193,7 +193,8 @@ public actor Messenger {
         from backup: BRPAccountBackup, relay: RelayClient,
         makeStore: (IdentityKeyPair, UInt32) throws -> any ProtocolStore,
         directory: (any IdentityDirectory)? = nil, configuration: Configuration = Configuration(),
-        saveAccount: @escaping AccountSaver = { _ in }, now: Date = Date()
+        saveAccount: @escaping AccountSaver = { _ in }, now: Date = Date(),
+        beforeSavingAccount: () async throws -> Void = {}
     ) async throws -> Messenger {
         let restored = try validate(backup)
         let store = try makeStore(restored.identity, backup.registrationID)
@@ -214,6 +215,10 @@ public actor Messenger {
             pendingAuthToken: TokenRotation.newToken(),
             profileAvatar: ProfilePicture(backup.hasAvatar ? backup.avatar : nil).serializedProfileAvatar,
             avatarSearchOff: backup.avatarSearchOff, avatarRecordPending: true)
+        // What came along from the old phone goes in first (§5.6): until the account is saved a
+        // vault counts for nothing, so an import that fails or is killed starts this phone over,
+        // and the old phone still holds the account.
+        try await beforeSavingAccount()
         try saveAccount(account)
         let messenger = Messenger(
             account: account, store: store, relay: relay, directory: directory, configuration: configuration,

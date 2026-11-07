@@ -10,6 +10,8 @@
     <string name="infoplist_nscamerausagedescription">The camera opens only to scan a QR code (a contact code or a safety number) or to take a profile photo. QR images never leave your device; a photo you take is shared only if you make it your profile photo, reduced and without location or camera details, with your contacts (and, while “Show in search” is on, anyone who knows your username).</string>
     <!-- NSFaceIDUsageDescription -->
     <string name="infoplist_nsfaceidusagedescription">Uses your face to unlock us2us.</string>
+    <!-- NSLocalNetworkUsageDescription — Local network permission, for moving to a new phone. -->
+    <string name="infoplist_nslocalnetworkusagedescription">When you move to a new phone, the two phones talk directly over the same network; nothing goes to a server.</string>
     <!-- NSLocationWhenInUseUsageDescription -->
     <string name="infoplist_nslocationwheninuseusagedescription">Your location is sent only when you share it, encrypted, to that one chat; on the live-location map your own position is shown on this device only.</string>
     <!-- NSMicrophoneUsageDescription -->

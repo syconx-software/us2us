@@ -39,13 +39,16 @@ final class FakeBackendFactory: BackendFactory, @unchecked Sendable {
         return backend
     }
 
-    func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend {
+    func restore(
+        _ backup: BRPAccountBackup, storage: LocalStorage, beforeSavingAccount: @Sendable () async throws -> Void
+    ) async throws -> any MessagingBackend {
         restores.withLock { $0 += 1 }
         _ = try storage.createIdentity(
             try IdentityKeyPair(bytes: backup.identityKeyPair), registrationId: backup.registrationID)
         let account = LocalAccount(
             accountId: AccountId(bytes: backup.accountID)!, authToken: Data(repeating: 8, count: 32),
             username: try NormalizedUsername(backup.username), accessKey: backup.accessKey)
+        try await beforeSavingAccount()
         try storage.accountSaver(account)
         if let failure = restoreFailure.withLock({ $0 }) { throw failure }
         try storage.write { tx in try AccountBackupService.restoreContacts(backup, tx) }
@@ -388,6 +391,142 @@ struct AppRuntimeTests {
         try await eventually { fixture.runtime.openMessages.contains { $0.body == .text("burada") } }
         // Displayed while open: no unread count for the open conversation.
         try await eventually { fixture.runtime.chats.first { $0.id == deniz }?.unreadCount == 0 }
+    }
+
+    /// The new phone's copy of what the old phone sent: one conversation with one message.
+    private func spool(in fixture: RuntimeFixture, contact: AccountId, broken: Bool = false) throws -> DeviceTransferSpool {
+        let spool = try DeviceTransferSpool(directory: fixture.directory.url.appendingPathComponent("spool", isDirectory: true))
+        if broken {
+            var stray = BRPTransferRecord()
+            stray.filePart.data = Data([1])
+            try spool.append(try stray.serializedBytes())
+        } else {
+            var head = BRPTransferRecord()
+            head.conversation.contact = contact.bytes
+            head.conversation.requestState = "accepted"
+            head.conversation.createdAt = 1_700_000_000_000
+            head.conversation.lastActivityAt = 1_700_000_000_500
+            try spool.append(try head.serializedBytes())
+            var content = BRPDataMessage()
+            content.messageID = Data(repeating: 0x61, count: 16)
+            content.sentAt = 1_700_000_000_400
+            content.text.body = "eski mesaj"
+            var message = BRPTransferRecord()
+            message.message.messageID = content.messageID
+            message.message.content = try content.serializedBytes()
+            message.message.kind = 1
+            message.message.sentAt = content.sentAt
+            message.message.createdAt = content.sentAt
+            message.message.status = 10
+            message.message.displayedAt = content.sentAt
+            try spool.append(try message.serializedBytes())
+            var settings = BRPTransferRecord()
+            settings.settings.readReceipts = false
+            settings.settings.presenceSharing = true
+            settings.settings.typingIndicators = true
+            settings.settings.autoDownloadMedia = true
+            try spool.append(try settings.serializedBytes())
+        }
+        try spool.finish()
+        return spool
+    }
+
+    @Test func aMoveBringsTheHistoryAndTheSettingsBeforeTheAccountIsTaken() async throws {
+        let newPhone = try RuntimeFixture()
+        let backupURL = newPhone.directory.url.appendingPathComponent("backup.brpb")
+        let backup = newPhone.backend.fullBackup(displayName: "Selin", contacts: [])
+        try AccountBackupFile.export(backup, password: "yedek-parolasi-42").write(to: backupURL)
+        let contact = AccountId(uuid: UUID())
+        let history = try spool(in: newPhone, contact: contact)
+        let fractions = Fractions()
+        try await newPhone.runtime.restore(
+            backupFile: backupURL, password: "yedek-parolasi-42", code: "730415", confirmation: "730415",
+            history: history, historyProgress: { fractions.add($0) })
+        #expect(newPhone.runtime.lockState == .unlocked)
+        #expect(fractions.last == 1)
+        #expect(newPhone.runtime.settings.readReceipts == false)
+        try await eventually { newPhone.runtime.chats.contains { $0.id == contact } }
+        let storage = try #require(newPhone.runtime.session?.storage)
+        try storage.read { tx in
+            let conversation = try #require(try tx.conversations.forContact(contact))
+            #expect(try tx.messages.page(in: conversation.id, limit: 10).map { $0.content?.text.body } == ["eski mesaj"])
+        }
+
+        // The community members are still to be told: a lock does not lose that, being done does.
+        #expect(await newPhone.runtime.session?.engine.communityMovePending() == true)
+        await newPhone.runtime.lockNow()
+        try await newPhone.runtime.unlock(code: "730415")
+        #expect(await newPhone.runtime.session?.engine.communityMovePending() == true)
+        await newPhone.runtime.session?.engine.communityMoveAnnounced()
+        await newPhone.runtime.lockNow()
+        try await newPhone.runtime.unlock(code: "730415")
+        #expect(await newPhone.runtime.session?.engine.communityMovePending() == false)
+    }
+
+    private final class Fractions: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [Double] = []
+        func add(_ value: Double) { lock.withLock { values.append(value) } }
+        var last: Double? { lock.withLock { values.last } }
+    }
+
+    @Test func whatHadNotGoneOutGoesOutFromTheNewPhoneOnlyWhenAsked() async throws {
+        let old = try EngineFixture()
+        let peer = try old.acceptedContact()
+        let conversation = try #require(try old.storage.read { try $0.conversations.forContact(peer) }).id
+        var text = BRPDataMessage()
+        text.messageID = RandomId.make()
+        text.sentAt = 1_700_000_000_000
+        text.text.body = "yolda"
+        var photo = BRPDataMessage()
+        photo.messageID = RandomId.make()
+        photo.sentAt = 1_700_000_000_001
+        photo.attachment.kind = .image
+        photo.attachment.contentType = "image/jpeg"
+        try old.storage.write { tx in
+            _ = try tx.messages.storeOutgoing(text, in: conversation)
+            _ = try tx.messages.storeOutgoing(photo, in: conversation)
+            let item = try tx.attachments.forMessage(photo.messageID, in: conversation)[0]
+            try tx.attachments.storeFile(Data([9, 8, 7]), for: item.id)
+            try tx.attachments.setState(.pendingUpload, of: item.id)
+        }
+        let spool = try DeviceTransferSpool(
+            directory: old.directory.url.appendingPathComponent("history", isDirectory: true))
+        defer { spool.remove() }
+        let source = DeviceTransferHistoryExporter(storage: old.storage, settings: BRPTransferSettings())
+        try await source.export { try spool.append($0) }
+        try spool.finish()
+
+        let new = try EngineFixture()
+        try new.acceptedContact(peer)
+        try DeviceTransferHistoryImporter(
+            storage: new.storage, ownAccount: new.account.accountId, reader: spool.reader(), applySettings: { _ in }
+        ).run()
+        await new.start()
+        await settle()
+        #expect(new.backend.sent(to: peer).isEmpty, "nothing goes out by itself")
+
+        _ = try await new.engine.resend(text.messageID, peer: peer)
+        _ = try await new.engine.resend(photo.messageID, peer: peer)
+        try await eventually {
+            let sent = new.backend.sent(to: peer).compactMap { $0.content.data }
+            return sent.contains { $0.messageID == text.messageID }
+                && sent.contains { $0.messageID == photo.messageID && !$0.attachment.mediaID.isEmpty }
+        }
+        await new.engine.stop()
+    }
+
+    @Test func aHistoryThatCannotBeTakenInStartsTheNewPhoneOver() async throws {
+        let newPhone = try RuntimeFixture()
+        let backupURL = newPhone.directory.url.appendingPathComponent("backup.brpb")
+        let backup = newPhone.backend.fullBackup(displayName: "Selin", contacts: [])
+        try AccountBackupFile.export(backup, password: "yedek-parolasi-42").write(to: backupURL)
+        let history = try spool(in: newPhone, contact: AccountId(uuid: UUID()), broken: true)
+        await #expect(throws: RuntimeError.transferHistoryFailed) {
+            try await newPhone.runtime.restore(
+                backupFile: backupURL, password: "yedek-parolasi-42", code: "730415", confirmation: "730415", history: history)
+        }
+        #expect(newPhone.runtime.lockState == .needsSetup)
     }
 
     @Test func backupExportAndRestoreOnANewPhone() async throws {

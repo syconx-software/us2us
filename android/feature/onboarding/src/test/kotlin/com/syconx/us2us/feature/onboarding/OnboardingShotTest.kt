@@ -34,7 +34,8 @@ class OnboardingShotTest {
             host.compose.assertAt(OnboardingTags.WELCOME_TITLE, 24f, 481.5f, 354f, 94f)
             host.compose.assertAt(OnboardingTags.WELCOME_BODY, 24f, 591.5f, 354f, 76.5f)
             host.compose.assertAt(OnboardingTags.START, 24f, 726f, 354f, 54f)
-            host.compose.assertAt(OnboardingTags.RESTORE, 24f, 790f, 354f, 44f)
+            host.compose.assertAt(OnboardingTags.TRANSFER, 24f, 790f, 173f, 44f)
+            host.compose.assertAt(OnboardingTags.RESTORE, 205f, 790f, 173f, 44f)
         }
     }
 

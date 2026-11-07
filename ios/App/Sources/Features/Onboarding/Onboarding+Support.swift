@@ -126,7 +126,7 @@ extension OnboardingRoute {
         case .username: 1
         case .secretCode: 2
         case .noWayBack: 3
-        case .restore: nil
+        case .restore, .transferReceive: nil
         }
     }
 }

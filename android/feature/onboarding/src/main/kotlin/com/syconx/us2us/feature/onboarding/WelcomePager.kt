@@ -111,7 +111,7 @@ import kotlin.time.toKotlinDuration
  * position. Reduce motion: fades only.
  */
 @Composable
-internal fun WelcomePager(pager: WelcomePagerModel, onCreateAccount: () -> Unit, onRestore: () -> Unit) {
+internal fun WelcomePager(pager: WelcomePagerModel, onCreateAccount: () -> Unit, onRestore: () -> Unit, onTransfer: () -> Unit) {
     val reduceMotion = LocalReduceMotion.current
     val isLayerVisible = LocalIsLayerVisible.current
     val enclosingMotion = LocalLayerMotion.current
@@ -137,7 +137,7 @@ internal fun WelcomePager(pager: WelcomePagerModel, onCreateAccount: () -> Unit,
                 WelcomePage(0, pager, isLayerVisible) { WelcomeKarsilamaPage() }
                 WelcomePage(1, pager, isLayerVisible) { WelcomeNoNotificationsPage() }
                 WelcomePage(2, pager, isLayerVisible) { WelcomeSilenceErasesPage() }
-                WelcomeChrome(pager, onCreateAccount, onRestore)
+                WelcomeChrome(pager, onCreateAccount, onRestore, onTransfer)
             }
         }
     }
@@ -174,7 +174,7 @@ private fun WelcomePage(index: Int, pager: WelcomePagerModel, isLayerVisible: Bo
 // MARK: - Chrome
 
 @Composable
-private fun WelcomeChrome(pager: WelcomePagerModel, onCreateAccount: () -> Unit, onRestore: () -> Unit) {
+private fun WelcomeChrome(pager: WelcomePagerModel, onCreateAccount: () -> Unit, onRestore: () -> Unit, onTransfer: () -> Unit) {
     val reduceMotion = LocalReduceMotion.current
     val primary = {
         if (pager.page < WelcomePagerModel.PAGE_COUNT - 1) pager.advance() else onCreateAccount()
@@ -189,15 +189,15 @@ private fun WelcomeChrome(pager: WelcomePagerModel, onCreateAccount: () -> Unit,
             Box(contentAlignment = Alignment.BottomCenter) {
                 val first by animateFloatAsState(if (pager.page == 0) 1f else 0f, u2Spec(U2Motion.screen), label = "welcomeBlock")
                 Box(Modifier.zIndex(if (pager.page == 0) 1f else 0f).graphicsLayer { alpha = first }.then(if (pager.page == 0) Modifier else Modifier.inactiveBlock())) {
-                    WelcomeBottomBlock(pager, showsRestore = true, isActive = pager.page == 0, onPrimary = primary, onRestore = onRestore)
+                    WelcomeBottomBlock(pager, showsRestore = true, isActive = pager.page == 0, onPrimary = primary, onRestore = onRestore, onTransfer = onTransfer)
                 }
                 Box(Modifier.zIndex(if (pager.page != 0) 1f else 0f).graphicsLayer { alpha = 1f - first }.then(if (pager.page != 0) Modifier else Modifier.inactiveBlock())) {
-                    WelcomeBottomBlock(pager, showsRestore = false, isActive = pager.page != 0, onPrimary = primary, onRestore = onRestore)
+                    WelcomeBottomBlock(pager, showsRestore = false, isActive = pager.page != 0, onPrimary = primary, onRestore = onRestore, onTransfer = onTransfer)
                 }
             }
         } else {
             // The active dot morphs and the block glides between the 1.1 and the 1.2/1.3 positions while the restore button fades.
-            WelcomeBottomBlock(pager, showsRestore = pager.page == 0, isActive = true, onPrimary = primary, onRestore = onRestore)
+            WelcomeBottomBlock(pager, showsRestore = pager.page == 0, isActive = true, onPrimary = primary, onRestore = onRestore, onTransfer = onTransfer)
         }
     }
 }
@@ -249,6 +249,7 @@ private fun WelcomeBottomBlock(
     isActive: Boolean,
     onPrimary: () -> Unit,
     onRestore: () -> Unit,
+    onTransfer: () -> Unit,
 ) {
     val ctaTag = when (pager.page) {
         0 -> OnboardingTags.START
@@ -276,12 +277,21 @@ private fun WelcomeBottomBlock(
         ) {
             Column {
                 Spacer(Modifier.height(10.dp))
-                U2TextButton(
-                    title = stringResource(R.string.onboarding_welcome_restore),
-                    onClick = onRestore,
-                    modifier = Modifier.testTag(OnboardingTags.RESTORE),
-                    tone = U2TextButtonTone.Quiet,
-                )
+                // Side by side: a third line would push the block up over the page's text.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    U2TextButton(
+                        title = stringResource(R.string.onboarding_welcome_transfer),
+                        onClick = onTransfer,
+                        modifier = Modifier.weight(1f).testTag(OnboardingTags.TRANSFER),
+                        tone = U2TextButtonTone.Quiet,
+                    )
+                    U2TextButton(
+                        title = stringResource(R.string.onboarding_welcome_restore),
+                        onClick = onRestore,
+                        modifier = Modifier.weight(1f).testTag(OnboardingTags.RESTORE),
+                        tone = U2TextButtonTone.Quiet,
+                    )
+                }
             }
         }
     }

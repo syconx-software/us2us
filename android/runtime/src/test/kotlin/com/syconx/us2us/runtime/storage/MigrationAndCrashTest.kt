@@ -80,7 +80,7 @@ class MigrationAndCrashTest {
 
     @Test
     fun theLatestSchemaIsVersion11WithKeySlottedCommunities() {
-        assertEquals(11, Schema.latestVersion)
+        assertEquals(12, Schema.latestVersion)
         val database = rawDatabase(File(temporary.newFolder(), "main.sqlite"))
         database.read { connection ->
             val contactColumns = connection.query("PRAGMA table_info(contacts)").map { it.text("name") }

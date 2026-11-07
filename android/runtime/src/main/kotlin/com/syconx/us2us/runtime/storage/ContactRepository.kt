@@ -85,9 +85,11 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
      * Whether the relay accepted (`202`) a visible message of ours to [account] while it was an
      * outgoing request. Opening a handle makes the row before anything is sent (audit M-9).
      */
-    fun requestSent(account: AccountId): Boolean =
+    fun requestSent(account: AccountId): Boolean = requestSentAt(account) != null
+
+    internal fun requestSentAt(account: AccountId): Instant? =
         tx.connection.queryOne("SELECT request_sent_at FROM contacts WHERE account = ?", account.toBytes())
-            ?.long("request_sent_at") != null
+            ?.long("request_sent_at")?.let(Instant::ofEpochMilli)
 
     /** The relay answered `202` for a visible message of ours to [account]: its outgoing request now exists on the other phone. */
     fun markRequestSent(account: AccountId, now: Instant = Instant.now()) {
@@ -164,6 +166,21 @@ class ContactRepository internal constructor(private val tx: StorageTransaction)
             account.toBytes(),
         )
         return true
+    }
+
+    internal fun stateBeforeBlock(account: AccountId): String? =
+        tx.connection.queryOne("SELECT state_before_block FROM contacts WHERE account = ?", account.toBytes())
+            ?.text("state_before_block")
+
+    /** What a blocked contact was before the block, as the old phone knew it (§5.6). */
+    internal fun adoptStateBeforeBlock(state: ContactState, account: AccountId) {
+        tx.requireWritable()
+        tx.connection.run(
+            "UPDATE contacts SET state_before_block = ? WHERE account = ? AND request_state = ?",
+            state.raw,
+            account.toBytes(),
+            ContactState.BLOCKED.raw,
+        )
     }
 
     /**

@@ -15,7 +15,15 @@ final class FakeBiometrics: BiometricKeyProtecting, @unchecked Sendable {
         var script: [BiometricError?] = []
         var prompts: [(reason: String, cancel: String)] = []
         var deletions = 0
+        /// The next prompt stays open until `cancelPrompt()` or `answerPrompt()`.
+        var holdsPrompt = false
+        var openPrompt: CheckedContinuation<Bool, Never>?
     }
+
+    func holdNextPrompt() { state.withLock { $0.holdsPrompt = true } }
+    var promptIsOpen: Bool { state.withLock { $0.openPrompt != nil } }
+    func cancelPrompt() { state.withLock { $0.openPrompt.take() }?.resume(returning: false) }
+    func answerPrompt() { state.withLock { $0.openPrompt.take() }?.resume(returning: true) }
 
     var availabilityValue: BiometricAvailability {
         get { state.withLock { $0.availability } }
@@ -39,6 +47,12 @@ final class FakeBiometrics: BiometricKeyProtecting, @unchecked Sendable {
     }
 
     func unwrap(_ wrapped: Data, reason: String, cancelTitle: String) async throws(BiometricError) -> Data {
+        if state.withLock({ state in defer { state.holdsPrompt = false }; return state.holdsPrompt }) {
+            let answered = await withCheckedContinuation { continuation in
+                state.withLock { $0.openPrompt = continuation }
+            }
+            guard answered else { throw .cancelled }
+        }
         let outcome: Result<Data, BiometricError> = state.withLock { state in
             state.prompts.append((reason, cancelTitle))
             if !state.script.isEmpty, let error = state.script.removeFirst() { return .failure(error) }

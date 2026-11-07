@@ -143,17 +143,31 @@ class OutboxRepository internal constructor(private val tx: StorageTransaction) 
         forgetIfPending(entry.recipient)
     }
 
+    /**
+     * A message that had not gone out when the account moved here (§5.6): "Tekrar gönder" finds it as
+     * any failed one. Nothing goes out by itself.
+     */
+    internal fun adoptFailed(content: Content, recipient: AccountId, conversationId: ConversationId, messageId: ByteString, now: Instant) {
+        val id = enqueue(content, recipient, conversationId, messageId, now = now)
+        tx.connection.run("UPDATE outbox SET state = ?, last_error = ? WHERE id = ?", OutboxState.FAILED.raw, "moved", id)
+    }
+
     /** Puts a failed entry back in the queue (the user tapped "retry"). */
     fun retry(id: Long, now: Instant = Instant.now()) {
         tx.requireWritable()
+        val entry = get(id) ?: return
+        // What never reached the relay is uploaded first.
+        val waits = entry.messageId != null && entry.conversationId != null &&
+            tx.attachments.forMessage(entry.messageId, entry.conversationId).any {
+                it.hasFile && it.descriptor?.mediaId?.isEmpty != false
+            }
         tx.connection.run(
             "UPDATE outbox SET state = ?, next_attempt_at = ?, attempts = 0 WHERE id = ? AND state = ?",
-            OutboxState.READY.raw,
+            (if (waits) OutboxState.WAITING_FOR_UPLOAD else OutboxState.READY).raw,
             now.toEpochMilli(),
             id,
             OutboxState.FAILED.raw,
         )
-        val entry = get(id) ?: return
         val messageId = entry.messageId ?: return
         val conversationId = entry.conversationId ?: return
         tx.connection.run(

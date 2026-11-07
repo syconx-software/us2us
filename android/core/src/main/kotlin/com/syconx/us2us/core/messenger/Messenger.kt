@@ -2062,6 +2062,7 @@ class Messenger(
             protocolStorage: ProtocolStorage = InMemoryProtocolStorage(),
             contacts: ContactStore = InMemoryContactStore(),
             config: MessengerConfig = MessengerConfig(),
+            beforeSavingAccount: suspend () -> Unit = {},
             accountStore: AccountStore = AccountStore {},
         ): Messenger {
             val plaintext = withContext(Dispatchers.Default) { BackupFile.open(backupFile, password) }
@@ -2109,6 +2110,10 @@ class Messenger(
                 pendingSetup = setOf(PendingSetup.REPLACE_PRE_KEYS, PendingSetup.SYNC_AVATAR, PendingSetup.ANNOUNCE_PROFILE),
                 pendingAuthToken = TokenRotation.newToken(),
             )
+            // What came along from the old phone goes in first (§5.6): until the account is saved a
+            // vault counts for nothing, so an import that fails or is killed starts this phone over,
+            // and the old phone still holds the account.
+            beforeSavingAccount()
             accountStore.save(account)
             val messenger = Messenger(account, store, contacts, relay, config, accountStore)
             val outcome = try {

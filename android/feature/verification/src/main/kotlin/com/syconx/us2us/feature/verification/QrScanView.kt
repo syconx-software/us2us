@@ -250,15 +250,18 @@ private fun ScanningContent(scanner: QrScannerModel, camera: QrCameraModel) {
                 val hint = when (val purpose = scanner.purpose) {
                     is QrScannerModel.Purpose.SafetyNumber -> stringResource(R.string.verification_scan_hint, L10n.possessive(purpose.peer, locale))
                     QrScannerModel.Purpose.AddContact -> stringResource(R.string.verification_scan_contact_hint)
+                    QrScannerModel.Purpose.DeviceTransfer -> stringResource(R.string.settings_transfer_scan_hint)
                 }
                 CameraHint(hint, Modifier.testTag(VerificationTags.HINT))
             }
-            U2CameraPillButton(
-                title = stringResource(R.string.verification_scan_showmycode),
-                onClick = scanner::showOwnCode,
-                glyph = PhosphorGlyph.QrCode,
-                modifier = Modifier.testTag(VerificationTags.SHOW_MY_CODE),
-            )
+            if (scanner.purpose != QrScannerModel.Purpose.DeviceTransfer) {
+                U2CameraPillButton(
+                    title = stringResource(R.string.verification_scan_showmycode),
+                    onClick = scanner::showOwnCode,
+                    glyph = PhosphorGlyph.QrCode,
+                    modifier = Modifier.testTag(VerificationTags.SHOW_MY_CODE),
+                )
+            }
         }
     }
 }
@@ -625,7 +628,8 @@ private fun OwnCodeContent(scanner: QrScannerModel) {
         ) {
             val hint = when (val purpose = scanner.purpose) {
                 is QrScannerModel.Purpose.SafetyNumber -> stringResource(R.string.verification_scan_mycode_hint, purpose.peer)
-                QrScannerModel.Purpose.AddContact -> stringResource(R.string.verification_scan_contact_mycode_hint)
+                QrScannerModel.Purpose.AddContact, QrScannerModel.Purpose.DeviceTransfer ->
+                    stringResource(R.string.verification_scan_contact_mycode_hint)
             }
             CameraHint(hint)
             U2CameraPillButton(

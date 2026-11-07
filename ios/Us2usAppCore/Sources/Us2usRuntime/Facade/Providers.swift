@@ -15,8 +15,11 @@ public protocol BackendFactory: Sendable {
     /// (§5.5): full validation first, identity and contacts, token rotation
     /// (the new token stored before it is sent, the outcome saved before the
     /// key upload), fresh pre-keys. Throws `BackupRestoreError` when the
-    /// relay refuses the backup.
-    func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend
+    /// relay refuses the backup. `beforeSavingAccount` runs after the identity and contacts are in,
+    /// before anything that keeps this vault or shuts the old phone out.
+    func restore(
+        _ backup: BRPAccountBackup, storage: LocalStorage, beforeSavingAccount: @Sendable () async throws -> Void
+    ) async throws -> any MessagingBackend
     /// The read-only relay check of a backup before anything on this phone
     /// is replaced: one authenticated `GET /v1/keys/status` with the backup's
     /// token, nothing stored; on the relay only the account's last-seen day
@@ -73,10 +76,13 @@ public struct RelayBackendFactory: BackendFactory {
         return MessengerBackend(messenger: messenger, accountId: account.accountId, protocolStore: protocolStore)
     }
 
-    public func restore(_ backup: BRPAccountBackup, storage: LocalStorage) async throws -> any MessagingBackend {
+    public func restore(
+        _ backup: BRPAccountBackup, storage: LocalStorage, beforeSavingAccount: @Sendable () async throws -> Void
+    ) async throws -> any MessagingBackend {
         let relay = try NetworkPolicy.makeRelayClient(baseURL: relayURL)
         let messenger = try await AccountBackupService.restore(
-            backup, storage: storage, relay: relay, configuration: Self.configuration(for: storage))
+            backup, storage: storage, relay: relay, configuration: Self.configuration(for: storage),
+            beforeSavingAccount: beforeSavingAccount)
         guard let protocolStore = storage.protocolStore else { throw StorageError.invalidState("no identity") }
         Self.dropBlockedSenders(of: messenger, storage: storage)
         return MessengerBackend(

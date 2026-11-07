@@ -193,7 +193,13 @@ class FakeBackend(override val accountId: AccountId, var storage: LocalStorage) 
     override suspend fun currentAccessKey(): ByteString =
         ByteString.copyFrom(storage.read { it.account.load()!!.accessKey.toBytes() })
 
-    override suspend fun openStream(): RelayStream = FakeStream().also { synchronized(lock) { streams += it } }
+    /** Opening the socket gets no answer, as after the app was stopped. */
+    @Volatile var opensHang = false
+
+    override suspend fun openStream(): RelayStream {
+        if (opensHang) kotlinx.coroutines.awaitCancellation()
+        return FakeStream().also { synchronized(lock) { streams += it } }
+    }
 
     override suspend fun send(
         content: Content,

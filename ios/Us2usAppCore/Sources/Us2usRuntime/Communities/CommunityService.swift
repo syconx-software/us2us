@@ -123,6 +123,11 @@ public final class CommunityService {
     /// Whether the background refresh runs: communities exist, or a screen shows them.
     var shouldPoll: Bool { active && (visibleScreens > 0 || !joined.isEmpty) }
 
+    /// This account moved here from another phone: its communities' members are told, then `done` runs.
+    func announceMove(done: @escaping @Sendable () async -> Void) async {
+        await engine.announceMove(done: done)
+    }
+
     func start() {
         poller?.cancel()
         let interval = pollInterval
@@ -418,6 +423,9 @@ actor CommunityEngine {
     let storage: LocalStorage
     nonisolated let activity = LockedState(true)
     private var syncing = false
+    /// This account just moved here from another phone; its members have not heard yet.
+    /// Set while this account's move is still to be announced; what runs once it was.
+    private var moveAnnounced: (@Sendable () async -> Void)?
     private var flushing = false
     private var flushAgain = false
     /// Recipients whose community mail is full, until the relay's `Retry-After`.
@@ -841,6 +849,7 @@ actor CommunityEngine {
             }
         }
         try storage.write { try $0.communities.markCurrentMemberships(memberships) }
+        await sayMoved(using: &pass)
         // A failing outbox never keeps the inbox from being fetched.
         await flush(using: &pass)
         try await drainInbox(&pass)
@@ -853,6 +862,51 @@ actor CommunityEngine {
         await resumeMedia(using: &pass)
         await flush(using: &pass)
         return CommunitySyncReport(issue: pass.issue, identityChanges: pass.identityChanges)
+    }
+
+    /// This account just moved here from another phone (PROTOCOL.md §5.6). The new phone has no
+    /// sessions, and what members encrypt to the old one's is lost on it until this phone has
+    /// written to them. Members are not contacts, so no profile goes to them: a receipt for no
+    /// message does it, and nothing shows.
+    func announceMove(done: @escaping @Sendable () async -> Void) async {
+        // No pass may ever come for a phone without communities, and nobody is waiting to be told.
+        if let groups = try? storage.read({ try $0.communities.all() }), !groups.contains(where: \.isActive) {
+            await done()
+            return
+        }
+        moveAnnounced = done
+    }
+
+    private func sayMoved(using pass: inout CommunityPass) async {
+        guard let moveAnnounced, let groups = try? storage.read({ try $0.communities.all() }) else { return }
+        for group in groups where group.isActive {
+            guard isActive else { return }
+            let state: CommunityState
+            switch await lookup(group.id, in: &pass) {
+            case .gone: continue
+            case .unavailable: return
+            case .current(let current): state = current
+            }
+            let receipt = BRPCommunityMessage.receipt(
+                .delivery, for: [RandomId.make()], community: state.id, revision: state.revision)
+            guard let event = AccountId(bytes: receipt.messageID) else { continue }
+            do {
+                let fanout = try await seal(receipt, for: state, allowingNone: true)
+                try check()
+                try storage.write { tx in
+                    for item in fanout.prepared {
+                        try tx.communities.enqueue(
+                            community: state.id, message: event, recipient: item.recipient, revision: state.revision,
+                            envelope: item.envelope, event: receipt)
+                    }
+                }
+            } catch {
+                // The next pass tries again.
+                return
+            }
+        }
+        self.moveAnnounced = nil
+        await moveAnnounced()
     }
 
     private func drainInbox(_ pass: inout CommunityPass) async throws {

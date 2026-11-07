@@ -9,7 +9,24 @@
 /// is additionally an item under the conversation key CK (§5.3), so
 /// crypto-shredding a conversation leaves only unreadable ciphertext.
 enum Schema {
-    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11]
+    static let migrations: [Migration] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12]
+
+    /// A chat's own background (`ChatBackgroundRepository`): one row per
+    /// conversation or community, gone with it through the foreign key. A
+    /// choice of this phone, not something the conversation says, so it stays
+    /// under the database's key alone. The same step as Android's schema v12.
+    static let v12 = Migration(version: 12, statements: [
+        """
+        CREATE TABLE chat_backgrounds (
+            conversation_id BLOB UNIQUE REFERENCES conversations(id) ON DELETE CASCADE,
+            community_id BLOB UNIQUE REFERENCES communities(id) ON DELETE CASCADE,
+            preset TEXT,
+            photo BLOB,
+            CHECK ((conversation_id IS NULL) != (community_id IS NULL)),
+            CHECK ((preset IS NULL) != (photo IS NULL))
+        )
+        """,
+    ])
 
     /// Message requests (audit 2026-10-28 M-9, PROTOCOL.md §6.4): when the
     /// relay first accepted (`202`) a visible message of ours to an outgoing

@@ -54,6 +54,7 @@ object OnboardingTags {
     const val PAGE2_CTA = "welcome.page2.cta"
     const val PAGE3_CTA = "welcome.page3.cta"
     const val RESTORE = "welcome.restore"
+    const val TRANSFER = "welcome.transfer"
     const val HEADER = "welcome.header"
     const val PAGE_DOTS = "welcome.pageDots"
     const val WELCOME_TITLE = "welcome.title"

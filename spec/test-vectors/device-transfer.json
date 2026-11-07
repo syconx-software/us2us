@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "category": "device-transfer",
+  "comment": "PROTOCOL.md 5.6. Python-generated fixed inputs; both clients verify them. All binary values are lowercase hex.",
+  "receiverPrivateHex": "a811111111111111111111111111111111111111111111111111111111111151",
+  "receiverKeyHex": "0552178269748e3a8d388cdc90a22354d1396b4712e9bb03544b45fb0975cc1315",
+  "senderPrivateHex": "b022222222222222222222222222222222222222222222222222222222222262",
+  "senderKeyHex": "05a336e12b7ad35710dbf8d9462f8c5ab93a2c71d6efc9dc40d3f74ac810a2a831",
+  "secretHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "endpoints": [
+    "192.168.1.20:54021",
+    "172.20.10.1:54021"
+  ],
+  "invite": "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021,172.20.10.1:54021",
+  "helloHex": "425250540105a336e12b7ad35710dbf8d9462f8c5ab93a2c71d6efc9dc40d3f74ac810a2a831",
+  "senderToReceiverKeyHex": "5e5633a1de7668c0ce06313922c762e31019f1316ff224fd87607d36077b8740",
+  "receiverToSenderKeyHex": "e840bea72482c0ba834610eec81ff840144cbeb6628adbf6ce45a52c2853f5da",
+  "frames": [
+    {
+      "direction": "receiverToSender",
+      "counter": 0,
+      "type": 1,
+      "bodyHex": "",
+      "frameHex": "0000001171192e25f71c759275dd0b5ba7c9ab0884"
+    },
+    {
+      "direction": "senderToReceiver",
+      "counter": 0,
+      "type": 2,
+      "bodyHex": "000000000000000b00000000000000506b376d712d783270642d397466612d776e33682d62387a65",
+      "frameHex": "000000395a8429b39b1eec960cdb5570050266c24fc5936b4b54750ee1ded074b23d9259992b55886a3b79f52872eaf67c22e060e3570a8a0a64f998f0"
+    },
+    {
+      "direction": "receiverToSender",
+      "counter": 1,
+      "type": 7,
+      "bodyHex": "",
+      "frameHex": "000000111fb1be954faf31f8279ca0eccde245b273"
+    },
+    {
+      "direction": "senderToReceiver",
+      "counter": 1,
+      "type": 3,
+      "bodyHex": "42525042016261636b7570",
+      "frameHex": "0000001c283ddfbc4bbca85e35d8ed39e728863cadaa46d7885c0b85b3415c4d"
+    },
+    {
+      "direction": "senderToReceiver",
+      "counter": 2,
+      "type": 6,
+      "bodyHex": "1a470a10111111111111111111111111111111111001200128e807400148d00f9a011b0a10222222222222222222222222222222221204f09f918d18b817a20108100c180320012803",
+      "frameHex": "0000005ad861527ecd24d34e67ee0a1788d0ddd8b2424b7ebfa35ae1f7e95fb06f55cbffbe2481f4320bf45ca81c73dde1308de8f4299fc79eafee29501e4fb12556f5742d678b16bd1b154a3abef0d12753fa24f2c9034f423f31853e29"
+    },
+    {
+      "direction": "senderToReceiver",
+      "counter": 3,
+      "type": 6,
+      "bodyHex": "22050a03010203",
+      "frameHex": "00000018f377fc23d951168662a18d2b173de54616e6ad88d8e5e68c"
+    },
+    {
+      "direction": "senderToReceiver",
+      "counter": 4,
+      "type": 4,
+      "bodyHex": "",
+      "frameHex": "00000011102d7bf983c56a1ec5819b46167789463c"
+    },
+    {
+      "direction": "receiverToSender",
+      "counter": 2,
+      "type": 5,
+      "bodyHex": "",
+      "frameHex": "00000011403a51c6d79ed1a20416ad3a6dd7f9f14d"
+    }
+  ],
+  "invalidInvites": [
+    "us2us-transfer:2:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021",
+    "us2us:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBM:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021",
+    "us2us-transfer:1:BlIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:54021",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHg:192.168.1.20:54021",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:0",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.20:70000",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:192.168.1.256:54021",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:example.com:54021",
+    "us2us-transfer:1:BVIXgml0jjqNOIzckKIjVNE5a0cS6bsDVEtF-wl1zBMV:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8:10.0.0.1:1000,10.0.0.2:1000,10.0.0.3:1000,10.0.0.4:1000,10.0.0.5:1000"
+  ],
+  "refused": {
+    "type": 8,
+    "bodyHex": "01"
+  },
+  "historyRecords": {
+    "messageHex": "1a470a10111111111111111111111111111111111001200128e807400148d00f9a011b0a10222222222222222222222222222222221204f09f918d18b817a20108100c180320012803",
+    "filePartHex": "22050a03010203"
+  }
+}

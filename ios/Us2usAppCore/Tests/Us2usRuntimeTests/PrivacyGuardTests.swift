@@ -323,7 +323,11 @@ struct PrivacyLintTests {
         for (name, text) in try Self.sources() {
             #expect(!text.contains("URLSession.shared"), "\(name) uses URLSession.shared")
             #expect(!text.contains("URLSession("), "\(name) creates its own URLSession")
-            #expect(!text.contains("NWConnection"), "\(name) opens raw connections")
+            // The one exception: moving to a new phone over the local network (PROTOCOL.md §5.6);
+            // that file only ever connects to private addresses from a code read off the other phone.
+            if !name.hasSuffix("DeviceTransferNetwork.swift") {
+                #expect(!text.contains("NWConnection"), "\(name) opens raw connections")
+            }
             for scheme in ["http://", "https://"] where text.contains(scheme) {
                 // Only documentation examples and the loopback rule may name a URL.
                 let lines = text.split(separator: "\n").filter { $0.contains(scheme) }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
+import com.syconx.us2us.domain.ChatBackground
 import com.syconx.us2us.domain.ChatSummary
 import com.syconx.us2us.domain.CommunityChats
 import com.syconx.us2us.domain.ConversationAttachment
@@ -173,6 +174,23 @@ class ConversationViewModel(
      * places, Ghost).
      */
     val isCommunity: Boolean = CommunityChats.isCommunity(chatId)
+
+    /** What this chat shows behind its messages on this phone. */
+    var background: ChatBackground by mutableStateOf(ChatBackground.Standard)
+        private set
+
+    /** Communities: “Sohbet arka planı”, from the management sheet. */
+    var showsBackgroundSettings: Boolean by mutableStateOf(false)
+
+    /** Read when the chat comes on screen and after every stored change. */
+    suspend fun loadBackground() {
+        background = messenger.chatBackground(chatId)
+    }
+
+    /** The app left the foreground: the decrypted photo goes with it. */
+    fun forgetBackground() {
+        background = ChatBackground.Standard
+    }
 
     /** A community's members and management (the header's “…”). */
     var showsCommunityManage: Boolean by mutableStateOf(false)

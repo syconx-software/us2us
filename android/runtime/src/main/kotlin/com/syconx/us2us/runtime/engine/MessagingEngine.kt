@@ -6,6 +6,7 @@ import com.syconx.us2us.core.presence.PresenceStatus
 import com.syconx.us2us.core.profile.ProfilePicture
 import com.syconx.us2us.core.username.Username
 import com.syconx.us2us.runtime.storage.AttachmentState
+import com.syconx.us2us.runtime.storage.ChatBackgroundChoice
 import com.syconx.us2us.runtime.storage.ContactIdentity
 import com.syconx.us2us.runtime.storage.ConversationId
 import com.syconx.us2us.runtime.storage.IdentityVerification
@@ -456,9 +457,29 @@ class MessagingEngine(
 
     suspend fun recentStickers(): List<String> = serialized { runtime.recentStickers }
 
+    /** Whether the members of this account's communities are still to be told it moved here (§5.6). */
+    suspend fun communityMovePending(): Boolean = serialized { runtime.communityMovePending }
+
+    suspend fun communityMoveAnnounced() = serialized {
+        runtime = runtime.copy(communityMovePending = false)
+        saveRuntime()
+    }
+
     suspend fun setRecentStickers(ids: List<String>) = serialized { setRecentStickersNow(ids) }
 
     suspend fun noteRecentSticker(id: String) = serialized { setRecentStickersNow(listOf(id) + runtime.recentStickers) }
+
+    suspend fun chatBackground(peer: AccountId): ChatBackgroundChoice? = serialized { read { it.chatBackgrounds.forContact(peer) } }
+
+    suspend fun setChatBackground(choice: ChatBackgroundChoice?, peer: AccountId) = serialized {
+        write { it.chatBackgrounds.setForContact(choice, peer) }
+    }
+
+    suspend fun communityChatBackground(id: AccountId): ChatBackgroundChoice? = serialized { read { it.chatBackgrounds.forCommunity(id) } }
+
+    suspend fun setCommunityChatBackground(choice: ChatBackgroundChoice?, id: AccountId) = serialized {
+        write { it.chatBackgrounds.setForCommunity(choice, id) }
+    }
 
     // MARK: Presence and live location (§8.6, §8.3)
 

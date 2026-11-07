@@ -69,6 +69,24 @@
         }
       }
     },
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Local network permission, for moving to a new phone.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you move to a new phone, the two phones talk directly over the same network; nothing goes to a server."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni telefona geçerken iki telefon aynı ağ üzerinden doğrudan konuşur; sunucuya hiçbir şey gitmez."
+          }
+        }
+      }
+    },
     "NSLocationWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -62,6 +62,42 @@ class RestoreTokenTest {
     ) { saves += it }
 
     @Test
+    fun `what a move brings goes in with no account saved and no token sent, and if it fails neither happens`() = runBlocking {
+        val bob = register("bob_02")
+        val file = bob.exportBackup(PASSWORD, iterations = 1000)
+        val rotations = relay.tokenRotations.size
+        class Killed : RuntimeException()
+        assertThrows<Killed> {
+            runBlocking {
+                Messenger.restore(
+                    file, PASSWORD, RelayClient(relay.url), newPhone.storage, newPhone.contacts, TestClient.testConfig,
+                    beforeSavingAccount = { throw Killed() },
+                    accountStore = { saves += it },
+                )
+            }
+        }
+        assertTrue(saves.isEmpty())
+        assertEquals(rotations, relay.tokenRotations.size)
+        // The old phone is still in.
+        bob.maintainPreKeys()
+
+        var savesThen = -1
+        var rotationsThen = -1
+        Messenger.restore(
+            file, PASSWORD, RelayClient(relay.url), newPhone.storage, newPhone.contacts, TestClient.testConfig,
+            beforeSavingAccount = {
+                savesThen = saves.size
+                rotationsThen = relay.tokenRotations.size
+            },
+            accountStore = { saves += it },
+        )
+        assertEquals(0, savesThen)
+        assertEquals(rotations, rotationsThen)
+        assertTrue(saves.isNotEmpty())
+        assertTrue(relay.tokenRotations.size > rotations)
+    }
+
+    @Test
     fun `a lost 204 is found out with the new token, and the old phone is locked out`() = runBlocking {
         val bob = register("bob_02")
         val file = bob.exportBackup(PASSWORD, iterations = 1000)

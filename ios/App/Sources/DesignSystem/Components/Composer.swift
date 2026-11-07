@@ -37,6 +37,7 @@ struct Composer: View {
 
     @FocusState private var isFocused: Bool
     @Environment(\.u2SafeArea) private var safeArea
+    @Environment(\.u2ChatHasBackground) private var chatHasBackground
 
     private var hasText: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -80,7 +81,9 @@ struct Composer: View {
         .padding(.top, 14)
         .padding(.horizontal, U2Spacing.chatComposerGutter)
         .padding(.bottom, bottomPadding ?? safeArea.bottom(36))
-        .background(Color.u2.composerFade.allowsHitTesting(false))
+        .background {
+            if !chatHasBackground { Color.u2.composerFade.allowsHitTesting(false) }
+        }
         .u2Animation(U2Motion.state, value: quote)
         .u2Animation(U2Motion.state, value: voiceMode)
     }

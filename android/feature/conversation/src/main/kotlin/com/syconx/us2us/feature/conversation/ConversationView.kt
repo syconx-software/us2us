@@ -45,6 +45,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.syconx.us2us.ui.common.ChatBackgroundLayer
+import com.syconx.us2us.ui.common.ChatBackgroundLook
+import com.syconx.us2us.ui.common.ChatBackgroundSheet
+import com.syconx.us2us.ui.common.LocalChatHasBackground
+import com.syconx.us2us.ui.common.rememberChatBackgroundLook
 import com.syconx.us2us.ui.type.U2FontScaleCap
 import com.syconx.us2us.ui.type.U2_HEADER_CHIP_FONT_SCALE_CAP
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -141,7 +146,9 @@ import java.net.URI
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 /**
  * 05 · Sohbet: the conversation (5.1, and 5.2 for the content catalogue).
@@ -173,6 +180,14 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
         viewModel.loadStickerRecents()
         messenger.conversationAppeared(chatId)
     }
+    // Read when the chat is on screen and after every stored change; a photo does not stay in
+    // memory while the app is away or locked.
+    LaunchedEffect(viewModel, isLayerVisible) {
+        if (isLayerVisible) messenger.chatBackgroundRevision.collectLatest { viewModel.loadBackground() }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (isLayerVisible) scope.launch { viewModel.loadBackground() }
+    }
     DisposableEffect(viewModel) {
         onDispose {
             viewModel.stopVoice()
@@ -186,6 +201,7 @@ internal fun ConversationContent(chatId: ChatId, modifier: Modifier = Modifier) 
         viewModel.closeMedia()
         viewModel.closeLocationScreens()
         viewModel.stopVoice()
+        viewModel.forgetBackground()
     }
     LaunchedEffect(viewModel) {
         snapshotFlow { viewModel.presentedMediaIsGone }.filter { it }.collect { viewModel.closeMedia() }
@@ -321,22 +337,30 @@ private fun ChatLayer(viewModel: ConversationViewModel, onComposerBottom: (Float
     val density = LocalDensity.current
     var composerHeight by remember { mutableStateOf(U2Size.composer + 50.dp) }
     val chatId = viewModel.chatId
+    val look = rememberChatBackgroundLook(viewModel.background)
+    val hasBackground = look != ChatBackgroundLook.Standard
     Box(Modifier.fillMaxSize()) {
-        ConversationMessageList(
-            viewModel,
-            bottomPadding = composerHeight,
-            modifier = Modifier.fillMaxSize().u2BackdropSource(backdrop),
-            onVerify = { router.push(AppRoute.SafetyNumber(chatId)) },
-        )
-        ComposerArea(
-            viewModel,
-            Modifier
-                .align(Alignment.BottomCenter)
-                .onPlaced { coordinates ->
-                    composerHeight = with(density) { coordinates.size.height.toDp() }
-                    onComposerBottom(coordinates.positionInParent().y + coordinates.size.height)
-                },
-        )
+        // The header's backdrop blurs the chat's background together with the messages.
+        Box(Modifier.fillMaxSize().u2BackdropSource(backdrop)) {
+            if (hasBackground) ChatBackgroundLayer(look, Modifier.fillMaxSize().testTag("conversation.background"))
+            ConversationMessageList(
+                viewModel,
+                bottomPadding = composerHeight,
+                modifier = Modifier.fillMaxSize(),
+                onVerify = { router.push(AppRoute.SafetyNumber(chatId)) },
+            )
+        }
+        CompositionLocalProvider(LocalChatHasBackground provides hasBackground) {
+            ComposerArea(
+                viewModel,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .onPlaced { coordinates ->
+                        composerHeight = with(density) { coordinates.size.height.toDp() }
+                        onComposerBottom(coordinates.positionInParent().y + coordinates.size.height)
+                    },
+            )
+        }
         Header(viewModel, backdrop)
     }
 }
@@ -467,7 +491,7 @@ private fun ComposerArea(viewModel: ConversationViewModel, modifier: Modifier) {
                         U2TextStyles.callout,
                         Modifier
                             .fillMaxWidth()
-                            .background(U2Theme.colors.composerFade)
+                            .then(if (LocalChatHasBackground.current) Modifier else Modifier.background(U2Theme.colors.composerFade))
                             .padding(start = U2Spacing.screenGutter, top = 14.dp, end = U2Spacing.screenGutter, bottom = bottomPadding)
                             .testTag("conversation.communityInactive"),
                         color = U2Theme.colors.textSecondary,
@@ -653,6 +677,12 @@ private fun ConversationSheets(viewModel: ConversationViewModel) {
     U2Sheet(item = viewModel.info, onDismissRequest = { viewModel.info = null }, style = U2SheetStyle.FullHeight) { item ->
         if (viewModel.isCommunity) CommunityMessageInfoSheet(viewModel, item.id) else MessageInfoSheet(viewModel, item.id)
     }
+    ChatBackgroundSheet(
+        isPresented = viewModel.showsBackgroundSettings,
+        chat = chatId,
+        messenger = viewModel.messenger,
+        onDismiss = { viewModel.showsBackgroundSettings = false },
+    )
     // A community's members and management (the header's “…”).
     val communities = viewModel.messenger.communities
     val community = viewModel.chat?.community
@@ -668,6 +698,10 @@ private fun ConversationSheets(viewModel: ConversationViewModel) {
                 communityName(community),
                 onClose = { viewModel.showsCommunityManage = false },
                 onGone = { viewModel.showsCommunityManage = false },
+                onBackground = {
+                    viewModel.showsCommunityManage = false
+                    viewModel.showsBackgroundSettings = true
+                },
             )
         }
     }

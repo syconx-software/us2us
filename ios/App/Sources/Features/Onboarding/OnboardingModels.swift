@@ -46,6 +46,7 @@ final class OnboardingFlowModel {
         code = SecretCodeStepModel(messenger: messenger)
         finish = NoWayBackStepModel()
         code.onConfirmed = { [weak self] code in self?.codeConfirmed(code) }
+        finish.historyProgress = { [messenger] in messenger.historyImportProgress }
         finish.onSubmit = { [weak self] in
             guard let self else { return .network }
             return await self.createAccount()
@@ -75,6 +76,11 @@ final class OnboardingFlowModel {
     /// 1.1 “Yedekten geri yükle” → 7.3 (the document picker opens there).
     func startRestore() {
         router.push(.restore)
+    }
+
+    /// 1.1 “Eski telefondan taşı” → this phone's code for the old phone to read.
+    func startTransfer() {
+        router.push(.transferReceive)
     }
 
     /// 3.3 › 7.3 restored a backup inside the lock: onboarding starts at
@@ -183,6 +189,8 @@ final class OnboardingFlowModel {
             return .backupGone
         } catch RestoreFailure.backupDamaged {
             return .backupDamaged
+        } catch RestoreFailure.transferFailed {
+            return .transferFailed
         } catch SetupInterruption.accountKept {
             confirmedCode = nil
             return .accountKept
@@ -623,6 +631,9 @@ final class NoWayBackStepModel {
         /// After a restore: the backup can't be read, or it is damaged.
         /// Trying again cannot help; another copy might.
         case backupDamaged
+        /// After a move from the old phone: what came could not be taken in. That phone still
+        /// holds the account: both start over.
+        case transferFailed
         /// The new account was saved, then a later step failed: it is kept,
         /// locked under the new code. Only the lock goes on from here.
         case accountKept
@@ -642,6 +653,8 @@ final class NoWayBackStepModel {
     private(set) var biometry: Biometry = .none
     private(set) var isWorking = false
     private(set) var failure: Failure?
+    /// How far taking in what came from the old phone got, while it runs.
+    var historyProgress: () -> Double? = { nil }
 
     var failed: Bool { failure != nil }
 
