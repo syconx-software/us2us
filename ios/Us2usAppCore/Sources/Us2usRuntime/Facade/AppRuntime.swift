@@ -91,6 +91,8 @@ public final class AppRuntime {
     /// (a retry would find a vault and fail). `false` again when the next
     /// setup starts.
     public internal(set) var keptAccountAfterFailedSetup = false
+    /// What the old phone sent of its device preferences in a direct transfer (PROTOCOL.md §5.6).
+    var transferredPreferences: TransferredPreferences?
     /// A restore's token rotation got no answer yet (PROTOCOL §5.5 step
     /// 3.4): until the relay says which token the account has, the old phone
     /// may still have access to the account, and this one does not connect.
@@ -775,9 +777,10 @@ public final class AppRuntime {
             let account = AccountId(bytes: backup.accountID)
             let backend = try await environment.backends.restore(backup, storage: opened) {
                 guard let history, let account else { return }
-                try await Self.takeIn(
+                let moved = try await Self.takeIn(
                     history, storage: opened, ownAccount: account, key: created, runtimeDirectory: runtimeDirectory,
                     progress: historyProgress)
+                await self.keepTransferredPreferences(moved)
             }
             let session = try makeSession(key: created, storage: opened, backend: backend)
             await session.engine.start()
@@ -797,13 +800,18 @@ public final class AppRuntime {
         }
     }
 
+    private func keepTransferredPreferences(_ moved: TransferredPreferences?) {
+        transferredPreferences = moved
+    }
+
     /// §5.6: the history from the old phone, into the vault just created, off the main actor.
     private nonisolated static func takeIn(
         _ history: DeviceTransferSpool, storage: LocalStorage, ownAccount: AccountId, key: SecretKeyMaterial,
         runtimeDirectory: URL, progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> TransferredPreferences? {
         do {
-            try await Task.detached(priority: .userInitiated) {
+            return try await Task.detached(priority: .userInitiated) { () -> TransferredPreferences? in
+                var moved: TransferredPreferences?
                 let importer = DeviceTransferHistoryImporter(
                     storage: storage, ownAccount: ownAccount, reader: history.reader()
                 ) { settings in
@@ -823,8 +831,13 @@ public final class AppRuntime {
                     state.recentStickers = settings.recentStickers
                     state.communityMovePending = true
                     try file.save(state)
+                    if !settings.theme.isEmpty || !settings.language.isEmpty {
+                        moved = TransferredPreferences(
+                            theme: settings.theme, language: settings.language, keepScreenOn: settings.keepScreenOn)
+                    }
                 }
                 try importer.run(progress: progress)
+                return moved
             }.value
         } catch {
             RuntimeLog.lifecycle.error("the history from the old phone could not be taken in")

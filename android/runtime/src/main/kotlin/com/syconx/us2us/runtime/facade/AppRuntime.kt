@@ -124,6 +124,9 @@ class AppRuntime(
     private val main: CoroutineDispatcher = Dispatchers.Main.immediate,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    /** What the old phone sent of its device preferences in a direct transfer (PROTOCOL.md §5.6). */
+    @Volatile private var transferredPreferences: TransferredPreferences? = null
+
     // MARK: Observable state
 
     private val lockStateFlow = MutableStateFlow(LockState.NEEDS_SETUP)
@@ -1020,6 +1023,9 @@ class AppRuntime(
                         communityMovePending = true,
                     )
                 }
+                if (settings.theme.isNotEmpty() || settings.language.isNotEmpty()) {
+                    transferredPreferences = TransferredPreferences(settings.theme, settings.language, settings.keepScreenOn)
+                }
             }).run(progress)
         } catch (e: CancellationException) {
             throw e
@@ -1032,8 +1038,11 @@ class AppRuntime(
         }
     }
 
+    /** The device preferences the old phone sent along, once: they are the app's to apply. */
+    fun takeTransferredPreferences(): TransferredPreferences? = transferredPreferences.also { transferredPreferences = null }
+
     /** What a direct transfer sends besides the account (PROTOCOL.md §5.6). */
-    suspend fun transferHistory(): com.syconx.us2us.core.transfer.DeviceTransferHistorySource {
+    suspend fun transferHistory(preferences: TransferredPreferences? = null): com.syconx.us2us.core.transfer.DeviceTransferHistorySource {
         val current = withContext(main) {
             val session = session
             if (session == null || lockStateFlow.value != LockState.UNLOCKED) runtimeFailure(RuntimeError.Locked)
@@ -1057,6 +1066,11 @@ class AppRuntime(
                 }
                 defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds.toInt()
                 recentStickers += stickers
+                preferences?.let {
+                    theme = it.theme
+                    language = it.language
+                    keepScreenOn = it.keepScreenOn
+                }
             },
         )
     }

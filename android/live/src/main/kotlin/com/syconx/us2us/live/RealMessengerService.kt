@@ -149,6 +149,7 @@ class RealMessengerService(
     private val locationAccess = LocationAccess(platform.context, platform)
     private val location = LocationProvider(platform.context, locationAccess)
     private val positions = DevicePositionWatcher(platform.context, locationAccess)
+    private var currentDevicePreferences: (() -> com.syconx.us2us.domain.DevicePreferencesSnapshot)? = null
 
     /** Live-location sessions this device runs, and what keeps them going in the background. */
     internal val sharing = LiveLocationSharing(LiveLocationSharing.runtimeOf(runtime), location, sharingNotice, scope)
@@ -1606,8 +1607,21 @@ class RealMessengerService(
     override suspend fun startReceivingAccount(): com.syconx.us2us.domain.DeviceTransferIncoming =
         LiveDeviceTransfer.startReceiving(File(context.noBackupFilesDir, "device-transfer"), main, io) { pendingTransferHistory = it }
 
-    override suspend fun sendAccount(invitation: String, progress: (Double) -> Unit) =
-        LiveDeviceTransfer.send(this, runtime.transferHistory(), invitation, main, io, progress)
+    override suspend fun sendAccount(invitation: String, progress: (Double) -> Unit) {
+        val preferences = currentDevicePreferences?.invoke()?.let {
+            com.syconx.us2us.runtime.facade.TransferredPreferences(it.theme, it.language, it.keepScreenOn)
+        }
+        LiveDeviceTransfer.send(this, runtime.transferHistory(preferences), invitation, main, io, progress)
+    }
+
+    override fun connectDevicePreferences(current: () -> com.syconx.us2us.domain.DevicePreferencesSnapshot) {
+        currentDevicePreferences = current
+    }
+
+    override fun takeTransferredPreferences(): com.syconx.us2us.domain.DevicePreferencesSnapshot? =
+        runtime.takeTransferredPreferences()?.let {
+            com.syconx.us2us.domain.DevicePreferencesSnapshot(it.theme, it.language, it.keepScreenOn)
+        }
 
     override fun generateBackupPassword(): String = LiveOutcomes.generateBackupPassword()
 

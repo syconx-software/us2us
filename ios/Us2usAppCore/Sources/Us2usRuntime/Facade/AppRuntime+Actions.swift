@@ -114,8 +114,14 @@ extension AppRuntime {
         try await engine().noteRecentSticker(id)
     }
 
+    /// The device preferences the old phone sent along, once: they are the app's to apply.
+    public func takeTransferredPreferences() -> TransferredPreferences? {
+        defer { transferredPreferences = nil }
+        return transferredPreferences
+    }
+
     /// What a direct transfer sends besides the account (PROTOCOL.md §5.6).
-    public func transferHistory() async throws -> any DeviceTransferHistorySource {
+    public func transferHistory(preferences: TransferredPreferences? = nil) async throws -> any DeviceTransferHistorySource {
         let engine = try engine()
         let settings = await engine.currentSettings()
         var record = BRPTransferSettings()
@@ -130,6 +136,11 @@ extension AppRuntime {
         }
         record.defaultExpireTimerSeconds = settings.defaultExpireTimerSeconds
         record.recentStickers = await engine.recentStickers()
+        if let preferences {
+            record.theme = preferences.theme
+            record.language = preferences.language
+            record.keepScreenOn = preferences.keepScreenOn
+        }
         return DeviceTransferHistoryExporter(storage: engine.storage, settings: record)
     }
 

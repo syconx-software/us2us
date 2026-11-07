@@ -45,3 +45,10 @@ protocol DeviceTransferIncoming: AnyObject {
     /// The received file, once it has been handed on or given up.
     func removeFiles()
 }
+
+/// The device preferences a direct transfer carries along (PROTOCOL.md §5.6), by their raw names.
+struct DevicePreferencesSnapshot: Equatable, Sendable {
+    var theme: String
+    var language: String
+    var keepScreenOn: Bool
+}

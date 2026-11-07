@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
+import com.syconx.us2us.domain.DevicePreferencesSnapshot
 import com.syconx.us2us.domain.DesignClock
 import com.syconx.us2us.domain.MessengerScenePhase
 import com.syconx.us2us.domain.MessengerService
@@ -142,6 +143,9 @@ class AppModel(
         val english = preferences.language.resolvedLocale().language == "en"
         this.messenger = messenger
             ?: if (usesFixtures) services.fixtures(configuration, clock, english, scope) else services.live(configuration)
+        this.messenger.connectDevicePreferences {
+            DevicePreferencesSnapshot(preferences.theme.raw, preferences.language.raw, preferences.keepScreenOn)
+        }
 
         // The live service decides the start: onboarding without an account, otherwise the lock,
         // at every launch.
@@ -273,8 +277,18 @@ class AppModel(
         dismissOverlay()
     }
 
+    /** A direct transfer brought the old phone's theme, language and screen setting (PROTOCOL.md §5.6). */
+    private fun applyTransferredPreferences() {
+        val moved = messenger.takeTransferredPreferences() ?: return
+        ThemePreference.fromRaw(moved.theme)?.let { preferences.theme = it }
+        preferences.keepScreenOn = moved.keepScreenOn
+        // Last: the per-app language recreates the activity.
+        AppLanguage.fromRaw(moved.language)?.let { preferences.language = it }
+    }
+
     /** 2.3 “Kurulumu tamamla” succeeded: the root is replaced with 4.1 (cross-fade 0.5 s). */
     override fun didFinishOnboarding() {
+        applyTransferredPreferences()
         router.setPath(emptyList())
         onboardingEntry = OnboardingEntry.Welcome
         isLeavingOnboarding = true

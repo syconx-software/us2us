@@ -50,3 +50,6 @@ interface DeviceTransferIncoming {
     /** The received file, once it has been handed on or given up. */
     fun removeFiles()
 }
+
+/** The device preferences a direct transfer carries along (PROTOCOL.md §5.6), by their raw names. */
+data class DevicePreferencesSnapshot(val theme: String, val language: String, val keepScreenOn: Boolean)

@@ -145,3 +145,9 @@ sealed interface RuntimeError {
 class RuntimeException(val error: RuntimeError, cause: Throwable? = null) : Exception("runtime: $error", cause)
 
 internal fun runtimeFailure(error: RuntimeError, cause: Throwable? = null): Nothing = throw RuntimeException(error, cause)
+
+/**
+ * Device preferences a direct transfer carries along (PROTOCOL.md §5.6), by their raw names: they
+ * live outside the vault, so the app reads and applies them. An unknown name changes nothing.
+ */
+data class TransferredPreferences(val theme: String, val language: String, val keepScreenOn: Boolean)

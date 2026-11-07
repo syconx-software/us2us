@@ -88,3 +88,17 @@ public enum RuntimeError: Error, Equatable, Sendable {
     /// still holds the account: both start over.
     case transferHistoryFailed
 }
+
+/// Device preferences a direct transfer carries along (PROTOCOL.md §5.6), by their raw names: they
+/// live outside the vault, so the app reads and applies them. An unknown name changes nothing.
+public struct TransferredPreferences: Sendable, Equatable {
+    public var theme: String
+    public var language: String
+    public var keepScreenOn: Bool
+
+    public init(theme: String, language: String, keepScreenOn: Bool) {
+        self.theme = theme
+        self.language = language
+        self.keepScreenOn = keepScreenOn
+    }
+}
