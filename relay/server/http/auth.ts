@@ -1,15 +1,17 @@
 import type { RateLimits } from '../lib/config'
 import { sha256 } from '../lib/crypto'
 import { decodeB64uExact } from '../lib/encoding'
-import { rateLimited, unauthorized, type ApiError } from '../lib/errors'
+import { accountSuspended, rateLimited, unauthorized, type ApiError } from '../lib/errors'
 import { ipRateKey, type RateLimiter } from '../lib/rate-limit'
 import type { AccountCache } from '../services/account-cache'
+import type { Suspensions } from '../services/suspensions'
 
 /** The parts of the relay that token checks use (shared by HTTP requests and WebSocket upgrades). */
 export interface TokenAuthority {
   config: { rateLimits: Pick<RateLimits, 'authFail'> }
   limiter: RateLimiter
   accountCache: AccountCache
+  suspensions: Pick<Suspensions, 'isSuspended'>
 }
 
 const AUTH_FAIL = 'auth-fail'
@@ -40,6 +42,10 @@ const counted = new WeakSet<ApiError>()
  *   waits for them instead of failing, so that many clients behind one
  *   address reconnecting at once (after a relay restart, with an empty
  *   token cache) are delayed a little, not refused.
+ *
+ * A valid token of a suspended account gets 403 `account_suspended`. This is
+ * the one check for every authenticated request and WebSocket upgrade; it
+ * does not count as a failed token check.
  */
 export async function authenticateToken(relay: TokenAuthority, address: string, header: string | null | undefined): Promise<Buffer> {
   const { limiter, accountCache } = relay
@@ -56,7 +62,7 @@ export async function authenticateToken(relay: TokenAuthority, address: string, 
   }
   const tokenHash = sha256(token)
   const cached = accountCache.cachedAccount(tokenHash)
-  if (cached) return cached
+  if (cached) return admitted(relay, cached)
 
   for (;;) {
     const reservation = limiter.take(AUTH_FAIL, key, rate)
@@ -79,6 +85,11 @@ export async function authenticateToken(relay: TokenAuthority, address: string, 
   }
   if (!accountId) throw failedCheck()
   limiter.refund(AUTH_FAIL, key, rate)
+  return admitted(relay, accountId)
+}
+
+async function admitted(relay: TokenAuthority, accountId: Buffer): Promise<Buffer> {
+  if (await relay.suspensions.isSuspended(accountId)) throw accountSuspended()
   return accountId
 }
 

@@ -94,6 +94,10 @@ enum ConnectionState: Hashable, Sendable {
     /// phone's token (the backup was restored on another phone, or the
     /// account was deleted); nothing is retried, so the line never says so.
     case revoked
+    /// The operator suspended the account for breaking the terms of use
+    /// (PROTOCOL §4.3): nothing is retried and the app shows
+    /// `AccountSuspendedView` over everything. Nothing on the phone is deleted.
+    case suspended
 }
 
 // MARK: - Messages

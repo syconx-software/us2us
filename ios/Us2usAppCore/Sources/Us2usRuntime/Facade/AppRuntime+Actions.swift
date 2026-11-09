@@ -286,6 +286,7 @@ extension AppRuntime {
 
     public func unblock(_ peer: AccountId) async throws {
         try await engine().unblock(peer)
+        await communities?.blockedPeopleChanged()
     }
 
     // MARK: Requests and blocking (§6.4)
@@ -299,8 +300,12 @@ extension AppRuntime {
         try await engine().declineRequest(peer)
     }
 
+    /// Also a community member who is no contact (5.3 › Bildir / Engelle):
+    /// what they write in every community is hidden from now on (§6.4);
+    /// they stay a member.
     public func block(_ peer: AccountId) async throws {
         try await engine().block(peer)
+        await communities?.blockedPeopleChanged()
     }
 
     public func deleteConversation(_ peer: AccountId, forBoth: Bool) async throws {

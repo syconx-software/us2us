@@ -16,7 +16,7 @@ function fixture() {
     const file = join(root, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, data)
     if (executable) chmodSync(file, 0o755)
   }
-  for (const file of ['.output/server/index.mjs', '.output/server/node_modules/drizzle-orm/mysql2/index.js', '.output/server/node_modules/drizzle-orm/mysql2/migrator.js', 'drizzle/meta/_journal.json', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs']) write(`relay/${file}`, '{}')
+  for (const file of ['.output/server/index.mjs', '.output/server/node_modules/drizzle-orm/mysql2/index.js', '.output/server/node_modules/drizzle-orm/mysql2/migrator.js', 'drizzle/meta/_journal.json', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs', 'scripts/account-suspend.mjs']) write(`relay/${file}`, '{}')
   write('relay/.output/server/package.json', JSON.stringify({ dependencies: { mysql2: '3', 'drizzle-orm': '0.45' } }))
   mkdirSync(join(root, 'scripts'))
   for (const file of ['deploy-relay.sh', 'deploy-local-env.sh', 'prepare-relay-release.mjs']) copyFileSync(join(source, 'scripts', file), join(root, 'scripts', file))
@@ -46,7 +46,7 @@ describe('deployment fail-closed gates (stubbed network)', () => {
     writeFileSync(join(setup.root, 'scripts/deploy.local.env'), 'exit 99 # Must not be sourced by prepare-only\n')
     const result = setup.run(['--prepare-only', destination])
     expect(result.status, result.stderr).toBe(0)
-    expect(verifyRelease(destination).files).toBe(7)
+    expect(verifyRelease(destination).files).toBe(8)
     expect(setup.events()).toBe('pnpm:run --silent audit\npnpm:build\n')
   })
 

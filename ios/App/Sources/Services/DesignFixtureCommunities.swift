@@ -27,6 +27,11 @@
         private var messagesByCommunity: [CommunityID: [Message]]
         private let english: Bool
         private let now: Date
+        /// Whether a member's messages are hidden: the fixtures' messenger
+        /// says whom the user blocked (PROTOCOL §6.4).
+        @ObservationIgnored var isHidden: @MainActor (CommunityMessageMarks) -> Bool = { _ in false }
+        /// The book club's unread messages (the 4.1 badge): those still shown count.
+        private static let unread: Set<MessageID> = ["c5", "c7"]
         init(english: Bool, now: Date) {
             self.english = english
             self.now = now
@@ -90,7 +95,8 @@
 
         var chatRows: [CommunityChatRow] {
             rows.filter { $0.phase != .pending }.map { row in
-                let last = messagesByCommunity[row.id]?.last
+                let shown = conversation(row.id)
+                let last = shown.last
                 return CommunityChatRow(
                     id: row.id, name: row.name, isPublic: row.isPublic,
                     lastMessage: last.map {
@@ -98,7 +104,7 @@
                             kind: .text(Self.previewText($0)), direction: $0.direction, status: $0.status, sentAt: $0.sentAt,
                             sender: $0.community?.sender)
                     },
-                    lastActivity: last?.sentAt, unreadCount: row.id == Self.bookClub ? 2 : 0)
+                    lastActivity: last?.sentAt, unreadCount: shown.filter { Self.unread.contains($0.id) }.count)
             }
         }
 
@@ -197,7 +203,13 @@
         func revokeInvites(_ id: CommunityID) async throws(CommunityProblem) {}
         func delete(_ id: CommunityID) async throws(CommunityProblem) { rows.removeAll { $0.id == id } }
 
-        func conversation(_ id: CommunityID) -> [Message] { messagesByCommunity[id] ?? [] }
+        /// Without what members the user blocked wrote; their own stay.
+        func conversation(_ id: CommunityID) -> [Message] {
+            (messagesByCommunity[id] ?? []).filter { message in
+                guard !message.isOutgoing, let marks = message.community else { return true }
+                return !isHidden(marks)
+            }
+        }
         func isOwner(of id: CommunityID) -> Bool { row(id)?.phase == .owner }
         func send(attachment: ConversationAttachment, to id: CommunityID) async {}
         func send(pickedMedia messages: [PickedMediaMessage], to id: CommunityID) async {}

@@ -118,6 +118,7 @@ describe('"why we built it" text (app/content/why.ts)', () => {
     expect(invitePage('deniz', 'tr', 'v1')).toContain('<a class="footer-link" href="/tr/neden-yaptik">Neden yaptık</a>')
     expect(invitePage('deniz', 'en', 'v1')).toContain('<a class="footer-link" href="/en/why-we-built-it">Why we built it</a>')
     expect(notFoundPage('v1')).toContain('<a class="footer-link" href="/en/why-we-built-it">Why we built it</a>')
+    expect(notFoundPage('v1')).toContain('<a class="footer-link" href="/en/terms">Terms of use</a>')
   })
 })
 

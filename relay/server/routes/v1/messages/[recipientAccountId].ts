@@ -31,6 +31,8 @@ const UNAVAILABLE_RETRY_SECONDS = 30
  * needs the access key. The answer must not tell whether the recipient is
  * online, so a wrong key gets the same answer as a right one and the
  * envelope is dropped without a word.
+ *
+ * A suspended recipient is answered like one that does not exist.
  */
 export default defineApiRoute({
   PUT: async (event) => {
@@ -42,7 +44,7 @@ export default defineApiRoute({
     if (body.length === 0) throw badRequest('the envelope must not be empty')
 
     const target = await relay.accounts.recipient(recipient)
-    if (!target) throw notFound('recipient')
+    if (!target || await relay.suspensions.isSuspended(recipient)) throw notFound('recipient')
     const recipientKey = recipient.toString('hex')
     const now = Date.now()
 

@@ -580,6 +580,11 @@ public final class AppRuntime {
             events: ConnectionEvents(
                 deliver: { message in try await engine.receive(message) },
                 queueEmpty: { await engine.connectionReachedQueueEmpty() }))
+        // Any request answered `403 account_suspended` (§4.3) ends the
+        // connection for good, not only the WebSocket's own refusal.
+        (backend as? MessengerBackend)?.messenger.relay.observeSuspension { [weak supervisor] in
+            Task { await supervisor?.accountSuspended() }
+        }
         let session = Session(key: key, storage: storage, backend: backend, engine: engine, supervisor: supervisor)
         session.listen(
             engineChanges: { [weak self] change in self?.engineChanged(change) },
@@ -1122,6 +1127,9 @@ public final class AppRuntime {
     private func connectionChanged(_ status: ConnectionStatus) {
         guard lockState == .unlocked || session?.inGrace == true else { return }
         connection = status
+        // Suspended (§4.3): the communities stop polling too. Nothing on this
+        // phone is deleted; the next unlock tries again.
+        if status == .suspended { communities?.stop() }
         // Every connection attempt settles a pending rotation first (§5.5
         // step 3.4): once it has, the notice goes.
         if tokenRotationPending, let session {

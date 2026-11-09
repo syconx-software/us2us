@@ -295,4 +295,63 @@ struct RelayClientTests {
         #expect(RelayConnection.decode(Data(#"{"type":"message","id":"x"}"#.utf8)) == nil)
         #expect(RelayConnection.decode(Data("not json".utf8)) == nil)
     }
+
+    @Test("403 account_suspended is its own error and reaches the suspension observer (§2.1, §4.3)")
+    func accountSuspended() async throws {
+        let server = Server { _ in
+            Server.json(403, #"{"error":{"code":"account_suspended","message":"suspended"}}"#)
+        }
+        let calls = Locked(0)
+        server.client.observeSuspension { calls.withLock { $0 += 1 } }
+        do {
+            _ = try await server.client.keyStatus()
+            Issue.record("a suspended account's request succeeded")
+        } catch let error as RelayError {
+            #expect(error.isAccountSuspended)
+            #expect(error.code == .accountSuspended)
+            #expect(error == .server(status: 403, code: .accountSuspended, message: "suspended"))
+        }
+        #expect(calls.withLock { $0 } == 1)
+        #expect(RelayError.accountSuspended.errorDescription?.isEmpty == false)
+    }
+
+    @Test("other refusals are not a suspension and do not reach the observer")
+    func otherRefusalsAreNotSuspension() async throws {
+        let calls = Locked(0)
+        for (status, body) in [
+            (403, #"{"error":{"code":"access_denied","message":"no"}}"#),
+            (403, "not json"),
+            (401, #"{"error":{"code":"unauthorized","message":"no"}}"#),
+        ] {
+            let server = Server { _ in Server.json(status, body) }
+            server.client.observeSuspension { calls.withLock { $0 += 1 } }
+            do {
+                _ = try await server.client.keyStatus()
+                Issue.record("a refused request succeeded")
+            } catch let error as RelayError {
+                #expect(!error.isAccountSuspended)
+            }
+        }
+        #expect(calls.withLock { $0 } == 0)
+    }
+
+    @Test("WebSocket endings: 403 upgrade and 4403 are a suspension; 401 and 4401 stay a rejected token (§4.7)")
+    func webSocketCloseCodes() {
+        let lost = URLError(.networkConnectionLost)
+        let invalid = URLSessionWebSocketTask.CloseCode.invalid.rawValue
+        #expect(RelayConnection.closeError(upgradeStatus: nil, closeCode: 4403, underlying: lost) == .accountSuspended)
+        #expect(RelayConnection.closeError(upgradeStatus: 403, closeCode: invalid, underlying: lost) == .accountSuspended)
+        #expect(
+            RelayConnection.closeError(upgradeStatus: nil, closeCode: 4401, underlying: lost)
+                == .server(status: 401, code: .unauthorized, message: nil))
+        #expect(
+            RelayConnection.closeError(upgradeStatus: 401, closeCode: invalid, underlying: lost)
+                == .server(status: 401, code: .unauthorized, message: nil))
+        #expect(RelayConnection.closeError(upgradeStatus: nil, closeCode: 4001, underlying: lost) == .connectionReplaced)
+        #expect(RelayConnection.closeError(upgradeStatus: nil, closeCode: 1011, underlying: lost) == .connectionClosed(code: 1011))
+        #expect(
+            RelayConnection.closeError(upgradeStatus: nil, closeCode: invalid, underlying: lost)
+                == .network(.networkConnectionLost))
+        #expect(!RelayError.server(status: 401, code: .unauthorized, message: nil).isAccountSuspended)
+    }
 }

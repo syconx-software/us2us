@@ -491,6 +491,7 @@ Every non-2xx response except `416` (§4.9) has the body:
 | 401 | `unauthorized` | missing/invalid auth token |
 | 403 | `access_denied` | sealed send without valid access key or PoW; wrong media delete token |
 | 403 | `pow_invalid` | PoW missing, wrong, expired or reused |
+| 403 | `account_suspended` | the account was suspended for breaking the terms of use (§4.3); retrying does not help |
 | 404 | `not_found` | account / media / bundle not found |
 | 405 | `bad_request` | wrong method for a `/v1` path; `Allow` lists the right ones |
 | 409 | `username_taken` | username hash already registered |
@@ -709,6 +710,16 @@ its version (§4.12), releases its current
 and held username hashes immediately, and closes its WebSocket with `4401`.
 Irreversible.
 
+**Suspension** — the operator can suspend an account that breaks the terms
+of use (relay/README.md, "Acting on a report"). Every request with its token
+then gets `403 account_suspended` and an open WebSocket is closed with
+`4403`. For everyone else the account looks deleted: directory lookup, key
+bundle, identity, avatar and sending to it answer `404`. Its username stays
+taken. The relay removes its media, its avatar record, the communities it
+owns and its other community memberships and messages; its keys and the
+envelopes waiting for it are kept, so lifting a mistaken suspension loses
+nothing. There is no client endpoint for suspension.
+
 **Identity lookup** — `GET /v1/accounts/{accountId}/identity` (auth) →
 `{"accountId","identityKey"}`. Used to verify sealed senders (§6.3).
 
@@ -889,6 +900,7 @@ Close codes sent by the relay:
 | `1013` | slow consumer: the client does not read the backlog fast enough |
 | `4001` | replaced by a newer connection of the same account |
 | `4401` | auth token rotated or account deleted |
+| `4403` | account suspended (§4.3); do not reconnect |
 
 ### 4.8 Push notifications
 

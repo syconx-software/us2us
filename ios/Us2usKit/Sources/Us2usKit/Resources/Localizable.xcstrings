@@ -224,6 +224,23 @@
         }
       }
     },
+    "error.relay.account_suspended" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account was suspended for breaking the terms of use."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu hesap kullanım koşullarını ihlal ettiği için askıya alındı."
+          }
+        }
+      }
+    },
     "error.relay.bad_request" : {
       "extractionState" : "manual",
       "localizations" : {

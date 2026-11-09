@@ -75,9 +75,11 @@ describe('invite page', () => {
     expect(tr).toContain('<a class="seg-opt" href="/u/deniz?lang=en" hreflang="en" lang="en">')
     expect(tr).toContain('<a class="brand" href="/tr"')
     expect(tr).toContain('href="/tr/gizlilik"')
+    expect(tr).toContain('<a class="footer-link" href="/tr/kullanim-kosullari">Kullanım koşulları</a>')
     const en = invitePage('deniz', 'en', 'v123')
     expect(en).toContain('<a class="seg-opt" href="/u/deniz?lang=en" hreflang="en" lang="en" aria-current="true">')
     expect(en).toContain('href="/en/privacy"')
+    expect(en).toContain('<a class="footer-link" href="/en/terms">Terms of use</a>')
   })
 
   it('is noindex, has one h1, landmarks, our own files only and nothing inline', () => {

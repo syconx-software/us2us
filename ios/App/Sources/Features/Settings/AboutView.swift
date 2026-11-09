@@ -2,9 +2,10 @@ import SwiftUI
 
 /// 7.1 › Hakkında (not drawn; composed from the design's parts): the line
 /// mark and wordmark, the version, what the app does and does not do (the
-/// design's own promises: 1.2, 2.3, 3.3, 4.4), the privacy policy and
-/// support pages on us2us.app (App Review 5.1.1(i): the policy is linked in
-/// the app), and the licences shipped in the bundle.
+/// design's own promises: 1.2, 2.3, 3.3, 4.4), the privacy policy, the Terms
+/// of Use and the support pages on us2us.app (App Review 5.1.1(i): the policy
+/// is linked in the app; 1.2: the terms everyone accepts), and the licences
+/// shipped in the bundle.
 struct AboutView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
@@ -41,6 +42,9 @@ struct AboutView: View {
                         GroupedSection(Text("about.website", table: .settings)) {
                             website(.privacy, title: Text("about.privacyPolicy", table: .settings))
                                 .accessibilityIdentifier("about.privacy")
+                            GroupedSeparator(inset: 14)
+                            website(.terms, title: Text("about.terms", table: .settings))
+                                .accessibilityIdentifier("about.terms")
                             GroupedSeparator(inset: 14)
                             website(.support, title: Text("about.support", table: .settings))
                                 .accessibilityIdentifier("about.support")
@@ -102,16 +106,20 @@ struct AboutView: View {
 /// (relay/app/content/site.ts › `paths`).
 enum WebsitePage: CaseIterable, Sendable {
     case privacy
+    /// The Terms of Use (`TermsOfUse`), accepted before the first way in.
+    case terms
     case support
 
     static let host = "us2us.app"
 
-    /// `https://us2us.app/tr/gizlilik` in Turkish, `/en/privacy` otherwise.
+    /// `https://us2us.app/tr/gizlilik` in Turkish, `/en/privacy` otherwise
+    /// (the terms: `/tr/kullanim-kosullari`, `/en/terms`).
     func url(for locale: Locale) -> URL? {
         let turkish = locale.language.languageCode?.identifier == "tr"
         let path: String
         switch self {
         case .privacy: path = turkish ? "/tr/gizlilik" : "/en/privacy"
+        case .terms: path = turkish ? "/tr/kullanim-kosullari" : "/en/terms"
         case .support: path = turkish ? "/tr/destek" : "/en/support"
         }
         return URL(string: "https://" + Self.host + path)

@@ -1,0 +1,348 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "terms.accepted": {
+      "comment": "VoiceOver announcement after “Kabul ediyorum”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use accepted."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım Koşulları kabul edildi."
+          }
+        }
+      }
+    },
+    "terms.agree": {
+      "comment": "Terms of Use sheet: the primary button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I agree"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kabul ediyorum"
+          }
+        }
+      }
+    },
+    "terms.agree.footnote": {
+      "comment": "Terms of Use sheet: the line above the primary button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By tapping “I agree” you confirm that you have read and accept the Terms of Use."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Kabul ediyorum”a dokunarak Kullanım Koşulları'nı okuduğunu ve kabul ettiğini onaylarsın."
+          }
+        }
+      }
+    },
+    "terms.decline.hint": {
+      "comment": "VoiceOver hint of “Vazgeç” on the Terms of Use sheet before a way in.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goes back to the welcome screen without accepting the terms."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koşulları kabul etmeden karşılama ekranına döner."
+          }
+        }
+      }
+    },
+    "terms.full": {
+      "comment": "Terms of Use sheet: opens the full Terms of Use on us2us.app in the browser.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full Terms of Use"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım Koşulları'nın tamamı"
+          }
+        }
+      }
+    },
+    "terms.full.hint": {
+      "comment": "VoiceOver hint of the full Terms of Use row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens in the browser."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarayıcıda açılır."
+          }
+        }
+      }
+    },
+    "terms.intro": {
+      "comment": "Terms of Use sheet before creating, restoring or moving an account: why it is asked.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before you create an account, restore a backup or move your account, you need to agree to the us2us Terms of Use. The key rules:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap açmadan, yedeğini geri yüklemeden ya da hesabını taşımadan önce us2us Kullanım Koşulları'nı kabul etmelisin. En önemli kurallar:"
+          }
+        }
+      }
+    },
+    "terms.intro.required": {
+      "comment": "Terms of Use sheet over the app (an account exists, the terms were never accepted on this phone).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To keep using us2us, you need to agree to the Terms of Use. The key rules:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us'u kullanmaya devam etmek için Kullanım Koşulları'nı kabul etmelisin. En önemli kurallar:"
+          }
+        }
+      }
+    },
+    "terms.rule.block": {
+      "comment": "Terms of Use sheet: rule title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can block anyone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herkesi engelleyebilirsin"
+          }
+        }
+      }
+    },
+    "terms.rule.block.detail": {
+      "comment": "Terms of Use sheet: where blocking is.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block anyone who bothers you, right away, from the chat, their contact screen or message requests."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seni rahatsız eden birini sohbetten, kişi ekranından ya da mesaj isteklerinden hemen engelle."
+          }
+        }
+      }
+    },
+    "terms.rule.content": {
+      "comment": "Terms of Use sheet: rule title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No objectionable content"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygunsuz içerik yasak"
+          }
+        }
+      }
+    },
+    "terms.rule.content.detail": {
+      "comment": "Terms of Use sheet: what is not allowed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harassment, threats, hate speech, violent or sexual content, illegal content, spam and scams are not allowed."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taciz, tehdit, nefret söylemi, şiddet ya da cinsel içerik, yasa dışı içerik, spam ve dolandırıcılık paylaşılamaz."
+          }
+        }
+      }
+    },
+    "terms.rule.report": {
+      "comment": "Terms of Use sheet: rule title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report people and messages"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişileri ve mesajları bildir"
+          }
+        }
+      }
+    },
+    "terms.rule.report.detail": {
+      "comment": "Terms of Use sheet: where reporting is (message long press, contact screen).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press and hold a message, or tap “Report” on a contact screen, to tell the us2us team."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir mesaja basılı tutup ya da kişi ekranında “Bildir”e dokunarak us2us ekibine bildir."
+          }
+        }
+      }
+    },
+    "terms.rule.review": {
+      "comment": "Terms of Use sheet: rule title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviewed within 24 hours"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 saat içinde incelenir"
+          }
+        }
+      }
+    },
+    "terms.rule.review.detail": {
+      "comment": "Terms of Use sheet: what happens to a report.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports are reviewed within 24 hours, and accounts that break the rules are removed from us2us."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler 24 saat içinde incelenir; kuralları çiğneyen hesaplar us2us'tan kaldırılır."
+          }
+        }
+      }
+    },
+    "terms.rules.label": {
+      "comment": "Terms of Use sheet: section label above the key rules.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rules"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurallar"
+          }
+        }
+      }
+    },
+    "terms.title": {
+      "comment": "Terms of Use sheet: title (before a way in on 1.1–1.3, and over the app until accepted).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım Koşulları"
+          }
+        }
+      }
+    },
+    "terms.zeroTolerance": {
+      "comment": "Terms of Use sheet: the zero-tolerance rule App Review 1.2 asks for, stated on its own.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no tolerance for objectionable content or abusive users on us2us."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us'ta uygunsuz içeriğe ve kötü niyetli kullanıcılara hiçbir şekilde tolerans gösterilmez."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

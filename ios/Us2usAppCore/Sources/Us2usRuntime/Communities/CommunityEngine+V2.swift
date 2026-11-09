@@ -432,6 +432,8 @@ extension CommunityEngine {
     /// A relay answer that will not change on retry: a 4xx other than 408
     /// and 429, or a body the relay refuses as too large.
     nonisolated static func isFinal(_ failure: RelayError) -> Bool {
+        // A suspension can be lifted (§4.3): what waits keeps waiting.
+        guard !failure.isAccountSuspended else { return false }
         switch failure {
         case .payloadTooLarge: return true
         case .server(let status, _, _): return (400..<500).contains(status) && status != 408 && status != 429

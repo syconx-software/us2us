@@ -182,6 +182,7 @@ ${text.steps(name).map(step => `<li>${escapeHtml(step)}</li>`).join('\n')}
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
 <a class="footer-link" href="${paths[locale].why}">${common.nav.why}</a>
 <a class="footer-link" href="${paths[locale].privacy}">${common.footer.privacy}</a>
+<a class="footer-link" href="${paths[locale].terms}">${common.footer.terms}</a>
 <a class="footer-link" href="${paths[locale].privacy}#${SECURITY_ANCHOR[locale]}">${common.footer.security}</a>
 <a class="footer-link" href="${paths[locale].support}">${common.footer.press}</a>
 <a class="footer-link" href="${paths[locale].support}">${common.footer.contact}</a>

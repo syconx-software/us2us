@@ -44,6 +44,7 @@ public enum LocalizationKey: String, CaseIterable, Sendable {
     case relayBadRequest = "error.relay.bad_request"
     case relayUnauthorized = "error.relay.unauthorized"
     case relayAccessDenied = "error.relay.access_denied"
+    case relayAccountSuspended = "error.relay.account_suspended"
     case relayProofOfWorkInvalid = "error.relay.pow_invalid"
     case relayNotFound = "error.relay.not_found"
     case relayUsernameTaken = "error.relay.username_taken"

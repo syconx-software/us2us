@@ -23,6 +23,7 @@ const links = computed(() => paths[props.locale])
         </p>
         <a class="footer-link" :href="links.why">{{ site[locale].nav.why }}</a>
         <a class="footer-link" :href="links.privacy">{{ text.privacy }}</a>
+        <a class="footer-link" :href="links.terms">{{ text.terms }}</a>
         <a class="footer-link" :href="`${links.privacy}#${SECURITY_ANCHOR[locale]}`">{{ text.security }}</a>
         <a class="footer-link" :href="links.support">{{ text.press }}</a>
         <a class="footer-link" :href="links.support">{{ text.contact }}</a>

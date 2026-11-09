@@ -6,12 +6,12 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { fileURLToPath } from 'node:url'
 
 const metadataName = 'release.json'
-const payload = ['.output', 'drizzle', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs']
+const payload = ['.output', 'drizzle', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs', 'scripts/account-suspend.mjs']
 const required = [
   '.output/server/index.mjs', '.output/server/package.json', 'drizzle/meta/_journal.json',
   '.output/server/node_modules/drizzle-orm/mysql2/index.js',
   '.output/server/node_modules/drizzle-orm/mysql2/migrator.js',
-  'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs',
+  'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs', 'scripts/account-suspend.mjs',
 ]
 const buildPackages = ['nuxt', 'nitropack', 'vite', 'vitest', 'typescript', 'drizzle-kit', 'node-forge', 'braces']
 const privateKey = /-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----/

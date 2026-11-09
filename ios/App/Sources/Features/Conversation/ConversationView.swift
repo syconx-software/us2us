@@ -102,6 +102,10 @@ struct ConversationScreen: View {
                 recents: viewModel.stickerRecents, onSend: viewModel.send(sticker:),
                 onClose: viewModel.closeStickerPicker)
         }
+        // 5.3 › “Bildir”: the report sheet about the message's sender.
+        .modifier(ConversationReportSheet(viewModel: viewModel))
+        // 5.3 › “Engelle” in a community: the confirmation.
+        .modifier(CommunityBlockConfirmation(viewModel: viewModel))
         .u2Sheet(item: $viewModel.info, style: .fullHeight) { item in
             if let community = viewModel.community {
                 CommunityMessageInfoSheet(viewModel: viewModel, community: community, messageID: item.id)

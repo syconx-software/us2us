@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ICON_LINKS } from '../../app/content/assets'
 import { site } from '../../app/content/site'
+import { terms, TERMS_SECTION } from '../../app/content/terms'
 import { why, WHY_SECTION, WHY_SOURCES } from '../../app/content/why'
 import { startRelay, type RelayProcess } from '../support/relay'
 
@@ -25,7 +26,9 @@ const html = async (path: string) => await (await get(path)).text()
 const textOf = (page: string) => page.replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ')
 
 const WHY_PAGES = ['/tr/neden-yaptik', '/en/why-we-built-it']
-const PAGES = ['/tr', '/en', '/tr/gizlilik', '/en/privacy', '/tr/destek', '/en/support', ...WHY_PAGES]
+/** The terms of use: the apps link to exactly these two addresses before an account is created. */
+const TERMS_PAGES = ['/tr/kullanim-kosullari', '/en/terms']
+const PAGES = ['/tr', '/en', '/tr/gizlilik', '/en/privacy', ...TERMS_PAGES, '/tr/destek', '/en/support', ...WHY_PAGES]
 /** The sources of the "why we built it" page: the only other sites the website links to (never loads from). */
 const SOURCE_URLS = new Set(WHY_SOURCES.map(source => source.url))
 /** An attribute value as written in the HTML, unescaped. */
@@ -66,6 +69,8 @@ describe('website', () => {
       ['/en', 'en', ['No one gets in between.', 'Sealed at your end. Opened only at theirs.', 'No notifications. On purpose.', 'A quiet conversation deletes itself.', 'Fewer traces. You stay in control.', 'Is it really them on the other end?', 'Both ends of the line are yours.']],
       ['/tr/gizlilik', 'tr', ['Gizlilik politikası', '180 gün', 'Güvenlik']],
       ['/en/privacy', 'en', ['Privacy policy', 'at most 14 days', 'Security']],
+      ['/tr/kullanim-kosullari', 'tr', ['Kullanım koşulları', 'Uygunsuz içeriğe sıfır tolerans', 'Engelleme ve bildirme']],
+      ['/en/terms', 'en', ['Terms of use', 'Zero tolerance for objectionable content', 'Blocking and reporting']],
       ['/tr/destek', 'tr', ['Destek', 'support@us2us.app', 'Sık sorulan sorular']],
       ['/en/support', 'en', ['Support', 'support@us2us.app', 'Frequently asked questions']],
     ]
@@ -284,15 +289,17 @@ describe('website', () => {
     expect(en).not.toContain('not us, gets a report')
   })
 
-  it('links the footer to the privacy, security and support pages, and the language switch to the other version', async () => {
-    for (const [path, privacy, security, support, other] of [
-      ['/tr', '/tr/gizlilik', '/tr/gizlilik#guvenlik', '/tr/destek', '/en'],
-      ['/en', '/en/privacy', '/en/privacy#security', '/en/support', '/tr'],
-      ['/tr/gizlilik', '/tr/gizlilik', '/tr/gizlilik#guvenlik', '/tr/destek', '/en/privacy'],
+  it('links the footer to the privacy, terms, security and support pages, and the language switch to the other version', async () => {
+    for (const [path, privacy, termsPage, security, support, other] of [
+      ['/tr', '/tr/gizlilik', '/tr/kullanim-kosullari', '/tr/gizlilik#guvenlik', '/tr/destek', '/en'],
+      ['/en', '/en/privacy', '/en/terms', '/en/privacy#security', '/en/support', '/tr'],
+      ['/tr/gizlilik', '/tr/gizlilik', '/tr/kullanim-kosullari', '/tr/gizlilik#guvenlik', '/tr/destek', '/en/privacy'],
+      ['/tr/kullanim-kosullari', '/tr/gizlilik', '/tr/kullanim-kosullari', '/tr/gizlilik#guvenlik', '/tr/destek', '/en/terms'],
+      ['/en/terms', '/en/privacy', '/en/terms', '/en/privacy#security', '/en/support', '/tr/kullanim-kosullari'],
     ] as const) {
       const page = await html(path)
       const footer = page.slice(page.indexOf('<footer'))
-      for (const href of [privacy, security, support]) expect(footer, `${path} → ${href}`).toContain(`href="${href}"`)
+      for (const href of [privacy, termsPage, security, support]) expect(footer, `${path} → ${href}`).toContain(`href="${href}"`)
       expect(page).toMatch(new RegExp(`<a class="seg-opt" href="${other}" hreflang="\\w\\w" lang="\\w\\w" data-lang-link>`))
     }
     // The security section answers to both anchors in both languages.
@@ -300,6 +307,33 @@ describe('website', () => {
       const page = await html(path)
       expect(page, path).toMatch(/id="guvenlik"/)
       expect(page, path).toMatch(/id="security"/)
+    }
+  })
+
+  it('states the terms of use in both languages: zero tolerance, blocking and reporting, enforcement, age and secret code', async () => {
+    const tr = textOf(await html('/tr/kullanim-kosullari'))
+    const en = textOf(await html('/en/terms'))
+    expect(tr).toContain('Yürürlük tarihi: 9 Kasım 2026')
+    expect(en).toContain('Effective: 9 November 2026')
+    // The statement App Review looks for, word for word.
+    expect(tr).toContain('us2us’ta uygunsuz içeriğe ve kötü niyetli kullanıcılara hiçbir şekilde tolerans gösterilmez.')
+    expect(en).toContain('There is no tolerance for objectionable content or abusive users on us2us.')
+    // Accepted in the app before an account is created, restored or moved.
+    expect(tr).toContain('hesap oluşturmadan, bir hesap yedeğini geri yüklemeden ya da başka bir telefondan taşımadan önce')
+    expect(en).toContain('before you create an account, restore an account backup or move from another phone')
+    // Every kind of objectionable content is named.
+    for (const kind of ['Taciz', 'Tehdit', 'Nefret söylemi', 'Reşit olmayanları içeren her türlü cinsel içerik', 'rızası olmadan paylaşılan mahrem görüntüler', 'Spam', 'taklit etmek', 'Yasa dışı içerik', 'Şiddete kışkırtmak', 'Dolandırıcılık']) expect(tr, kind).toContain(kind)
+    for (const kind of ['Harassment', 'Threats', 'Hate speech', 'Any sexual content involving minors', 'Intimate images shared without the person’s consent', 'Spam', 'Impersonating', 'Illegal content', 'Inciting violence', 'Fraud']) expect(en, kind).toContain(kind)
+    expect(terms.tr.sections.find(section => section.id === TERMS_SECTION.conduct)!.items).toHaveLength(10)
+    expect(terms.en.sections.find(section => section.id === TERMS_SECTION.conduct)!.items).toHaveLength(10)
+    // Block, report, review within 24 hours, removal; the relay cannot read messages.
+    for (const text of ['“Engelle”', '“Bildir”', '24 saat içinde inceleriz', 'kullanıcı adı sunucumuzda kapatılır', 'yetkili makamlara', 'mesaj içeriklerini okuyamayız', 'yalnızca bildiren kişinin göndermeyi seçtiği', 'herkes için silebilir', 'en az 13 yaşında', 'Kaybolan bir kod kurtarılamaz', 'SyconX LLC', 'support@us2us.app']) expect(tr, text).toContain(text)
+    for (const text of ['“Block”', '“Report”', 'within 24 hours', 'the username is closed on our server', 'to the authorities', 'neither we nor our server can read them', 'only what the reporting user chooses to send', 'delete a message for everyone', 'at least 13 years old', 'A lost code cannot be recovered', 'SyconX LLC', 'support@us2us.app']) expect(en, text).toContain(text)
+    // Same section ids in both languages, so the language switch keeps the reader's place.
+    for (const path of TERMS_PAGES) {
+      const page = await html(path)
+      for (const id of Object.values(TERMS_SECTION)) expect(page, `${path} #${id}`).toContain(`id="${id}"`)
+      expect(page, path).toContain('href="mailto:support@us2us.app"')
     }
   })
 
@@ -324,6 +358,7 @@ describe('website', () => {
     for (const [path, title] of [
       ['/tr', 'us2us · Araya kimse giremez'], ['/en', 'us2us · No one gets in between'], ['/en/privacy', 'Privacy policy · us2us'],
       ['/tr/neden-yaptik', 'Neden yaptık · us2us'], ['/en/why-we-built-it', 'Why we built it · us2us'],
+      ['/tr/kullanim-kosullari', 'Kullanım koşulları · us2us'], ['/en/terms', 'Terms of use · us2us'],
     ] as const) {
       const page = await html(path)
       expect(page).toContain(`<title>${title}</title>`)

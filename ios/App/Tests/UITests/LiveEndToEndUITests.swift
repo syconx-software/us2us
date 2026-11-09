@@ -42,7 +42,7 @@ final class LiveEndToEndUITests: XCTestCase {
 
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-U2RelayURL", run.relay, "-U2Language", "tr", "-U2Theme", "dark"]
+        app.launchArguments = ["-U2RelayURL", run.relay, "-U2Language", "tr", "-U2Theme", "dark", "-U2Terms", "accepted"]
         app.launch()
         return app
     }

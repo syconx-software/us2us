@@ -57,7 +57,13 @@ ios/App/
       Contact/                   the contact screen (5.1 › the person): Doğrulama · Fotoğraflar ·
                                  Belgeler, “…” › share · Bildir · Engelle / Engeli kaldır   Contact.xcstrings
       Report/                    “Bildir”: the report sheet and its e-mail (Mail, mailto:, or the
-                                 address to copy)                                  Report.xcstrings
+                                 address to copy); also from 5.3 on someone else's message, with
+                                 its text (or only its kind) if left in            Report.xcstrings
+      Suspension/                “Hesabın askıya alındı” over the app while the relay suspends the
+                                 account (PROTOCOL §4.3)                           Suspension.xcstrings
+      Terms/                     Kullanım Koşulları (App Review 1.2): the sheet before 1.1–1.3's
+                                 ways in and over the app until accepted; the accepted version in
+                                 AppPreferences (`-U2Terms accepted|ask`)          Terms.xcstrings
       Settings/                  7.1 + pickers, 7.2 export, 7.3 restore, code change, about,
                                  profile picture (full-screen picker, framing screen, “Aramada göster”),
                                  Engellenenler (everyone blocked, “Engeli kaldır”)  Settings.xcstrings
@@ -190,7 +196,7 @@ read by DEBUG builds only). Without `-U2Start` the route picks the start
 |---|---|
 | `onboarding:<state>` | `1.1` `1.2` `1.3` · `2.1` `2.1-blurred` `2.1-rules` `2.1-empty` `2.1-checking` `2.1-taken` `2.1-short` `2.1-invalid` `2.1-turkish` `2.1-firstLetter` · `2.2` `2.2-empty` `2.2-confirm` `2.2-weak` `2.2-mismatch` · `2.3` `2.3-unchecked` `2.3-error` `2.3-kept` `2.3-taken` · `7.3` `restore-2.2` `restore-2.3` `restore-2.3-gone` `restore-2.3-damaged` `restore-2.3-lock` `restore-2.3-toLock` · `demo` `demo-restore` `demo-back` (the flow plays itself) |
 | `lock:<state>` | `faceid` `touchid` · `code` `typing` `wrong` `lastchance` `throttled` · `unavailable` `unusable` · `wiped` · `forgot` `erase` `restore` · `cover` `switcher` |
-| `chats` · `chats:<state>` | `4.1` `4.1-connecting` `4.1-closed` `4.1-empty` `4.1-qr` `4.1-mycode` · `4.2` `4.2-keyboard` `4.2-empty` `4.2-searching` `4.2-notfound` `4.2-existing` `4.2-self` `4.2-mycode` · `4.3` `4.3-empty` `4.3-block` · `4.4` `4.4-media` `4.4-link` `4.4-report` · `4.1-blocked` (bora blocked) |
+| `chats` · `chats:<state>` | `4.1` `4.1-connecting` `4.1-closed` `4.1-empty` `4.1-qr` `4.1-mycode` · `4.2` `4.2-keyboard` `4.2-empty` `4.2-searching` `4.2-notfound` `4.2-existing` `4.2-self` `4.2-mycode` · `4.3` `4.3-empty` `4.3-block` · `4.4` `4.4-media` `4.4-link` `4.4-report` · `4.1-blocked` (bora blocked) · `4.1-suspended` (the suspended account notice) |
 | `newChat` · `newChat:<username>` | the 4.2 sheet (with that query) |
 | `requests` · `request:<id>` | 4.3 · 4.4 over 4.3 (`kuzey_dev` `n_aksoy` `hediye_kazan`) |
 | `conversation:<chat>[/<state>]` | `deniz/…` `5.1` `5.1-failed` `5.1-reply` `5.1-attach` `5.1-stickers` (the sticker picker) `5.1-blocked` (the bar with “Engeli kaldır”) `5.1-viewer` `5.1-viewer-zoomed` `5.3` `5.3-incoming` `5.3-confirm` `5.4` `5.4-pending` `5.4-failed` `5.5` `5.6` `5.6-clean` `5.6-captured` · `mert_k/…` `5.2` `5.2-ended` `5.2-opened` `5.2-player` (paused at 0:07) `5.2-player-loading` `5.2-file` (Quick Look) `5.2-file-actions` (5.3 › Dosyalara kaydet) `5.2-remote` `5.2-downloading` `5.2-unavailable` `5.2-preparing` (a video from “+” while it is prepared) `5.2-prepare-failed` (“Tekrar gönder”) `5.2-file-disappearing` (Quick Look without sharing) `5.2-saved` (mert_k saved the PDF: the “Kaydetti” chip) `5.4-saved` (its info, ending in “Kaydedildi”) · `deniz/5.1-save-notice` (the one-time “deniz fotoğrafı kaydettiğini görecek” sheet over the viewer) `5.2-place` (the “Haritada aç” chooser) `5.2-map` (the live-location map: mert_k's demo share and selin_n's) `5.2-map-peer` (mert_k's only, selin_n's phone on this device only) `5.2-map-ask` · `5.2-map-denied` (no location access: the gentle hint) `5.5` (Ghost off) · voice (`deniz/…`, no microphone needed): `5.1-voice-hold` (held, sliding to cancel) `5.1-voice-locked` (hands-free) `5.1-voice-review` (stopped: listen, delete or send) `5.1-voice-hint` (“Kaydetmek için basılı tut”) `5.1-voice-permission` (“Ayarları aç”) `5.1-voice-unplayed` · demos (`-U2ConversationDemo`): `sticker` (a sticker leaves and settles in) `openPhoto` `playVideo` `openFile` `downloadFile` `sendVideo` `sendPhotos` (three photos picked at once, the draft on the first) `playVoice` `openPlace` `openMap` |
@@ -539,6 +545,38 @@ more than one feature shows live in `Features/Common` (`MyCodeSheet`,
   Mail, handed to a mail app, or the address shown); cancelling Mail,
   keeping a draft or a failure blocks nobody and keeps the form. From 4.4
   a report that blocked the sender closes back to 4.3.
+  **In communities** a block hides the person everywhere: another member's
+  message offers “Engelle” in 5.3 (after a floating confirmation, “mert_k
+  engellensin mi?”) beside “Bildir”, whose “Bu kişiyi de engelle” now
+  blocks the member who wrote it. Both call `block(chat:)` with the
+  member's account, which also blocks someone who is no contact (7.1 ›
+  Engellenenler lists them by username, else by the first eight hex
+  digits). The member stays in the roster — admin events, the owner's
+  moderation and the keys are untouched — and what they write is still
+  stored and acknowledged, but `CommunityRepository` leaves it out of the
+  conversation (`history(…, hidingBlocked: true)`), the 4.1 preview and
+  unread count (`summaries()`), `markDisplayed` (so it owes no READ) and
+  the receipts owed (no DELIVERY or READ goes to a blocked member).
+  `AppRuntime.block`/`unblock` reload the communities at once
+  (`CommunityService.blockedPeopleChanged`); unblocking shows the hidden
+  messages again, unread. The same goes for a 1:1 contact who is also a
+  member.
+* **Suspended account (PROTOCOL §4.3; proposed)**: the relay answers every
+  authenticated request of a suspended account `403 account_suspended`
+  and closes its WebSocket with `4403` (an upgrade gets `403`). Us2usKit
+  maps both to `RelayError.accountSuspended` and `RelayClient` reports any
+  such answer to its suspension observer; `ConnectionSupervisor` then ends
+  in `.suspended` (like `.revoked`: no reconnect until the next unlock),
+  the communities stop polling, the outbox holds what waits and nothing
+  is forgotten or dropped for it. Nothing on the phone is deleted, so a
+  lifted suspension simply connects again after the next unlock. The app
+  (`ConnectionState.suspended`) covers itself with “Hesabın askıya
+  alındı” (`Features/Suspension`): the reason, a note that nothing was
+  deleted, “Destek ekibine yaz” (an e-mail to support@us2us.app with the
+  username, app version and UTC time through the report's mailer — or the
+  address to copy), the Terms of Use on us2us.app and 7.1's own “Her şeyi
+  sil” sheet (the relay refuses the deletion, so it offers this phone
+  only). Harness: `-U2Route chats:4.1-suspended`.
 * **Location (5.2, proposed: the design draws only the bubbles)**: a tap on
   a place bubble opens the floating “Haritada aç” chooser
   (`LocationOpenSheet`): Apple Maps (`maps.apple.com`, `ll` + the place's

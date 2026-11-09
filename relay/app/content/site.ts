@@ -4,7 +4,8 @@
  * The landing page follows the "us2us Web" design; the privacy
  * policy mirrors PROTOCOL.md §4.10 (retention) and §9 (known limits), and
  * the "no notifications" texts follow docs/copy/no-push.md; change them
- * together. The "why we built it" page has its own file, ./why.ts.
+ * together. The "why we built it" page has its own file, ./why.ts, and so
+ * do the terms of use, ./terms.ts.
  *
  * Headings are plain strings: a full stop that ends a sentence is drawn in
  * the body font by <SiteDots>, as in the design.
@@ -13,11 +14,11 @@
 import type { IconName } from './icons'
 
 export type Locale = 'tr' | 'en'
-export type PageId = 'home' | 'privacy' | 'support' | 'why'
+export type PageId = 'home' | 'privacy' | 'terms' | 'support' | 'why'
 
 export const paths: Record<Locale, Record<PageId, string>> = {
-  tr: { home: '/tr', privacy: '/tr/gizlilik', support: '/tr/destek', why: '/tr/neden-yaptik' },
-  en: { home: '/en', privacy: '/en/privacy', support: '/en/support', why: '/en/why-we-built-it' },
+  tr: { home: '/tr', privacy: '/tr/gizlilik', terms: '/tr/kullanim-kosullari', support: '/tr/destek', why: '/tr/neden-yaptik' },
+  en: { home: '/en', privacy: '/en/privacy', terms: '/en/terms', support: '/en/support', why: '/en/why-we-built-it' },
 }
 
 export const SITE_ORIGIN = 'https://us2us.app'
@@ -103,7 +104,7 @@ export interface SiteText {
     /** `why` as the header shows it on phones, where the full label does not fit beside the controls (screen readers still read `why`). */
     whyShort: string
   }
-  footer: { label: string, privacy: string, security: string, press: string, contact: string, licence: string, noTracking: string }
+  footer: { label: string, privacy: string, terms: string, security: string, press: string, contact: string, licence: string, noTracking: string }
   home: {
     title: string
     description: string
@@ -213,6 +214,7 @@ export const site: Record<Locale, SiteText> = {
     footer: {
       label: 'Site bağlantıları',
       privacy: 'Gizlilik politikası',
+      terms: 'Kullanım koşulları',
       security: 'Güvenlik',
       press: 'Basın',
       contact: 'İletişim',
@@ -533,6 +535,7 @@ export const site: Record<Locale, SiteText> = {
     footer: {
       label: 'Site links',
       privacy: 'Privacy policy',
+      terms: 'Terms of use',
       security: 'Security',
       press: 'Press',
       contact: 'Contact',

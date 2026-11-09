@@ -38,6 +38,7 @@ describe('public copy', () => {
   for (const [name, path] of [
     ['website (app/content/site.ts)', '../../app/content/site.ts'],
     ['"why we built it" page (app/content/why.ts)', '../../app/content/why.ts'],
+    ['terms of use (app/content/terms.ts)', '../../app/content/terms.ts'],
     ['relay README', '../../README.md'],
   ] as const) {
     it(`${name} makes no absolute sender or post-quantum claims`, () => {

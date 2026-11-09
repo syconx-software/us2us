@@ -31,12 +31,14 @@ class FakeCache {
 
 function setup(limit = 30) {
   const cache = new FakeCache()
+  const suspended = new Set<string>()
   const relay: TokenAuthority = {
     config: { rateLimits: { authFail: { limit, windowMs: 60_000 } } },
     limiter: new RateLimiter(),
     accountCache: cache as unknown as AccountCache,
+    suspensions: { isSuspended: async (accountId: Buffer) => suspended.has(accountId.toString('hex')) },
   }
-  return { cache, relay }
+  return { cache, relay, suspended }
 }
 
 async function outcome(pending: Promise<Buffer>): Promise<number> {
@@ -45,6 +47,16 @@ async function outcome(pending: Promise<Buffer>): Promise<number> {
     return 200
   } catch (error) {
     if (error instanceof ApiError) return error.status
+    throw error
+  }
+}
+
+async function errorCode(pending: Promise<Buffer>): Promise<string | null> {
+  try {
+    await pending
+    return null
+  } catch (error) {
+    if (error instanceof ApiError) return error.code
     throw error
   }
 }
@@ -102,5 +114,26 @@ describe('authenticateToken', () => {
     cache.cached.set(sha256Hex(token), account)
     for (let i = 0; i < 5; i++) expect(await authenticateToken(relay, '192.0.2.9', b64u(token))).toEqual(account)
     expect(cache.lookups).toBe(0)
+  })
+
+  it('refuses a suspended account with 403, cached or not, without counting a failed check', async () => {
+    const { cache, relay, suspended } = setup(1)
+    const lookedUp = randomBytes(32)
+    const cachedToken = randomBytes(32)
+    const account = randomBytes(16)
+    cache.accounts.set(sha256Hex(lookedUp), account)
+    cache.cached.set(sha256Hex(cachedToken), account)
+    suspended.add(account.toString('hex'))
+    for (let i = 0; i < 3; i++) {
+      expect(await errorCode(authenticateToken(relay, '192.0.2.20', b64u(lookedUp)))).toBe('account_suspended')
+      expect(await errorCode(authenticateToken(relay, '192.0.2.20', b64u(cachedToken)))).toBe('account_suspended')
+    }
+    expect(await outcome(authenticateToken(relay, '192.0.2.20', b64u(lookedUp)))).toBe(403)
+    // A budget of one failed check, still unspent.
+    expect(relay.limiter.peek('auth-fail', '192.0.2.20', relay.config.rateLimits.authFail).ok).toBe(true)
+
+    // Lifting the suspension lets the same token in again.
+    suspended.clear()
+    expect(await authenticateToken(relay, '192.0.2.20', b64u(lookedUp))).toEqual(account)
   })
 })

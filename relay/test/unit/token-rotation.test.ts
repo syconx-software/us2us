@@ -98,6 +98,7 @@ beforeEach(() => {
     inFlight: new ConcurrencyLimiter(),
     accounts,
     accountCache: new AccountCache(accounts as unknown as AccountStore, logger),
+    suspensions: { isSuspended: async () => false },
     sessions: {
       disconnect: (accountKey: string, code: number, _reason: string, discard: boolean) => {
         disconnects.push({ accountKey, code, discard })

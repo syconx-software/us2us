@@ -117,6 +117,12 @@ final class ConversationViewModel {
     /// one of them is older than the list and is dropped.
     @ObservationIgnored private var stickerRecentsGeneration = 0
     var fileNotice: FileNotice?
+    /// 5.3 › “Bildir”: the report sheet about the message's sender.
+    var report: ReportModel?
+    /// 5.3 › “Engelle” in a community: the member waiting for the confirmation.
+    var blockCandidate: CommunityBlockCandidate?
+    /// Where reports are sent from (tests swap it).
+    @ObservationIgnored var reportMailer: any ReportMailing = SystemReportMailer()
     /// A file being downloaded that opens once it is here (if the chat is still on screen).
     private(set) var pendingFileOpen: MessageID?
     /// The message whose file Quick Look or the exporter shows right now.

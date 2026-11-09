@@ -27,6 +27,7 @@ describe('loadConfig', () => {
       mediaTtlMs: 14 * 86_400_000,
       usernameHoldMs: 14 * 86_400_000,
       inactiveAccountDays: 180,
+      suspensionCheckIntervalMs: 10_000,
       trustProxy: false,
       logIps: false,
     })

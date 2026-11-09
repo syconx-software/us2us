@@ -1,6 +1,42 @@
 {
   "sourceLanguage": "tr",
   "strings": {
+    "block.member.message": {
+      "comment": "5.3 › Engelle in a community: what blocking a member does.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You won’t see their messages in this or any other community, and they can’t message you again. They stay a member and won’t know they were blocked."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu topluluktaki ve diğer topluluklardaki mesajlarını artık görmezsin; sana da bir daha yazamaz. Topluluktan çıkarılmaz ve engellendiğini bilmez."
+          }
+        }
+      }
+    },
+    "block.member.title %@": {
+      "comment": "5.3 › Engelle in a community: the confirmation title. %@ = the member (username or “Üye · 1a2b3c4d”).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block %@?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ engellensin mi?"
+          }
+        }
+      }
+    },
     "messageInvite.title": {
       "extractionState": "manual",
       "localizations": {

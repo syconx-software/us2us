@@ -20,6 +20,8 @@ export const CLOSE_INTERNAL_ERROR = 1011
 export const CLOSE_TRY_AGAIN_LATER = 1013
 export const CLOSE_REPLACED = 4001
 export const CLOSE_UNAUTHORIZED = 4401
+/** The operator suspended the account; a reconnect gets HTTP 403 `account_suspended`. */
+export const CLOSE_SUSPENDED = 4403
 
 /**
  * Outbound byte budget of one socket. Nothing more is written while a
@@ -266,7 +268,7 @@ export class SessionManager {
 
   /**
    * Ends an account's session from the server side: after a token rotation
-   * (its envelopes are kept) or an account deletion (`discard`).
+   * or a suspension (its envelopes are kept) or an account deletion (`discard`).
    */
   disconnect(accountKey: string, code: number, reason: string, discard: boolean): void {
     const session = this.sessions.get(accountKey)

@@ -69,7 +69,9 @@ final class CommunityFlowUITests: XCTestCase {
 
     private func enroll() -> (XCUIApplication, String) {
         let app = XCUIApplication()
-        app.launchArguments = ["-U2RelayURL", relay, "-U2Language", "tr", "-U2Theme", "dark", "-U2ResetPreferences", "YES"]
+        app.launchArguments = [
+            "-U2RelayURL", relay, "-U2Language", "tr", "-U2Theme", "dark", "-U2ResetPreferences", "YES", "-U2Terms", "accepted",
+        ]
         app.launch()
         // A fresh simulator/container is a required part of this suite's isolation, so the
         // suite's other test may have set this one up already: unlock it and go on.

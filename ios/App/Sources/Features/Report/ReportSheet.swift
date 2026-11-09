@@ -3,9 +3,12 @@ import SwiftUI
 /// “Bildir” (proposed, App Review 1.2; in the invite sheet's language): a
 /// full-height C18 sheet — the sheet bar (“Vazgeç” · “Bildir”), one line
 /// on where the report goes, the reasons as a C13 card on `bg` with the
-/// chosen one checked (`ph:check` `accent300`), an optional note, “Bu
+/// chosen one checked (`ph:check` `accent300`), an optional note — from a
+/// message (5.3 › “Bildir”) “Bu mesajın metnini bildirime ekle” (C14, on by
+/// default; for anything but text only its kind is written) —, “Bu
 /// kişiyi de engelle” (C14, on by default; not shown for someone blocked
-/// already), the privacy line (no message content is ever included) and,
+/// already), the privacy line (no message content is included, or only the
+/// chosen message's text) and,
 /// pinned under the scrolling form, “E-postayla gönder” (C1, until a reason
 /// is chosen at 45 %).
 ///
@@ -65,6 +68,12 @@ struct ReportSheet: View {
                         .padding(.top, 20)
                     noteSection
                         .padding(.top, 22)
+                    if let message = model.reportedMessage {
+                        GroupedCard(fill: Color.u2.bg) {
+                            includeMessageRow(message)
+                        }
+                        .padding(.top, 22)
+                    }
                     if model.offersBlock {
                         GroupedCard(fill: Color.u2.bg) {
                             GroupedToggleRow(
@@ -189,17 +198,44 @@ struct ReportSheet: View {
         }
     }
 
+    /// “Bu mesajın metnini bildirime ekle”: where the text goes; for anything
+    /// but text, that only its kind is written.
+    private func includeMessageRow(_ message: ReportedMessage) -> some View {
+        let title: Text
+        let subtitle: Text
+        if let kind = message.kind {
+            let name = StringTable.report.string(kind.nameKey, locale: locale)
+            title = Text("report.includeMedia", table: .report)
+            subtitle = Text("report.includeMedia.subtitle \(name)", table: .report)
+        } else {
+            title = Text("report.includeMessage", table: .report)
+            subtitle = Text("report.includeMessage.subtitle", table: .report)
+        }
+        return GroupedToggleRow(
+            tile: IconTile(content: .glyph(.chatCircleDots)), title: title, subtitle: subtitle,
+            isOn: $model.includesMessage
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("report.includeMessage")
+    }
+
     /// As the invite's: glyph 18 + `callout`.
     private var privacyNote: some View {
         HStack(alignment: .top, spacing: 12) {
             PhosphorIcon(.shieldCheck, size: 18)
                 .foregroundStyle(Color.u2.accent300)
                 .padding(.top, 1)
-            Text("report.privacy", table: .report)
-                .u2Font(.callout)
-                .foregroundStyle(Color.u2.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if model.sendsMessageText {
+                    Text("report.privacy.message", table: .report)
+                } else {
+                    Text("report.privacy", table: .report)
+                }
+            }
+            .u2Font(.callout)
+            .foregroundStyle(Color.u2.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("report.privacy")

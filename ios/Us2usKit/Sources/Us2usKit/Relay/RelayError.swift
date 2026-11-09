@@ -25,6 +25,9 @@ public struct RelayErrorCode: RawRepresentable, Hashable, Sendable, CustomString
     public static let communityFull = RelayErrorCode(rawValue: "community_full")
     /// Communities: one recipient's community mail is full (429).
     public static let communityInboxFull = RelayErrorCode(rawValue: "community_inbox_full")
+    /// The operator suspended the account for breaking the terms of use
+    /// (403, §4.3 "Suspension"); retrying does not help.
+    public static let accountSuspended = RelayErrorCode(rawValue: "account_suspended")
     public static let `internal` = RelayErrorCode(rawValue: "internal")
 }
 
@@ -63,6 +66,16 @@ public enum RelayError: Error, Equatable, Sendable {
         if case .server(404, _, _) = self { return true }
         return false
     }
+
+    /// `403 account_suspended`, also for a WebSocket upgrade refused with
+    /// `403` or closed with `4403` (§4.3 "Suspension", §4.7).
+    public var isAccountSuspended: Bool {
+        if case .server(403, .accountSuspended?, _) = self { return true }
+        return false
+    }
+
+    /// What a suspended account gets for every authenticated request.
+    public static let accountSuspended = RelayError.server(status: 403, code: .accountSuspended, message: nil)
 }
 
 extension RelayError: LocalizedError {
@@ -90,6 +103,7 @@ extension RelayError: LocalizedError {
             case .badRequest?: return localizer.string(.relayBadRequest)
             case .unauthorized?: return localizer.string(.relayUnauthorized)
             case .accessDenied?: return localizer.string(.relayAccessDenied)
+            case .accountSuspended?: return localizer.string(.relayAccountSuspended)
             case .powInvalid?: return localizer.string(.relayProofOfWorkInvalid)
             case .notFound?: return localizer.string(.relayNotFound)
             case .usernameTaken?: return localizer.string(.relayUsernameTaken)

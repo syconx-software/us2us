@@ -175,7 +175,7 @@ struct MessageActionsOverlay: View {
     // MARK: Menu
 
     /// Own messages: Yanıtla · Bilgi · Kopyala ‖ Herkesten sil · Benden sil.
-    /// Incoming: Yanıtla · Kopyala ‖ Benden sil. A deleted trace: Benden sil.
+    /// Incoming: Yanıtla · Kopyala · Bildir ‖ Benden sil. A deleted trace: Benden sil.
     /// Kopyala exists only for text and is off for disappearing messages.
     /// A photo or video still being prepared (or that failed to be) is only
     /// on this phone: Benden sil, nothing else. With a blocked person
@@ -233,6 +233,7 @@ struct MessageActionsOverlay: View {
                         viewModel.saveToFiles(id)
                     })
             }
+            if let report = reportItem { items.append(report) }
         }
         if message.isOutgoing && !message.isDeleted && !isBlocked {
             items.append(
@@ -261,9 +262,10 @@ struct MessageActionsOverlay: View {
 
 extension MessageActionsOverlay {
     /// A community message (no reactions or replies): own ones — Bilgi ·
-    /// Kopyala ‖ Herkesten sil · Benden sil; others' — Kopyala ‖ Benden sil,
-    /// and for the owner also Herkesten sil (moderation). A file that is here
-    /// can be saved to Files (saving is not reported in a community).
+    /// Kopyala ‖ Herkesten sil · Benden sil; others' — Kopyala · Bildir ·
+    /// Engelle ‖ Benden sil, and for the owner also Herkesten sil
+    /// (moderation). A file that is here can be saved to Files (saving is
+    /// not reported in a community).
     var communityMenuItems: [FloatingMenuItem] {
         let id = message.id
         var items: [FloatingMenuItem] = []
@@ -286,6 +288,13 @@ extension MessageActionsOverlay {
                         viewModel.saveToFiles(id)
                     })
             }
+            if let report = reportItem { items.append(report) }
+            if viewModel.canBlockSender(of: message) {
+                items.append(
+                    FloatingMenuItem(id: "block", title: Text("request.block"), glyph: .prohibit, tone: .destructive) {
+                        viewModel.askBlockSender(of: id)
+                    })
+            }
         }
         let deletesForEveryone = viewModel.canDeleteForEveryone(message)
         if deletesForEveryone {
@@ -305,6 +314,16 @@ extension MessageActionsOverlay {
                 viewModel.deleteForMe(id)
             })
         return items
+    }
+
+    /// “Bildir” on what someone else wrote (App Review 1.2): the report
+    /// sheet about the sender, with this message's text offered.
+    var reportItem: FloatingMenuItem? {
+        guard viewModel.canReport(message) else { return nil }
+        let id = message.id
+        return FloatingMenuItem(id: "report", title: Text("report.action"), glyph: .warning) {
+            viewModel.openReport(for: id)
+        }
     }
 }
 

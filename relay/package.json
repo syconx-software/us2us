@@ -17,6 +17,7 @@
     "typecheck": "nuxt typecheck && tsc -p test/tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "account:suspend": "node scripts/account-suspend.mjs",
     "test": "nuxt build && vitest run",
     "test:only": "vitest run",
     "audit": "pnpm audit --audit-level=low"

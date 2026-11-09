@@ -8,6 +8,7 @@ import { useRelay } from '../../../relay'
  * One-time keys are handed out per target account only at RATE_LIMIT_KEY_TARGET
  * (whoever asks); past it the bundle carries the signed and last-resort keys
  * only, so many accounts together cannot drain a user's one-time keys.
+ * A suspended account has no bundle for anyone, so nobody starts a new chat with it.
  */
 export default defineApiRoute({
   GET: async (event) => {
@@ -15,6 +16,7 @@ export default defineApiRoute({
     const relay = useRelay()
     limitByAccount(requester, 'key-fetch', relay.config.rateLimits.keyFetch)
     const accountId = uuidParam(event, 'accountId')
+    if (await relay.suspensions.isSuspended(accountId)) throw notFound('account')
     const budget = relay.limiter.take('key-target', accountId.toString('hex'), relay.config.rateLimits.keyTarget)
     const bundle = await relay.preKeys.claimBundle(accountId, budget.ok)
     if (!bundle) throw notFound('account')

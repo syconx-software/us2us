@@ -175,6 +175,7 @@ extension LiveMapping.LiveConnection {
         case .waitingForNetwork: self = .waitingForNetwork
         case .retrying: self = .retrying
         case .revoked: self = .revoked
+        case .suspended: self = .suspended
         }
     }
 }

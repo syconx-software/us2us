@@ -31,6 +31,7 @@ public enum RuntimeString: String, CaseIterable, Sendable {
     case lineOffline
     case lineWaitingForNetwork
     case lineRevoked
+    case lineSuspended
     case lineLocked
 
     var texts: (en: String, tr: String) {
@@ -62,6 +63,8 @@ public enum RuntimeString: String, CaseIterable, Sendable {
                 "This phone's line was closed: the account was deleted or is used on another phone",
                 "Bu telefonun hattı kapandı: hesap silindi ya da başka bir telefonda kullanılıyor"
             )
+        case .lineSuspended:
+            return ("This account was suspended", "Bu hesap askıya alındı")
         case .lineLocked: return ("Locked", "Kilitli")
         }
     }

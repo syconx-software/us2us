@@ -14,6 +14,11 @@ struct RootView: View {
             case .locked:
                 // Nothing is built until the first unlock (the vault is closed).
                 Color.u2.bg.ignoresSafeArea()
+            case .unlocked where model.showsAccountSuspended:
+                // Suspended (PROTOCOL §4.3): nothing of the app is built under
+                // the notice, so nothing of it can be reached; the next unlock
+                // starts it again.
+                Color.u2.bg.ignoresSafeArea()
             case .unlocked:
                 // Leaving onboarding, 4.1 is drawn at once *under* 2.3, which
                 // dissolves over it (one continuous 0.5 s cross-fade).
@@ -35,6 +40,24 @@ struct RootView: View {
                     .transition(.u2Fade)
                     .zIndex(1)
             }
+            // The relay suspended the account (PROTOCOL §4.3): the notice covers
+            // the app; nothing is retried and nothing on the phone is deleted.
+            if model.showsAccountSuspended {
+                AccountSuspendedView(messenger: model.messenger, onErase: model.eraseEverything)
+                    .environment(\.u2IsLayerVisible, model.overlay == .none)
+                    .transition(.u2Fade)
+                    .zIndex(2)
+            }
+        }
+        .u2Animation(U2Motion.screen, value: model.showsAccountSuspended)
+        // An account here, but the current Terms of Use never accepted on this
+        // phone (an older build, a restore begun on the lock): they cover the
+        // app, cannot be pulled down, and go once accepted.
+        .u2Sheet(
+            isPresented: Binding(get: { model.requiresTermsAcceptance }, set: { _ in }), isDismissible: false
+        ) {
+            TermsSheet(mode: .required, onAgree: model.preferences.acceptTerms)
+                .environment(\.locale, model.locale)
         }
         // Universal links (https://us2us.app/u/<username>) → InviteLinkInbox;
         // 4.1 opens them after the unlock (Features/Invite, docs/INVITES.md).

@@ -63,6 +63,7 @@ public final class RelayClient: Sendable {
     private let authenticatedSession: URLSession
     private let anonymousSession: URLSession
     private let credentialsBox: Locked<RelayCredentials?>
+    private let suspensionObserver = Locked<(@Sendable () -> Void)?>(nil)
 
     /// - Parameter configuration: base configuration for both sessions; the
     ///   default is ephemeral (no cookies, no cache, no credential storage).
@@ -118,6 +119,13 @@ public final class RelayClient: Sendable {
 
     public func setCredentials(_ credentials: RelayCredentials?) {
         credentialsBox.withLock { $0 = credentials }
+    }
+
+    /// Called (on any thread) whenever a request is answered
+    /// `403 account_suspended` (§4.3 "Suspension"), before the call throws
+    /// ``RelayError/accountSuspended``: one place to stop every retry.
+    public func observeSuspension(_ observer: (@Sendable () -> Void)?) {
+        suspensionObserver.withLock { $0 = observer }
     }
 
     // MARK: Additive communities transport (docs/COMMUNITIES.md)
@@ -607,7 +615,9 @@ public final class RelayClient: Sendable {
     private func check(_ data: Data, _ response: URLResponse) throws -> Data {
         guard let http = response as? HTTPURLResponse else { throw RelayError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            throw Self.error(status: http.statusCode, response: http, body: data)
+            let error = Self.error(status: http.statusCode, response: http, body: data)
+            if error.isAccountSuspended { suspensionObserver.withLock { $0 }?() }
+            throw error
         }
         return data
     }

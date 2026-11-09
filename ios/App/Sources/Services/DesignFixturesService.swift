@@ -133,11 +133,28 @@ final class DesignFixturesService: MessengerService {
             scannablePayload: Data(DesignFixtures.safetyNumberGroups.joined().utf8),
             verifiedAt: nil, method: nil)
         #if DEBUG
-            if DesignFixtureCommunities.isRequested {
-                fixtureCommunities = DesignFixtureCommunities(english: english, now: now)
-            }
+            if DesignFixtureCommunities.isRequested { attachFixtureCommunities() }
         #endif
     }
+
+    #if DEBUG
+        /// `-U2Communities YES` (and tests): the communities fixtures, whose
+        /// members' messages are hidden while the user has blocked them. In
+        /// the fixtures a member and a chat are the same person by account id
+        /// or by username (the live app has one account id for both).
+        @discardableResult
+        func attachFixtureCommunities() -> DesignFixtureCommunities {
+            let communities = DesignFixtureCommunities(english: english, now: clock.now)
+            communities.isHidden = { [weak self] marks in
+                guard let self else { return false }
+                return self.blockedPeople.contains { person in
+                    person.id == marks.senderID || (person.isUsernameKnown && person.name == marks.sender?.username)
+                }
+            }
+            fixtureCommunities = communities
+            return communities
+        }
+    #endif
 
     // MARK: Account & onboarding
 
@@ -379,8 +396,25 @@ final class DesignFixturesService: MessengerService {
 
     /// Read only from now on: presence and the picture go (the live service
     /// shows the initial for anyone blocked) and nothing can be sent.
+    /// A community member who has no chat here (5.3 › Engelle or Bildir
+    /// in a community) is blocked as someone without a chat: 7.1 ›
+    /// Engellenenler lists them and their community messages are hidden.
     func block(chat: ChatID) async -> Bool {
-        setBlocked(chat)
+        if setBlocked(chat) { return true }
+        return blockCommunityMember(chat)
+    }
+
+    private func blockCommunityMember(_ id: String) -> Bool {
+        guard !blockedWithoutChat.contains(where: { $0.id == id }) else { return true }
+        guard let communities,
+            let member = communities.rows.lazy.flatMap({ communities.members(of: $0.id) }).first(where: {
+                $0.id == id && !$0.isSelf
+            })
+        else { return false }
+        let name = member.username ?? member.shortID
+        blockedWithoutChat.append(
+            BlockedPerson(id: id, name: name, isUsernameKnown: member.username != nil, palette: .forUsername(name)))
+        return true
     }
 
     /// The block itself (also the harness's blocked states, set before the first frame).

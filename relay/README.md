@@ -146,17 +146,20 @@ Things worth knowing:
 - **WebSocket close codes.** 1001 relay restart, 1007 malformed frame, 1008
   frame rate limit, 1009 frame too large, 1011 backlog failure, 1013 slow
   consumer (backlog or live frames not read), 4001 replaced by a newer
-  connection, 4401 token rotated or account deleted. Sockets silent for
+  connection, 4401 token rotated or account deleted, 4403 account suspended
+  ([Acting on a report](#acting-on-a-report)). Sockets silent for
   `WS_IDLE_TIMEOUT_MS` (90 s) are dropped, so clients ping about every 30 s.
 
 ## Website
 
-`/tr` and `/en` (plus `/tr/gizlilik`, `/en/privacy`, `/tr/destek`,
-`/en/support`, `/tr/neden-yaptik`, `/en/why-we-built-it`) follow the us2us
-web design ("us2us Web", Nocturne design system). All text, both languages,
-is in `app/content/site.ts`, except the "why we built it" statement, which
-has its own `app/content/why.ts`; the pages are Vue components in
-`app/components/` rendered once at build time. The privacy policy follows
+`/tr` and `/en` (plus `/tr/gizlilik`, `/en/privacy`,
+`/tr/kullanim-kosullari`, `/en/terms`, `/tr/destek`, `/en/support`,
+`/tr/neden-yaptik`, `/en/why-we-built-it`) follow the us2us web design
+("us2us Web", Nocturne design system). All text, both languages, is in
+`app/content/site.ts`, except the "why we built it" statement and the terms
+of use, which have their own `app/content/why.ts` and `app/content/terms.ts`
+(the apps link to the terms pages before an account is created); the
+pages are Vue components in `app/components/` rendered once at build time. The privacy policy follows
 PROTOCOL.md §4.10 and §9 (including the known limits), the "no
 notifications" texts `docs/copy/no-push.md`.
 
@@ -572,6 +575,64 @@ picture or setting, one-time pre-keys are gone (clients refill when
 token rotated after the backup is valid again until the account rotates it
 once more.
 
+## Acting on a report
+
+The terms of use promise that accounts which break the rules are closed,
+and the App Store requires acting on a report of objectionable content
+within 24 hours. Reports come by e-mail to support@us2us.app and name the
+reported person by username (the app sends no account id). The relay cannot
+read any message, so the report and its screenshots are the evidence; act on
+them like this:
+
+1. Take the username from the report (with or without `@`, any case).
+2. On the relay's host, look the account up, then suspend it. The runtime
+   release ships the script (`scripts/account-suspend.mjs`), which uses the
+   release's own `mysql2`:
+
+   ```sh
+   cd $US2US_APP_ROOT/us2us-relay
+   node --env-file=$HOME/us2us.env scripts/account-suspend.mjs status --username <name>
+   node --env-file=$HOME/us2us.env scripts/account-suspend.mjs suspend --username <name> --reason <code>        # shows what it will do
+   node --env-file=$HOME/us2us.env scripts/account-suspend.mjs suspend --username <name> --reason <code> --yes  # does it
+   ```
+
+   In a repository checkout, `pnpm account:suspend <command> ...` runs the
+   same script (with `DATABASE_URL` in the environment).
+
+   `--reason` is a short code such as `abuse`, `spam`, `illegal` or a ticket
+   number, never text about a person. `--account <id>` (the UUID, hex or
+   base64url form) works instead of `--username`. A name the person gave up
+   in the last `USERNAME_HOLD_DAYS` still finds them (`status` says
+   "previous"). `suspend` waits until the relay has applied it and says so.
+3. Reply to the reporter that the account was closed. Keep the e-mail; the
+   relay keeps no record of the report.
+
+What a suspension does, on the relay's next check (`SUSPENSION_CHECK_SECONDS`,
+default 10 s; the script writes only the `suspended_accounts` row and the
+running relay does the rest, so it also works while the relay is restarted):
+
+- Every request with the account's token gets `403 account_suspended`, the
+  WebSocket upgrade too; an open WebSocket is closed with `4403`.
+- Nobody can find it in the directory, fetch its pre-keys or identity, see
+  its avatar record or send it anything (`404`, as for a deleted account), so
+  nobody can start a new chat with it. Its username stays taken, so it cannot
+  register the name again.
+- Removed at once: the media it uploaded (rows and files), its avatar record,
+  the communities it owns (for all their members, since nobody else can sign
+  their next state), its other memberships, join requests and redeemed
+  invitations, and every community delivery from or to it.
+- Not removable: sealed one-to-one messages it already sent. The relay never
+  learns who sent an envelope, so they stay with their recipients until
+  fetched or expired (`ENVELOPE_TTL_DAYS`). Recipients can block and report
+  in the app. Envelopes waiting for the suspended account and its keys are
+  kept, so lifting a mistaken suspension loses nothing more.
+
+The account itself stays until `INACTIVE_ACCOUNT_DAYS` after its last
+activity, like any other, and then goes with its suspension. Other commands:
+`unsuspend --username <name> --yes` lifts a suspension (deleted content does
+not come back), `list` shows every suspended account. The script needs only
+`DATABASE_URL` (the relay's DML user is enough) and prints no secret.
+
 ## Configuration reference
 
 All settings are environment variables; see `.env.example` for a commented
@@ -605,6 +666,7 @@ stop the relay at startup with a list of every problem.
 | `USERNAME_HOLD_DAYS` | 14 | Old username reserved after a change |
 | `INACTIVE_ACCOUNT_DAYS` | 180 | Delete accounts without connection |
 | `RETENTION_INTERVAL_SECONDS` | 300 | Sweep interval |
+| `SUSPENSION_CHECK_SECONDS` | 10 | How often the list of suspended accounts is read; a suspension takes effect within this time ([Acting on a report](#acting-on-a-report)) |
 | `RATE_LIMIT_POW` | 30/min | per IP |
 | `RATE_LIMIT_REGISTER` | 5/hour | per IP, failed attempts included |
 | `RATE_LIMIT_REGISTER_PREFIX` | 20/hour | per IPv6 /48 (an IPv4 address: its own bucket) |
@@ -659,7 +721,7 @@ bildirir. Yine de görebildikleri ve çıkarabilecekleri
 PROTOCOL.md §9’dadır. Bildirim (push)
 yoktur: aktarıcı cihaz belirteci tutmaz ve hiçbir üçüncü tarafla
 konuşmaz; telefonlar mesajları uygulama açıkken alır. Aynı süreç küçük web sitesini de (`/tr`, `/en`, gizlilik
-politikası, destek, “Neden yaptık”) sunar. Site başka hiçbir kaynaktan dosya yüklemez: yazı
+politikası, kullanım koşulları, destek, “Neden yaptık”) sunar. Site başka hiçbir kaynaktan dosya yüklemez: yazı
 tipleri, ikonlar, betikler ve three.js us2us.app üzerinden gelir; JavaScript
 kapalıyken de tamamen okunur (bkz. [Website](#website)). Protokolün tamamı `docs/PROTOCOL.md` dosyasındadır.
 

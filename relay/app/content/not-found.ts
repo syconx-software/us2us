@@ -58,6 +58,7 @@ ${ICON_LINKS_HTML}
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
 <a class="footer-link" href="${paths.en.why}">${en.nav.why}</a>
 <a class="footer-link" href="${paths.en.privacy}">${en.footer.privacy}</a>
+<a class="footer-link" href="${paths.en.terms}">${en.footer.terms}</a>
 <a class="footer-link" href="${paths.en.privacy}#${SECURITY_ANCHOR.en}">${en.footer.security}</a>
 <a class="footer-link" href="${paths.en.support}">${en.footer.press}</a>
 <a class="footer-link" href="${paths.en.support}">${en.footer.contact}</a>

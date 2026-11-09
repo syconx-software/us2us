@@ -118,6 +118,8 @@ export interface RelayConfig {
   usernameHoldMs: number
   inactiveAccountDays: number
   retentionIntervalMs: number
+  /** How often the relay reads the list of suspended accounts, which the operator changes from another process. */
+  suspensionCheckIntervalMs: number
   trustProxy: boolean
   /** Peer addresses whose proxy header is believed (TRUST_PROXY=1 only). */
   trustProxyFrom: string[]
@@ -236,6 +238,7 @@ export function loadConfig(source: Env = process.env): RelayConfig {
     usernameHoldMs: env.int('USERNAME_HOLD_DAYS', 14, 0, 365) * DAY,
     inactiveAccountDays: env.int('INACTIVE_ACCOUNT_DAYS', 180, 1, 3650),
     retentionIntervalMs: env.int('RETENTION_INTERVAL_SECONDS', 300, 1, 86_400) * 1000,
+    suspensionCheckIntervalMs: env.int('SUSPENSION_CHECK_SECONDS', 10, 1, 3600) * 1000,
     trustProxy: env.bool('TRUST_PROXY', false),
     trustProxyFrom: parseProxyPeers(env),
     trustProxyHeader: parseProxyHeader(env),

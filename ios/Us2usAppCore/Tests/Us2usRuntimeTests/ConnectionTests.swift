@@ -126,6 +126,70 @@ struct ConnectionSupervisorTests {
         #expect(backend.streamCount == 1)
     }
 
+    @Test("close code 4403 / 403 on the upgrade: suspended, never reconnected (§4.3, §4.7)")
+    func suspendedAccountStopsForGood() async throws {
+        let backend = FakeBackend()
+        let clock = ManualClock()
+        let supervisor = make(backend, clock: clock, recorder: Recorder())
+        await supervisor.start()
+        try await eventually { backend.latestStream?.isRunning == true }
+        backend.latestStream?.push(.fail(.accountSuspended))
+        try await eventually { await supervisor.status == .suspended }
+        clock.advance(by: 600)
+        await settle()
+        #expect(backend.streamCount == 1)
+        await supervisor.start()
+        await supervisor.networkChanged(available: false)
+        await supervisor.networkChanged(available: true)
+        await settle()
+        #expect(backend.streamCount == 1)
+        #expect(await supervisor.status == .suspended)
+    }
+
+    @Test("an HTTP 403 account_suspended elsewhere closes the open socket for good")
+    func suspensionReportedByARequest() async throws {
+        let backend = FakeBackend()
+        let clock = ManualClock()
+        let supervisor = make(backend, clock: clock, recorder: Recorder())
+        await supervisor.start()
+        try await eventually { backend.latestStream?.isRunning == true }
+        backend.latestStream?.push(.queueEmpty)
+        try await eventually { await supervisor.status == .open }
+        await supervisor.accountSuspended()
+        try await eventually { await supervisor.status == .suspended }
+        clock.advance(by: 600)
+        await settle()
+        #expect(backend.streamCount == 1)
+        #expect(await supervisor.status == .suspended)
+    }
+
+    @Test("other refusals keep their meaning: 403 access_denied retries, 4401 revokes")
+    func otherRefusalsAreNotSuspension() async throws {
+        #expect(!ConnectionSupervisor.isSuspension(RelayError.server(status: 403, code: .accessDenied, message: nil)))
+        #expect(!ConnectionSupervisor.isSuspension(RelayError.server(status: 401, code: .unauthorized, message: nil)))
+        #expect(!ConnectionSupervisor.isSuspension(RelayError.connectionClosed(code: 1011)))
+        #expect(ConnectionSupervisor.isSuspension(RelayError.accountSuspended))
+        #expect(!ConnectionSupervisor.isRevocation(RelayError.accountSuspended))
+
+        let backend = FakeBackend()
+        let clock = ManualClock()
+        let supervisor = make(backend, clock: clock, recorder: Recorder())
+        await supervisor.start()
+        try await eventually { backend.latestStream?.isRunning == true }
+        backend.latestStream?.push(.fail(.server(status: 403, code: .accessDenied, message: nil)))
+        try await eventually {
+            if case .retrying = await supervisor.status { return true }
+            return false
+        }
+        try await eventually {
+            if clock.sleeperCount > 0 { clock.advance(by: 1) }
+            return backend.streamCount == 2
+        }
+        await supervisor.stop()
+        #expect(ConnectionStatus.suspended.isFinal && ConnectionStatus.revoked.isFinal && !ConnectionStatus.open.isFinal)
+        #expect(ConnectionStatus.suspended.line(strings: RuntimeStrings(languageCode: "tr")) == "Bu hesap askıya alındı")
+    }
+
     @Test func waitsForTheNetworkAndReconnectsAtOnce() async throws {
         let backend = FakeBackend()
         let clock = ManualClock()

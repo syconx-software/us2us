@@ -79,6 +79,11 @@ final class AppModel {
         if configuration.resetPreferences { preferences.reset() }
         if let theme = configuration.theme { preferences.theme = theme }
         if let language = configuration.language { preferences.language = language }
+        switch configuration.termsOverride {
+        case .accepted: preferences.acceptTerms()
+        case .ask: preferences.acceptedTermsVersion = nil
+        case nil: break
+        }
 
         // The design's moment is for the design's data only: the live service
         // runs on the wall clock (countdowns, presence, “today”, file names).

@@ -312,6 +312,24 @@
         }
       }
     },
+    "about.terms": {
+      "comment": "7.1 › Hakkında: opens the Terms of Use on us2us.app in the browser (App Review 1.2).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım Koşulları"
+          }
+        }
+      }
+    },
     "about.title": {
       "extractionState": "manual",
       "localizations": {

@@ -3,6 +3,7 @@ export type ErrorCode =
   | 'bad_request'
   | 'unauthorized'
   | 'access_denied'
+  | 'account_suspended'
   | 'pow_invalid'
   | 'not_found'
   | 'username_taken'
@@ -35,6 +36,9 @@ export const badRequest = (message: string) => new ApiError(400, 'bad_request', 
 export const unauthorized = () => new ApiError(401, 'unauthorized', 'missing or invalid auth token')
 export const accessDenied = (message = 'a valid access key or proof-of-work is required') =>
   new ApiError(403, 'access_denied', message)
+/** The operator suspended the account for breaking the terms of use; every authenticated request gets this. */
+export const accountSuspended = () =>
+  new ApiError(403, 'account_suspended', 'this account is suspended for breaking the terms of use')
 export const powInvalid = () => new ApiError(403, 'pow_invalid', 'proof-of-work is missing, wrong, expired or reused')
 export const notFound = (what = 'resource') => new ApiError(404, 'not_found', `${what} not found`)
 export const usernameTaken = () => new ApiError(409, 'username_taken', 'username is already taken')

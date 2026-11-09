@@ -14,7 +14,8 @@ import { accessKeyMatches } from '../../../services/accounts'
  * items, so the endpoint cannot be used to find out who is online. A
  * recipient gets at most one envelope per batch (presence sends one per
  * contact), so that a batch cannot turn into 200 frames on one socket, whose
- * cost would again show in the timing. Nothing is ever stored.
+ * cost would again show in the timing. Nothing is ever stored. A suspended
+ * recipient is skipped like an unknown one.
  */
 export default defineApiRoute({
   POST: async (event) => {
@@ -28,7 +29,9 @@ export default defineApiRoute({
     if (items.length > 1) limitByIp(event, 'ephemeral', rate, items.length - 1)
 
     const unique = new Map(items.map(item => [item.recipient.toString('hex'), item.recipient]))
+    const suspended = await relay.suspensions.suspendedOf([...unique.values()])
     const recipients = new Map((await relay.accounts.recipients([...unique.values()]))
+      .filter(row => !suspended.has(row.id.toString('hex')))
       .map(row => [row.id.toString('hex'), row]))
     const now = Date.now()
     const delivered = new Set<string>()

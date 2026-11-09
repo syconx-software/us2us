@@ -10,7 +10,7 @@ const makeRoot = () => { const root = mkdtempSync(join(tmpdir(), 'us2us-release-
 const write = (root: string, path: string, data: string) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), data) }
 function fixture() {
   const root = makeRoot()
-  for (const file of ['.output/server/index.mjs', '.output/server/node_modules/drizzle-orm/mysql2/index.js', '.output/server/node_modules/drizzle-orm/mysql2/migrator.js', 'drizzle/meta/_journal.json', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs']) write(root, file, '{}')
+  for (const file of ['.output/server/index.mjs', '.output/server/node_modules/drizzle-orm/mysql2/index.js', '.output/server/node_modules/drizzle-orm/mysql2/migrator.js', 'drizzle/meta/_journal.json', 'deploy/ecosystem.config.cjs', 'deploy/runtime-migrate.mjs', 'scripts/account-suspend.mjs']) write(root, file, '{}')
   write(root, '.output/server/package.json', JSON.stringify({ dependencies: { mysql2: '3.24.5', 'drizzle-orm': '0.45.3' } }))
   return root
 }
@@ -23,7 +23,8 @@ describe('runtime-only release packaging', () => {
     write(source, 'node_modules/build-tool/index.js', 'build-only')
     write(source, 'server/source.ts', 'source-only')
     const result = prepareRelease(source, destination)
-    expect(result.files).toBe(7)
+    expect(result.files).toBe(8)
+    expect(existsSync(join(destination, 'scripts/account-suspend.mjs'))).toBe(true)
     expect(existsSync(join(destination, '.env.production'))).toBe(false)
     expect(existsSync(join(destination, 'node_modules'))).toBe(false)
     expect(existsSync(join(destination, 'server'))).toBe(false)

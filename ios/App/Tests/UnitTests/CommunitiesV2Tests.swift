@@ -371,7 +371,7 @@ struct CommunitiesV2Tests {
         #expect(!owner.canDeleteForEveryone(messages[2]))
     }
 
-    @Test("the long-press menu: Bilgi for own messages, no reactions or replies; the owner may remove others' messages")
+    @Test("the long-press menu: Bilgi for own messages, Bildir and Engelle for others', no reactions or replies; the owner may remove others' messages")
     func communityMenu() {
         let messages = [message("1", from: nil), message("2", from: "deniz")]
         func ids(owner: Bool, _ message: Message) -> [String] {
@@ -381,8 +381,8 @@ struct CommunitiesV2Tests {
             return overlay.communityMenuItems.map(\.id)
         }
         #expect(ids(owner: false, messages[0]) == ["info", "copy", "deleteEveryone", "deleteMe"])
-        #expect(ids(owner: false, messages[1]) == ["copy", "deleteMe"])
-        #expect(ids(owner: true, messages[1]) == ["copy", "deleteEveryone", "deleteMe"])
+        #expect(ids(owner: false, messages[1]) == ["copy", "report", "block", "deleteMe"])
+        #expect(ids(owner: true, messages[1]) == ["copy", "report", "block", "deleteEveryone", "deleteMe"])
     }
 
     @Test("a text that could not be queued comes back to the composer")

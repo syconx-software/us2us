@@ -9,7 +9,7 @@ import { PowAuthority, RegistrationLoad, type PowPurpose } from './lib/pow'
 import { ConcurrencyLimiter, PairKeys, RateLimiter } from './lib/rate-limit'
 import type { PowSolution } from './lib/validation'
 import { EnvelopePersister } from './realtime/persister'
-import { CLOSE_UNAUTHORIZED, SessionManager } from './realtime/sessions'
+import { CLOSE_SUSPENDED, CLOSE_UNAUTHORIZED, SessionManager } from './realtime/sessions'
 import { AccountCache } from './services/account-cache'
 import { AccountStore } from './services/accounts'
 import { AvatarStore } from './services/avatars'
@@ -18,6 +18,7 @@ import { MediaStore } from './services/media'
 import { PreKeyStore } from './services/prekeys'
 import { RetentionSweeper } from './services/retention'
 import { CommunityStore } from './services/communities'
+import { Suspensions } from './services/suspensions'
 
 const HOUSEKEEPING_INTERVAL_MS = 60_000
 const DISK_CHECK_INTERVAL_MS = 5_000
@@ -36,6 +37,7 @@ export class Relay {
   readonly mailbox: Mailbox
   readonly media: MediaStore
   readonly communities: CommunityStore
+  readonly suspensions: Suspensions
   readonly persister: EnvelopePersister
   readonly sessions: SessionManager
   readonly pow: PowAuthority
@@ -50,6 +52,7 @@ export class Relay {
   private readonly timers: NodeJS.Timeout[] = []
   private retentionRun: Promise<void> | null = null
   private mailboxCount: Promise<void> | null = null
+  private suspensionCheck: Promise<void> | null = null
 
   constructor(readonly config: RelayConfig) {
     this.logger = new Logger(config.logLevel)
@@ -58,6 +61,7 @@ export class Relay {
     this.accountCache = new AccountCache(this.accounts, this.logger)
     this.avatars = new AvatarStore(this.database)
     this.preKeys = new PreKeyStore(this.database)
+    this.suspensions = new Suspensions(this.database)
     this.mailbox = new Mailbox(this.database, {
       maxEnvelopes: config.mailboxMaxEnvelopes,
       maxBytes: config.mailboxMaxBytes,
@@ -100,6 +104,9 @@ export class Relay {
     await this.refreshDiskSpace()
     this.every(DISK_CHECK_INTERVAL_MS, () => void this.refreshDiskSpace())
     this.every(this.config.retentionIntervalMs, () => this.runRetention())
+    // Also applies suspensions made while the relay was down.
+    void this.checkSuspensions()
+    this.every(this.config.suspensionCheckIntervalMs, () => void this.checkSuspensions())
     this.every(HOUSEKEEPING_INTERVAL_MS, () => {
       const now = Date.now()
       this.limiter.sweep(now)
@@ -174,6 +181,37 @@ export class Relay {
   }
 
   /**
+   * Reads the list of suspended accounts again (the operator changes it from
+   * another process) and acts on what changed: a newly suspended account's
+   * WebSocket is closed with 4403 (its unacknowledged envelopes are kept),
+   * and what it still has stored is removed once (Suspensions.apply). Its
+   * requests are refused from the moment the list is read. Failures are
+   * logged and the next check tries again.
+   */
+  checkSuspensions(): Promise<void> {
+    this.suspensionCheck ??= (async () => {
+      const { added, unapplied } = await this.suspensions.refresh()
+      for (const accountId of added) {
+        this.sessions.disconnect(accountId.toString('hex'), CLOSE_SUSPENDED, 'account suspended', false)
+      }
+      for (const accountId of unapplied) {
+        const uploads = await this.suspensions.apply(accountId, Date.now())
+        if (!uploads) continue
+        this.logger.info('account suspension applied', { media: uploads.length })
+        // The rows are gone either way; files left here are found by the retention sweep.
+        await this.media.removeFiles(uploads).catch((error: unknown) => {
+          this.logger.warn('removing the media files of a suspended account failed', { error: describeError(error) })
+        })
+      }
+    })()
+      .catch((error: unknown) => this.logger.error('checking account suspensions failed', { error: describeError(error) }))
+      .finally(() => {
+        this.suspensionCheck = null
+      })
+    return this.suspensionCheck
+  }
+
+  /**
    * First step of a graceful shutdown, run synchronously on SIGTERM before
    * Nitro tears down the sockets: from now on envelopes go to the mailbox,
    * and open sessions are closed with 1001 after handing their
@@ -196,6 +234,7 @@ export class Relay {
       this.logger.error('shutdown deadline reached with undelivered envelopes still in memory', { count: this.persister.size })
     }
     await this.retentionRun
+    await this.suspensionCheck
     await this.database.close()
   }
 

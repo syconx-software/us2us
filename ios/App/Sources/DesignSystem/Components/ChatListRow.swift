@@ -217,6 +217,7 @@ struct ConnectionStatusLine: View {
                 case .connecting: Text("chats.line.connecting")
                 case .closed: Text("chats.line.closed")
                 case .revoked: Text("chats.line.revoked")
+                case .suspended: Text("suspended.line", table: .suspension)
                 }
             }
             .u2Font(.monoMeta)

@@ -16,6 +16,7 @@ import Foundation
 /// | `-U2ResetPreferences` | `YES` | forgets saved theme / language |
 /// | `-U2Fixtures` | `YES` | DEBUG: the design's data (`DesignFixturesService`) instead of the live service — previews, screenshots, UI tests |
 /// | `-U2RelayURL` | `<url>` | DEBUG: a local relay (`http` only for loopback) instead of the production relay |
+/// | `-U2Terms` | `accepted` · `ask` | DEBUG: the Terms of Use as accepted on this phone, or not yet (default: accepted with `-U2Fixtures`, else as saved) |
 struct AppConfiguration: Sendable {
     enum Start: String, Sendable {
         case welcome
@@ -41,6 +42,15 @@ struct AppConfiguration: Sendable {
     var usesFixtures = false
     /// The relay the live service talks to (the only network endpoint).
     var relayURL: URL = RelayEndpoint.production
+    /// `-U2Terms`: the Terms of Use accepted on this phone, or not yet.
+    var terms: TermsLaunchState?
+
+    /// What this launch sets about the Terms of Use: the argument, else —
+    /// for the design's data — accepted (screenshots and UI tests start
+    /// where they mean to), else nothing (the saved acceptance stands).
+    var termsOverride: TermsLaunchState? {
+        terms ?? (usesFixtures ? .accepted : nil)
+    }
 
     /// The main-stack screens the route opens (pushed without animation at
     /// start, or after the first unlock).
@@ -77,6 +87,7 @@ struct AppConfiguration: Sendable {
         config.resetPreferences = defaults.bool(forKey: "U2ResetPreferences")
         config.usesFixtures = defaults.bool(forKey: "U2Fixtures")
         config.relayURL = RelayEndpoint.debugOverride(defaults.string(forKey: "U2RelayURL")) ?? RelayEndpoint.production
+        config.terms = defaults.string(forKey: "U2Terms").flatMap(TermsLaunchState.init(rawValue:))
         return config
         #else
         return AppConfiguration()
@@ -179,9 +190,17 @@ struct LaunchRoute: Equatable, Sendable {
     }
 }
 
+/// `-U2Terms` (DEBUG): the Terms of Use as accepted on this phone, or not yet.
+enum TermsLaunchState: String, Sendable {
+    case accepted
+    /// Not accepted: 1.1's three ways in, and the app after unlocking, ask first.
+    case ask
+}
+
 /// Device-level preferences that must be readable before unlocking (the lock
-/// screen is themed and localized too): theme, language and screen-awake opt-in. Not sensitive,
-/// so they live in UserDefaults; everything else is in the vault.
+/// screen is themed and localized too): theme, language, screen-awake opt-in
+/// and the Terms of Use version accepted on this phone. Not sensitive, so
+/// they live in UserDefaults; everything else is in the vault.
 @Observable
 @MainActor
 final class AppPreferences {
@@ -189,6 +208,7 @@ final class AppPreferences {
     private static let themeKey = "u2.theme"
     private static let languageKey = "u2.language"
     private static let keepScreenOnKey = "u2.keepScreenOn"
+    private static let acceptedTermsKey = "u2.acceptedTerms"
 
     var keepScreenOn: Bool {
         didSet { defaults.set(keepScreenOn, forKey: Self.keepScreenOnKey) }
@@ -202,11 +222,19 @@ final class AppPreferences {
         didSet { defaults.set(language.rawValue, forKey: Self.languageKey) }
     }
 
+    /// The Terms of Use version accepted on this phone (`TermsOfUse.version`),
+    /// `nil` before the first “Kabul ediyorum”. It stays with the phone, not
+    /// the account: erasing everything does not ask again.
+    var acceptedTermsVersion: String? {
+        didSet { defaults.set(acceptedTermsVersion, forKey: Self.acceptedTermsKey) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         keepScreenOn = defaults.bool(forKey: Self.keepScreenOnKey)
         theme = defaults.string(forKey: Self.themeKey).flatMap(ThemePreference.init(rawValue:)) ?? .system
         language = defaults.string(forKey: Self.languageKey).flatMap(AppLanguage.init(rawValue:)) ?? .system
+        acceptedTermsVersion = defaults.string(forKey: Self.acceptedTermsKey)
     }
 
     func reset() {
@@ -214,9 +242,11 @@ final class AppPreferences {
         defaults.removeObject(forKey: Self.languageKey)
         defaults.removeObject(forKey: Self.keepScreenOnKey)
         defaults.removeObject(forKey: SaveNoticePreference.key)
+        defaults.removeObject(forKey: Self.acceptedTermsKey)
         theme = .system
         language = .system
         keepScreenOn = false
+        acceptedTermsVersion = nil
     }
 }
 

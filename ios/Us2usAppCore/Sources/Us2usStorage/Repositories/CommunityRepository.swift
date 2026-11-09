@@ -308,16 +308,29 @@ public struct CommunityRepository {
 
     static let messageColumns = "sender,message_id,body,sent_at,received_at,outgoing,status,kind,deleted_by,displayed_at,sticker"
 
+    /// A message the user may see: their own, or one from a member they have
+    /// not blocked (§6.4). Blocking keeps the member in the roster and their
+    /// messages stored — the protocol, receipts of the roster and admin
+    /// events are untouched — but what they write is hidden here, counts as
+    /// nothing unread and owes them no receipt; unblocking shows it again.
+    static let fromVisibleSender = """
+        (outgoing=1 OR sender NOT IN (SELECT account FROM contacts WHERE request_state='\(ConversationRequestState.blocked.rawValue)'))
+        """
+
     /// The latest ``pageSize`` messages in the order this phone stored them
     /// (oldest first); a sender's clock cannot move a message.
     public func messages(_ id: AccountId, limit: Int = pageSize) throws -> [CommunityTextItem] {
         try history(id, limit: limit).items
     }
 
+    /// - Parameter hidingBlocked: leave out what members the user blocked
+    ///   wrote (the conversation on screen); a transfer keeps everything.
     public func history(_ id: AccountId, before: CommunityHistoryCursor? = nil,
-        through: CommunityHistoryCursor? = nil, limit: Int = 100, skippingUnreadable: Bool = false) throws -> CommunityHistory {
+        through: CommunityHistoryCursor? = nil, limit: Int = 100, skippingUnreadable: Bool = false,
+        hidingBlocked: Bool = false) throws -> CommunityHistory {
         let key = try key(id)
-        var predicate = "community_id=?"
+        let visible = hidingBlocked ? " AND " + Self.fromVisibleSender : ""
+        var predicate = "community_id=?" + visible
         var arguments: [any SQLBindable] = [id.bytes]
         if let before {
             predicate += " AND (received_at,sender,message_id)<(?,?,?)"
@@ -347,7 +360,7 @@ public struct CommunityRepository {
         let hasOlder: Bool
         if let oldest {
             hasOlder = try tx.connection.queryOne(
-                "SELECT 1 FROM community_messages WHERE community_id=? AND (received_at,sender,message_id)<(?,?,?) LIMIT 1",
+                "SELECT 1 FROM community_messages WHERE community_id=? AND (received_at,sender,message_id)<(?,?,?)\(visible) LIMIT 1",
                 [id.bytes, oldest.receivedAt, oldest.sender.bytes, oldest.messageId.bytes]) != nil
         } else { hasOlder = false }
         return CommunityHistory(items: items, oldest: oldest, hasOlder: hasOlder)

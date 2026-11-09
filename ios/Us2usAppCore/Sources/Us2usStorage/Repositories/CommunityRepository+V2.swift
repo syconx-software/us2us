@@ -274,24 +274,31 @@ extension CommunityRepository {
     /// Received messages shown in the open conversation. With read receipts
     /// on, each one not deleted owes its sender a READ (once); messages read
     /// while they are off never get one later. Returns how many were new.
+    /// What a blocked member wrote is not shown, so it stays unread (and
+    /// owes no READ) until they are unblocked.
     @discardableResult
     public func markDisplayed(community id: AccountId, readReceipts: Bool, now: Date = Date()) throws -> Int {
         try tx.requireWritable()
         try tx.connection.run(
             """
             UPDATE community_messages SET displayed_at=?, read_due=CASE WHEN ? AND deleted_by IS NULL THEN 1 ELSE 0 END
-            WHERE community_id=? AND outgoing=0 AND displayed_at IS NULL
+            WHERE community_id=? AND outgoing=0 AND displayed_at IS NULL AND \(Self.fromVisibleSender)
             """, [now.storageMilliseconds, readReceipts, id.bytes])
         return tx.connection.changes
     }
 
-    /// The DELIVERY (or READ) receipts owed, per community and original sender.
+    /// The DELIVERY (or READ) receipts owed, per community and original
+    /// sender. Nothing goes to a member the user blocked (§6.4: nothing more
+    /// is sent to them); what they are owed waits for an unblock.
     public func dueReceipts(_ type: BRPCommunityReceipt.TypeEnum) throws -> [CommunityDueReceipts] {
         let column = type == .read ? "read_due" : "delivery_due"
         var groups: [String: (AccountId, AccountId, [AccountId])] = [:]
         var order: [String] = []
         for row in try tx.connection.query(
-            "SELECT community_id,sender,message_id FROM community_messages WHERE \(column)=1 AND outgoing=0 ORDER BY received_at, sender, message_id") {
+            """
+            SELECT community_id,sender,message_id FROM community_messages
+            WHERE \(column)=1 AND outgoing=0 AND \(Self.fromVisibleSender) ORDER BY received_at, sender, message_id
+            """) {
             guard let group = row.blob("community_id").flatMap(AccountId.init(bytes:)), let sender = row.blob("sender").flatMap(AccountId.init(bytes:)),
                   let message = row.blob("message_id").flatMap(AccountId.init(bytes:)) else { continue }
             let key = group.string + "/" + sender.string
@@ -434,14 +441,15 @@ extension CommunityRepository {
 
     // MARK: Chats list
 
-    /// Every community with its latest message and unread count.
+    /// Every community with its latest message and unread count — both
+    /// leave out what members the user blocked wrote.
     public func summaries() throws -> [CommunityChatSummary] {
         try all().map { group in
             guard let key = try? key(group.id) else { return CommunityChatSummary(community: group, last: nil, unread: 0) }
             var last: CommunityTextItem?
             if let row = try tx.connection.queryOne(
                 """
-                SELECT \(Self.messageColumns) FROM community_messages WHERE community_id=?
+                SELECT \(Self.messageColumns) FROM community_messages WHERE community_id=? AND \(Self.fromVisibleSender)
                 ORDER BY received_at DESC, sender DESC, message_id DESC LIMIT 1
                 """, [group.id.bytes]) {
                 var item = try message(from: row, community: group.id, key: key)
@@ -450,7 +458,10 @@ extension CommunityRepository {
                 last = item
             }
             let unread = try tx.connection.queryOne(
-                "SELECT COUNT(*) AS n FROM community_messages WHERE community_id=? AND outgoing=0 AND displayed_at IS NULL AND deleted_by IS NULL",
+                """
+                SELECT COUNT(*) AS n FROM community_messages
+                WHERE community_id=? AND outgoing=0 AND displayed_at IS NULL AND deleted_by IS NULL AND \(Self.fromVisibleSender)
+                """,
                 [group.id.bytes])?.int("n") ?? 0
             return CommunityChatSummary(community: group, last: last, unread: unread)
         }

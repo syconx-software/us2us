@@ -29,12 +29,89 @@ enum ReportReason: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The message a report starts from (5.3 › “Bildir”), as the e-mail may
+/// carry it: a text message's text, or only what kind of message it is
+/// (“fotoğraf”). Never the media itself, a caption, a file's name, a place,
+/// a key or an id.
+struct ReportedMessage: Equatable, Sendable {
+    enum Kind: String, CaseIterable, Sendable {
+        case photo, video, voice, file, location, liveLocation, sticker, viewOnce
+
+        /// How the e-mail and the sheet name it.
+        var nameKey: String.LocalizationValue {
+            switch self {
+            case .photo: "report.kind.photo"
+            case .video: "report.kind.video"
+            case .voice: "report.kind.voice"
+            case .file: "report.kind.file"
+            case .location: "report.kind.location"
+            case .liveLocation: "report.kind.liveLocation"
+            case .sticker: "report.kind.sticker"
+            case .viewOnce: "report.kind.viewOnce"
+            }
+        }
+    }
+
+    enum Content: Equatable, Sendable {
+        /// A text message: its text may go into the e-mail.
+        case text(String)
+        /// Anything else: only its kind.
+        case kind(Kind)
+    }
+
+    /// The longest text the e-mail quotes (longer ones end in “…”).
+    static let maxTextLength = 1_000
+
+    let content: Content
+
+    init(content: Content) {
+        self.content = content
+    }
+
+    /// `nil` for what nobody wrote: a deleted message, a line of the chat itself.
+    init?(_ message: Message) {
+        switch message.content {
+        case .text(let text): content = .text(text)
+        case .photo: content = .kind(.photo)
+        case .video: content = .kind(.video)
+        case .voice: content = .kind(.voice)
+        case .file: content = .kind(.file)
+        case .location: content = .kind(.location)
+        case .liveLocation: content = .kind(.liveLocation)
+        case .textSticker, .sticker: content = .kind(.sticker)
+        case .viewOnce: content = .kind(.viewOnce)
+        case .deleted, .system: return nil
+        }
+    }
+
+    var isText: Bool {
+        if case .text = content { return true }
+        return false
+    }
+
+    /// The kind, for anything but text.
+    var kind: Kind? {
+        if case .kind(let kind) = content { return kind }
+        return nil
+    }
+
+    /// The text as the e-mail quotes it: trimmed, at most `maxTextLength` characters.
+    static func quoted(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > maxTextLength else { return trimmed }
+        return String(trimmed.prefix(maxTextLength)) + "…"
+    }
+}
+
 /// The e-mail a report becomes, in the app's language: to the support
 /// address, “us2us bildirimi: @kullanici”, and a body with the username,
-/// the reason, the user's note, the app's version and build, the time in
-/// UTC and the sentence that no message content is in it. Nothing else is
-/// added: no message, no key, no account id — the user may attach
-/// screenshots themselves.
+/// the reason, the user's note, the app's version and build and the time in
+/// UTC. Started from a message (5.3 › “Bildir”) with “Bu mesajın metnini
+/// bildirime ekle” on, it also quotes that message — a text message's text,
+/// anything else only by its kind — and its last sentence says that only
+/// this text was added; otherwise the last sentence says that no message
+/// content is in it. Nothing else is ever added: no other message, no
+/// media, no key, no account id — the user may attach screenshots themselves.
 struct ReportMail: Equatable, Sendable {
     /// Where reports go (also shown, with a copy button, when this phone cannot write an e-mail).
     static let address = "support@us2us.app"
@@ -44,9 +121,11 @@ struct ReportMail: Equatable, Sendable {
     let subject: String
     let body: String
 
+    /// - Parameter message: the message the report quotes (the user left
+    ///   it in), else `nil`.
     static func make(
-        about person: ReportSubject, reason: ReportReason, note: String, version: String, build: String, date: Date,
-        locale: Locale
+        about person: ReportSubject, reason: ReportReason, note: String, message: ReportedMessage? = nil,
+        version: String, build: String, date: Date, locale: Locale
     ) -> ReportMail {
         let table = StringTable.report
         let subject: String
@@ -65,15 +144,29 @@ struct ReportMail: Equatable, Sendable {
         let reasonTitle = table.string(reason.titleKey, locale: locale)
         let noteText = trimmed.isEmpty ? "—" : trimmed
         let app = "\(version) (\(build))"
-        let lines = [
+        var lines = [
             user,
             table.string("report.mail.reason \(reasonTitle)", locale: locale),
             table.string("report.mail.note \(noteText)", locale: locale),
+        ]
+        switch message?.content {
+        case .text(let text):
+            let quoted = ReportedMessage.quoted(text)
+            lines.append(table.string("report.mail.message \(quoted.isEmpty ? "—" : quoted)", locale: locale))
+        case .kind(let kind):
+            let name = table.string(kind.nameKey, locale: locale)
+            lines.append(table.string("report.mail.message.kind \(name)", locale: locale))
+        case nil:
+            break
+        }
+        lines += [
             "",
             table.string("report.mail.app \(app)", locale: locale),
             table.string("report.mail.time \(utcTime(date))", locale: locale),
             "",
-            table.string("report.mail.encrypted", locale: locale),
+            message?.isText == true
+                ? table.string("report.mail.messageIncluded", locale: locale)
+                : table.string("report.mail.encrypted", locale: locale),
         ]
         return ReportMail(subject: subject, body: lines.joined(separator: "\n"))
     }

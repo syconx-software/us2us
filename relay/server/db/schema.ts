@@ -9,6 +9,7 @@ import {
   smallint,
   tinyint,
   uniqueIndex,
+  varchar,
 } from 'drizzle-orm/mysql-core'
 
 /*
@@ -136,6 +137,22 @@ export const avatars = mysqlTable('avatars', {
   accountId: binary('account_id', { length: 16 }).primaryKey(),
   highestVersion: bigint('highest_version', { mode: 'bigint', unsigned: true }).notNull(),
   record: blob('record'),
+})
+
+/**
+ * Accounts the operator suspended for breaking the terms of use
+ * (scripts/account-suspend.mjs). A suspended account cannot authenticate,
+ * and nobody can find it, fetch its keys or send to it; its username stays
+ * taken. `reason` is a short operator code, never free text about a person.
+ * `appliedAt` is NULL until the relay has closed the account's connection
+ * and removed what it had published (media, avatar record, communities),
+ * which it does on its next check. The row goes with the account.
+ */
+export const suspendedAccounts = mysqlTable('suspended_accounts', {
+  accountId: binary('account_id', { length: 16 }).primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  suspendedAt: bigint('suspended_at', { mode: 'number', unsigned: true }).notNull(),
+  reason: varchar('reason', { length: 32 }).notNull(),
+  appliedAt: bigint('applied_at', { mode: 'number', unsigned: true }),
 })
 
 /** SHA-256 of proof-of-work tokens already redeemed, kept until they expire. */

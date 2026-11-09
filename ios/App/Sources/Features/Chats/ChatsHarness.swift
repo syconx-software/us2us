@@ -24,6 +24,7 @@
     /// | `4.4` · `4.4-media` · `4.4-link` | preview of kuzey_dev · n_aksoy (photo) · hediye_kazan (link) |
     /// | `4.4-report` | the report sheet over hediye_kazan's preview (proposed) |
     /// | `4.1-blocked` | the list with bora blocked: “Engellendi” in the preview's place (proposed) |
+    /// | `4.1-suspended` | the account suspended by the operator: “Hesabın askıya alındı” over the app (proposed) |
     ///
     /// `-U2Route newChat` or `newChat:<username>` opens the 4.2 sheet (sheets
     /// are not stack routes); `-U2Route requests` / `request:<id>` open 4.3 /
@@ -37,6 +38,7 @@
             case listQR = "4.1-qr"
             case listMyCode = "4.1-mycode"
             case listBlocked = "4.1-blocked"
+            case listSuspended = "4.1-suspended"
             case newChat = "4.2"
             case newChatKeyboard = "4.2-keyboard"
             case newChatEmpty = "4.2-empty"
@@ -362,6 +364,8 @@
                 state.showsMyCode = true
             case .listBlocked:
                 fixtures?.setBlocked("bora")
+            case .listSuspended:
+                fixtures?.setConnection(.suspended)
             case .newChat:
                 newChat("deniz")
             case .newChatKeyboard:

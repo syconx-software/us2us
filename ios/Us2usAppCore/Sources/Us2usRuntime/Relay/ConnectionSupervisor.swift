@@ -18,6 +18,10 @@ public enum ConnectionStatus: Sendable, Equatable {
     /// The relay refused our token (rotated by a restore on another phone,
     /// or the account was deleted). No more attempts are made.
     case revoked
+    /// The operator suspended the account (`403 account_suspended`, close
+    /// code `4403`, §4.3). No more attempts are made until the next unlock;
+    /// nothing on this phone is deleted (a suspension can be lifted).
+    case suspended
 
     /// The localized "hat" line.
     public func line(strings: RuntimeStrings = .current) -> String {
@@ -28,10 +32,14 @@ public enum ConnectionStatus: Sendable, Equatable {
         case .offline: return strings.string(.lineOffline)
         case .waitingForNetwork: return strings.string(.lineWaitingForNetwork)
         case .revoked: return strings.string(.lineRevoked)
+        case .suspended: return strings.string(.lineSuspended)
         }
     }
 
     public var isConnected: Bool { self == .open || self == .syncing }
+
+    /// The relay refused this account for good: nothing is retried.
+    public var isFinal: Bool { self == .revoked || self == .suspended }
 }
 
 /// Callbacks of a ``ConnectionSupervisor``.
@@ -55,7 +63,7 @@ public struct ConnectionEvents: Sendable {
 /// is active and unlocked, or inside the 30-second background grace period —
 /// and closed otherwise. Reconnects with jittered exponential backoff
 /// (``Backoff``), waits for the network path, and gives up for good when the
-/// relay revokes the token. Keep-alive pings (≤ 30 s) and de-duplication by
+/// relay revokes the token or suspends the account. Keep-alive pings (≤ 30 s) and de-duplication by
 /// relay id happen inside Us2usKit's `RelayConnection` / `Messenger.run`.
 public actor ConnectionSupervisor {
     private let backend: any MessagingBackend
@@ -99,7 +107,7 @@ public actor ConnectionSupervisor {
 
     /// Connects (or keeps connecting) until ``stop()``.
     public func start() {
-        guard status != .revoked else { return }
+        guard !status.isFinal else { return }
         allowed = true
         guard loop == nil else {
             wake.signal()  // cut a pending backoff short
@@ -115,6 +123,17 @@ public actor ConnectionSupervisor {
         wake.signal()
         let running = loop
         await running?.value
+    }
+
+    /// Any request was answered `403 account_suspended` (§4.3): the socket
+    /// closes and no attempt follows (`start()` does nothing any more).
+    public func accountSuspended() {
+        guard status != .suspended else { return }
+        RuntimeLog.relay.notice("account suspended")
+        allowed = false
+        setStatus(.suspended)
+        current?.close()
+        wake.signal()
     }
 
     /// From the network path monitor: reconnect at once when a path appears.
@@ -162,6 +181,10 @@ public actor ConnectionSupervisor {
                     setStatus(.revoked)
                     return
                 }
+                if Self.isSuspension(error) {
+                    accountSuspended()
+                    return
+                }
                 failure = error
             }
             if let liveSince, clock.now().timeIntervalSince(liveSince) >= Self.stableConnection {
@@ -174,7 +197,7 @@ public actor ConnectionSupervisor {
             setStatus(.retrying(at: clock.now().addingTimeInterval(delay)))
             try? await wake.wait(seconds: delay, clock: clock)
         }
-        if status != .revoked { setStatus(.offline) }
+        if !status.isFinal { setStatus(.offline) }
     }
 
     private func reachedQueueEmpty() {
@@ -193,6 +216,11 @@ public actor ConnectionSupervisor {
     static func isRevocation(_ error: Error) -> Bool {
         if case .server(status: 401, _, _)? = error as? RelayError { return true }
         return false
+    }
+
+    /// `403 account_suspended` on the upgrade or close code `4403` (§4.3, §4.7).
+    static func isSuspension(_ error: Error) -> Bool {
+        (error as? RelayError)?.isAccountSuspended == true
     }
 }
 

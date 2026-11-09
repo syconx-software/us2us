@@ -1,0 +1,258 @@
+{
+  "sourceLanguage": "tr",
+  "strings": {
+    "suspended.address": {
+      "comment": "Suspended account screen: no mail app on this phone, the address to copy follows.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There’s no mail app on this phone. Write to this address:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefonda e-posta yazacak bir uygulama yok. Bu adrese yaz:"
+          }
+        }
+      }
+    },
+    "suspended.line": {
+      "comment": "The 4.1 connection line while the account is suspended.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account suspended"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap askıya alındı"
+          }
+        }
+      }
+    },
+    "suspended.mail.app %@": {
+      "comment": "E-mail to support: the app version line. %@ = version (build).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App: us2us iOS %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama: us2us iOS %@"
+          }
+        }
+      }
+    },
+    "suspended.mail.prompt": {
+      "comment": "E-mail to support: the line the user writes under.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell us below why you think this is a mistake:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neden bir hata olduğunu düşündüğünü aşağıya yaz:"
+          }
+        }
+      }
+    },
+    "suspended.mail.subject %@": {
+      "comment": "E-mail to support from the suspended account screen: the subject. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us: suspended account (@%@)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us: askıya alınan hesap (@%@)"
+          }
+        }
+      }
+    },
+    "suspended.mail.subject.unknown": {
+      "comment": "E-mail to support from the suspended account screen: the subject without a username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us: suspended account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us: askıya alınan hesap"
+          }
+        }
+      }
+    },
+    "suspended.mail.time %@": {
+      "comment": "E-mail to support: the time line. %@ = time in UTC.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaman: %@"
+          }
+        }
+      }
+    },
+    "suspended.mail.user %@": {
+      "comment": "E-mail to support: the username line. %@ = username.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Username: @%@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı adı: @%@"
+          }
+        }
+      }
+    },
+    "suspended.message": {
+      "comment": "Suspended account screen: why. The address is the support address (ReportMail.address).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This account was suspended for breaking the terms of use. If you think this is a mistake, write to support@us2us.app."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu hesap kullanım koşullarını ihlal ettiği için askıya alındı. Bir hata olduğunu düşünüyorsan support@us2us.app adresine yaz."
+          }
+        }
+      }
+    },
+    "suspended.note": {
+      "comment": "Suspended account screen: nothing on the phone was deleted (a suspension can be lifted).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing on this phone was deleted. If the suspension is lifted, your account carries on where it left off."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefondaki hiçbir şey silinmedi. Askıya alma kaldırılırsa hesabın kaldığı yerden devam eder."
+          }
+        }
+      }
+    },
+    "suspended.terms": {
+      "comment": "Suspended account screen: the option card that opens the Terms of Use on us2us.app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım Koşulları"
+          }
+        }
+      }
+    },
+    "suspended.terms.hint": {
+      "comment": "VoiceOver hint of the Terms of Use card.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens on us2us.app."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "us2us.app’te açılır."
+          }
+        }
+      }
+    },
+    "suspended.title": {
+      "comment": "Suspended account screen (proposed): the title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account was suspended"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın askıya alındı"
+          }
+        }
+      }
+    },
+    "suspended.write": {
+      "comment": "Suspended account screen: the option card that writes an e-mail to support.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write to support"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destek ekibine yaz"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

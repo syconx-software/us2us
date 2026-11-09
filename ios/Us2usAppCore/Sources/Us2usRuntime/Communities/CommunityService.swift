@@ -324,6 +324,15 @@ public final class CommunityService {
         Task { await reloadLocal() }
     }
 
+    /// Someone was blocked or unblocked (§6.4): the chats list's previews
+    /// and unread counts and the open conversation hide or show what they
+    /// wrote at once. The roster and the community's state are untouched.
+    func blockedPeopleChanged() async {
+        guard active else { return }
+        await reloadLocal()
+        if let selected { try? await reload(selected) }
+    }
+
     func reloadLocal() async {
         guard let groups = try? await engine.groups(), let names = try? await engine.usernames(),
               let summaries = try? await engine.summaries(), active else { return }
@@ -445,9 +454,10 @@ actor CommunityEngine {
     nonisolated func check() throws { guard isActive, storage.isOpen else { throw RuntimeError.locked } }
     func groups() throws -> [StoredCommunity] { try check(); return try storage.read { try $0.communities.all() } }
     func messages(_ id: AccountId) throws -> [CommunityTextItem] { try check(); return try storage.read { try $0.communities.messages(id) } }
+    /// The conversation as it is shown: without what members the user blocked wrote (§6.4).
     func history(_ id: AccountId, before: CommunityHistoryCursor? = nil, through: CommunityHistoryCursor? = nil) throws -> CommunityHistory {
         try check()
-        return try storage.read { try $0.communities.history(id, before: before, through: through) }
+        return try storage.read { try $0.communities.history(id, before: before, through: through, hidingBlocked: true) }
     }
 
     /// Usernames the directory confirmed for personal contacts.
@@ -694,6 +704,8 @@ actor CommunityEngine {
 
     /// A relay answer that will not change on retry (4xx other than 408/429).
     static func isDefinite(_ failure: RelayError) -> Bool {
+        // A suspension can be lifted (§4.3): nothing is forgotten for it.
+        guard !failure.isAccountSuspended else { return false }
         if case .server(let status, _, _) = failure { return (400..<500).contains(status) && status != 408 }
         return false
     }
@@ -1155,6 +1167,10 @@ actor CommunityEngine {
                     }
                     staleCommunities.insert(item.communityId)
                     pass.states[item.communityId] = nil; pass.unavailable.insert(item.communityId)
+                case .server(403, .accountSuspended?, _):
+                    // This account is suspended (§4.3): everything stays queued.
+                    pass.note(.offline)
+                    return resealNeeded
                 case .server(let status, _, _) where (400..<500).contains(status) && status != 408:
                     // Only this recipient cannot be reached.
                     try? storage.write { tx in

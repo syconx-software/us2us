@@ -132,6 +132,7 @@ function assembleRelay(limits: { avatarFetch?: Rate, avatarWrite?: Rate, avatarD
     limiter: new RateLimiter(),
     inFlight: new ConcurrencyLimiter(),
     accountCache: new AccountCache(accounts as unknown as AccountStore, logger),
+    suspensions: { isSuspended: async () => false },
     avatars,
     logger,
     noteRateLimitedAddress: () => {},

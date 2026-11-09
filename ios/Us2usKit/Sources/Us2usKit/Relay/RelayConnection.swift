@@ -15,7 +15,8 @@ public enum RelayEvent: Sendable, Equatable {
 public final class RelayConnection: Sendable {
     /// Ends when the socket closes: normally after ``close()``, otherwise with
     /// a ``RelayError`` (`.connectionReplaced` for close code 4001,
-    /// `.server(status: 401, …)` for a rejected token).
+    /// `.server(status: 401, …)` for a rejected token,
+    /// ``RelayError/accountSuspended`` for a suspended account).
     public let events: AsyncThrowingStream<RelayEvent, Error>
 
     private let task: URLSessionWebSocketTask
@@ -98,12 +99,24 @@ public final class RelayConnection: Sendable {
     }
 
     private func closeError(for error: Error) -> RelayError {
-        if let http = task.response as? HTTPURLResponse, http.statusCode == 401 {
-            return .server(status: 401, code: .unauthorized, message: nil)
+        Self.closeError(
+            upgradeStatus: (task.response as? HTTPURLResponse)?.statusCode, closeCode: task.closeCode.rawValue,
+            underlying: error)
+    }
+
+    /// Why the socket ended: the upgrade's refusal (`401` a rejected token,
+    /// `403` a suspended account — the only `403` an upgrade gets, §4.3),
+    /// else the close code (§4.7).
+    static func closeError(upgradeStatus: Int?, closeCode: Int, underlying error: Error) -> RelayError {
+        switch upgradeStatus {
+        case 401?: return .server(status: 401, code: .unauthorized, message: nil)
+        case 403?: return .accountSuspended
+        default: break
         }
-        switch task.closeCode.rawValue {
+        switch closeCode {
         case 4001: return .connectionReplaced
         case 4401: return .server(status: 401, code: .unauthorized, message: nil)
+        case 4403: return .accountSuspended
         case URLSessionWebSocketTask.CloseCode.invalid.rawValue:
             return .network((error as? URLError)?.code ?? .networkConnectionLost)
         case let code: return .connectionClosed(code: code)

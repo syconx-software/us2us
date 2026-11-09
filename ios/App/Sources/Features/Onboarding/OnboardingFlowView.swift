@@ -2,7 +2,9 @@ import SwiftUI
 
 /// 01–02 · Onboarding: the paged welcome (1.1–1.3), then the setup steps
 /// (2.1–2.3) pushed on a soft stack; “Yedekten geri yükle” hands off to 7.3
-/// and comes back for a new secret code (2.2 ×2 → 2.3 → 4.1).
+/// and comes back for a new secret code (2.2 ×2 → 2.3 → 4.1). Every way in
+/// asks for the Terms of Use first, until they are accepted on this phone
+/// (`OnboardingTermsGate`, `TermsSheet`).
 ///
 /// All state lives in `OnboardingFlowModel` behind `MessengerService`
 /// (fixtures today, the live service later).
@@ -16,6 +18,8 @@ struct OnboardingFlowView: View {
 
 private struct OnboardingFlowHost: View {
     @State private var flow: OnboardingFlowModel
+    @State private var terms: OnboardingTermsGate
+    @Environment(\.locale) private var locale
     private let focusesUsernameField: Bool
     #if DEBUG
         private let harness = OnboardingHarness.fromLaunchArguments()
@@ -39,17 +43,28 @@ private struct OnboardingFlowHost: View {
             }
         #endif
         _flow = State(initialValue: flow)
+        let preferences = appModel.preferences
+        _terms = State(
+            initialValue: OnboardingTermsGate(
+                isAccepted: { preferences.hasAcceptedCurrentTerms }, accept: { preferences.acceptTerms() },
+                perform: { [weak flow] start in flow?.start(start) }))
         focusesUsernameField = focuses
     }
 
     var body: some View {
         SoftNavigationStack(router: flow.router, allowsSwipeBack: flow.allowsSwipeBack) {
-            WelcomePagerView(pager: flow.pager, onCreateAccount: flow.startSetup, onRestore: flow.startRestore, onTransfer: flow.startTransfer)
+            WelcomePagerView(
+                pager: flow.pager, onCreateAccount: { terms.request(.create) }, onRestore: { terms.request(.restore) },
+                onTransfer: { terms.request(.transfer) })
         } destination: { route in
             destination(route)
         }
         .onChange(of: flow.router.path) { old, new in
             flow.pathChanged(from: old, to: new)
+        }
+        .u2Sheet(item: $terms.pending, onDismiss: terms.sheetDidDismiss) { _ in
+            TermsSheet(mode: .beforeStart, onAgree: terms.agree, onDecline: terms.decline)
+                .environment(\.locale, locale)
         }
         #if DEBUG
             .task {

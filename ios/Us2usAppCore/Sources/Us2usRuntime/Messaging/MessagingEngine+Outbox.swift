@@ -155,6 +155,8 @@ extension MessagingEngine {
                     return .retry(code: "access_key_rotated", retryAfter: 0)
                 }
                 return .retry(code: "access_denied", retryAfter: nil)
+            // Suspended (§4.3): kept as it is; nothing is lost if it is lifted.
+            case .server(403, .accountSuspended?, _): return .hold
             case .server(403, _, _): return .retry(code: "pow", retryAfter: 0)
             case .server(400, _, _), .server(413, _, _), .payloadTooLarge: return .drop(code: "invalid")
             case .server(401, _, _), .notAuthenticated: return .hold

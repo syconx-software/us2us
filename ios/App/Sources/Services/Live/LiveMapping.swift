@@ -552,7 +552,7 @@ enum LiveMapping {
     // MARK: Connection
 
     enum LiveConnection: Equatable, Sendable {
-        case offline, connecting, syncing, open, waitingForNetwork, retrying, revoked
+        case offline, connecting, syncing, open, waitingForNetwork, retrying, revoked, suspended
     }
 
     static func connection(_ status: LiveConnection) -> ConnectionState {
@@ -561,6 +561,7 @@ enum LiveMapping {
         case .connecting, .retrying: .connecting
         case .offline, .waitingForNetwork: .closed
         case .revoked: .revoked
+        case .suspended: .suspended
         }
     }
 }

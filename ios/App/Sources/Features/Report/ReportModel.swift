@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// The report sheet's state (“Bildir”, App Review 1.2): the reason, an
-/// optional note and “Bu kişiyi de engelle” (on by default), then the
-/// e-mail to the support address (`ReportMail`) through Mail, another mail
-/// app or — when this phone has neither — the address to copy.
+/// optional note, from a message “Bu mesajın metnini bildirime ekle” (on by
+/// default) and “Bu kişiyi de engelle” (on by default), then the e-mail to
+/// the support address (`ReportMail`) through Mail, another mail app or —
+/// when this phone has neither — the address to copy.
 ///
 /// The block follows the report only once the report left the sheet
 /// (`ReportDelivery.blocks(after:alsoBlock:)`): sent by Mail, handed to a
@@ -27,6 +28,8 @@ final class ReportModel: Identifiable, Equatable {
     let personName: String
     /// “Bu kişiyi de engelle” is offered: the person is not blocked yet.
     let offersBlock: Bool
+    /// The message the report started from (5.3 › “Bildir”), else `nil`.
+    let reportedMessage: ReportedMessage?
 
     var reason: ReportReason?
     var note = "" {
@@ -36,6 +39,8 @@ final class ReportModel: Identifiable, Equatable {
         }
     }
     var alsoBlock = true
+    /// “Bu mesajın metnini bildirime ekle” (only from a message).
+    var includesMessage = true
     private(set) var phase: Phase = .form
     /// Mail could not send the last attempt (the form says so).
     private(set) var failed = false
@@ -58,14 +63,16 @@ final class ReportModel: Identifiable, Equatable {
     ///   - subject: who the report names (`MessengerService.reportSubject`).
     ///   - personName: how the screens show the person.
     ///   - offersBlock: `false` when the person is blocked already.
+    ///   - message: the message the report starts from (5.3 › “Bildir”).
     ///   - block: blocks the person (the host's own way: a chat, a request).
     init(
-        subject: ReportSubject, personName: String, offersBlock: Bool, mailer: any ReportMailing = SystemReportMailer(),
-        block: @escaping @MainActor () async -> Void
+        subject: ReportSubject, personName: String, offersBlock: Bool, message: ReportedMessage? = nil,
+        mailer: any ReportMailing = SystemReportMailer(), block: @escaping @MainActor () async -> Void
     ) {
         self.subject = subject
         self.personName = personName
         self.offersBlock = offersBlock
+        reportedMessage = message
         self.mailer = mailer
         self.block = block
     }
@@ -77,6 +84,12 @@ final class ReportModel: Identifiable, Equatable {
     /// The person is blocked if the report leaves the sheet.
     var blocksOnSend: Bool { offersBlock && alsoBlock }
 
+    /// What the e-mail quotes of the message: nothing unless the user left it in.
+    var includedMessage: ReportedMessage? { includesMessage ? reportedMessage : nil }
+
+    /// The e-mail carries a message's text (the sheet's privacy line says so).
+    var sendsMessageText: Bool { includedMessage?.isText == true }
+
     // MARK: Actions
 
     /// “E-postayla gönder”: the e-mail in `locale`'s language, then what
@@ -85,7 +98,8 @@ final class ReportModel: Identifiable, Equatable {
         guard let reason, phase == .form else { return }
         failed = false
         let mail = ReportMail.make(
-            about: subject, reason: reason, note: note, version: version, build: build, date: now, locale: locale)
+            about: subject, reason: reason, note: note, message: includedMessage, version: version, build: build,
+            date: now, locale: locale)
         phase = .sending
         let delivery = await mailer.deliver(mail)
         if ReportDelivery.blocks(after: delivery, alsoBlock: blocksOnSend) {

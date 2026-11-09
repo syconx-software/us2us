@@ -10,15 +10,18 @@ import { useRelay } from '../../../../relay'
  * record; it opens only with the username. Rate limited per account like
  * the directory, a `304` included. An account without a record and one
  * that does not exist get the same `404`, after the same single lookup. No
- * `Range` support. Nothing about these requests is logged (§4.10).
+ * `Range` support. Nothing about these requests is logged (§4.10). A
+ * suspended account has no record (it is removed, and it cannot publish
+ * another), the same `404`.
  */
 export default defineApiRoute({
   GET: async (event) => {
     const requester = await requireAccount(event)
     const relay = useRelay()
     limitByAccount(requester, 'avatar-fetch', relay.config.rateLimits.avatarFetch)
-    const avatar = await relay.avatars.find(uuidParam(event, 'accountId'))
-    if (!avatar) throw notFound('avatar')
+    const accountId = uuidParam(event, 'accountId')
+    const avatar = await relay.avatars.find(accountId)
+    if (!avatar || await relay.suspensions.isSuspended(accountId)) throw notFound('avatar')
 
     setResponseHeader(event, 'etag', avatarETag(avatar.version))
     if (ifNoneMatchNames(getRequestHeader(event, 'if-none-match'), avatar.version)) {

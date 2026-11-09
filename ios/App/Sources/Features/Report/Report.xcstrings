@@ -199,6 +199,78 @@
         }
       }
     },
+    "report.includeMedia": {
+      "comment": "Report sheet from a photo, video or other non-text message: toggle, on by default.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include this message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu mesajı bildirime ekle"
+          }
+        }
+      }
+    },
+    "report.includeMedia.subtitle %@": {
+      "comment": "Report sheet: under the include toggle for a non-text message. %@ = the kind (fotoğraf, video …).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the message type (%@) is written; its content is not sent."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca mesajın türü (%@) yazılır; içeriği gönderilmez."
+          }
+        }
+      }
+    },
+    "report.includeMessage": {
+      "comment": "Report sheet from a text message (5.3 › Bildir): toggle, on by default.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include this message's text"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu mesajın metnini bildirime ekle"
+          }
+        }
+      }
+    },
+    "report.includeMessage.subtitle": {
+      "comment": "Report sheet: under the include-text toggle — where the text goes.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The text is sent to us2us support (support@us2us.app) with the report."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin, bildirimle birlikte us2us destek ekibine (support@us2us.app) gönderilir."
+          }
+        }
+      }
+    },
     "report.intro %@": {
       "comment": "Report sheet: the first line. %@ = the reported person's username.",
       "extractionState": "manual",
@@ -213,6 +285,150 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ hakkındaki bildirimin e-postayla us2us ekibine gider. Ne olduğunu seç; istersen kısa bir not ekle."
+          }
+        }
+      }
+    },
+    "report.kind.file": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "file"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dosya"
+          }
+        }
+      }
+    },
+    "report.kind.liveLocation": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "live location"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "canlı konum"
+          }
+        }
+      }
+    },
+    "report.kind.location": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "location"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "konum"
+          }
+        }
+      }
+    },
+    "report.kind.photo": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fotoğraf"
+          }
+        }
+      }
+    },
+    "report.kind.sticker": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sticker"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sticker"
+          }
+        }
+      }
+    },
+    "report.kind.video": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "video"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "video"
+          }
+        }
+      }
+    },
+    "report.kind.viewOnce": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "view-once photo or video"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tek seferlik fotoğraf ya da video"
+          }
+        }
+      }
+    },
+    "report.kind.voice": {
+      "comment": "Kind of a reported message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "voice message"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sesli mesaj"
           }
         }
       }
@@ -249,6 +465,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesajlar uçtan uca şifreli olduğu için bu bildirime hiçbir mesaj içeriği eklenmedi. İstersen ekran görüntüsü ekleyebilirsin."
+          }
+        }
+      }
+    },
+    "report.mail.message %@": {
+      "comment": "Report e-mail: the reported message's text (only when the reporter left it in).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported message: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirilen mesaj: %@"
+          }
+        }
+      }
+    },
+    "report.mail.message.kind %@": {
+      "comment": "Report e-mail: a reported non-text message, by its kind only.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported message: %@ (content not added)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirilen mesaj: %@ (içeriği eklenmedi)"
+          }
+        }
+      }
+    },
+    "report.mail.messageIncluded": {
+      "comment": "Report e-mail: last sentence when the reported message's text was added.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the text of the message above was added to this report, at the reporter's choice; no other message content, media or key was added."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu bildirime, bildirenin seçimiyle yalnızca yukarıdaki mesajın metni eklendi; başka hiçbir mesaj içeriği, medya ya da anahtar eklenmedi."
           }
         }
       }
@@ -447,6 +717,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesajlar uçtan uca şifreli: bildirime hiçbir mesaj içeriği eklenmez, yalnızca kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider. İstersen e-postaya ekran görüntüsü ekleyebilirsin."
+          }
+        }
+      }
+    },
+    "report.privacy.message": {
+      "comment": "Report sheet: the privacy line when a message's text goes with the report.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages are end-to-end encrypted: the report carries only the text of the message you chose, the username, the reason, your note, the app version and the time — no other message, media or key. You can attach screenshots to the e-mail if you like."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar uçtan uca şifreli: bildirime yalnızca seçtiğin mesajın metni, kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider; başka hiçbir mesaj, medya ya da anahtar gitmez. İstersen e-postaya ekran görüntüsü ekleyebilirsin."
           }
         }
       }
