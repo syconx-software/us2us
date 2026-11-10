@@ -375,6 +375,9 @@ range, so it does nothing once upstream requires a fixed version:
 | `@esbuild-kit/core-utils>esbuild@<0.25.0` → 0.25.12 | GHSA-67mh-4wv8-2f99 (esbuild's dev server) | drizzle-kit 0.31 still depends on the deprecated @esbuild-kit packages but loads TypeScript with its bundled tsx; 0.25.12 is the esbuild it uses anyway | drizzle-kit no longer depends on @esbuild-kit (1.0) |
 | `undici@>=8.0.0 <8.12.2` → 8.12.3 | GHSA-xjj6-f33q-929c, GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472, GHSA-9fm3-97px-rjf6, GHSA-55wc-3pg8-jfw6 | nuxt asks for undici ^8.12; this pins the fixed release so an older lockfile entry can never come back. undici is a build tool dependency and is not in `.output/server` | nuxt requires undici ≥ 8.12.2 |
 | `serialize-javascript@<7.1.3` → 7.1.3 | GHSA-m5mm-p8h7-m29v | @rollup/plugin-terser serializes its own worker options at build time only | @rollup/plugin-terser depends on serialize-javascript ≥ 7.1.3 |
+| `node-forge@<1.4.1` → 1.4.3 | GHSA-4642-5mcj-2rqw, GHSA-h6cr-wjv9-3cpp, GHSA-4487-j8r4-4g2f and the other node-forge ≤ 1.4.0 advisories | listhen (nitropack's development server) asks for node-forge ^1.3 to make self-signed certificates for `nuxt dev --https`; it is not in `.output/server` | listhen depends on node-forge ≥ 1.4.1 |
+| `glob@>=9.0.0 <=14.0.1` → 14.0.4 | GHSA-3g3m-2fjr-6pw4 | @vercel/nft and archiver-utils (nitropack) list files at build time only | @vercel/nft and archiver-utils depend on glob ≥ 14.0.2 |
+| `minimatch@>=7.0.0 <11.0.1` → 11.0.5 | GHSA-g3hv-75wg-m249 | glob and readdir-glob (nitropack's build tools) match build-time file patterns only | their dependants require minimatch ≥ 11.0.1 |
 
 `pnpm.auditConfig.ignoreGhsas` lists advisories that have no fixed release
 and that our use cannot trigger:

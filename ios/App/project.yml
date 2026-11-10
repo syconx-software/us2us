@@ -42,7 +42,7 @@ settings:
     # CURRENT_PROJECT_VERSION is the build number and must grow with every
     # upload to App Store Connect (README › Releasing).
     MARKETING_VERSION: "1.1.7"
-    CURRENT_PROJECT_VERSION: "19"
+    CURRENT_PROJECT_VERSION: "20"
   configs:
     Debug:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
