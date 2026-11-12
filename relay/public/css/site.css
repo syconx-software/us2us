@@ -718,6 +718,16 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 .footer-link::after { content: ''; position: absolute; inset: -8px -6px; }
 /* Fine print under the row (not in the design), in the muted mono of the notes. */
 .footer-fine { margin-top: 20px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; letter-spacing: 0.02em; color: var(--fg-55); text-wrap: pretty; }
+/* "Other products" above the row (not in the design): a card per app, each a
+   link to that app's own site, in the surface colour of the page's cards. */
+.footer-products { display: flex; flex-direction: column; gap: 16px; padding: 8px 0 36px; }
+.footer-products-title { margin: 0; font-weight: 400; }
+.footer-product-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.footer-product { height: 100%; padding: 18px 20px; color: var(--color-text); transition: box-shadow 200ms ease; }
+.footer-product:hover { box-shadow: var(--shadow-md); }
+.footer-product-arrow { color: var(--accent-text); }
+.footer-product .card-body { text-wrap: pretty; }
+.footer-product-host { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; color: var(--fg-55); }
 
 /* ── privacy, support and error pages ──────────────────────────────────── */
 
@@ -1004,5 +1014,6 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
   .status.is-active .status-mark { forced-color-adjust: none; background: Highlight; }
   .status-list.is-stepping .status:not(.is-active) .status-icon { opacity: 1; }
   .qr { forced-color-adjust: none; }
+  .footer-product { border: 1px solid CanvasText; }
   .source:is(:target, :focus) { outline: 2px solid Highlight; outline-offset: -2px; }
 }

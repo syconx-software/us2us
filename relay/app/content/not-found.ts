@@ -53,7 +53,14 @@ ${ICON_LINKS_HTML}
 <p class="error-links"><a class="btn btn-secondary" href="${paths.tr.home}" lang="tr">${notFoundText.tr.home}</a> <a class="btn btn-secondary" href="${paths.en.home}">${notFoundText.en.home}</a></p>
 </div>
 </main>
-<footer class="site-footer"><div class="container footer-inner"><div class="hr"></div>
+<footer class="site-footer"><div class="container footer-inner">
+<section class="footer-products" aria-labelledby="footer-products-en">
+<h2 id="footer-products-en" class="eyebrow footer-products-title">${en.footer.products.title}</h2>
+<ul class="footer-product-list">
+${en.footer.products.items.map(item => `<li><a class="card elev-sm footer-product" href="${item.href}" rel="noreferrer"><span class="card-title">${item.name} <span class="footer-product-arrow" aria-hidden="true">↗</span></span><span class="card-body">${item.text}</span><span class="footer-product-host">${item.host}</span></a></li>`).join('\n')}
+</ul>
+</section>
+<div class="hr"></div>
 <nav class="footer-row" aria-label="${en.footer.label}">
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
 <a class="footer-link" href="${paths.en.why}">${en.nav.why}</a>

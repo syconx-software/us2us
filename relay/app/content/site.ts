@@ -79,6 +79,12 @@ interface Card {
   body: string
 }
 
+/** The footer's "other products" cards: our other apps, each a link to its own site (here us2us Mail; us2usmail.com links back). */
+interface FooterProducts {
+  title: string
+  items: Array<{ name: string, text: string, href: string, host: string }>
+}
+
 export type StatusTone = 'muted' | 'accent' | 'danger'
 
 /** A note card on the support page; `email` is shown as a mail link under the text. */
@@ -104,7 +110,7 @@ export interface SiteText {
     /** `why` as the header shows it on phones, where the full label does not fit beside the controls (screen readers still read `why`). */
     whyShort: string
   }
-  footer: { label: string, privacy: string, terms: string, security: string, press: string, contact: string, licence: string, noTracking: string }
+  footer: { label: string, privacy: string, terms: string, security: string, press: string, contact: string, licence: string, noTracking: string, products: FooterProducts }
   home: {
     title: string
     description: string
@@ -220,6 +226,10 @@ export const site: Record<Locale, SiteText> = {
       contact: 'İletişim',
       licence: 'AGPL-3.0 · Açık kaynak',
       noTracking: 'Bu site çerez ve izleyici kullanmaz, başka bir siteden hiçbir şey yüklemez.',
+      products: {
+        title: 'Diğer ürünlerimiz',
+        items: [{ name: 'us2us Mail', text: 'Bildirim göndermeyen, kendi zamanında açtığın e-posta. macOS uygulaması indirilebilir.', href: 'https://us2usmail.com/tr/', host: 'us2usmail.com' }],
+      },
     },
     home: {
       title: 'us2us · Araya kimse giremez',
@@ -541,6 +551,10 @@ export const site: Record<Locale, SiteText> = {
       contact: 'Contact',
       licence: 'AGPL-3.0 · Open source',
       noTracking: 'This site uses no cookies or trackers and loads nothing from other sites.',
+      products: {
+        title: 'Our other products',
+        items: [{ name: 'us2us Mail', text: 'Email without notifications, opened on your own time. The macOS app is ready to download.', href: 'https://us2usmail.com/en/', host: 'us2usmail.com' }],
+      },
     },
     home: {
       title: 'us2us · No one gets in between',
