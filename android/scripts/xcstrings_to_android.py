@@ -55,6 +55,7 @@ TABLES = [
     ("Settings", "settings", "ios/App/Sources/Features/Settings/Settings.xcstrings"),
     ("Invite", "invite", "ios/App/Sources/Features/Invite/Invite.xcstrings"),
     ("Report", "report", "ios/App/Sources/Features/Report/Report.xcstrings"),
+    ("Terms", "terms", "ios/App/Sources/Features/Terms/Terms.xcstrings"),
     ("Scene3D", "scene3d", "ios/App/Sources/Scene3D/Scene3D.xcstrings"),
     ("Kit", "kit", "ios/Us2usKit/Sources/Us2usKit/Resources/Localizable.xcstrings"),
 ]

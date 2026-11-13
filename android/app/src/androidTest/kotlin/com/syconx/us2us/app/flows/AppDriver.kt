@@ -165,6 +165,16 @@ class AppDriver(private val compose: ComposeTestRule) : TestWatcher() {
      * Taps a tagged element once it has stopped moving, scrolled into view first when it is off
      * screen (XCUITest scrolls to make it hittable).
      */
+    /**
+     * A way in from 1.1–1.3 asks for the Terms of Use first on a phone that never accepted them (the launch resets the
+     * preferences): “Kabul ediyorum”, then the sheet goes down and the way in goes on.
+     */
+    fun acceptTerms() {
+        tap("terms.agree")
+        waitForTagGone("terms.sheet")
+        settle()
+    }
+
     fun tap(tag: String, timeoutMillis: Long = TIMEOUT) {
         waitForTag(tag, timeoutMillis)
         if (!isOnScreen(tag)) runCatching { node(tag).performScrollTo() }

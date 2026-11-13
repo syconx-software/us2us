@@ -82,6 +82,26 @@ class OnboardingInteractionTest {
     }
 
     @Test
+    fun theTermsComeBeforeAWayInAndOnlyAgreeingGoesOn() {
+        var fixture: OnboardingFixture? = null
+        host.render(ShotTheme.Dark, "tr") { OnboardingApp(onFixture = { fixture = it; it.model.preferences.acceptedTermsVersion = null }) }
+        host.compose.onNodeWithTag(OnboardingTags.RESTORE).performClick()
+        settle()
+        assertTrue("the Terms of Use first (App Review 1.2, as on iOS)", exists(com.syconx.us2us.ui.common.TermsTags.SCREEN))
+        assertTrue(!exists(RESTORE_SCREEN_TAG))
+        host.compose.onNodeWithText("Vazgeç").performClick()
+        settle()
+        assertTrue("“Vazgeç” goes nowhere", !exists(com.syconx.us2us.ui.common.TermsTags.SCREEN) && !exists(RESTORE_SCREEN_TAG))
+        assertEquals("and keeps nothing", null, fixture!!.model.preferences.acceptedTermsVersion)
+        host.compose.onNodeWithTag(OnboardingTags.RESTORE).performClick()
+        settle()
+        host.compose.onNodeWithTag(com.syconx.us2us.ui.common.TermsTags.AGREE).performClick()
+        settle(1_500)
+        assertEquals(com.syconx.us2us.ui.env.TermsOfUse.VERSION, fixture!!.model.preferences.acceptedTermsVersion)
+        assertTrue("then the chosen way goes on", exists(RESTORE_SCREEN_TAG))
+    }
+
+    @Test
     fun restoreHandsOffTo73() {
         host.render(ShotTheme.Dark, "tr") { OnboardingApp() }
         host.compose.onNodeWithTag(OnboardingTags.RESTORE).performClick()

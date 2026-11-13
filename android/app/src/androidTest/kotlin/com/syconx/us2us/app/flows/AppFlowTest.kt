@@ -23,6 +23,7 @@ class AppFlowTest {
         app.tap("welcome.start", timeoutMillis = 10_000)
         app.tap("welcome.page2.cta")
         app.tap("welcome.page3.cta")
+        app.acceptTerms()
         app.type(name)
         app.waitUntil("“Devam” enabled") { app.isEnabled("onboarding.username.continue") }
         app.tap("onboarding.username.continue")
@@ -52,6 +53,7 @@ class AppFlowTest {
         app.tap("welcome.start", timeoutMillis = 10_000)
         app.tap("welcome.page2.cta")
         app.tap("welcome.page3.cta")
+        app.acceptTerms()
         app.type("ilgaz")
         app.waitForText("Kurallara uygun")
         app.waitUntil("“Devam” enabled") { app.isEnabled("onboarding.username.continue") }

@@ -41,6 +41,8 @@ class FlowWalkTest {
         app.settle()
         app.snap("03 1.3 Sessizlik siler")
         app.tap("welcome.page3.cta")
+        app.snap("03b Kullanım koşulları")
+        app.acceptTerms()
         app.type("selin")
         app.waitForText("Alınmış")
         app.snap("04 2.1 Alınmış")
@@ -80,6 +82,7 @@ class FlowWalkTest {
     fun test02RestoreOnANewDevice() {
         app.launch("U2Start" to "welcome", "U2PickBackup" to "YES")
         app.tap("welcome.restore", timeoutMillis = 10_000)
+        app.acceptTerms()
         app.waitForTag("restore.password")
         app.settle()
         app.snap("01 7.3 Parola")

@@ -93,6 +93,8 @@ class RouteSweepTest {
         }
         val configuration = LaunchConfig.from { arguments[it] }
         val preferences = AppPreferences(context.getSharedPreferences("sweep", Context.MODE_PRIVATE), appliesLanguage = false)
+        // The Terms of Use were accepted on this phone (the gate has its own test in RootViewTest).
+        preferences.acceptedTermsVersion = com.syconx.us2us.ui.env.TermsOfUse.VERSION
         var model: AppModel? = null
         host.render(theme, lang, ShotOptions(settleMillis = 0)) {
             val app = remember { AppModel(configuration, preferences, SweepServices()).also { model = it } }

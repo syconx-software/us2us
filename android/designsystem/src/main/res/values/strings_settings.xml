@@ -38,6 +38,8 @@
     <string name="settings_about_privacypolicy">Privacy policy</string>
     <!-- about.support — 7.1 › Hakkında: opens the support page (FAQ, e-mail) on us2us.app in the browser. -->
     <string name="settings_about_support">Support</string>
+    <!-- about.terms — 7.1 › Hakkında: opens the Terms of Use on us2us.app in the browser (App Review 1.2). -->
+    <string name="settings_about_terms">Terms of Use</string>
     <!-- about.title -->
     <string name="settings_about_title">About</string>
     <!-- about.version %@ %@ -->

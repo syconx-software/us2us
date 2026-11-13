@@ -26,6 +26,7 @@ enum class StringTable(
     Settings("settings", "ios/App/Sources/Features/Settings/Settings.xcstrings"),
     Invite("invite", "ios/App/Sources/Features/Invite/Invite.xcstrings"),
     Report("report", "ios/App/Sources/Features/Report/Report.xcstrings"),
+    Terms("terms", "ios/App/Sources/Features/Terms/Terms.xcstrings"),
     Scene3D("scene3d", "ios/App/Sources/Scene3D/Scene3D.xcstrings"),
     Kit("kit", "ios/Us2usKit/Sources/Us2usKit/Resources/Localizable.xcstrings"),
     ;
@@ -52,6 +53,7 @@ internal object StringIndex {
             StringTable.Settings -> findSettings(base)
             StringTable.Invite -> findInvite(base)
             StringTable.Report -> findReport(base)
+            StringTable.Terms -> findTerms(base)
             StringTable.Scene3D -> findScene3D(base)
             StringTable.Kit -> findKit(base)
         }
@@ -69,6 +71,7 @@ internal object StringIndex {
         StringTable.Settings -> entriesSettings()
         StringTable.Invite -> entriesInvite()
         StringTable.Report -> entriesReport()
+        StringTable.Terms -> entriesTerms()
         StringTable.Scene3D -> entriesScene3D()
         StringTable.Kit -> entriesKit()
     }
@@ -1242,6 +1245,7 @@ internal object StringIndex {
         "about.principles" -> StringRef.Text(R.string.settings_about_principles)
         "about.privacyPolicy" -> StringRef.Text(R.string.settings_about_privacypolicy)
         "about.support" -> StringRef.Text(R.string.settings_about_support)
+        "about.terms" -> StringRef.Text(R.string.settings_about_terms)
         "about.title" -> StringRef.Text(R.string.settings_about_title)
         "about.version" -> StringRef.Text(R.string.settings_about_version)
         "about.website" -> StringRef.Text(R.string.settings_about_website)
@@ -1488,6 +1492,7 @@ internal object StringIndex {
         StringEntry("about.principles", StringRef.Text(R.string.settings_about_principles), ""),
         StringEntry("about.privacyPolicy", StringRef.Text(R.string.settings_about_privacypolicy), ""),
         StringEntry("about.support", StringRef.Text(R.string.settings_about_support), ""),
+        StringEntry("about.terms", StringRef.Text(R.string.settings_about_terms), ""),
         StringEntry("about.title", StringRef.Text(R.string.settings_about_title), ""),
         StringEntry("about.version %@ %@", StringRef.Text(R.string.settings_about_version), "ss"),
         StringEntry("about.website", StringRef.Text(R.string.settings_about_website), ""),
@@ -1787,9 +1792,24 @@ internal object StringIndex {
         "report.done" -> StringRef.Text(R.string.report_done)
         "report.failed" -> StringRef.Text(R.string.report_failed)
         "report.handedOff" -> StringRef.Text(R.string.report_handedoff)
+        "report.includeMedia" -> StringRef.Text(R.string.report_includemedia)
+        "report.includeMedia.subtitle" -> StringRef.Text(R.string.report_includemedia_subtitle)
+        "report.includeMessage" -> StringRef.Text(R.string.report_includemessage)
+        "report.includeMessage.subtitle" -> StringRef.Text(R.string.report_includemessage_subtitle)
         "report.intro" -> StringRef.Text(R.string.report_intro)
+        "report.kind.file" -> StringRef.Text(R.string.report_kind_file)
+        "report.kind.liveLocation" -> StringRef.Text(R.string.report_kind_livelocation)
+        "report.kind.location" -> StringRef.Text(R.string.report_kind_location)
+        "report.kind.photo" -> StringRef.Text(R.string.report_kind_photo)
+        "report.kind.sticker" -> StringRef.Text(R.string.report_kind_sticker)
+        "report.kind.video" -> StringRef.Text(R.string.report_kind_video)
+        "report.kind.viewOnce" -> StringRef.Text(R.string.report_kind_viewonce)
+        "report.kind.voice" -> StringRef.Text(R.string.report_kind_voice)
         "report.mail.app" -> StringRef.Text(R.string.report_mail_app)
         "report.mail.encrypted" -> StringRef.Text(R.string.report_mail_encrypted)
+        "report.mail.message" -> StringRef.Text(R.string.report_mail_message)
+        "report.mail.message.kind" -> StringRef.Text(R.string.report_mail_message_kind)
+        "report.mail.messageIncluded" -> StringRef.Text(R.string.report_mail_messageincluded)
         "report.mail.note" -> StringRef.Text(R.string.report_mail_note)
         "report.mail.reason" -> StringRef.Text(R.string.report_mail_reason)
         "report.mail.subject" -> StringRef.Text(R.string.report_mail_subject)
@@ -1801,6 +1821,7 @@ internal object StringIndex {
         "report.note.label" -> StringRef.Text(R.string.report_note_label)
         "report.note.placeholder" -> StringRef.Text(R.string.report_note_placeholder)
         "report.privacy" -> StringRef.Text(R.string.report_privacy)
+        "report.privacy.message" -> StringRef.Text(R.string.report_privacy_message)
         "report.reason.harassment" -> StringRef.Text(R.string.report_reason_harassment)
         "report.reason.impersonation" -> StringRef.Text(R.string.report_reason_impersonation)
         "report.reason.inappropriate" -> StringRef.Text(R.string.report_reason_inappropriate)
@@ -1826,9 +1847,24 @@ internal object StringIndex {
         StringEntry("report.done", StringRef.Text(R.string.report_done), ""),
         StringEntry("report.failed", StringRef.Text(R.string.report_failed), ""),
         StringEntry("report.handedOff", StringRef.Text(R.string.report_handedoff), ""),
+        StringEntry("report.includeMedia", StringRef.Text(R.string.report_includemedia), ""),
+        StringEntry("report.includeMedia.subtitle %@", StringRef.Text(R.string.report_includemedia_subtitle), "s"),
+        StringEntry("report.includeMessage", StringRef.Text(R.string.report_includemessage), ""),
+        StringEntry("report.includeMessage.subtitle", StringRef.Text(R.string.report_includemessage_subtitle), ""),
         StringEntry("report.intro %@", StringRef.Text(R.string.report_intro), "s"),
+        StringEntry("report.kind.file", StringRef.Text(R.string.report_kind_file), ""),
+        StringEntry("report.kind.liveLocation", StringRef.Text(R.string.report_kind_livelocation), ""),
+        StringEntry("report.kind.location", StringRef.Text(R.string.report_kind_location), ""),
+        StringEntry("report.kind.photo", StringRef.Text(R.string.report_kind_photo), ""),
+        StringEntry("report.kind.sticker", StringRef.Text(R.string.report_kind_sticker), ""),
+        StringEntry("report.kind.video", StringRef.Text(R.string.report_kind_video), ""),
+        StringEntry("report.kind.viewOnce", StringRef.Text(R.string.report_kind_viewonce), ""),
+        StringEntry("report.kind.voice", StringRef.Text(R.string.report_kind_voice), ""),
         StringEntry("report.mail.app %@", StringRef.Text(R.string.report_mail_app), "s"),
         StringEntry("report.mail.encrypted", StringRef.Text(R.string.report_mail_encrypted), ""),
+        StringEntry("report.mail.message %@", StringRef.Text(R.string.report_mail_message), "s"),
+        StringEntry("report.mail.message.kind %@", StringRef.Text(R.string.report_mail_message_kind), "s"),
+        StringEntry("report.mail.messageIncluded", StringRef.Text(R.string.report_mail_messageincluded), ""),
         StringEntry("report.mail.note %@", StringRef.Text(R.string.report_mail_note), "s"),
         StringEntry("report.mail.reason %@", StringRef.Text(R.string.report_mail_reason), "s"),
         StringEntry("report.mail.subject %@", StringRef.Text(R.string.report_mail_subject), "s"),
@@ -1840,6 +1876,7 @@ internal object StringIndex {
         StringEntry("report.note.label", StringRef.Text(R.string.report_note_label), ""),
         StringEntry("report.note.placeholder", StringRef.Text(R.string.report_note_placeholder), ""),
         StringEntry("report.privacy", StringRef.Text(R.string.report_privacy), ""),
+        StringEntry("report.privacy.message", StringRef.Text(R.string.report_privacy_message), ""),
         StringEntry("report.reason.harassment", StringRef.Text(R.string.report_reason_harassment), ""),
         StringEntry("report.reason.impersonation", StringRef.Text(R.string.report_reason_impersonation), ""),
         StringEntry("report.reason.inappropriate", StringRef.Text(R.string.report_reason_inappropriate), ""),
@@ -1850,6 +1887,51 @@ internal object StringIndex {
         StringEntry("report.send.hint", StringRef.Text(R.string.report_send_hint), ""),
         StringEntry("report.sent", StringRef.Text(R.string.report_sent), ""),
         StringEntry("report.title", StringRef.Text(R.string.report_title), ""),
+    )
+
+    private fun findTerms(key: String): StringRef? = when (key) {
+        "terms.accepted" -> StringRef.Text(R.string.terms_accepted)
+        "terms.agree" -> StringRef.Text(R.string.terms_agree)
+        "terms.agree.footnote" -> StringRef.Text(R.string.terms_agree_footnote)
+        "terms.decline.hint" -> StringRef.Text(R.string.terms_decline_hint)
+        "terms.full" -> StringRef.Text(R.string.terms_full)
+        "terms.full.hint" -> StringRef.Text(R.string.terms_full_hint)
+        "terms.intro" -> StringRef.Text(R.string.terms_intro)
+        "terms.intro.required" -> StringRef.Text(R.string.terms_intro_required)
+        "terms.rule.block" -> StringRef.Text(R.string.terms_rule_block)
+        "terms.rule.block.detail" -> StringRef.Text(R.string.terms_rule_block_detail)
+        "terms.rule.content" -> StringRef.Text(R.string.terms_rule_content)
+        "terms.rule.content.detail" -> StringRef.Text(R.string.terms_rule_content_detail)
+        "terms.rule.report" -> StringRef.Text(R.string.terms_rule_report)
+        "terms.rule.report.detail" -> StringRef.Text(R.string.terms_rule_report_detail)
+        "terms.rule.review" -> StringRef.Text(R.string.terms_rule_review)
+        "terms.rule.review.detail" -> StringRef.Text(R.string.terms_rule_review_detail)
+        "terms.rules.label" -> StringRef.Text(R.string.terms_rules_label)
+        "terms.title" -> StringRef.Text(R.string.terms_title)
+        "terms.zeroTolerance" -> StringRef.Text(R.string.terms_zerotolerance)
+        else -> null
+    }
+
+    private fun entriesTerms(): List<StringEntry> = listOf(
+        StringEntry("terms.accepted", StringRef.Text(R.string.terms_accepted), ""),
+        StringEntry("terms.agree", StringRef.Text(R.string.terms_agree), ""),
+        StringEntry("terms.agree.footnote", StringRef.Text(R.string.terms_agree_footnote), ""),
+        StringEntry("terms.decline.hint", StringRef.Text(R.string.terms_decline_hint), ""),
+        StringEntry("terms.full", StringRef.Text(R.string.terms_full), ""),
+        StringEntry("terms.full.hint", StringRef.Text(R.string.terms_full_hint), ""),
+        StringEntry("terms.intro", StringRef.Text(R.string.terms_intro), ""),
+        StringEntry("terms.intro.required", StringRef.Text(R.string.terms_intro_required), ""),
+        StringEntry("terms.rule.block", StringRef.Text(R.string.terms_rule_block), ""),
+        StringEntry("terms.rule.block.detail", StringRef.Text(R.string.terms_rule_block_detail), ""),
+        StringEntry("terms.rule.content", StringRef.Text(R.string.terms_rule_content), ""),
+        StringEntry("terms.rule.content.detail", StringRef.Text(R.string.terms_rule_content_detail), ""),
+        StringEntry("terms.rule.report", StringRef.Text(R.string.terms_rule_report), ""),
+        StringEntry("terms.rule.report.detail", StringRef.Text(R.string.terms_rule_report_detail), ""),
+        StringEntry("terms.rule.review", StringRef.Text(R.string.terms_rule_review), ""),
+        StringEntry("terms.rule.review.detail", StringRef.Text(R.string.terms_rule_review_detail), ""),
+        StringEntry("terms.rules.label", StringRef.Text(R.string.terms_rules_label), ""),
+        StringEntry("terms.title", StringRef.Text(R.string.terms_title), ""),
+        StringEntry("terms.zeroTolerance", StringRef.Text(R.string.terms_zerotolerance), ""),
     )
 
     private fun findScene3D(key: String): StringRef? = when (key) {
@@ -1875,6 +1957,7 @@ internal object StringIndex {
         "error.messenger.content_too_large" -> StringRef.Text(R.string.kit_error_messenger_content_too_large)
         "error.messenger.invalid_content" -> StringRef.Text(R.string.kit_error_messenger_invalid_content)
         "error.relay.access_denied" -> StringRef.Text(R.string.kit_error_relay_access_denied)
+        "error.relay.account_suspended" -> StringRef.Text(R.string.kit_error_relay_account_suspended)
         "error.relay.bad_request" -> StringRef.Text(R.string.kit_error_relay_bad_request)
         "error.relay.connection_replaced" -> StringRef.Text(R.string.kit_error_relay_connection_replaced)
         "error.relay.network" -> StringRef.Text(R.string.kit_error_relay_network)
@@ -1939,6 +2022,7 @@ internal object StringIndex {
         StringEntry("error.messenger.content_too_large", StringRef.Text(R.string.kit_error_messenger_content_too_large), ""),
         StringEntry("error.messenger.invalid_content", StringRef.Text(R.string.kit_error_messenger_invalid_content), ""),
         StringEntry("error.relay.access_denied", StringRef.Text(R.string.kit_error_relay_access_denied), ""),
+        StringEntry("error.relay.account_suspended", StringRef.Text(R.string.kit_error_relay_account_suspended), ""),
         StringEntry("error.relay.bad_request", StringRef.Text(R.string.kit_error_relay_bad_request), ""),
         StringEntry("error.relay.connection_replaced", StringRef.Text(R.string.kit_error_relay_connection_replaced), ""),
         StringEntry("error.relay.network", StringRef.Text(R.string.kit_error_relay_network), ""),

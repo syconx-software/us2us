@@ -44,6 +44,7 @@ import com.syconx.us2us.ui.components.SheetCloseHeader
 import com.syconx.us2us.ui.components.U2GlassIconButton
 import com.syconx.us2us.ui.components.U2Wordmark
 import com.syconx.us2us.ui.env.LocalExternalActivityGuard
+import com.syconx.us2us.ui.env.TermsOfUse
 import com.syconx.us2us.ui.env.u2Bottom
 import com.syconx.us2us.ui.icons.PhosphorGlyph
 import com.syconx.us2us.ui.l10n.L10n
@@ -65,6 +66,7 @@ object AboutTags {
     const val SCREEN = "about.screen"
     const val HERO = "about.hero"
     const val PRIVACY = "about.privacy"
+    const val TERMS = "about.terms"
     const val SUPPORT = "about.support"
     const val LICENCE_TEXT = "about.licence.text"
 
@@ -145,6 +147,14 @@ internal fun AboutScreen(modifier: Modifier = Modifier) {
                         GroupedSeparator(inset = 14.dp)
                         GroupedNavigationRow(
                             tile = null,
+                            title = stringResource(R.string.settings_about_terms),
+                            detail = WebsitePage.HOST,
+                            onClick = { open(WebsitePage.Terms) },
+                            modifier = Modifier.testTag(AboutTags.TERMS),
+                        )
+                        GroupedSeparator(inset = 14.dp)
+                        GroupedNavigationRow(
+                            tile = null,
                             title = stringResource(R.string.settings_about_support),
                             detail = WebsitePage.HOST,
                             onClick = { open(WebsitePage.Support) },
@@ -209,6 +219,7 @@ private fun Principle(glyph: PhosphorGlyph, @StringRes title: Int, @StringRes de
 /** The website's pages the app links to, in Turkish or English (relay/app/content/site.ts › `paths`). */
 enum class WebsitePage {
     Privacy,
+    Terms,
     Support,
     ;
 
@@ -217,6 +228,7 @@ enum class WebsitePage {
         val turkish = L10n.isTurkish(locale)
         val path = when (this) {
             Privacy -> if (turkish) "/tr/gizlilik" else "/en/privacy"
+            Terms -> return TermsOfUse.url(locale)
             Support -> if (turkish) "/tr/destek" else "/en/support"
         }
         return "https://$HOST$path"

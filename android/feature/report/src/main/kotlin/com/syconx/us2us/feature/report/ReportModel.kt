@@ -35,8 +35,13 @@ class ReportModel(
     val offersBlock: Boolean,
     private val mailer: ReportMailer,
     private val scope: CoroutineScope,
+    /** The message the report started from (5.3 › “Bildir”), or `null` for a report about the person only. */
+    val message: ReportedMessage? = null,
     private val block: suspend () -> Unit,
 ) {
+    /** “Bu mesajın metnini bildirime ekle” (or, for a photo and the like, “Bu mesajı ekle”): on by default. */
+    var includeMessage: Boolean by mutableStateOf(true)
+
     enum class Phase {
         /** Reason, note, the block toggle and “E-postayla gönder”. */
         Form,
@@ -106,7 +111,7 @@ class ReportModel(
         val reason = reason ?: return
         if (phase != Phase.Form) return
         failed = false
-        val mail = ReportMail.make(subject, reason, note, version, build, now, strings)
+        val mail = ReportMail.make(subject, reason, note, version, build, now, strings, message?.takeIf { includeMessage })
         phase = Phase.Sending
         val delivery = mailer.deliver(mail)
         if (ReportDelivery.blocks(delivery, blocksOnSend)) {

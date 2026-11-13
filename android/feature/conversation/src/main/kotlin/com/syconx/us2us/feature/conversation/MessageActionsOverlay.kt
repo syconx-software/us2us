@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.syconx.us2us.domain.Message
+import com.syconx.us2us.feature.report.ReportedMessage
 import com.syconx.us2us.domain.MessageContent
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.bubbles.BubbleShape
@@ -336,6 +337,10 @@ private fun menuItems(viewModel: ConversationViewModel, message: Message): List<
                 isEnabled = !message.isDisappearing,
             ) { viewModel.saveToFiles(id) }
         }
+        // “Bildir” on what someone else wrote (App Review 1.2, as on iOS): the report sheet about its sender.
+        if (ReportedMessage.canReport(message)) {
+            items += FloatingMenuItem("report", stringResource(R.string.common_report_action), PhosphorGlyph.Warning) { viewModel.openReport(id) }
+        }
     }
     if (message.isOutgoing && !message.isDeleted && !isBlocked) {
         items += FloatingMenuItem(
@@ -372,6 +377,9 @@ private fun communityMenuItems(viewModel: ConversationViewModel, message: Messag
         message.copyableText?.let { items += FloatingMenuItem("copy", copy, PhosphorGlyph.Copy) { viewModel.copy(id) } }
         if (message.content is MessageContent.File && message.mediaAvailability.isReady) {
             items += FloatingMenuItem("saveToFiles", save, PhosphorGlyph.Export) { viewModel.saveToFiles(id) }
+        }
+        if (ReportedMessage.canReport(message)) {
+            items += FloatingMenuItem("report", stringResource(R.string.common_report_action), PhosphorGlyph.Warning) { viewModel.openReport(id) }
         }
         if (message.community?.canDeleteForEveryone == true) {
             items += FloatingMenuItem(

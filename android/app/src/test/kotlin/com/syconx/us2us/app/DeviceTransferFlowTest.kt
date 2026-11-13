@@ -79,6 +79,8 @@ class DeviceTransferFlowTest {
 
     private fun show(start: StartScreen, path: List<AppRoute> = emptyList(), prepare: FixturesMessengerService.() -> Unit = {}): AppModel {
         val prefs = AppPreferences(context.getSharedPreferences("transfer", Context.MODE_PRIVATE), appliesLanguage = false)
+        // The Terms of Use were accepted on this phone (the gate has its own test in RootViewTest).
+        prefs.acceptedTermsVersion = com.syconx.us2us.ui.env.TermsOfUse.VERSION
         val config = LaunchConfig(start = start, usesFixtures = true, frozenClock = true, designInsets = true)
         val model = AppModel(config, prefs, Services(prepare))
         this.model = model

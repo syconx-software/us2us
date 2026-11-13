@@ -24,12 +24,42 @@
     <string name="report_failed">E-posta gönderilemedi. Tekrar dene.</string>
     <!-- report.handedOff -->
     <string name="report_handedoff">Bildirimin e-posta uygulamanda.</string>
+    <!-- report.includeMedia -->
+    <string name="report_includemedia">Bu mesajı bildirime ekle</string>
+    <!-- report.includeMedia.subtitle %@ -->
+    <string name="report_includemedia_subtitle">Yalnızca mesajın türü (%s) yazılır; içeriği gönderilmez.</string>
+    <!-- report.includeMessage -->
+    <string name="report_includemessage">Bu mesajın metnini bildirime ekle</string>
+    <!-- report.includeMessage.subtitle -->
+    <string name="report_includemessage_subtitle">Metin, bildirimle birlikte us2us destek ekibine (support@us2us.app) gönderilir.</string>
     <!-- report.intro %@ -->
     <string name="report_intro">%s hakkındaki bildirimin e-postayla us2us ekibine gider. Ne olduğunu seç; istersen kısa bir not ekle.</string>
+    <!-- report.kind.file -->
+    <string name="report_kind_file">dosya</string>
+    <!-- report.kind.liveLocation -->
+    <string name="report_kind_livelocation">canlı konum</string>
+    <!-- report.kind.location -->
+    <string name="report_kind_location">konum</string>
+    <!-- report.kind.photo -->
+    <string name="report_kind_photo">fotoğraf</string>
+    <!-- report.kind.sticker -->
+    <string name="report_kind_sticker">sticker</string>
+    <!-- report.kind.video -->
+    <string name="report_kind_video">video</string>
+    <!-- report.kind.viewOnce -->
+    <string name="report_kind_viewonce">tek seferlik fotoğraf ya da video</string>
+    <!-- report.kind.voice -->
+    <string name="report_kind_voice">sesli mesaj</string>
     <!-- report.mail.app %@ -->
     <string name="report_mail_app">Uygulama: us2us iOS %s</string>
     <!-- report.mail.encrypted -->
     <string name="report_mail_encrypted">Mesajlar uçtan uca şifreli olduğu için bu bildirime hiçbir mesaj içeriği eklenmedi. İstersen ekran görüntüsü ekleyebilirsin.</string>
+    <!-- report.mail.message %@ -->
+    <string name="report_mail_message">Bildirilen mesaj: %s</string>
+    <!-- report.mail.message.kind %@ -->
+    <string name="report_mail_message_kind">Bildirilen mesaj: %s (içeriği eklenmedi)</string>
+    <!-- report.mail.messageIncluded -->
+    <string name="report_mail_messageincluded">Bu bildirime, bildirenin seçimiyle yalnızca yukarıdaki mesajın metni eklendi; başka hiçbir mesaj içeriği, medya ya da anahtar eklenmedi.</string>
     <!-- report.mail.note %@ -->
     <string name="report_mail_note">Not: %s</string>
     <!-- report.mail.reason %@ -->
@@ -52,6 +82,8 @@
     <string name="report_note_placeholder">Ne oldu? Birkaç kelime yeter.</string>
     <!-- report.privacy -->
     <string name="report_privacy">Mesajlar uçtan uca şifreli: bildirime hiçbir mesaj içeriği eklenmez, yalnızca kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider. İstersen e-postaya ekran görüntüsü ekleyebilirsin.</string>
+    <!-- report.privacy.message -->
+    <string name="report_privacy_message">Mesajlar uçtan uca şifreli: bildirime yalnızca seçtiğin mesajın metni, kullanıcı adı, seçtiğin neden, notun, uygulama sürümü ve saat gider; başka hiçbir mesaj, medya ya da anahtar gitmez. İstersen e-postaya ekran görüntüsü ekleyebilirsin.</string>
     <!-- report.reason.harassment -->
     <string name="report_reason_harassment">Taciz veya zorbalık</string>
     <!-- report.reason.impersonation -->

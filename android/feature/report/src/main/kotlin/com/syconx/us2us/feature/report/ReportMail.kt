@@ -58,6 +58,7 @@ data class ReportMail(val subject: String, val body: String) {
             build: String,
             date: Instant,
             strings: U2Strings,
+            message: ReportedMessage? = null,
         ): ReportMail {
             val username = about.username?.takeIf { it.isNotEmpty() }
             val subject: String
@@ -74,15 +75,26 @@ data class ReportMail(val subject: String, val body: String) {
                 user = strings[DesignR.string.report_mail_user_unknown]
             }
             val trimmed = clamped(note).trim()
-            val lines = listOf(
+            val lines = mutableListOf(
                 user,
                 strings.get(DesignR.string.report_mail_reason, strings[reason.titleRes]),
                 strings.get(DesignR.string.report_mail_note, trimmed.ifEmpty { NO_NOTE }),
+            )
+            // The message the user left in (5.3 › “Bildir”): a text's words, anything else only by its kind.
+            when (val content = message?.content) {
+                is ReportedMessage.Content.Text -> lines += strings.get(
+                    DesignR.string.report_mail_message,
+                    ReportedMessage.quoted(content.text).ifEmpty { NO_NOTE },
+                )
+                is ReportedMessage.Content.Of -> lines += strings.get(DesignR.string.report_mail_message_kind, strings[content.kind.nameRes])
+                null -> Unit
+            }
+            lines += listOf(
                 "",
                 strings.get(R.string.report_android_mail_app, "$version ($build)"),
                 strings.get(DesignR.string.report_mail_time, utcTime(date)),
                 "",
-                strings[DesignR.string.report_mail_encrypted],
+                if (message?.isText == true) strings[DesignR.string.report_mail_messageincluded] else strings[DesignR.string.report_mail_encrypted],
             )
             return ReportMail(subject, lines.joinToString("\n"))
         }

@@ -105,6 +105,8 @@ class UxMatrixShotTest {
         }
         val configuration = LaunchConfig.from { arguments[it] }
         val preferences = AppPreferences(context.getSharedPreferences("matrix", Context.MODE_PRIVATE), appliesLanguage = false)
+        // The Terms of Use were accepted on this phone (the gate has its own test in RootViewTest).
+        preferences.acceptedTermsVersion = com.syconx.us2us.ui.env.TermsOfUse.VERSION
         var model: AppModel? = null
         val options = ShotOptions(settleMillis = 0, fontScale = variant.fontScale, screen = variant.screen, designInsets = true)
         host.render(variant.theme, variant.lang, options) {

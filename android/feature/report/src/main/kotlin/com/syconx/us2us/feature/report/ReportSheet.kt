@@ -115,6 +115,7 @@ object ReportTags {
     const val INTRO = "report.intro"
     const val NOTE = "report.note"
     const val ALSO_BLOCK = "report.alsoBlock"
+    const val INCLUDE_MESSAGE = "report.includeMessage"
     const val PRIVACY = "report.privacy"
     const val SEND = "report.send"
     const val FAILED = "report.failed"
@@ -154,7 +155,8 @@ class ReportPresenter internal constructor(
      * Opens the sheet about [subject] (`null`: nobody the phone can name), shown as [personName].
      * “Bu kişiyi de engelle” is offered when [offersBlock] (the person is not blocked yet) and runs
      * [block] once the report left the sheet. From a block confirmation ([afterConfirmation]) the
-     * sheet rises once the confirmation has gone (450 ms; one presentation at a time).
+     * sheet rises once the confirmation has gone (450 ms; one presentation at a time). From a message
+     * (5.3 › “Bildir”), [message] is what the report may quote.
      */
     fun open(
         subject: ReportSubject?,
@@ -162,9 +164,10 @@ class ReportPresenter internal constructor(
         offersBlock: Boolean,
         afterConfirmation: Boolean = false,
         mailer: ReportMailer? = null,
+        message: ReportedMessage? = null,
         block: suspend () -> Unit,
     ): ReportModel {
-        val report = ReportModel(subject ?: ReportSubject.Unknown, personName, offersBlock, mailer ?: this.mailer, scope, block)
+        val report = ReportModel(subject ?: ReportSubject.Unknown, personName, offersBlock, mailer ?: this.mailer, scope, message, block)
         report.version = version
         report.build = build
         report.onClose = { if (current === report) current = null }
@@ -320,6 +323,24 @@ private fun FormContent(model: ReportModel, modifier: Modifier) {
             )
             Reasons(model, enabled = !sending, Modifier.padding(top = 20.dp))
             NoteSection(model, enabled = !sending, Modifier.padding(top = 22.dp))
+            model.message?.let { message ->
+                val kind = (message.content as? ReportedMessage.Content.Of)?.kind
+                GroupedCard(Modifier.padding(top = 22.dp), fill = colors.bg) {
+                    GroupedToggleRow(
+                        tile = { IconTile(IconTileContent.Glyph(PhosphorGlyph.ChatCircleDots), tone = IconTileTone.Accent) },
+                        title = stringResource(if (kind == null) DesignR.string.report_includemessage else DesignR.string.report_includemedia),
+                        checked = model.includeMessage,
+                        onCheckedChange = { model.includeMessage = it },
+                        subtitle = if (kind == null) {
+                            stringResource(DesignR.string.report_includemessage_subtitle)
+                        } else {
+                            stringResource(DesignR.string.report_includemedia_subtitle, stringResource(kind.nameRes))
+                        },
+                        enabled = !sending,
+                        modifier = Modifier.testTag(ReportTags.INCLUDE_MESSAGE),
+                    )
+                }
+            }
             if (model.offersBlock) {
                 GroupedCard(Modifier.padding(top = 22.dp), fill = colors.bg) {
                     GroupedToggleRow(
@@ -333,7 +354,7 @@ private fun FormContent(model: ReportModel, modifier: Modifier) {
                     )
                 }
             }
-            PrivacyNote(Modifier.padding(start = 8.dp, top = 16.dp, end = 8.dp))
+            PrivacyNote(textIncluded = model.message?.isText == true && model.includeMessage, Modifier.padding(start = 8.dp, top = 16.dp, end = 8.dp))
         }
         SendBar(
             model = model,
@@ -439,7 +460,7 @@ private fun NoteSection(model: ReportModel, enabled: Boolean, modifier: Modifier
 
 /** As the invite's: `ph:shield-check` 18 `accent300` + `callout` `text·68%`. */
 @Composable
-private fun PrivacyNote(modifier: Modifier = Modifier) {
+private fun PrivacyNote(textIncluded: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
@@ -448,7 +469,8 @@ private fun PrivacyNote(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PhosphorIcon(PhosphorGlyph.ShieldCheck, size = 18.dp, tint = U2Theme.colors.accent300, modifier = Modifier.padding(top = 1.dp))
-        U2Text(stringResource(DesignR.string.report_privacy), U2TextStyles.callout, Modifier.weight(1f), color = U2Theme.colors.textSecondary)
+        val line = if (textIncluded) DesignR.string.report_privacy_message else DesignR.string.report_privacy
+        U2Text(stringResource(line), U2TextStyles.callout, Modifier.weight(1f), color = U2Theme.colors.textSecondary)
     }
 }
 

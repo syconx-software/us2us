@@ -26,4 +26,20 @@ class ScreenAwakePreferencesTest {
             assertFalse(AppPreferences(store, appliesLanguage = false).keepScreenOn)
         } finally { store.edit().clear().commit() }
     }
+
+    @Test fun acceptedTermsSurviveReopenUnderTheIosKeyAndResetForgetsThem() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = context.getSharedPreferences("terms-${UUID.randomUUID()}", Context.MODE_PRIVATE)
+        try {
+            val first = AppPreferences(store, appliesLanguage = false)
+            assertNull("a phone that never accepted them", first.acceptedTermsVersion)
+            first.acceptedTermsVersion = com.syconx.us2us.ui.env.TermsOfUse.VERSION
+            assertEquals(com.syconx.us2us.ui.env.TermsOfUse.VERSION, store.getString("u2.acceptedTerms", null))
+            val reopened = AppPreferences(store, appliesLanguage = false)
+            assertEquals(com.syconx.us2us.ui.env.TermsOfUse.VERSION, reopened.acceptedTermsVersion)
+            reopened.reset()
+            assertNull(reopened.acceptedTermsVersion)
+            assertNull(AppPreferences(store, appliesLanguage = false).acceptedTermsVersion)
+        } finally { store.edit().clear().commit() }
+    }
 }

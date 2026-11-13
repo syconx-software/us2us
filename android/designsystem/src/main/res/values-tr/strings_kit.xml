@@ -28,6 +28,8 @@
     <string name="kit_error_messenger_invalid_content">Mesaj işlenemedi.</string>
     <!-- error.relay.access_denied -->
     <string name="kit_error_relay_access_denied">Bu kişi şu anda mesajlarını kabul etmiyor.</string>
+    <!-- error.relay.account_suspended -->
+    <string name="kit_error_relay_account_suspended">Bu hesap kullanım koşullarını ihlal ettiği için askıya alındı.</string>
     <!-- error.relay.bad_request -->
     <string name="kit_error_relay_bad_request">Sunucu isteği reddetti.</string>
     <!-- error.relay.connection_replaced -->

@@ -12,14 +12,14 @@ import android.os.Looper
 import android.os.PersistableBundle
 import android.provider.Settings
 import android.webkit.MimeTypeMap
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -45,13 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.syconx.us2us.ui.common.ChatBackgroundLayer
-import com.syconx.us2us.ui.common.ChatBackgroundLook
-import com.syconx.us2us.ui.common.ChatBackgroundSheet
-import com.syconx.us2us.ui.common.LocalChatHasBackground
-import com.syconx.us2us.ui.common.rememberChatBackgroundLook
-import com.syconx.us2us.ui.type.U2FontScaleCap
-import com.syconx.us2us.ui.type.U2_HEADER_CHIP_FONT_SCALE_CAP
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,10 +54,12 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -72,11 +67,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.syconx.us2us.domain.AvatarPalette
 import com.syconx.us2us.domain.CommunityChat
+import com.syconx.us2us.domain.CommunityChats
 import com.syconx.us2us.domain.ConversationAttachment
 import com.syconx.us2us.domain.MessageContent
 import com.syconx.us2us.domain.PickedMediaItem
 import com.syconx.us2us.domain.PickedMediaPlan
 import com.syconx.us2us.domain.Presence
+import com.syconx.us2us.domain.ReportSubject
 import com.syconx.us2us.domain.nav.AppRoute
 import com.syconx.us2us.domain.nav.ChatId
 import com.syconx.us2us.domain.nav.MessageId
@@ -90,20 +87,30 @@ import com.syconx.us2us.feature.media.LocationOpenSheet
 import com.syconx.us2us.feature.media.MediaViewerCover
 import com.syconx.us2us.feature.media.VideoPlayerCover
 import com.syconx.us2us.feature.media.ViewOnceCover
+import com.syconx.us2us.feature.report.ReportSheet
+import com.syconx.us2us.feature.report.ReportedMessage
+import com.syconx.us2us.feature.report.rememberReportPresenter
 import com.syconx.us2us.ui.R
 import com.syconx.us2us.ui.brand.StickerPickerSheet
+import com.syconx.us2us.ui.bubbles.LocalMessageInviteAction
 import com.syconx.us2us.ui.bubbles.LocalVoicePlayback
+import com.syconx.us2us.ui.common.ChatBackgroundLayer
+import com.syconx.us2us.ui.common.ChatBackgroundLook
+import com.syconx.us2us.ui.common.ChatBackgroundSheet
+import com.syconx.us2us.ui.common.LocalChatHasBackground
+import com.syconx.us2us.ui.common.rememberChatBackgroundLook
 import com.syconx.us2us.ui.components.AvatarSize
 import com.syconx.us2us.ui.components.CommunityAvatar
 import com.syconx.us2us.ui.components.ConfirmationTags
-import com.syconx.us2us.ui.components.U2GlassIconButton
-import com.syconx.us2us.ui.components.communityName
 import com.syconx.us2us.ui.components.DestructiveConfirmation
 import com.syconx.us2us.ui.components.FloatingMenu
 import com.syconx.us2us.ui.components.FloatingMenuItem
 import com.syconx.us2us.ui.components.FloatingMenuMetrics
 import com.syconx.us2us.ui.components.GhostChip
 import com.syconx.us2us.ui.components.GhostUrgentBanner
+import com.syconx.us2us.ui.components.U2GlassIconButton
+import com.syconx.us2us.ui.components.communityMemberName
+import com.syconx.us2us.ui.components.communityName
 import com.syconx.us2us.ui.composer.Composer
 import com.syconx.us2us.ui.env.LocalExternalActivityGuard
 import com.syconx.us2us.ui.env.LocalHaptics
@@ -122,10 +129,8 @@ import com.syconx.us2us.ui.motion.LocalReduceMotion
 import com.syconx.us2us.ui.motion.U2Motion
 import com.syconx.us2us.ui.motion.U2Transitions
 import com.syconx.us2us.ui.motion.u2TransitionBlur
-import com.syconx.us2us.ui.nav.LocalRouter
 import com.syconx.us2us.ui.nav.LocalIsLayerVisible
-import com.syconx.us2us.domain.CommunityChats
-import com.syconx.us2us.ui.bubbles.LocalMessageInviteAction
+import com.syconx.us2us.ui.nav.LocalRouter
 import com.syconx.us2us.ui.screen.U2Screen
 import com.syconx.us2us.ui.sheet.U2FadeCover
 import com.syconx.us2us.ui.sheet.U2Sheet
@@ -139,9 +144,9 @@ import com.syconx.us2us.ui.tokens.U2Opacity
 import com.syconx.us2us.ui.tokens.U2Size
 import com.syconx.us2us.ui.tokens.U2Spacing
 import com.syconx.us2us.ui.tokens.U2TextStyles
+import com.syconx.us2us.ui.type.U2FontScaleCap
 import com.syconx.us2us.ui.type.U2Text
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.style.TextAlign
+import com.syconx.us2us.ui.type.U2_HEADER_CHIP_FONT_SCALE_CAP
 import java.net.URI
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -656,6 +661,31 @@ private fun ConversationSheets(viewModel: ConversationViewModel) {
     val chatId = viewModel.chatId
     val context = LocalContext.current
     val guard = LocalExternalActivityGuard.current
+    // 5.3 › “Bildir” (App Review 1.2, as on iOS): the report sheet about who wrote the message.
+    val reports = rememberReportPresenter()
+    val reported = viewModel.reporting
+    val reportName = reported?.let { message ->
+        if (viewModel.isCommunity) message.community?.sender?.let { communityMemberName(it.account, it.username) } else viewModel.peerUsername
+    }
+    LaunchedEffect(reported) {
+        val message = reported ?: return@LaunchedEffect
+        viewModel.reporting = null
+        val quoted = ReportedMessage.of(message) ?: return@LaunchedEffect
+        val messenger = viewModel.messenger
+        if (viewModel.isCommunity) {
+            val sender = message.community?.sender ?: return@LaunchedEffect
+            val member = ChatId(sender.account)
+            reports.open(
+                ReportSubject(sender.username, isUsernameVerified = sender.username != null), reportName ?: return@LaunchedEffect,
+                offersBlock = messenger.blockedPeople.value.none { it.id == member }, message = quoted,
+            ) { messenger.block(member) }
+        } else {
+            reports.open(messenger.reportSubject(chatId), viewModel.peerUsername, offersBlock = !viewModel.isBlocked, message = quoted) {
+                messenger.block(chatId)
+            }
+        }
+    }
+    ReportSheet(reports)
     U2Sheet(
         isPresented = viewModel.showsGhostSettings,
         onDismissRequest = { viewModel.showsGhostSettings = false },

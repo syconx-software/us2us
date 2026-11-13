@@ -35,6 +35,7 @@ import com.syconx.us2us.domain.sticker.StickerLanguage
 import com.syconx.us2us.domain.sticker.StickerRecents
 import com.syconx.us2us.feature.conversation.voice.VoiceComposer
 import com.syconx.us2us.feature.conversation.voice.VoicePlayback
+import com.syconx.us2us.feature.report.ReportedMessage
 import com.syconx.us2us.ui.bubbles.VoiceAudioEngine
 import com.syconx.us2us.ui.composer.VoiceCaptureDevice
 import com.syconx.us2us.ui.env.U2Haptics
@@ -697,6 +698,15 @@ class ConversationViewModel(
                 if (frameRequest == id) frameRequest = null
             }
         }
+    }
+
+    /** 5.3 › “Bildir”: the message the report sheet opens about, once the menu has gone (the screen takes it). */
+    var reporting: Message? by mutableStateOf(null)
+
+    /** “Bildir” (App Review 1.2, as on iOS): what someone else wrote opens the report sheet about its sender. */
+    fun openReport(id: MessageId) {
+        val message = message(id)?.takeIf { ReportedMessage.canReport(it) } ?: return
+        dismissActions { reporting = message }
     }
 
     /** The menu fades away (0.24 s); [next] runs once it has gone. */

@@ -24,12 +24,42 @@
     <string name="report_failed">The e-mail couldn\'t be sent. Try again.</string>
     <!-- report.handedOff — VoiceOver announcement: the report was handed to another mail app. -->
     <string name="report_handedoff">Your report is in your mail app.</string>
+    <!-- report.includeMedia — Report sheet from a photo, video or other non-text message: toggle, on by default. -->
+    <string name="report_includemedia">Include this message</string>
+    <!-- report.includeMedia.subtitle %@ — Report sheet: under the include toggle for a non-text message. %@ = the kind (fotoğraf, video …). -->
+    <string name="report_includemedia_subtitle">Only the message type (%s) is written; its content is not sent.</string>
+    <!-- report.includeMessage — Report sheet from a text message (5.3 › Bildir): toggle, on by default. -->
+    <string name="report_includemessage">Include this message\'s text</string>
+    <!-- report.includeMessage.subtitle — Report sheet: under the include-text toggle — where the text goes. -->
+    <string name="report_includemessage_subtitle">The text is sent to us2us support (support@us2us.app) with the report.</string>
     <!-- report.intro %@ — Report sheet: the first line. %@ = the reported person's username. -->
     <string name="report_intro">Your report about %s goes to the us2us team by e-mail. Choose what happened and add a short note if you like.</string>
+    <!-- report.kind.file — Kind of a reported message. -->
+    <string name="report_kind_file">file</string>
+    <!-- report.kind.liveLocation — Kind of a reported message. -->
+    <string name="report_kind_livelocation">live location</string>
+    <!-- report.kind.location — Kind of a reported message. -->
+    <string name="report_kind_location">location</string>
+    <!-- report.kind.photo — Kind of a reported message. -->
+    <string name="report_kind_photo">photo</string>
+    <!-- report.kind.sticker — Kind of a reported message. -->
+    <string name="report_kind_sticker">sticker</string>
+    <!-- report.kind.video — Kind of a reported message. -->
+    <string name="report_kind_video">video</string>
+    <!-- report.kind.viewOnce — Kind of a reported message. -->
+    <string name="report_kind_viewonce">view-once photo or video</string>
+    <!-- report.kind.voice — Kind of a reported message. -->
+    <string name="report_kind_voice">voice message</string>
     <!-- report.mail.app %@ — Report e-mail body. %@ = version (build), e.g. 1.0.8 (11). -->
     <string name="report_mail_app">App: us2us iOS %s</string>
     <!-- report.mail.encrypted — Report e-mail body, the last line. -->
     <string name="report_mail_encrypted">Messages are end-to-end encrypted, so no message content was added to this report. You may attach screenshots.</string>
+    <!-- report.mail.message %@ — Report e-mail: the reported message's text (only when the reporter left it in). -->
+    <string name="report_mail_message">Reported message: %s</string>
+    <!-- report.mail.message.kind %@ — Report e-mail: a reported non-text message, by its kind only. -->
+    <string name="report_mail_message_kind">Reported message: %s (content not added)</string>
+    <!-- report.mail.messageIncluded — Report e-mail: last sentence when the reported message's text was added. -->
+    <string name="report_mail_messageincluded">Only the text of the message above was added to this report, at the reporter\'s choice; no other message content, media or key was added.</string>
     <!-- report.mail.note %@ — Report e-mail body. %@ = the user's note, or “—”. -->
     <string name="report_mail_note">Note: %s</string>
     <!-- report.mail.reason %@ — Report e-mail body. %@ = the chosen reason. -->
@@ -52,6 +82,8 @@
     <string name="report_note_placeholder">What happened? A few words are enough.</string>
     <!-- report.privacy — Report sheet: the privacy line above the send button. -->
     <string name="report_privacy">Messages are end-to-end encrypted: no message content is added to the report, only the username, the reason you chose, your note, the app version and the time. You can attach screenshots to the e-mail if you like.</string>
+    <!-- report.privacy.message — Report sheet: the privacy line when a message's text goes with the report. -->
+    <string name="report_privacy_message">Messages are end-to-end encrypted: the report carries only the text of the message you chose, the username, the reason, your note, the app version and the time — no other message, media or key. You can attach screenshots to the e-mail if you like.</string>
     <!-- report.reason.harassment — Report reason (also written into the e-mail). -->
     <string name="report_reason_harassment">Harassment or bullying</string>
     <!-- report.reason.impersonation — Report reason (also written into the e-mail). -->

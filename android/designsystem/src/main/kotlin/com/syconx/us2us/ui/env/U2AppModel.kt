@@ -41,6 +41,11 @@ interface U2Preferences {
 
     /** Opt-in screen auto-sleep prevention while the foreground app is unlocked. */
     var keepScreenOn: Boolean
+
+    /** The Terms of Use version accepted on this phone ([TermsOfUse]; iOS `u2.acceptedTerms`), or `null`. */
+    var acceptedTermsVersion: String?
+        get() = null
+        set(_) {}
 }
 
 /**
@@ -138,6 +143,7 @@ class MemoryPreferences(
     override var language: AppLanguage by mutableStateOf(language)
     override var hasAcknowledgedSaveNotice: Boolean by mutableStateOf(false)
     override var keepScreenOn: Boolean by mutableStateOf(false)
+    override var acceptedTermsVersion: String? by mutableStateOf(TermsOfUse.VERSION)
 }
 
 /**

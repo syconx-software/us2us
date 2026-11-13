@@ -5,9 +5,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -15,14 +17,19 @@ import com.syconx.us2us.domain.harness.FixtureControls
 import com.syconx.us2us.domain.nav.OnboardingEntry
 import com.syconx.us2us.domain.nav.OnboardingRoute
 import com.syconx.us2us.domain.nav.RestoreMode
+import com.syconx.us2us.ui.common.TermsContent
+import com.syconx.us2us.ui.common.TermsMode
 import com.syconx.us2us.ui.env.DeviceBiometrics
 import com.syconx.us2us.ui.env.LocalAppModel
 import com.syconx.us2us.ui.env.LocalFeatureScreens
 import com.syconx.us2us.ui.env.LocalHaptics
 import com.syconx.us2us.ui.env.LocalHarnessState
 import com.syconx.us2us.ui.env.LocalMessenger
+import com.syconx.us2us.ui.env.acceptTerms
+import com.syconx.us2us.ui.env.hasAcceptedCurrentTerms
 import com.syconx.us2us.ui.env.rememberU2Keyboard
 import com.syconx.us2us.ui.nav.SoftNavigationStack
+import com.syconx.us2us.ui.sheet.U2Sheet
 
 /**
  * Onboarding (01–02 and 7.3 from 1.1), starting at [entry]: the paged welcome (1.1–1.3), then the
@@ -81,6 +88,27 @@ internal fun OnboardingFlowHost(
 ) {
     val keyboard = rememberU2Keyboard()
     SideEffect { flow.dismissKeyboard = { keyboard.dismiss() } }
+    // 1.1–1.3 ask for the Terms of Use before any way in (App Review 1.2, as on iOS): the chosen way waits while the
+    // terms are up, goes on once they are accepted (after the sheet has gone down) and is dropped by “Vazgeç”.
+    val preferences = LocalAppModel.current.preferences
+    var waiting by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var accepted by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val request: (() -> Unit) -> Unit = { start -> if (preferences.hasAcceptedCurrentTerms) start() else if (waiting == null) waiting = start }
+    U2Sheet(
+        isPresented = waiting != null,
+        onDismissRequest = { waiting = null },
+        onDismissed = { accepted?.invoke(); accepted = null },
+    ) {
+        TermsContent(
+            TermsMode.BeforeStart,
+            onAgree = {
+                preferences.acceptTerms()
+                accepted = waiting
+                waiting = null
+            },
+            onDecline = { waiting = null },
+        )
+    }
     LaunchedEffect(flow) {
         var old = flow.router.path
         snapshotFlow { flow.router.path }.collect { new ->
@@ -95,7 +123,14 @@ internal fun OnboardingFlowHost(
         router = flow.router,
         modifier = modifier,
         allowsSwipeBack = flow::allowsSwipeBack,
-        root = { WelcomePager(flow.pager, onCreateAccount = flow::startSetup, onRestore = flow::startRestore, onTransfer = flow::startTransfer) },
+        root = {
+            WelcomePager(
+                flow.pager,
+                onCreateAccount = { request(flow::startSetup) },
+                onRestore = { request(flow::startRestore) },
+                onTransfer = { request(flow::startTransfer) },
+            )
+        },
     ) { route ->
         when (route) {
             OnboardingRoute.Username -> UsernameStep(

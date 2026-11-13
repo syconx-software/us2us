@@ -48,12 +48,16 @@ import com.syconx.us2us.domain.nav.Phase
 import com.syconx.us2us.feature.chats.ChatsScreen
 import com.syconx.us2us.feature.lock.LockFlow
 import com.syconx.us2us.feature.onboarding.OnboardingFlow
+import com.syconx.us2us.ui.common.TermsContent
+import com.syconx.us2us.ui.common.TermsMode
 import com.syconx.us2us.ui.env.LocalOwnAvatar
 import com.syconx.us2us.ui.env.LocalSystemBars
 import com.syconx.us2us.ui.env.ProvideU2Environment
 import com.syconx.us2us.ui.env.ScreenAwakeScope
 import com.syconx.us2us.ui.env.U2Haptics
 import com.syconx.us2us.ui.env.U2SystemBars
+import com.syconx.us2us.ui.env.acceptTerms
+import com.syconx.us2us.ui.env.hasAcceptedCurrentTerms
 import com.syconx.us2us.ui.env.rememberViewHaptics
 import com.syconx.us2us.ui.motion.U2Motion
 import com.syconx.us2us.ui.motion.U2Transitions
@@ -63,6 +67,7 @@ import com.syconx.us2us.ui.nav.LocalIsLayerVisible
 import com.syconx.us2us.ui.nav.SoftNavigationStack
 import com.syconx.us2us.ui.security.PrivacyCover
 import com.syconx.us2us.ui.sheet.U2OverlayHost
+import com.syconx.us2us.ui.sheet.U2Sheet
 import com.syconx.us2us.ui.theme.U2Theme
 import com.syconx.us2us.ui.theme.isDark
 import kotlinx.coroutines.launch
@@ -182,6 +187,15 @@ fun RootView(model: AppModel) {
                 ) {
                     MainStack(model)
                 }
+            }
+            // An account is open here but the current Terms of Use were never accepted on this phone (set up by an
+            // older build, or restored): the terms cover the app until accepted, as on iOS. Not over the lock or the cover.
+            U2Sheet(
+                isPresented = model.overlay == Overlay.None && !model.preferences.hasAcceptedCurrentTerms,
+                onDismissRequest = {},
+                isDismissible = false,
+            ) {
+                TermsContent(TermsMode.Required, onAgree = { model.preferences.acceptTerms() })
             }
             if (model.unlockDissolvePending) {
                 LaunchedEffect(Unit) {

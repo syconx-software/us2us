@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
@@ -65,8 +66,9 @@ class RootViewTest {
         override fun harnessPlan(configuration: LaunchConfig, messenger: MessengerService): HarnessPlan? = null
     }
 
-    private fun show(start: StartScreen, path: List<AppRoute> = emptyList()): AppModel {
+    private fun show(start: StartScreen, path: List<AppRoute> = emptyList(), acceptedTerms: String? = com.syconx.us2us.ui.env.TermsOfUse.VERSION): AppModel {
         val prefs = AppPreferences(context.getSharedPreferences("root", Context.MODE_PRIVATE), appliesLanguage = false)
+        prefs.acceptedTermsVersion = acceptedTerms
         val config = LaunchConfig(start = start, usesFixtures = true, frozenClock = true, designInsets = true)
         val model = AppModel(config, prefs, Services)
         this.model = model
@@ -92,6 +94,19 @@ class RootViewTest {
             block()
             Snapshot.sendApplyNotifications()
         }
+    }
+
+    @Test
+    fun anOpenAccountThatNeverAcceptedTheTermsIsCoveredUntilItDoes() {
+        val model = show(StartScreen.Chats, acceptedTerms = null)
+        advance(1_000)
+        compose.onAllNodes(androidx.compose.ui.test.hasTestTag(com.syconx.us2us.ui.common.TermsTags.REQUIRED), useUnmergedTree = true)
+            .fetchSemanticsNodes().let { assertTrue("the required terms cover the app (as on iOS)", it.isNotEmpty()) }
+        compose.onNode(androidx.compose.ui.test.hasTestTag(com.syconx.us2us.ui.common.TermsTags.AGREE), useUnmergedTree = true).performClick()
+        advance(1_000)
+        assertEquals(com.syconx.us2us.ui.env.TermsOfUse.VERSION, model.preferences.acceptedTermsVersion)
+        compose.onAllNodes(androidx.compose.ui.test.hasTestTag(com.syconx.us2us.ui.common.TermsTags.REQUIRED), useUnmergedTree = true)
+            .fetchSemanticsNodes().let { assertTrue("and gone once accepted", it.isEmpty()) }
     }
 
     @Test

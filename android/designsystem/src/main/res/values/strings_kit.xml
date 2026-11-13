@@ -28,6 +28,8 @@
     <string name="kit_error_messenger_invalid_content">The message couldn\'t be processed.</string>
     <!-- error.relay.access_denied -->
     <string name="kit_error_relay_access_denied">This person doesn\'t accept your messages right now.</string>
+    <!-- error.relay.account_suspended -->
+    <string name="kit_error_relay_account_suspended">This account was suspended for breaking the terms of use.</string>
     <!-- error.relay.bad_request -->
     <string name="kit_error_relay_bad_request">The server rejected the request.</string>
     <!-- error.relay.connection_replaced -->

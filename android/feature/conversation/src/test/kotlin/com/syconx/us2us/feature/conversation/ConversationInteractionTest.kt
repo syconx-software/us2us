@@ -62,6 +62,26 @@ class ConversationInteractionTest {
     }
 
     @Test
+    fun reportIsNotOfferedOnAnOwnMessage() {
+        host.render(ShotTheme.Dark, "tr") { ConversationScreen(deniz) }
+        longPress("message.d5")
+        assertTrue(exists("actions.overlay"))
+        assertFalse("not on an own message", exists("menu.report"))
+    }
+
+    @Test
+    fun reportOpensTheSheetWithTheMessageOnWhatSomeoneElseWrote() {
+        host.render(ShotTheme.Dark, "tr") { ConversationScreen(deniz) }
+        longPress("message.d1")
+        assertTrue("“Bildir” on what deniz wrote (App Review 1.2)", exists("menu.report"))
+        host.compose.onNodeWithTag("menu.report", useUnmergedTree = true).performClick()
+        host.advance(1_500)
+        assertFalse("the menu goes first", exists("actions.overlay"))
+        assertTrue("the report sheet rises", exists("report.form"))
+        assertTrue("with “Bu mesajın metnini bildirime ekle”", exists("report.includeMessage"))
+    }
+
+    @Test
     fun replyThenSend() {
         host.render(ShotTheme.Dark, "tr") { ConversationScreen(deniz) }
         longPress("message.d1")

@@ -38,6 +38,8 @@
     <string name="settings_about_privacypolicy">Gizlilik politikası</string>
     <!-- about.support -->
     <string name="settings_about_support">Destek</string>
+    <!-- about.terms -->
+    <string name="settings_about_terms">Kullanım Koşulları</string>
     <!-- about.title -->
     <string name="settings_about_title">Hakkında</string>
     <!-- about.version %@ %@ -->

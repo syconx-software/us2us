@@ -23,6 +23,15 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
     private var languageState by mutableStateOf(AppLanguage.fromRaw(store.getString(LANGUAGE_KEY, null)) ?: AppLanguage.System)
     private var saveNoticeState by mutableStateOf(store.getBoolean(SAVE_NOTICE_KEY, false))
     private var keepScreenOnState by mutableStateOf(store.getBoolean(KEEP_SCREEN_ON_KEY, false))
+    private var acceptedTermsState by mutableStateOf(store.getString(ACCEPTED_TERMS_KEY, null))
+
+    /** The Terms of Use version accepted on this phone; not sensitive, and needed before any account exists. */
+    override var acceptedTermsVersion: String?
+        get() = acceptedTermsState
+        set(value) {
+            acceptedTermsState = value
+            store.edit().apply { if (value == null) remove(ACCEPTED_TERMS_KEY) else putString(ACCEPTED_TERMS_KEY, value) }.apply()
+        }
 
     override var keepScreenOn: Boolean
         get() = keepScreenOnState
@@ -53,12 +62,13 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
             store.edit().apply { if (value) putBoolean(SAVE_NOTICE_KEY, true) else remove(SAVE_NOTICE_KEY) }.apply()
         }
 
-    /** `U2ResetPreferences`: forgets the saved theme, language and save notice. */
+    /** `U2ResetPreferences`: forgets the saved theme, language, save notice and accepted terms (as on iOS). */
     fun reset() {
-        store.edit().remove(THEME_KEY).remove(LANGUAGE_KEY).remove(SAVE_NOTICE_KEY).remove(KEEP_SCREEN_ON_KEY).apply()
+        store.edit().remove(THEME_KEY).remove(LANGUAGE_KEY).remove(SAVE_NOTICE_KEY).remove(KEEP_SCREEN_ON_KEY).remove(ACCEPTED_TERMS_KEY).apply()
         themeState = ThemePreference.System
         saveNoticeState = false
         keepScreenOnState = false
+        acceptedTermsState = null
         language = AppLanguage.System
     }
 
@@ -72,6 +82,7 @@ class AppPreferences(private val store: SharedPreferences, private val appliesLa
         const val LANGUAGE_KEY = "u2.language"
         const val SAVE_NOTICE_KEY = "u2.saveNotice.acknowledged"
         const val KEEP_SCREEN_ON_KEY = "u2.keepScreenOn"
+        const val ACCEPTED_TERMS_KEY = "u2.acceptedTerms"
 
         /** The file the app's preferences are kept in. */
         const val FILE = "us2us.preferences"
