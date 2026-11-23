@@ -480,14 +480,7 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
 .btn-secondary.store { color: var(--color-text); }
 .store-icon { font-size: 20px; }
 .store-icon-play { font-size: 19px; }
-.store-soon { margin-left: 2px; padding: 2px 7px; font-family: var(--font-mono); font-size: 11px; font-weight: 400; letter-spacing: 0.02em; }
-/* Where two buttons with an inline tag would not fit on one line, the tag
-   sits on the button's top edge, so both buttons keep the design's size and
-   stay side by side. */
-@media (max-width: 599px) {
-  .store-soon { position: absolute; top: -9px; right: 10px; margin: 0; padding: 1px 6px; line-height: 1.3; }
-}
-/* The closed-beta line under the buttons (not in the design): the facts'
+/* The device availability line under the buttons: the facts'
    mono voice, drawn close to the buttons it explains, after a small accent
    dot whose ring breathes out (transform and opacity only; still with
    reduced motion). The dot sits on the first line's centre. */
@@ -722,7 +715,9 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
    link to that app's own site, in the surface colour of the page's cards. */
 .footer-products { display: flex; flex-direction: column; gap: 16px; padding: 8px 0 36px; }
 .footer-products-title { margin: 0; font-weight: 400; }
-.footer-product-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.footer-product-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (min-width: 1000px) { .footer-product-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .footer-product-list { grid-template-columns: 1fr; } }
 .footer-product { height: 100%; padding: 18px 20px; color: var(--color-text); transition: box-shadow 200ms ease; }
 .footer-product:hover { box-shadow: var(--shadow-md); }
 .footer-product-arrow { color: var(--accent-text); }

@@ -22,6 +22,8 @@ export const paths: Record<Locale, Record<PageId, string>> = {
 }
 
 export const SITE_ORIGIN = 'https://us2us.app'
+export const APP_STORE_URL = 'https://apps.apple.com/app/us2us/id6820878567'
+export const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.syconx.us2us'
 export const SUPPORT_EMAIL = 'support@us2us.app'
 /** Where security problems go (the support page's beta notes, the FAQ and the privacy policy). */
 export const SECURITY_EMAIL = 'security@us2us.app'
@@ -79,7 +81,7 @@ interface Card {
   body: string
 }
 
-/** The footer's "other products" cards: our other apps, each a link to its own site (here us2us Mail; us2usmail.com links back). */
+/** The footer's "other products" cards: our other apps, each a link to its own site. */
 interface FooterProducts {
   title: string
   items: Array<{ name: string, text: string, href: string, host: string }>
@@ -121,8 +123,7 @@ export interface SiteText {
       intro: string
       facts: Array<{ icon: IconName, text: string }>
     }
-    /** `beta`: the line under the store buttons (closed beta on iOS; the stores are not open yet). */
-    stores: { label: string, comingSoon: string, beta: string }
+    stores: { label: string, availability: string }
     band: { label: string, stats: Array<{ value: string, label: string, text: string }> }
     how: { eyebrow: string, title: string, intro: string, points: Array<Card & { n: string }> }
     statuses: {
@@ -228,7 +229,12 @@ export const site: Record<Locale, SiteText> = {
       noTracking: 'Bu site çerez ve izleyici kullanmaz, başka bir siteden hiçbir şey yüklemez.',
       products: {
         title: 'Diğer ürünlerimiz',
-        items: [{ name: 'us2us Mail', text: 'Bildirim göndermeyen, kendi zamanında açtığın e-posta. macOS uygulaması indirilebilir.', href: 'https://us2usmail.com/tr/', host: 'us2usmail.com' }],
+        items: [
+          { name: 'us2us Mail', text: 'Bildirim göndermeyen, kendi zamanında açtığın e-posta.', href: 'https://us2usmail.com/tr/', host: 'us2usmail.com' },
+          { name: 'us2us Drive', text: 'Dosyalarını ve fotoğraflarını şifreli sakla, cihazların arasında eşitle.', href: 'https://us2usdrive.com/tr/', host: 'us2usdrive.com' },
+          { name: 'us2us Pad', text: 'Notlarını, defterlerini ve parolalarını bir yerde tut.', href: 'https://us2uspad.com/', host: 'us2uspad.com' },
+          { name: 'us2us Remote', text: 'Kodu paylaşarak bilgisayarına uzaktan bağlan.', href: 'https://us2usremote.com/tr/', host: 'us2usremote.com' },
+        ],
       },
     },
     home: {
@@ -245,7 +251,7 @@ export const site: Record<Locale, SiteText> = {
           { icon: 'password', text: 'Gizli kodla kilitli' },
         ],
       },
-      stores: { label: 'Uygulama mağazaları', comingSoon: 'Yakında', beta: 'Şu an iOS’ta kapalı betada (TestFlight, davetle). App Store ve Android sürümü yakında.' },
+      stores: { label: 'Uygulama mağazaları', availability: 'iPhone, iPad ve Android için.' },
       band: {
         label: 'Rakamlarla us2us',
         stats: [
@@ -326,7 +332,7 @@ export const site: Record<Locale, SiteText> = {
       },
       cta: {
         title: 'Hattın iki ucu da sizde.',
-        intro: 'Kullanıcı adını al, gizli kodunu belirle, hattı kur. Yakında iOS ve Android’de.',
+        intro: 'Kullanıcı adını al, gizli kodunu belirle, hattı kur.',
       },
     },
     privacy: {
@@ -437,7 +443,7 @@ export const site: Record<Locale, SiteText> = {
       emailLabel: 'E-posta',
       beta: {
         title: 'Beta testçileri için',
-        intro: 'us2us şu an iOS’ta, TestFlight üzerinden kapalı betada; App Store ve Android sürümü yakında. Beta derlemeleri sık güncellenir ve hata içerebilir. Verilerinizi korumak için şunları bilin:',
+        intro: 'us2us’un iOS sürümü App Store’da. TestFlight ile bir beta sürümünü deniyorsanız aşağıdaki bilgiler verilerinizi korumanıza yardımcı olur.',
         notes: [
           {
             icon: 'warning',
@@ -553,7 +559,12 @@ export const site: Record<Locale, SiteText> = {
       noTracking: 'This site uses no cookies or trackers and loads nothing from other sites.',
       products: {
         title: 'Our other products',
-        items: [{ name: 'us2us Mail', text: 'Email without notifications, opened on your own time. The macOS app is ready to download.', href: 'https://us2usmail.com/en/', host: 'us2usmail.com' }],
+        items: [
+          { name: 'us2us Mail', text: 'Read and write email on your own time, without notifications.', href: 'https://us2usmail.com/en/', host: 'us2usmail.com' },
+          { name: 'us2us Drive', text: 'Store encrypted files and photos and sync them between your devices.', href: 'https://us2usdrive.com/en/', host: 'us2usdrive.com' },
+          { name: 'us2us Pad', text: 'Keep your notes, notebooks and passwords together.', href: 'https://us2uspad.com/en', host: 'us2uspad.com' },
+          { name: 'us2us Remote', text: 'Connect to a computer remotely with a session code.', href: 'https://us2usremote.com/en/', host: 'us2usremote.com' },
+        ],
       },
     },
     home: {
@@ -570,7 +581,7 @@ export const site: Record<Locale, SiteText> = {
           { icon: 'password', text: 'Locked with a secret code' },
         ],
       },
-      stores: { label: 'App stores', comingSoon: 'Coming soon', beta: 'Now in closed beta on iOS (TestFlight, by invitation). App Store and Android versions coming soon.' },
+      stores: { label: 'App stores', availability: 'For iPhone, iPad and Android.' },
       band: {
         label: 'us2us in numbers',
         stats: [
@@ -651,7 +662,7 @@ export const site: Record<Locale, SiteText> = {
       },
       cta: {
         title: 'Both ends of the line are yours.',
-        intro: 'Pick a username, set your secret code, open the line. Coming soon to iOS and Android.',
+        intro: 'Pick a username, set your secret code, open the line.',
       },
     },
     privacy: {
@@ -762,7 +773,7 @@ export const site: Record<Locale, SiteText> = {
       emailLabel: 'E-mail',
       beta: {
         title: 'For beta testers',
-        intro: 'us2us is in closed beta on iOS, through TestFlight; the App Store and Android versions are coming soon. Beta builds change often and can have bugs. To keep your data safe, know this:',
+        intro: 'The iOS release is available on the App Store. If you test a beta build through TestFlight, the following guidance will help you protect your data.',
         notes: [
           {
             icon: 'warning',

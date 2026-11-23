@@ -49,7 +49,7 @@ const other = computed<Locale>(() => (props.locale === 'tr' ? 'en' : 'tr'))
           <p>{{ text.licencesIntro }}</p>
           <p>{{ text.licencesListIntro }}</p>
           <ul class="dot-list">
-            <li v-for="item in text.licences" :key="item.href">{{ item.name }}: <a :href="item.href">{{ item.licence }}</a></li>
+            <li v-for="item in text.licences" :key="item.href">{{ item.name }}: <a :href="item.href" :rel="item.href.startsWith('https://') ? 'noreferrer' : undefined">{{ item.licence }}</a></li>
           </ul>
         </section>
       </article>

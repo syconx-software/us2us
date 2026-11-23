@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { escapeHtml, INVITE_USERNAME, invitePage, inviteLocale, inviteUsername } from '../../app/content/invite'
+import { APP_STORE_URL, GOOGLE_PLAY_URL, site } from '../../app/content/site'
 import { APP_SITE_ASSOCIATION, APP_SITE_ASSOCIATION_JSON, IOS_APP_ID } from '../../server/lib/app-links'
 
 /** The text of a page as a reader sees it: tags removed, whitespace collapsed. */
@@ -49,19 +50,16 @@ describe('invite page', () => {
     // How to add them: open us2us → New chat → @username.
     expect(textOf(tr)).toContain('us2us’u aç. “Yeni sohbet”e dokun. @selin_n yaz ve mesaj isteği gönder.')
     expect(textOf(en)).toContain('Open us2us. Tap “New chat”. Type @selin_n and send a message request.')
-    // The stores are "coming soon", as on the landing page: no links.
-    for (const [page, soon] of [[tr, 'Yakında'], [en, 'Coming soon']] as const) {
+    for (const [page, locale] of [[tr, 'tr'], [en, 'en']] as const) {
       const stores = [...page.matchAll(/<a class="btn btn-(?:primary|secondary) store"([^>]*)>([\s\S]*?)<\/a>/g)]
-      expect(stores).toHaveLength(2)
-      for (const [, attributes, content] of stores) {
-        expect(attributes).toContain('aria-disabled="true"')
-        expect(attributes).not.toContain('href')
-        expect(textOf(content!)).toContain(soon)
+      expect(stores.map(([, , content]) => textOf(content!).trim())).toEqual(['App Store', 'Google Play'])
+      for (const [index, url] of [APP_STORE_URL, GOOGLE_PLAY_URL].entries()) {
+        expect(stores[index]![1]).toContain(`href="${url}"`)
+        expect(stores[index]![1]).toContain('rel="noopener noreferrer"')
+        expect(stores[index]![1]).not.toContain('aria-disabled')
       }
+      expect(page).toContain(site[locale].home.stores.availability)
     }
-    // Under them, as on the landing page: a closed beta on iOS. The footer says the page tracks nobody.
-    expect(tr).toContain('<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>Şu an iOS’ta kapalı betada (TestFlight, davetle).')
-    expect(en).toContain('<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>Now in closed beta on iOS (TestFlight, by invitation).')
     expect(textOf(tr.split('<footer')[1]!)).toContain('Bu site çerez ve izleyici kullanmaz')
     expect(textOf(en.split('<footer')[1]!)).toContain('This site uses no cookies or trackers')
     // It says that it checks nothing.
@@ -94,8 +92,11 @@ describe('invite page', () => {
       expect(scripts).toHaveLength(1)
       expect(scripts[0]![1]).toBe(' src="/js/theme.js?v=v123"')
       expect(page).toContain('<link rel="stylesheet" href="/css/site.css?v=v123">')
-      for (const [, url] of page.matchAll(/(?:src|href)="([^"]+)"/g)) expect(url, url).toMatch(/^(\/|#)/)
-      expect(page).not.toMatch(/https?:\/\//)
+      const localMarkup = page.replace(/<a\b[^>]*>/g, tag => {
+        for (const url of [APP_STORE_URL, GOOGLE_PLAY_URL]) tag = tag.replace(` href="${url}"`, '')
+        return tag
+      })
+      expect(localMarkup).not.toMatch(/https?:\/\//)
     }
     expect(invitePage('deniz', 'tr', 'v')).toContain('href="/fonts/inter-v20-tr.woff2"')
     expect(invitePage('deniz', 'en', 'v')).not.toContain('-tr.woff2')

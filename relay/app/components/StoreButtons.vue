@@ -1,10 +1,6 @@
 <script setup lang="ts">
-import { site, type Locale } from '~/content/site'
+import { APP_STORE_URL, GOOGLE_PLAY_URL, site, type Locale } from '~/content/site'
 
-// The apps are not in the stores yet: the buttons keep the design's look but
-// are not links (no href, aria-disabled) and say "coming soon". The hidden
-// comma keeps the name readable ("App Store, Yakında") for screen readers.
-// The line under them says where the app is today: a closed iOS beta.
 const props = defineProps<{ locale: Locale }>()
 const text = computed(() => site[props.locale].home.stores)
 </script>
@@ -12,15 +8,15 @@ const text = computed(() => site[props.locale].home.stores)
 <template>
   <ul class="stores" :aria-label="text.label">
     <li>
-      <a class="btn btn-primary store" role="link" aria-disabled="true">
-        <SiteIcon name="apple-logo-fill" class="store-icon" />App Store<span class="visually-hidden">, </span><span class="tag tag-accent store-soon">{{ text.comingSoon }}</span>
+      <a class="btn btn-primary store" :href="APP_STORE_URL" rel="noopener noreferrer">
+        <SiteIcon name="apple-logo-fill" class="store-icon" />App Store
       </a>
     </li>
     <li>
-      <a class="btn btn-secondary store" role="link" aria-disabled="true">
-        <SiteIcon name="google-play-logo-fill" class="store-icon store-icon-play" />Google Play<span class="visually-hidden">, </span><span class="tag tag-neutral store-soon">{{ text.comingSoon }}</span>
+      <a class="btn btn-secondary store" :href="GOOGLE_PLAY_URL" rel="noopener noreferrer">
+        <SiteIcon name="google-play-logo-fill" class="store-icon store-icon-play" />Google Play
       </a>
     </li>
   </ul>
-  <p class="stores-note"><span class="beta-dot" aria-hidden="true" />{{ text.beta }}</p>
+  <p class="stores-note"><span class="beta-dot" aria-hidden="true" />{{ text.availability }}</p>
 </template>

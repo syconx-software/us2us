@@ -121,20 +121,24 @@ describe('"why we built it" text (app/content/why.ts)', () => {
     expect(notFoundPage('v1')).toContain('<a class="footer-link" href="/en/terms">Terms of use</a>')
   })
 
-  it('links to us2us Mail as another product, in each language, but not from the invite page', () => {
+  it('links to the four other us2us products, in each language, but not from the invite page', () => {
     expect(site.tr.footer.products.title).toBe('Diğer ürünlerimiz')
     expect(site.en.footer.products.title).toBe('Our other products')
     for (const locale of LOCALES) {
       const items = site[locale].footer.products.items
-      expect(items.map(item => item.name)).toEqual(['us2us Mail'])
-      expect(items[0]!.href).toBe(`https://us2usmail.com/${locale}/`)
-      expect(new URL(items[0]!.href).host).toBe(items[0]!.host)
-      expect(items[0]!.text.length).toBeGreaterThan(20)
+      expect(items.map(item => item.name)).toEqual(['us2us Mail', 'us2us Drive', 'us2us Pad', 'us2us Remote'])
+      for (const item of items) {
+        const host = item.name.toLowerCase().replace(' ', '') + '.com'
+        const path = item.name === 'us2us Pad' ? (locale === 'tr' ? '/' : '/en') : `/${locale}/`
+        expect(item.href).toBe(`https://${host}${path}`)
+        expect(item.host).toBe(host)
+        expect(item.text.length).toBeGreaterThan(20)
+      }
     }
     const page = notFoundPage('v1')
     expect(page).toContain('<h2 id="footer-products-en" class="eyebrow footer-products-title">Our other products</h2>')
     expect(page).toContain('<a class="card elev-sm footer-product" href="https://us2usmail.com/en/" rel="noreferrer">')
-    // The invite page keeps every link on this site.
+    // The invite page links directly to the stores without listing the product family.
     for (const locale of LOCALES) expect(invitePage('deniz', locale, 'v1')).not.toContain('footer-products')
   })
 })

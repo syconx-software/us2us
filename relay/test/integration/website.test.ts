@@ -4,7 +4,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ICON_LINKS } from '../../app/content/assets'
-import { site } from '../../app/content/site'
+import { APP_STORE_URL, GOOGLE_PLAY_URL, site } from '../../app/content/site'
 import { terms, TERMS_SECTION } from '../../app/content/terms'
 import { why, WHY_SECTION, WHY_SOURCES } from '../../app/content/why'
 import { startRelay, type RelayProcess } from '../support/relay'
@@ -29,7 +29,7 @@ const WHY_PAGES = ['/tr/neden-yaptik', '/en/why-we-built-it']
 /** The terms of use: the apps link to exactly these two addresses before an account is created. */
 const TERMS_PAGES = ['/tr/kullanim-kosullari', '/en/terms']
 const PAGES = ['/tr', '/en', '/tr/gizlilik', '/en/privacy', ...TERMS_PAGES, '/tr/destek', '/en/support', ...WHY_PAGES]
-/** The sources of the "why we built it" page: the only other sites the website links to (never loads from). */
+/** The sources of the "why we built it" page: external citations the website links to. */
 const SOURCE_URLS = new Set(WHY_SOURCES.map(source => source.url))
 /** An attribute value as written in the HTML, unescaped. */
 const unescape = (value: string) => value.replace(/&amp;/g, '&')
@@ -45,6 +45,18 @@ function filesUnder(directory: string): string[] {
 
 /** The public repository, linked (never loaded) from the support page's licences. */
 const SOURCE_CODE_URL = 'https://github.com/syconx-software/us2us'
+
+// Only explicit navigation to known destinations is allowed. The same URL in a script,
+// image, CSS declaration, prefetch or inline handler must still fail the resource checks.
+function withoutPublicNavigation(page: string, isWhy: boolean): string {
+  const destinations = new Set([APP_STORE_URL, GOOGLE_PLAY_URL, SOURCE_CODE_URL,
+    ...site.tr.footer.products.items.map(item => item.href),
+    ...site.en.footer.products.items.map(item => item.href),
+    ...(isWhy ? SOURCE_URLS : []),
+  ])
+  return page.replace(/<a\b[^>]*>/g, tag => tag.replace(/\shref="([^"]+)"/, (attribute, href: string) =>
+    destinations.has(unescape(href)) && /\brel="[^"]*\bnoreferrer\b[^"]*"/.test(tag) ? '' : attribute))
+}
 
 describe('website', () => {
   it('redirects / by Accept-Language', async () => {
@@ -108,9 +120,9 @@ describe('website', () => {
     expect(tr).toContain('Alıcı 14 gün içinde uygulamayı açmadı; mesaj ona hiç ulaşmadı.')
     expect(en).toContain('They didn’t open the app within 14 days, so it never reached them.')
     for (const window of ['1 saat', '24 saat', '7 gün']) expect(tr).toContain(window)
-    // The apps are not out yet.
-    expect(tr).toContain('Yakında iOS ve Android’de.')
-    expect(en).toContain('Coming soon to iOS and Android.')
+    // The closing invitation matches the public release.
+    expect(tr).toContain('Kullanıcı adını al, gizli kodunu belirle, hattı kur.')
+    expect(en).toContain('Pick a username, set your secret code, open the line.')
   })
 
   it('states what the relay can see and the known limits as PROTOCOL.md §9 does', async () => {
@@ -150,29 +162,25 @@ describe('website', () => {
     expect(en).toContain('your theme choice is kept only in your browser (localStorage)')
   })
 
-  it('shows the store buttons as "coming soon", not as links', async () => {
-    for (const [path, soon] of [['/tr', 'Yakında'], ['/en', 'Coming soon']] as const) {
-      const page = await html(path)
-      const stores = [...page.matchAll(/<a class="btn btn-(?:primary|secondary) store"([^>]*)>([\s\S]*?)<\/a>/g)]
-      expect(stores, path).toHaveLength(4) // hero and call to action
-      for (const [, attributes, content] of stores) {
-        expect(attributes).toContain('aria-disabled="true"')
-        expect(attributes).not.toContain('href')
-        expect(textOf(content!)).toContain(soon)
+  it('links directly to both Messenger store listings in each home page download section', async () => {
+    expect(APP_STORE_URL).toBe('https://apps.apple.com/app/us2us/id6820878567')
+    expect(GOOGLE_PLAY_URL).toBe('https://play.google.com/store/apps/details?id=com.syconx.us2us')
+    for (const locale of ['tr', 'en'] as const) {
+      const page = await html(`/${locale}`)
+      const lists = [...page.matchAll(/<ul class="stores"[^>]*>([\s\S]*?)<\/ul>/g)]
+      expect(lists).toHaveLength(2)
+      for (const [, list] of lists) {
+        for (const [url, label] of [[APP_STORE_URL, 'App Store'], [GOOGLE_PLAY_URL, 'Google Play']]) {
+          const tag = [...list!.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].find(([, , labelHtml]) => textOf(labelHtml!).trim() === label)
+          expect(tag?.[1]).toContain(`href="${url}"`)
+          expect(tag?.[1]).toContain('rel="noopener noreferrer"')
+          expect(tag?.[1]).not.toContain('aria-disabled')
+        }
       }
-      expect(page).not.toMatch(/apps\.apple\.com|play\.google\.com/)
-    }
-    // Under both sets of buttons: where the app is today, a closed beta on iOS.
-    for (const [path, beta] of [
-      ['/tr', 'Şu an iOS’ta kapalı betada (TestFlight, davetle). App Store ve Android sürümü yakında.'],
-      ['/en', 'Now in closed beta on iOS (TestFlight, by invitation). App Store and Android versions coming soon.'],
-    ] as const) {
-      const page = await html(path)
-      const notes = [...page.matchAll(/<p class="stores-note">([\s\S]*?)<\/p>/g)]
-      expect(notes, path).toHaveLength(2)
-      for (const [, content] of notes) expect(textOf(content!).trim(), path).toBe(beta)
-      // A closed beta has no public link.
-      expect(page, path).not.toMatch(/testflight\.apple\.com/)
+      expect(page).toContain(site[locale].home.stores.availability)
+      expect(page).not.toContain('testflight.apple.com')
+      const footer = page.split('<footer')[1]!
+      for (const product of site[locale].footer.products.items) expect(footer).toContain(`href="${product.href}"`)
     }
   })
 
@@ -414,8 +422,9 @@ describe('website', () => {
       }
       // A word joiner opens every mark, so no line starts with one.
       expect(page.match(/<sup class="cite">/g)!.length, path).toBe(page.match(/<sup class="cite">⁠<a /g)?.length)
-      // Every link to another site is one of the sources, and none opens a new window.
-      const outbound = [...page.matchAll(/<a\b[^>]*\shref="(https?:[^"]+)"[^>]*>/g)].filter(([, url]) => !unescape(url!).startsWith('https://us2us.app/'))
+      // The reference list contains each cited destination, separately from store and product links.
+      const sourcesList = page.split('<ol class="sources">')[1]!.split('</ol>')[0]!
+      const outbound = [...sourcesList.matchAll(/<a\b[^>]*\shref="(https?:[^"]+)"[^>]*>/g)].filter(([, url]) => !unescape(url!).startsWith('https://us2us.app/'))
       expect(outbound.length, path).toBe(WHY_SOURCES.filter(source => !source.url.startsWith('https://us2us.app/')).length)
       for (const [tag, url] of outbound) {
         expect(SOURCE_URLS.has(unescape(url!)), `${path}: ${url}`).toBe(true)
@@ -478,13 +487,9 @@ describe('website', () => {
         expect(body, path).toBe('')
       }
       expect(page.indexOf('/js/theme.js'), 'theme script before the stylesheet').toBeLessThan(page.indexOf('/css/site.css'))
-      const urls = [...page.matchAll(/(?:src|href)="([^"]+)"/g)].map(match => unescape(match[1]!))
+      const urls = [...withoutPublicNavigation(page, WHY_PAGES.includes(path)).matchAll(/(?:src|href)="([^"]+)"/g)].map(match => unescape(match[1]!))
       for (const url of urls) {
         if (url.startsWith('mailto:') || url.startsWith('#')) continue
-        // The "why" page links to its sources (links only, checked in its own test).
-        if (WHY_PAGES.includes(path) && SOURCE_URLS.has(url)) continue
-        // The support page links to the public source code (a link only, nothing is loaded from it).
-        if (url === SOURCE_CODE_URL) continue
         if (/^https?:/.test(url)) expect(url, path).toMatch(/^https:\/\/us2us\.app\//)
         else expect(url, path).toMatch(/^\//)
       }
@@ -587,9 +592,9 @@ describe('website', () => {
       const content = readFileSync(file, 'utf8')
       expect(content, file).not.toMatch(/fonts\.googleapis|fonts\.gstatic|unpkg\.com|jsdelivr|cdnjs|googletagmanager|google-analytics/)
       if (file.includes(`${join('js', 'vendor')}`)) continue
-      // The "why" page's sources are links to other sites (only there, and only as links: see its test).
-      const sources = WHY_PAGES.some(path => file === join(PUBLIC_DIR, path, 'index.html')) ? SOURCE_URLS : new Set<string>()
-      const external = [...content.matchAll(/https?:\/\/[^\s"'`)<>]+/g)].map(match => unescape(match[0])).filter(url => !allowed.test(url) && !sources.has(url) && url !== SOURCE_CODE_URL)
+      const isWhy = WHY_PAGES.some(path => file === join(PUBLIC_DIR, path, 'index.html'))
+      const resourceContent = file.endsWith('.html') ? withoutPublicNavigation(content, isWhy) : content
+      const external = [...resourceContent.matchAll(/https?:\/\/[^\s"'`)<>]+/g)].map(match => unescape(match[0])).filter(url => !allowed.test(url))
       expect(external, relative(PUBLIC_DIR, file)).toEqual([])
     }
     // three.js is the unmodified file of the pinned dependency; its only URLs are an XML

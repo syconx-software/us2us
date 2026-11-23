@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { site, SUPPORT_EMAIL, type Locale } from '~/content/site'
+import { APP_STORE_URL, GOOGLE_PLAY_URL, site, SUPPORT_EMAIL, type Locale } from '~/content/site'
 import { citeId, sourceId, why, WHY_PUBLISHED, WHY_SECTION, WHY_SOURCES, whyDate, whyDocument, whyHref } from '~/content/why'
 
 // "Neden yaptık / Why we built it": the SyconX team's statement, laid out as
@@ -12,7 +12,7 @@ import { citeId, sourceId, why, WHY_PUBLISHED, WHY_SECTION, WHY_SOURCES, whyDate
 const props = defineProps<{ locale: Locale }>()
 const text = computed(() => why[props.locale])
 const doc = computed(() => whyDocument(props.locale))
-const beta = computed(() => site[props.locale].home.stores.beta)
+const availability = computed(() => site[props.locale].home.stores.availability)
 const published = computed(() => whyDate(WHY_PUBLISHED, props.locale))
 const sources = computed(() => WHY_SOURCES.map((source, index) => ({
   ...source,
@@ -47,9 +47,11 @@ const sources = computed(() => WHY_SOURCES.map((source, index) => ({
           <h2 id="why-cta-title" class="h2 h2-prose"><SiteDots :text="text.cta.title" /></h2>
           <p class="lead"><WhyParts :parts="doc.cta" :mark="text.sources.mark" /></p>
           <p class="why-cta-links">
-            <a v-for="(link, index) in text.cta.links" :key="link.label" :class="['btn', index === 0 ? 'btn-primary' : 'btn-secondary']" :href="whyHref(locale, link)">{{ link.label }}</a>
+            <a class="btn btn-primary" :href="APP_STORE_URL" rel="noopener noreferrer">App Store</a>
+            <a class="btn btn-secondary" :href="GOOGLE_PLAY_URL" rel="noopener noreferrer">Google Play</a>
+            <a v-for="link in text.cta.links" :key="link.label" class="btn btn-secondary" :href="whyHref(locale, link)">{{ link.label }}</a>
           </p>
-          <p class="stores-note"><span class="beta-dot" aria-hidden="true" />{{ beta }}</p>
+          <p class="stores-note"><span class="beta-dot" aria-hidden="true" />{{ availability }}</p>
         </section>
 
         <section :id="WHY_SECTION.about" class="card elev-sm about-card" :aria-labelledby="`${WHY_SECTION.about}-title`">

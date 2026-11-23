@@ -454,7 +454,7 @@ export const why: Record<Locale, WhyText> = {
         id: WHY_SECTION.invitation,
         title: 'Yeniden beklemek',
         paragraphs: [
-          'us2us bugün iOS’ta, TestFlight üzerinden davetle açılan kapalı bir betada; App Store ve Android sürümleri yakında. Betaya davet edildiyseniz deneyin; takıldığınız ya da içinize sinmeyen her yeri bize yazın. Kodu github.com/syconx-software/us2us adresinde okuyun; yanlış yaptığımız bir şey görürseniz söyleyin. Bu uygulama eleştiriyle büyüyecek.',
+          'us2us’u App Store veya Google Play’den indirip deneyebilirsiniz. Takıldığınız ya da içinize sinmeyen her yeri bize yazın. Kodu github.com/syconx-software/us2us adresinde okuyun; yanlış yaptığımız bir şey görürseniz söyleyin. Bu uygulama eleştiriyle büyüyecek.',
           'Bir de şunu deneyin: bir mesaj gönderin ve bekleyin. Telefonunuz sessizken, karşınızdakinin cevap vereceği anı kendisinin seçtiğini bilin. Uygulamayı açtığında mesajınız orada olacak; yalnızca onun için, yalnızca onun ekranında.',
           'Çocukken bardağa fısıldadığımız sözler gibi: ip gerilir, ses yol alır ve öbür uçta yalnızca bir kişi duyar. us2us’ı o ipi yeniden germek için yaptık.',
         ],
@@ -471,7 +471,7 @@ export const why: Record<Locale, WhyText> = {
       title: 'SyconX hakkında',
       paragraphs: [
         'SyconX, us2us’ı geliştiren yazılım ekibidir. us2us, iki kişi arasındaki konuşmalar için uçtan uca şifreli bir mesajlaşma uygulamasıdır: telefon numarası istemez, push bildirimi göndermez, konuşmaları yalnızca iki telefonda tutar. Ücretsizdir; reklam, izleyici ya da analiz aracı içermez. Kodu AGPL-3.0 lisanslıdır ve github.com/syconx-software/us2us adresinde herkese açıktır.',
-        'us2us şu an iOS’ta TestFlight üzerinden kapalı betada; App Store ve Android sürümleri yakında. Basın soruları ve görüşme talepleri için aşağıdaki adrese yazabilirsiniz.',
+        'us2us, App Store ve Google Play’de yayında. Basın soruları ve görüşme talepleri için aşağıdaki adrese yazabilirsiniz.',
       ],
       pressLabel: 'Basın iletişimi',
     },
@@ -579,7 +579,7 @@ export const why: Record<Locale, WhyText> = {
         id: WHY_SECTION.invitation,
         title: 'Learning to wait again',
         paragraphs: [
-          'Today us2us is in closed beta on iOS, through TestFlight, by invitation; the App Store and Android versions are coming soon. If you have an invitation, try it, and tell us wherever you got stuck or something felt wrong. Read the code at github.com/syconx-software/us2us, and if you find a mistake, say so. Criticism is how this app will grow.',
+          'Download us2us from the App Store or Google Play and tell us if you get stuck or something feels wrong. Read the code at github.com/syconx-software/us2us, and if you find a mistake, say so. Criticism is how this app will grow.',
           'And try this, too: send a message, then wait. While your phone stays quiet, the other person is choosing their own moment to answer. When they open the app, your message will be there, for them alone.',
           'Like the words we whispered into a cup as children: the string pulls tight, the voice travels, and at the other end only one person hears. We built us2us to pull that string tight again.',
         ],
@@ -596,7 +596,7 @@ export const why: Record<Locale, WhyText> = {
       title: 'About SyconX',
       paragraphs: [
         'SyconX is the software team behind us2us. us2us is an end-to-end encrypted messenger for conversations between two people: it asks for no phone number, sends no push notifications and keeps conversations on the two phones only. It is free, with no ads, trackers or analytics. Its code is licensed under the AGPL-3.0 and is public at github.com/syconx-software/us2us.',
-        'us2us is in closed beta on iOS through TestFlight; the App Store and Android versions are coming soon. For press questions and interview requests, please write to the address below.',
+        'us2us is available on the App Store and Google Play. For press questions and interview requests, please write to the address below.',
       ],
       pressLabel: 'Press contact',
     },

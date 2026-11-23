@@ -10,7 +10,7 @@ import { LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from '~/co
 // (true by construction: server/lib/website.ts allows only this origin).
 // Above the row, "other products" links to our other apps' sites
 // (site.footer.products); not-found.ts repeats this markup. The invite page
-// leaves it out: it links only to this site (test/unit/invite.test.ts).
+// leaves it out: its external links go to the two app stores.
 const props = defineProps<{ locale: Locale }>()
 const text = computed(() => site[props.locale].footer)
 const links = computed(() => paths[props.locale])

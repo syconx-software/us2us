@@ -19,7 +19,7 @@
 
 import { FONTS, ICON_LINKS_HTML, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
 import { ICONS, type IconName } from './icons'
-import { LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from './site'
+import { APP_STORE_URL, GOOGLE_PLAY_URL, LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from './site'
 
 /** The path prefix of invite links; the app's links are `https://us2us.app/u/<username>`. */
 export const INVITE_PREFIX = '/u/'
@@ -159,10 +159,10 @@ ${ICON_LINKS_HTML}
 </div>
 <p class="hero-lead">${text.intro}</p>
 <ul class="stores" aria-label="${common.home.stores.label}">
-<li><a class="btn btn-primary store" role="link" aria-disabled="true">${icon('apple-logo-fill', 'store-icon')}App Store<span class="visually-hidden">, </span><span class="tag tag-accent store-soon">${common.home.stores.comingSoon}</span></a></li>
-<li><a class="btn btn-secondary store" role="link" aria-disabled="true">${icon('google-play-logo-fill', 'store-icon store-icon-play')}Google Play<span class="visually-hidden">, </span><span class="tag tag-neutral store-soon">${common.home.stores.comingSoon}</span></a></li>
+<li><a class="btn btn-primary store" href="${APP_STORE_URL}" rel="noopener noreferrer">${icon('apple-logo-fill', 'store-icon')}App Store</a></li>
+<li><a class="btn btn-secondary store" href="${GOOGLE_PLAY_URL}" rel="noopener noreferrer">${icon('google-play-logo-fill', 'store-icon store-icon-play')}Google Play</a></li>
 </ul>
-<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>${common.home.stores.beta}</p>
+<p class="stores-note"><span class="beta-dot" aria-hidden="true"></span>${common.home.stores.availability}</p>
 <ul class="facts">
 ${common.home.hero.facts.map(fact => `<li>${icon(fact.icon)}${fact.text}</li>`).join('\n')}
 </ul>
