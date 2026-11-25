@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { paths, site, type Locale, type PageId } from '~/content/site'
+import { ACCOUNT_URL, paths, site, type Locale, type PageId } from '~/content/site'
 
 // The fixed header of every page: mark, section links (wide screens) and
 // the "why we built it" page (at every width but the narrowest; on phones
@@ -7,7 +7,9 @@ import { paths, site, type Locale, type PageId } from '~/content/site'
 // TR/EN switch (real links between the two language versions; site.js
 // keeps the reader's section) and the theme toggle, wired by /js/theme.js
 // and shown only with JS. Motion follows the visitor's reduced-motion
-// setting.
+// setting. The sign-in link leads to the account panel of our other apps;
+// on the narrowest phones it takes the place of the "why" link, which is
+// the footer's first.
 const props = defineProps<{ locale: Locale, page: PageId | 'error' }>()
 const text = computed(() => site[props.locale].nav)
 const home = computed(() => paths[props.locale].home)
@@ -29,6 +31,7 @@ const languages = computed(() => (['tr', 'en'] as const).map(code => ({
         <a class="nav-page" :href="whyPage" :aria-current="page === 'why' ? 'page' : undefined"><span class="nav-page-full">{{ text.why }}</span><span class="nav-page-short" aria-hidden="true">{{ text.whyShort }}</span></a>
       </nav>
       <div class="header-controls">
+        <a class="sign-in" :href="ACCOUNT_URL[locale]" rel="noreferrer">{{ text.signIn }}</a>
         <nav class="seg lang-switch" :aria-label="`${text.languageLabel} / ${locale === 'tr' ? 'Language' : 'Dil'}`">
           <a
             v-for="language in languages"

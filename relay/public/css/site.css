@@ -374,11 +374,11 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
    width from 360px: on phones under its short label ("Neden?", the full one
    stays for screen readers), with the header's gaps narrowed so it fits
    between the mark and the controls. The landing page's sections join it,
-   to its left, where all five fit beside the controls (the English labels
-   need about 990px; the design's four fitted from 860px). Under 360px it
-   is only the footer's first link. */
+   to its left, where all five fit beside the controls and the sign-in link
+   (the English labels need about 1080px). Under 480px the sign-in link has
+   its place and it is only the footer's first link. */
 .section-links a:not(.nav-page), .nav-page-short { display: none; }
-@media (min-width: 1000px) { .section-links a:not(.nav-page) { display: inline; } }
+@media (min-width: 1100px) { .section-links a:not(.nav-page) { display: inline; } }
 @media (max-width: 599px) {
   .site-nav { gap: 16px; }
   .nav-page-full {
@@ -387,11 +387,27 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
   }
   .nav-page-short { display: inline; }
 }
-@media (max-width: 359px) { .section-links { display: none; } }
+@media (max-width: 479px) { .section-links { display: none; } }
 
 .header-controls { display: flex; align-items: center; gap: 10px; }
+.sign-in { position: relative; margin-right: 6px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em; color: var(--color-text); white-space: nowrap; }
+.sign-in:hover { color: var(--color-accent-300); }
+.sign-in::after { content: ''; position: absolute; inset: -12px -6px; }
 .lang-switch .seg-opt { padding: 5px 10px; }
 .theme-toggle { width: 32px; height: 32px; font-size: 17px; }
+/* The narrowest phones: closer together, and under 350px the mark stands without its word. */
+@media (max-width: 399px) {
+  .site-nav { gap: 10px; }
+  .header-controls { gap: 8px; }
+  .sign-in { margin-right: 0; }
+  .lang-switch .seg-opt { padding: 5px 8px; }
+}
+@media (max-width: 349px) {
+  .site-header .wordmark {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
 .theme-moon, :root[data-theme="light"] .theme-sun { display: none; }
 :root[data-theme="light"] .theme-moon { display: inline-block; }
 /* Without JavaScript there is nothing to toggle (theme.js wires it). */
@@ -715,6 +731,7 @@ a.seg-opt:focus-visible { outline-color: var(--color-text); outline-offset: -3px
    link to that app's own site, in the surface colour of the page's cards. */
 .footer-products { display: flex; flex-direction: column; gap: 16px; padding: 8px 0 36px; }
 .footer-products-title { margin: 0; font-weight: 400; }
+.footer-premium { margin: 0; color: var(--fg-74); font-size: 14px; max-width: 72ch; }
 .footer-product-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (min-width: 1000px) { .footer-product-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 599px) { .footer-product-list { grid-template-columns: 1fr; } }

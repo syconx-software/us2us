@@ -24,6 +24,12 @@ export const paths: Record<Locale, Record<PageId, string>> = {
 export const SITE_ORIGIN = 'https://us2us.app'
 export const APP_STORE_URL = 'https://apps.apple.com/app/us2us/id6820878567'
 export const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.syconx.us2us'
+/**
+ * The us2us account panel (our other apps' accounts: the membership and the downloads) and us2us Premium, one plan for
+ * Remote, Mail and Drive. us2us itself has accounts of its own and is free.
+ */
+export const ACCOUNT_URL: Record<Locale, string> = { tr: 'https://account.us2us.app/tr/giris', en: 'https://account.us2us.app/en/sign-in' }
+export const PREMIUM_URL: Record<Locale, string> = { tr: 'https://premium.us2us.app/tr/', en: 'https://premium.us2us.app/en/' }
 export const SUPPORT_EMAIL = 'support@us2us.app'
 /** Where security problems go (the support page's beta notes, the FAQ and the privacy policy). */
 export const SECURITY_EMAIL = 'security@us2us.app'
@@ -84,6 +90,9 @@ interface Card {
 /** The footer's "other products" cards: our other apps, each a link to its own site. */
 interface FooterProducts {
   title: string
+  /** Under the cards: what one us2us Premium opens, in the words of every us2us site, and the link to it. */
+  premium: string
+  premiumLink: string
   items: Array<{ name: string, text: string, href: string, host: string }>
 }
 
@@ -111,6 +120,8 @@ export interface SiteText {
     why: string
     /** `why` as the header shows it on phones, where the full label does not fit beside the controls (screen readers still read `why`). */
     whyShort: string
+    /** Leads to ACCOUNT_URL: at the end of the header (not on the narrowest phones) and in the footer. */
+    signIn: string
   }
   footer: { label: string, privacy: string, terms: string, security: string, press: string, contact: string, licence: string, noTracking: string, products: FooterProducts }
   home: {
@@ -217,6 +228,7 @@ export const site: Record<Locale, SiteText> = {
       ],
       why: 'Neden yaptık',
       whyShort: 'Neden?',
+      signIn: 'Giriş yap',
     },
     footer: {
       label: 'Site bağlantıları',
@@ -229,6 +241,8 @@ export const site: Record<Locale, SiteText> = {
       noTracking: 'Bu site çerez ve izleyici kullanmaz, başka bir siteden hiçbir şey yüklemez.',
       products: {
         title: 'Diğer ürünlerimiz',
+        premium: 'us2us Messenger herkes için ücretsizdir. Premium’a geçtiğinizde bütün bu ürünlerde Premium olursunuz: us2us Remote, us2us Mail ve us2us Drive (yakında).',
+        premiumLink: 'us2us Premium',
         items: [
           { name: 'us2us Mail', text: 'Bildirim göndermeyen, kendi zamanında açtığın e-posta.', href: 'https://us2usmail.com/tr/', host: 'us2usmail.com' },
           { name: 'us2us Drive', text: 'Dosyalarını ve fotoğraflarını şifreli sakla, cihazların arasında eşitle.', href: 'https://us2usdrive.com/tr/', host: 'us2usdrive.com' },
@@ -547,6 +561,7 @@ export const site: Record<Locale, SiteText> = {
       ],
       why: 'Why we built it',
       whyShort: 'Why?',
+      signIn: 'Sign in',
     },
     footer: {
       label: 'Site links',
@@ -559,6 +574,8 @@ export const site: Record<Locale, SiteText> = {
       noTracking: 'This site uses no cookies or trackers and loads nothing from other sites.',
       products: {
         title: 'Our other products',
+        premium: 'us2us Messenger is free for everybody. When you go Premium, you are on Premium in all of these: us2us Remote, us2us Mail and us2us Drive (coming soon).',
+        premiumLink: 'us2us Premium',
         items: [
           { name: 'us2us Mail', text: 'Read and write email on your own time, without notifications.', href: 'https://us2usmail.com/en/', host: 'us2usmail.com' },
           { name: 'us2us Drive', text: 'Store encrypted files and photos and sync them between your devices.', href: 'https://us2usdrive.com/en/', host: 'us2usdrive.com' },

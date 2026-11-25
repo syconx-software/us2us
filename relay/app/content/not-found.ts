@@ -8,7 +8,7 @@
 
 import { ICON_LINKS_HTML, SITE_SCRIPT, STYLESHEET, THEME_COLOR, THEME_SCRIPT, withVersion } from './assets'
 import { ICONS, type IconName } from './icons'
-import { LICENCES_ANCHOR, notFoundText, paths, SECURITY_ANCHOR, site } from './site'
+import { ACCOUNT_URL, LICENCES_ANCHOR, notFoundText, paths, PREMIUM_URL, SECURITY_ANCHOR, site } from './site'
 
 const icon = (name: IconName, className: string) =>
   `<svg class="icon ${className}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false">${ICONS[name].map(d => `<path d="${d}"/>`).join('')}</svg>`
@@ -40,6 +40,7 @@ ${ICON_LINKS_HTML}
 <header class="site-header"><div class="site-nav">
 <a class="brand" href="${paths.en.home}" aria-label="${en.nav.home}">${mark()}<span class="wordmark">us2us</span></a>
 <div class="header-controls">
+<a class="sign-in" href="${ACCOUNT_URL.en}" rel="noreferrer">${en.nav.signIn}</a>
 <nav class="seg lang-switch" aria-label="Dil / Language"><a class="seg-opt" href="${paths.tr.home}" hreflang="tr" lang="tr">TR<span class="visually-hidden"> ${site.tr.languageName}</span></a><a class="seg-opt" href="${paths.en.home}" hreflang="en" lang="en">EN<span class="visually-hidden"> ${en.languageName}</span></a></nav>
 <button type="button" class="btn btn-secondary btn-icon theme-toggle" aria-label="${en.nav.themeLabel}" aria-pressed="false" data-theme-toggle>${icon('sun', 'theme-sun')}${icon('moon', 'theme-moon')}</button>
 </div>
@@ -59,11 +60,13 @@ ${ICON_LINKS_HTML}
 <ul class="footer-product-list">
 ${en.footer.products.items.map(item => `<li><a class="card elev-sm footer-product" href="${item.href}" rel="noreferrer"><span class="card-title">${item.name} <span class="footer-product-arrow" aria-hidden="true">↗</span></span><span class="card-body">${item.text}</span><span class="footer-product-host">${item.host}</span></a></li>`).join('\n')}
 </ul>
+<p class="footer-premium">${en.footer.products.premium} <a href="${PREMIUM_URL.en}" rel="noreferrer">${en.footer.products.premiumLink}</a></p>
 </section>
 <div class="hr"></div>
 <nav class="footer-row" aria-label="${en.footer.label}">
 <p class="footer-brand">${mark(true)}<span class="wordmark wordmark-sm">us2us</span> <span class="footer-note">© 2026</span></p>
 <a class="footer-link" href="${paths.en.why}">${en.nav.why}</a>
+<a class="footer-link" href="${ACCOUNT_URL.en}" rel="noreferrer">${en.nav.signIn}</a>
 <a class="footer-link" href="${paths.en.privacy}">${en.footer.privacy}</a>
 <a class="footer-link" href="${paths.en.terms}">${en.footer.terms}</a>
 <a class="footer-link" href="${paths.en.privacy}#${SECURITY_ANCHOR.en}">${en.footer.security}</a>

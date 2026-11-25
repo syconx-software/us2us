@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LICENCES_ANCHOR, paths, SECURITY_ANCHOR, site, type Locale } from '~/content/site'
+import { ACCOUNT_URL, LICENCES_ANCHOR, paths, PREMIUM_URL, SECURITY_ANCHOR, site, type Locale } from '~/content/site'
 
 // As in the design, the links are items of the footer row itself (so on a
 // phone the first one shares the brand's line); the row is the landmark.
@@ -30,6 +30,7 @@ const links = computed(() => paths[props.locale])
             </a>
           </li>
         </ul>
+        <p class="footer-premium">{{ text.products.premium }}{{ ' ' }}<a :href="PREMIUM_URL[locale]" rel="noreferrer">{{ text.products.premiumLink }}</a></p>
       </section>
       <div class="hr" />
       <nav class="footer-row" :aria-label="text.label">
@@ -37,6 +38,7 @@ const links = computed(() => paths[props.locale])
           <SiteMark small /><span class="wordmark wordmark-sm">us2us</span>{{ ' ' }}<span class="footer-note">© 2026</span>
         </p>
         <a class="footer-link" :href="links.why">{{ site[locale].nav.why }}</a>
+        <a class="footer-link" :href="ACCOUNT_URL[locale]" rel="noreferrer">{{ site[locale].nav.signIn }}</a>
         <a class="footer-link" :href="links.privacy">{{ text.privacy }}</a>
         <a class="footer-link" :href="links.terms">{{ text.terms }}</a>
         <a class="footer-link" :href="`${links.privacy}#${SECURITY_ANCHOR[locale]}`">{{ text.security }}</a>

@@ -4,7 +4,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ICON_LINKS } from '../../app/content/assets'
-import { APP_STORE_URL, GOOGLE_PLAY_URL, site } from '../../app/content/site'
+import { ACCOUNT_URL, APP_STORE_URL, GOOGLE_PLAY_URL, PREMIUM_URL, site } from '../../app/content/site'
 import { terms, TERMS_SECTION } from '../../app/content/terms'
 import { why, WHY_SECTION, WHY_SOURCES } from '../../app/content/why'
 import { startRelay, type RelayProcess } from '../support/relay'
@@ -52,6 +52,7 @@ function withoutPublicNavigation(page: string, isWhy: boolean): string {
   const destinations = new Set([APP_STORE_URL, GOOGLE_PLAY_URL, SOURCE_CODE_URL,
     ...site.tr.footer.products.items.map(item => item.href),
     ...site.en.footer.products.items.map(item => item.href),
+    ...Object.values(ACCOUNT_URL), ...Object.values(PREMIUM_URL),
     ...(isWhy ? SOURCE_URLS : []),
   ])
   return page.replace(/<a\b[^>]*>/g, tag => tag.replace(/\shref="([^"]+)"/, (attribute, href: string) =>
@@ -181,6 +182,11 @@ describe('website', () => {
       expect(page).not.toContain('testflight.apple.com')
       const footer = page.split('<footer')[1]!
       for (const product of site[locale].footer.products.items) expect(footer).toContain(`href="${product.href}"`)
+      // Signing in leads to the account panel of our other apps, and the footer says what one Premium opens.
+      expect(page.split('</header>')[0]).toContain(`href="${ACCOUNT_URL[locale]}"`)
+      expect(footer).toContain(`href="${ACCOUNT_URL[locale]}"`)
+      expect(footer).toContain(`href="${PREMIUM_URL[locale]}"`)
+      for (const product of ['us2us Remote', 'us2us Mail', 'us2us Drive']) expect(/<p class="footer-premium">([^<]*)</.exec(footer)?.[1]).toContain(product)
     }
   })
 
